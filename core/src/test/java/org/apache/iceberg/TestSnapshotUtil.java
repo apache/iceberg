@@ -37,19 +37,52 @@ public class TestSnapshotUtil extends TableTestBase {
   }
 
   @Test
-  public void testSnapshotUtil() {
+  public void testEmptyTableOldestSnapshot() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
     Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
-    Assert.assertNull("Table snapshot is should be null", oldestSnapshot);
+    Assert.assertNull("The oldest snapshot should be null", oldestSnapshot);
+  }
 
+  @Test
+  public void testNoExpiredActionTableOldestSnapshot() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
-    table.newAppend()
+    Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
+    Assert.assertEquals("Table oldest snapshot should be first snapshot",
+        firstSnapshot.snapshotId(), oldestSnapshot.snapshotId());
+
+    table.newFastAppend()
         .appendFile(FILE_B)
         .commit();
+
+    Assert.assertEquals("Table oldest snapshot should be first snapshot",
+        firstSnapshot.snapshotId(), oldestSnapshot.snapshotId());
+  }
+
+  @Test
+  public void testSingleExpireActionTableOldestSnapshot() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    table.expireSnapshots().expireOlderThan(System.currentTimeMillis()).retainLast(1).commit();
+    table.refresh();
+    Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
+
+    Assert.assertEquals("Table oldest snapshot should be first snapshot",
+        firstSnapshot.snapshotId(), oldestSnapshot.snapshotId());
+  }
+
+  @Test
+  public void testMultipleExpiredTableOldestSnapshot() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
 
     table.newFastAppend()
         .appendFile(FILE_B)
@@ -61,16 +94,10 @@ public class TestSnapshotUtil extends TableTestBase {
         .commit();
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
-    Assert.assertEquals("Table oldest snapshot should be first snapshot",
-        firstSnapshot.snapshotId(), oldestSnapshot.snapshotId());
-
     table.expireSnapshots().expireOlderThan(System.currentTimeMillis()).retainLast(2).commit();
     table.refresh();
-    oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
+    Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
 
-    Assert.assertEquals("Table current snapshot should be third snapshot",
-        thirdSnapshot.snapshotId(), table.currentSnapshot().snapshotId());
     Assert.assertEquals("Table oldest snapshot should be second snapshot",
         secondSnapshot.snapshotId(), oldestSnapshot.snapshotId());
   }
