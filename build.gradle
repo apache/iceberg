@@ -557,7 +557,7 @@ project(':iceberg-nessie') {
 }
 
 @Memoized
-boolean isVersionFileExists() {
+boolean versionFileExists() {
   return file('version.txt').exists()
 }
 
@@ -567,19 +567,24 @@ String getVersionFromFile() {
 }
 
 String getProjectVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
   try {
-    return gitVersion()
+    // the tag is annotated with 'apache-iceberg-', so we fetch the version from there
+    def version = gitVersion(prefix: 'apache-iceberg-')
+    if (project.hasProperty('versionSuffix')) {
+      return version + project.getProperties().get("versionSuffix")
+    }
+    return version
   } catch (NullPointerException e) {
     throw new Exception("Neither version.txt nor git version exists")
   }
 }
 
 String getJavadocVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
