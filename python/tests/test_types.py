@@ -29,15 +29,19 @@ def test_repr_primitive_types(input_type):
 
 
 def test_fixed_type():
-    type_var = FixedType(5)
+    type_var = FixedType(length=5)
     assert type_var.length == 5
+    assert str(type_var) == "fixed[5]"
+    assert repr(type_var) == "FixedType(length=5)"
     assert str(type_var) == str(eval(repr(type_var)))
 
 
 def test_decimal_type():
-    type_var = DecimalType(9, 2)
+    type_var = DecimalType(precision=9, scale=2)
     assert type_var.precision == 9
     assert type_var.scale == 2
+    assert str(type_var) == 'decimal(9, 2)'
+    assert repr(type_var) == "DecimalType(precision=9, scale=2)"
     assert str(type_var) == str(eval(repr(type_var)))
 
 
