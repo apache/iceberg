@@ -165,9 +165,18 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
-    StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
-        new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false) :
-        startOffset;
+    StreamingOffset batchStartOffset;
+
+    if (StreamingOffset.START_OFFSET.equals(startOffset)) {
+        Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
+        if (oldestSnapshot == null) {
+            return fileScanTasks;
+        } else {
+            batchStartOffset = new StreamingOffset(oldestSnapshot.snapshotId(), 0, false)
+        }
+    } else {
+        batchStartOffset = startOffset;
+    }
 
     StreamingOffset currentOffset = null;
 
