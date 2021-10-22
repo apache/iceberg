@@ -74,12 +74,12 @@ public class SnapshotUtil {
     Snapshot current = table.currentSnapshot();
     Snapshot parent;
     while (current != null && current.parentId() != null) {
-        parent = table.snapshot(current.parentId());
-        if (parent != null) {
-            current = parent;
-        } else {
-            return current;
-        }
+      parent = table.snapshot(current.parentId());
+      if (parent != null) {
+        current = parent;
+      } else {
+        return current;
+      }
     }
     return current;
   }

@@ -168,14 +168,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     StreamingOffset batchStartOffset;
 
     if (StreamingOffset.START_OFFSET.equals(startOffset)) {
-        Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
-        if (oldestSnapshot == null) {
-            return fileScanTasks;
-        } else {
-            batchStartOffset = new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
-        }
+      Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
+      if (oldestSnapshot == null) {
+        return fileScanTasks;
+      } else {
+        batchStartOffset = new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
+      }
     } else {
-        batchStartOffset = startOffset;
+      batchStartOffset = startOffset;
     }
 
     StreamingOffset currentOffset = null;
