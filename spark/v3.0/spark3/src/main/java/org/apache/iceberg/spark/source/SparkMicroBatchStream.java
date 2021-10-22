@@ -172,7 +172,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         if (oldestSnapshot == null) {
             return fileScanTasks;
         } else {
-            batchStartOffset = new StreamingOffset(oldestSnapshot.snapshotId(), 0, false)
+            batchStartOffset = new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
         }
     } else {
         batchStartOffset = startOffset;
