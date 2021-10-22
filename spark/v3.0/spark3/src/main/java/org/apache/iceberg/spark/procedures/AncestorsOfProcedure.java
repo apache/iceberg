@@ -81,7 +81,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
 
     List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(icebergTable, 0L, toSnapshotId);
 
-    return toOutPutRow(icebergTable, snapshotIds);
+    return toOutputRow(icebergTable, snapshotIds);
   }
 
   @Override
@@ -89,15 +89,16 @@ public class AncestorsOfProcedure extends BaseProcedure {
     return "AncestorsOf";
   }
 
-  private InternalRow[] toOutPutRow(Table table, List<Long> snapshotIds) {
+  private InternalRow[] toOutputRow(Table table, List<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
       return new InternalRow[0];
     }
 
     InternalRow[] internalRows = new InternalRow[snapshotIds.size()];
     for (int i = 0; i < snapshotIds.size(); i++) {
-      internalRows[i] = newInternalRow(snapshotIds.get(i),
-          table.snapshot(snapshotIds.get(i)).timestampMillis());
+      Long snapshotId = snapshotIds.get(i);
+      internalRows[i] = newInternalRow(snapshotId,
+          table.snapshot(snapshotId).timestampMillis());
     }
 
     return internalRows;

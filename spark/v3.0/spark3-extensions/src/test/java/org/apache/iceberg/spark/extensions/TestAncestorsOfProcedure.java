@@ -59,7 +59,9 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(currentSnapshotId, currentTimestamp), row(preSnapshotId, preTimeStamp)),
+        ImmutableList.of(
+            row(currentSnapshotId, currentTimestamp),
+            row(preSnapshotId, preTimeStamp)),
         output);
   }
 
@@ -77,7 +79,9 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(currentSnapshotId, currentTimestamp), row(preSnapshotId, preTimeStamp)),
+        ImmutableList.of(
+            row(currentSnapshotId, currentTimestamp),
+            row(preSnapshotId, preTimeStamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, currentSnapshotId));
 
     assertEquals(
@@ -114,16 +118,18 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(fourthSnapshotId, fourthTimestamp), row(secondSnapshotId, secondTimestamp), row(
-            firstSnapshotId,
-            firstTimestamp)),
+        ImmutableList.of(
+            row(fourthSnapshotId, fourthTimestamp),
+            row(secondSnapshotId, secondTimestamp),
+            row(firstSnapshotId, firstTimestamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, fourthSnapshotId));
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(thirdSnapshotId, thirdTimestamp), row(secondSnapshotId, secondTimestamp), row(
-            firstSnapshotId,
-            firstTimestamp)),
+        ImmutableList.of(
+            row(thirdSnapshotId, thirdTimestamp),
+            row(secondSnapshotId, secondTimestamp),
+            row(firstSnapshotId, firstTimestamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, thirdSnapshotId));
   }
 
