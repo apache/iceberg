@@ -37,6 +37,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -277,17 +278,20 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
 
     int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    DeleteReachableFiles.Result results = sparkActions().deleteReachableFiles(metadataLocation(table))
-        .io(table.io())
-        .option("stream-results", "true").execute();
+    withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
+      DeleteReachableFiles.Result results = sparkActions().deleteReachableFiles(metadataLocation(table))
+          .io(table.io())
+          .option("stream-results", "true").execute();
 
-    int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
-    int totalJobsRun = jobsAfter - jobsBefore;
+      int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
+      int totalJobsRun = jobsAfter - jobsBefore;
 
-    checkRemoveFilesResults(3L, 4L, 3L, 5, results);
+      checkRemoveFilesResults(3L, 4L, 3L, 5, results);
 
-    Assert.assertEquals(
-        "Expected total jobs to be equal to total number of shuffle partitions", totalJobsRun, SHUFFLE_PARTITIONS);
+      Assert.assertEquals(
+          "Expected total jobs to be equal to total number of shuffle partitions",
+          totalJobsRun, SHUFFLE_PARTITIONS);
+    });
   }
 
   @Test

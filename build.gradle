@@ -65,7 +65,7 @@ allprojects {
     mavenLocal()
   }
   project.ext {
-    Spark30Version = '3.0.3'
+    Spark30Version = '3.2.0'
     Spark31Version = '3.1.1'
   }
 }
@@ -95,7 +95,7 @@ subprojects {
 
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.12.3'
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
       }
     }

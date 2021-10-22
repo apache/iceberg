@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -140,7 +141,7 @@ public abstract class IcebergSourceBenchmark {
     });
 
     conf.forEach((confKey, confValue) -> {
-      if (SQLConf.staticConfKeys().contains(confKey)) {
+      if (!confKey.startsWith(SparkSQLProperties.PREFIX) && !sqlConf.isModifiable(confKey)) {
         throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
       }
       sqlConf.setConfString(confKey, confValue);

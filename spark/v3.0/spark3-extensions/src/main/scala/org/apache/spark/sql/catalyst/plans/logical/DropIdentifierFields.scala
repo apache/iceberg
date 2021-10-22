@@ -23,7 +23,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 
 case class DropIdentifierFields(
     table: Seq[String],
-    fields: Seq[String]) extends Command {
+    fields: Seq[String]) extends LeafCommand {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil

@@ -35,7 +35,7 @@ case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
     ident: Identifier,
     distributionMode: DistributionMode,
-    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends V2CommandExec {
+    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends LeafV2CommandExec {
 
   import CatalogV2Implicits._
 

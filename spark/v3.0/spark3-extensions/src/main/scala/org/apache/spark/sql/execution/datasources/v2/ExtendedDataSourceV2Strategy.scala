@@ -25,30 +25,18 @@ import org.apache.iceberg.spark.SparkSessionCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.analysis.NamedRelation
-import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.expressions.NamedExpression
-import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
-import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.MergeInto
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
-import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
-import org.apache.spark.sql.execution.FilterExec
-import org.apache.spark.sql.execution.LeafExecNode
-import org.apache.spark.sql.execution.ProjectExec
 import org.apache.spark.sql.execution.SparkPlan
 import scala.collection.JavaConverters._
 
@@ -78,29 +66,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
         IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
       SetWriteDistributionAndOrderingExec(catalog, ident, distributionMode, ordering) :: Nil
 
-    case DynamicFileFilter(scanPlan, fileFilterPlan, filterable) =>
-      DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
-
-    case DynamicFileFilterWithCardinalityCheck(scanPlan, fileFilterPlan, filterable, filesAccumulator) =>
-      DynamicFileFilterWithCardinalityCheckExec(
-        planLater(scanPlan),
-        planLater(fileFilterPlan),
-        filterable,
-        filesAccumulator) :: Nil
-
-    case PhysicalOperation(project, filters, DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
-      // projection and filters were already pushed down in the optimizer.
-      // this uses PhysicalOperation to get the projection and ensure that if the batch scan does
-      // not support columnar, a projection is added to convert the rows to UnsafeRow.
-      val batchExec = ExtendedBatchScanExec(output, scan)
-      withProjectAndFilter(project, filters, batchExec, !batchExec.supportsColumnar) :: Nil
-
-    case ReplaceData(relation, batchWrite, query) =>
-      ReplaceDataExec(batchWrite, refreshCache(relation), planLater(query)) :: Nil
-
-    case MergeInto(mergeIntoParams, output, child) =>
-      MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
-
     case _ => Nil
   }
 
@@ -110,25 +75,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       values(index) = exprs(index).eval()
     }
     new GenericInternalRow(values)
-  }
-
-  private def withProjectAndFilter(
-      project: Seq[NamedExpression],
-      filters: Seq[Expression],
-      scan: LeafExecNode,
-      needsUnsafeConversion: Boolean): SparkPlan = {
-    val filterCondition = filters.reduceLeftOption(And)
-    val withFilter = filterCondition.map(FilterExec(_, scan)).getOrElse(scan)
-
-    if (withFilter.output != project || needsUnsafeConversion) {
-      ProjectExec(project, withFilter)
-    } else {
-      withFilter
-    }
-  }
-
-  private def refreshCache(r: NamedRelation)(): Unit = {
-    spark.sharedState.cacheManager.recacheByPlan(spark, r)
   }
 
   private object IcebergCatalogAndIdentifier {
