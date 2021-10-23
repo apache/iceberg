@@ -37,7 +37,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
-  };
+      };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[] {
       new StructField("snapshot_id", DataTypes.LongType, true, Metadata.empty()),
@@ -97,8 +97,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
     InternalRow[] internalRows = new InternalRow[snapshotIds.size()];
     for (int i = 0; i < snapshotIds.size(); i++) {
       Long snapshotId = snapshotIds.get(i);
-      internalRows[i] = newInternalRow(snapshotId,
-          table.snapshot(snapshotId).timestampMillis());
+      internalRows[i] = newInternalRow(snapshotId, table.snapshot(snapshotId).timestampMillis());
     }
 
     return internalRows;
