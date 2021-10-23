@@ -28,6 +28,7 @@ import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -108,8 +109,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     LOG.trace("Creating database tables (if missing) to store iceberg catalog");
     connections.run(conn -> {
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tableExists = dbMeta.getTables(null, null,
-          JdbcUtil.CATALOG_TABLE_NAME, null);
+      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME, null);
 
       if (tableExists.next()) {
         return true;
@@ -121,28 +121,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     connections.run(conn -> {
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tableExists = dbMeta.getTables(null, null,
-          JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME, null);
+      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE, null);
 
       if (tableExists.next()) {
         return true;
       }
 
-      LOG.debug("Creating table {} to store iceberg catalog namespaces",
-          JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME);
-      return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_TABLE).execute();
-    });
-
-    connections.run(conn -> {
-      DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tableExists = dbMeta.getTables(null, null,
-          JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE, null);
-
-      if (tableExists.next()) {
-        return true;
-      }
-
-      LOG.debug("Creating table {} to store iceberg catalog namespaces properties",
+      LOG.debug("Creating table {} to store iceberg catalog namespace properties",
           JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME);
       return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE).execute();
     });
@@ -292,12 +277,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_NAMESPACE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, namespaceName);
-          sql.setString(3, JdbcUtil.convertMapToJsonString(metadata));
+          sql.setString(3, "createdAt");
+          sql.setString(4, Instant.now().toString());
           return sql.executeUpdate();
         }
       });
       if (insertRecord == 1) {
-        LOG.info("Successfully committed to new namespace: {}", namespaceName);
+        LOG.debug("Successfully committed to new namespace: {}", namespaceName);
       } else {
         throw new CommitFailedException("Failed to create namespace %s in catalog %s", namespaceName,
                 catalogName);
@@ -414,22 +400,30 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   public boolean namespaceExists(Namespace namespace) {
     try {
       return connections.run(conn -> {
-        boolean exists = false;
-
+        boolean tableExists = false;
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();
           if (rs.next()) {
-            exists = true;
+            tableExists = true;
           }
 
           rs.close();
         }
+        boolean namespacePropertyExists = false;
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL)) {
+          sql.setString(1, catalogName);
+          sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
+          ResultSet rs = sql.executeQuery();
+          if (rs.next()) {
+            namespacePropertyExists = true;
+          }
 
-        return exists;
+          rs.close();
+        }
+        return (tableExists || namespacePropertyExists);
       });
-
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to get namespace %s", namespace);
     } catch (InterruptedException e) {

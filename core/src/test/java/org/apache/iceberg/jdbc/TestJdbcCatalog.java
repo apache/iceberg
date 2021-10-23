@@ -556,6 +556,13 @@ public class TestJdbcCatalog {
   }
 
   @Test
+  public void testCreateNamespace() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    catalog.createNamespace(testNamespace, null);
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
+  }
+
+  @Test
   public void testConversions() {
     Namespace ns = Namespace.of("db", "db2", "ns2");
     String nsString = JdbcUtil.namespaceToString(ns);

@@ -45,15 +45,4 @@ public class TestJdbcUtil {
 
     Assertions.assertThat(expected).isEqualTo(actual);
   }
-
-  @Test
-  public void testConvertMapToJsonString() {
-    Map<String, String> inputMap = new HashMap<>();
-    inputMap.put("name", "foo");
-    inputMap.put("age", "37");
-    String expectedJsonString = "{\"name\":\"foo\",\"age\":\"37\"}";
-    String actualJsonString = JdbcUtil.convertMapToJsonString(inputMap);
-
-    Assertions.assertThat(expectedJsonString).isEqualTo(actualJsonString);
-  }
 }

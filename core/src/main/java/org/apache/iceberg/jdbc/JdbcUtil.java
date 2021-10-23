@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.jdbc;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
@@ -29,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.util.JsonUtil;
 
 final class JdbcUtil {
   // Catalog Table
@@ -74,22 +71,12 @@ final class JdbcUtil {
       ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
       " VALUES (?,?,?,?,null)";
 
-  // Catalog Namespace
-  protected static final String CATALOG_NAMESPACE_TABLE_NAME = "iceberg_namespaces";
+  // Catalog Namespace Properties
+  protected static final String NAMESPACE_PROPERTIES_TABLE_NAME = "iceberg_namespace_properties";
   protected static final String NAMESPACE_NAME = "namespace_name";
-  protected static final String NAMESPACE_METADATA = "metadata";
-  protected static final String NAMESPACE_PROPERTIES_TABLE_NAME = "namespace_properties";
   protected static final String NAMESPACE_PROPERTY_KEY = "key";
   protected static final String NAMESPACE_PROPERTY_VALUE = "value";
 
-  protected static final String CREATE_NAMESPACE_TABLE =
-      "CREATE TABLE " + CATALOG_NAMESPACE_TABLE_NAME +
-          "(" +
-          CATALOG_NAME + " VARCHAR(255) NOT NULL," +
-          NAMESPACE_NAME + " VARCHAR(255) NOT NULL," +
-          NAMESPACE_METADATA + " VARCHAR(65535)," +
-          "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ")" +
-          ")";
   protected static final String CREATE_NAMESPACE_PROPERTIES_TABLE =
       "CREATE TABLE " + NAMESPACE_PROPERTIES_TABLE_NAME +
           "(" +
@@ -97,12 +84,17 @@ final class JdbcUtil {
           NAMESPACE_NAME + " VARCHAR(255) NOT NULL," +
           NAMESPACE_PROPERTY_KEY + " VARCHAR(5500)," +
           NAMESPACE_PROPERTY_VALUE + " VARCHAR(5500)," +
-          "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ")" +
+          "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY + ")" +
           ")";
 
-  protected static final String DO_COMMIT_CREATE_NAMESPACE_SQL = "INSERT INTO " + CATALOG_NAMESPACE_TABLE_NAME +
-      " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_METADATA + ") " +
-      " VALUES (?,?,?)";
+  protected static final String GET_NAMESPACE_PROPERTIES_SQL = "SELECT " + NAMESPACE_NAME +
+          " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+          " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ? LIMIT 1";
+
+  protected static final String DO_COMMIT_CREATE_NAMESPACE_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
+          " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
+          ", " + NAMESPACE_PROPERTY_VALUE + ") " +
+          " VALUES (?,?,?,?)";
 
   // Utilities
   private static final Joiner JOINER_DOT = Joiner.on('.');
@@ -134,14 +126,5 @@ final class JdbcUtil {
     });
 
     return result;
-  }
-  public static String convertMapToJsonString(Map<String, String> inputMap) {
-    String resultJsonString;
-    try {
-      resultJsonString = JsonUtil.mapper().writeValueAsString(inputMap);
-    } catch (JsonProcessingException e) {
-      throw new UncheckedIOException(e);
-    }
-    return resultJsonString;
   }
 }
