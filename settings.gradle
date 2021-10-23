@@ -83,11 +83,11 @@ if (sparkVersions.contains("3.0")) {
   include ':iceberg-spark:spark3'
   include ':iceberg-spark:spark3-extensions'
   include ':iceberg-spark:spark3-runtime'
-  project(':iceberg-spark:spark3').projectDir = file('spark/v3.0/spark3')
+  project(':iceberg-spark:spark3').projectDir = file('spark/v3.0/spark')
   project(':iceberg-spark:spark3').name = 'iceberg-spark3'
-  project(':iceberg-spark:spark3-extensions').projectDir = file('spark/v3.0/spark3-extensions')
+  project(':iceberg-spark:spark3-extensions').projectDir = file('spark/v3.0/spark-extensions')
   project(':iceberg-spark:spark3-extensions').name = 'iceberg-spark3-extensions'
-  project(':iceberg-spark:spark3-runtime').projectDir = file('spark/v3.0/spark3-runtime')
+  project(':iceberg-spark:spark3-runtime').projectDir = file('spark/v3.0/spark-runtime')
   project(':iceberg-spark:spark3-runtime').name = 'iceberg-spark3-runtime'
 }
 
@@ -117,7 +117,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
     include ':iceberg-spark:spark2'
     include ':iceberg-spark:spark-runtime'
 
-    project(':iceberg-spark:spark2').projectDir = file('spark/v2.4/spark2')
+    project(':iceberg-spark:spark2').projectDir = file('spark/v2.4/spark')
     project(':iceberg-spark:spark2').name = 'iceberg-spark2'
     project(':iceberg-spark:spark-runtime').projectDir = file('spark/v2.4/spark-runtime')
     project(':iceberg-spark:spark-runtime').name = 'iceberg-spark-runtime'
