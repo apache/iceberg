@@ -86,6 +86,10 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   private void commitRewriteGroups() {
+    if (rewriteResults.isEmpty()) {
+      return;
+    }
+
     List<RewriteResult> pendingRewriteResults = Lists.newArrayList(rewriteResults);
     rewriteResults.clear();
 
