@@ -115,7 +115,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         return true;
       }
 
-      LOG.debug("Creating table {} to store iceberg catalog tables", JdbcUtil.CATALOG_TABLE_NAME);
+      LOG.debug("Creating table {} to store iceberg catalog", JdbcUtil.CATALOG_TABLE_NAME);
       return conn.prepareStatement(JdbcUtil.CREATE_CATALOG_TABLE).execute();
     });
 
