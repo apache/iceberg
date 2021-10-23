@@ -44,6 +44,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
@@ -170,7 +171,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     if (StreamingOffset.START_OFFSET.equals(startOffset)) {
       Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
       if (oldestSnapshot == null) {
-        return fileScanTasks;
+        return ImmutableList.of();
       } else {
         batchStartOffset = new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
       }

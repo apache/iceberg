@@ -81,6 +81,7 @@ public class SnapshotUtil {
         return current;
       }
     }
+
     return current;
   }
 

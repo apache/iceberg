@@ -37,14 +37,14 @@ public class TestSnapshotUtil extends TableTestBase {
   }
 
   @Test
-  public void testEmptyTableOldestSnapshot() {
+  public void testOldestSnapshotForEmptyTable() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
     Snapshot oldestSnapshot = SnapshotUtil.oldestSnapshot(table);
     Assert.assertNull("The oldest snapshot should be null", oldestSnapshot);
   }
 
   @Test
-  public void testNoExpiredActionTableOldestSnapshot() {
+  public void testOldestSnapshotWithoutExpiredAction() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -63,7 +63,7 @@ public class TestSnapshotUtil extends TableTestBase {
   }
 
   @Test
-  public void testSingleExpireActionTableOldestSnapshot() {
+  public void testSingleCommitOldestSnapshotWithExpiredAction() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -78,7 +78,7 @@ public class TestSnapshotUtil extends TableTestBase {
   }
 
   @Test
-  public void testMultipleExpiredTableOldestSnapshot() {
+  public void testMultipleCommitOldestSnapshotWithExpiredAction() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
