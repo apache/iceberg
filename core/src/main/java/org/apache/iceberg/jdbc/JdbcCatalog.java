@@ -28,7 +28,6 @@ import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -271,18 +270,26 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new AlreadyExistsException("Namespace already exists: %s", namespace);
     }
 
+    if (metadata == null || metadata.isEmpty()) {
+      throw new IllegalArgumentException("Cannot create a namespace with null or empty metadata");
+    }
+
     String namespaceName = JdbcUtil.namespaceToString(namespace);
     try {
-      int insertRecord = connections.run(conn -> {
+      int[] insertedRecords = connections.run(conn -> {
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_NAMESPACE_SQL)) {
-          sql.setString(1, catalogName);
-          sql.setString(2, namespaceName);
-          sql.setString(3, "createdAt");
-          sql.setString(4, Instant.now().toString());
-          return sql.executeUpdate();
+          for (Map.Entry<String, String> keyValue : metadata.entrySet()) {
+            sql.setString(1, catalogName);
+            sql.setString(2, namespaceName);
+            sql.setString(3, keyValue.getKey());
+            sql.setString(4, keyValue.getValue());
+            sql.addBatch();
+          }
+          return sql.executeBatch();
         }
       });
-      if (insertRecord == 1) {
+
+      if (insertedRecords.length == metadata.size()) {
         LOG.debug("Successfully committed to new namespace: {}", namespaceName);
       } else {
         throw new CommitFailedException("Failed to create namespace %s in catalog %s", namespaceName,
@@ -401,6 +408,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     try {
       return connections.run(conn -> {
         boolean tableExists = false;
+
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
@@ -411,7 +419,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
           rs.close();
         }
+
         boolean namespacePropertyExists = false;
+
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
@@ -422,8 +432,10 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
           rs.close();
         }
+
         return (tableExists || namespacePropertyExists);
       });
+
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to get namespace %s", namespace);
     } catch (InterruptedException e) {

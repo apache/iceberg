@@ -558,7 +558,18 @@ public class TestJdbcCatalog {
   @Test
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
-    catalog.createNamespace(testNamespace, null);
+    // Test with null metadata
+    AssertHelpers.assertThrows("Cannot create a namespace with null or empty metadata", IllegalArgumentException.class,
+            () -> catalog.createNamespace(testNamespace,null));
+    Assert.assertFalse(catalog.namespaceExists(testNamespace));
+
+    // Test with metadata
+    Map<String, String> testMetadata = new HashMap<String, String>(){{
+      put("key_1", "value_1");
+      put("key_2", "value_2");
+      put("key_3", "value_3");
+    }};
+    catalog.createNamespace(testNamespace, testMetadata);
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
   }
 

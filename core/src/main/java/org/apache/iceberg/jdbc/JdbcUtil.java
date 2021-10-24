@@ -73,7 +73,7 @@ final class JdbcUtil {
 
   // Catalog Namespace Properties
   protected static final String NAMESPACE_PROPERTIES_TABLE_NAME = "iceberg_namespace_properties";
-  protected static final String NAMESPACE_NAME = "namespace_name";
+  protected static final String NAMESPACE_NAME = "namespace";
   protected static final String NAMESPACE_PROPERTY_KEY = "key";
   protected static final String NAMESPACE_PROPERTY_VALUE = "value";
 
