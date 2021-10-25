@@ -19,8 +19,9 @@
 
 package org.apache.iceberg.io.inmemory;
 
-import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
@@ -36,17 +37,17 @@ final class InMemoryInputFile implements InputFile {
 
   @Override
   public long getLength() {
-    return getDataOrThrow().length;
+    return getDataOrThrow().remaining();
   }
 
   @Override
   public SeekableInputStream newStream() {
-    return new InMemoryInputStream(getDataOrThrow());
+    return new InMemoryInputStream(getDataOrThrow().duplicate());
   }
 
-  private byte[] getDataOrThrow() {
+  private ByteBuffer getDataOrThrow() {
     return store.get(location).orElseThrow(
-      () -> new UncheckedIOException(new IOException("Location: " + location + " not found!"))
+      () -> new UncheckedIOException(new FileNotFoundException("Cannot find file, does not exist: " + location))
     );
   }
 

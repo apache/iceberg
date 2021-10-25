@@ -19,50 +19,55 @@
 
 package org.apache.iceberg.io.inmemory;
 
-import java.util.Collection;
+import java.nio.ByteBuffer;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * An interface for in-memory collection-based key-value storage
- * for byte arrays keyed by string location.
- * The string location can be optionally converted to a custom
- * canonical location specified by the user.
+ * An in-memory collection based storage for file contents
+ * keyed by a string location.
  */
-public interface InMemoryFileStore {
+final class InMemoryFileStore {
+
+  private final ConcurrentMap<String, ByteBuffer> store;
+
+  InMemoryFileStore() {
+    this.store = new ConcurrentHashMap<>();
+  }
 
   /**
-   * Put the byte array data at the given location, overwrite if it already exists.
+   * Put the file contents at the given location, overwrite if it already exists.
    */
-  void put(String location, byte[] data);
+  public void put(String location, ByteBuffer data) {
+    store.put(location, data.duplicate());
+  }
 
   /**
-   * Put the byte array at the given location only if it does not exist.
-   * @return Existing byte array if the location exists or {@code null} otherwise.
+   * Put the file contents at the given location only if does not already exist.
    */
-  byte[] putIfAbsent(String location, byte[] data);
+  public ByteBuffer putIfAbsent(String location, ByteBuffer data) {
+    return store.putIfAbsent(location, data.duplicate());
+  }
 
   /**
-   * Get the byte array at the given location.
-   * @return {@link Optional} containing the byte array if the location exists
-   * or {@link Optional#empty()} otherwise.
+   * Get the file contents for the given location.
    */
-  Optional<byte[]> get(String location);
+  public Optional<ByteBuffer> get(String location) {
+    return Optional.ofNullable(store.get(location)).map(ByteBuffer::duplicate);
+  }
 
   /**
-   * Remove the given location.
-   * @return {@code true} if the location existed and was successfully removed,
-   * {@code false} otherwise.
+   * Remove the given location and its contents.
    */
-  boolean remove(String location);
+  public boolean remove(String location) {
+    return store.remove(location) != null;
+  }
 
   /**
    * Check whether the location exists.
    */
-  boolean exists(String location);
-
-  /**
-   * Get a copy of existing locations.
-   * The locations are returned in no particular order.
-   */
-  Collection<String> getLocations();
+  public boolean exists(String location) {
+    return store.containsKey(location);
+  }
 }

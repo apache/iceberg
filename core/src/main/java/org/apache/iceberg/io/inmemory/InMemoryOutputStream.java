@@ -21,15 +21,16 @@ package org.apache.iceberg.io.inmemory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 import org.apache.iceberg.io.PositionOutputStream;
 
 final class InMemoryOutputStream extends PositionOutputStream {
 
-  private final Consumer<byte[]> putOnCloseAction;
+  private final Consumer<ByteBuffer> putOnCloseAction;
   private final ByteArrayOutputStream outputStream;
 
-  InMemoryOutputStream(Consumer<byte[]> putOnCloseAction) {
+  InMemoryOutputStream(Consumer<ByteBuffer> putOnCloseAction) {
     this.putOnCloseAction = putOnCloseAction;
     this.outputStream = new ByteArrayOutputStream();
   }
@@ -56,6 +57,6 @@ final class InMemoryOutputStream extends PositionOutputStream {
   @Override
   public void close() throws IOException {
     outputStream.close();
-    putOnCloseAction.accept(outputStream.toByteArray());
+    putOnCloseAction.accept(ByteBuffer.wrap(outputStream.toByteArray()));
   }
 }

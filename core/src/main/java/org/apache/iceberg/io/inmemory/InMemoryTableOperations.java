@@ -38,7 +38,7 @@ final class InMemoryTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public void doRefresh() {
-    String latestLocation = catalogDb.getTableLocation(tableIdentifier);
+    String latestLocation = catalogDb.currentMetadataLocation(tableIdentifier);
     if (latestLocation == null) {
       disableRefresh();
     } else {
