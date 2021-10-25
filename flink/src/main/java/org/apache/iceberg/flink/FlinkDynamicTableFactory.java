@@ -76,6 +76,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
   // ResolvedCatalogTable class into the iceberg-flink-runtime jar for compatibility purpose.
   private static final DynMethods.UnboundMethod GET_CATALOG_TABLE = DynMethods.builder("getCatalogTable")
       .impl(Context.class, "getCatalogTable")
+      .orNoop()
       .build();
 
   private final FlinkCatalog catalog;
