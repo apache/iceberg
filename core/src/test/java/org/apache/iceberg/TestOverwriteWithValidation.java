@@ -67,6 +67,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
       ))
@@ -89,6 +90,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
       ))
@@ -119,6 +121,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
       ))
@@ -133,6 +136,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(14L)) // upper bounds
       ))
@@ -148,6 +152,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 1L, 2, 1L), // value count
           ImmutableMap.of(1, 0L, 2, 0L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
       ))
@@ -198,7 +203,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(null, alwaysTrue())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData()
         .commit();
 
     validateTableFiles(table, FILE_DAY_2_MODIFIED);
@@ -210,7 +216,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(null, EXPRESSION_DAY_2)
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData()
         .commit();
 
     validateTableFiles(table, FILE_DAY_2_MODIFIED);
@@ -247,7 +254,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), alwaysTrue())
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData()
         .commit();
 
     validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
@@ -266,7 +275,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData()
         .commit();
 
     validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
@@ -305,7 +316,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), alwaysTrue());
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_1)
@@ -332,7 +345,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_1)
@@ -356,7 +371,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newDelete()
         .deleteFile(FILE_DAY_1)
@@ -378,7 +395,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_2)
@@ -406,7 +425,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newDelete()
         .deleteFile(FILE_DAY_2)
@@ -434,7 +455,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newRewrite()
         .rewriteFiles(ImmutableSet.of(FILE_DAY_2), ImmutableSet.of(FILE_DAY_2))
@@ -458,7 +481,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_1)
@@ -486,7 +511,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newDelete()
         .deleteFile(FILE_DAY_1)
@@ -510,7 +537,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     Snapshot baseSnapshot = table.currentSnapshot();
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_2)
@@ -539,7 +568,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(null, EXPRESSION_DAY_2);
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_2)
@@ -568,7 +598,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(null, EXPRESSION_DAY_2_ID_RANGE);
+        .conflictDetectionFilter(EXPRESSION_DAY_2_ID_RANGE)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_1)
@@ -586,7 +617,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
     Expression conflictDetectionFilter = and(EXPRESSION_DAY_2, EXPRESSION_DAY_2_ID_RANGE);
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(null, conflictDetectionFilter);
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_2_ANOTHER_RANGE)
@@ -611,7 +643,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = txn.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(baseSnapshot.snapshotId(), EXPRESSION_DAY_2);
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_1)
@@ -635,7 +669,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     OverwriteFiles overwrite = txn.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateNoConflictingAppends(null, EXPRESSION_DAY_2);
+        .conflictDetectionFilter(EXPRESSION_DAY_2)
+        .validateNoConflictingData();
 
     table.newAppend()
         .appendFile(FILE_DAY_2)

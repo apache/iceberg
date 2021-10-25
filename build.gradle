@@ -64,10 +64,6 @@ allprojects {
     mavenCentral()
     mavenLocal()
   }
-  project.ext {
-    Spark30Version = '3.0.3'
-    Spark31Version = '3.1.1'
-  }
 }
 
 subprojects {
@@ -92,12 +88,6 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
-
-      resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
-      }
     }
 
     testArtifacts

@@ -44,20 +44,6 @@ public class Metrics implements Serializable {
   public Metrics() {
   }
 
-  /**
-   * @deprecated will be removed in 0.12.0; use {@link #Metrics(Long, Map, Map, Map, Map)} instead.
-   */
-  @Deprecated
-  public Metrics(Long rowCount,
-                 Map<Integer, Long> columnSizes,
-                 Map<Integer, Long> valueCounts,
-                 Map<Integer, Long> nullValueCounts) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-  }
-
   public Metrics(Long rowCount,
                  Map<Integer, Long> columnSizes,
                  Map<Integer, Long> valueCounts,
@@ -68,24 +54,6 @@ public class Metrics implements Serializable {
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
     this.nanValueCounts = nanValueCounts;
-  }
-
-  /**
-   * @deprecated will be removed in 0.12.0; use {@link #Metrics(Long, Map, Map, Map, Map, Map, Map)} instead.
-   */
-  @Deprecated
-  public Metrics(Long rowCount,
-                 Map<Integer, Long> columnSizes,
-                 Map<Integer, Long> valueCounts,
-                 Map<Integer, Long> nullValueCounts,
-                 Map<Integer, ByteBuffer> lowerBounds,
-                 Map<Integer, ByteBuffer> upperBounds) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-    this.lowerBounds = lowerBounds;
-    this.upperBounds = upperBounds;
   }
 
   public Metrics(Long rowCount,

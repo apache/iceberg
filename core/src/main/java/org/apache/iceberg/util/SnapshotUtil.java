@@ -22,6 +22,8 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -143,5 +145,51 @@ public class SnapshotUtil {
 
     throw new IllegalStateException(
         String.format("Cannot find snapshot after %s: not an ancestor of table's current snapshot", snapshotId));
+  }
+
+  /**
+   * Returns the ID of the most recent snapshot for the table as of the timestamp.
+   *
+   * @param table a {@link Table}
+   * @param timestampMillis the timestamp in millis since the Unix epoch
+   * @return the snapshot ID
+   * @throws IllegalArgumentException when no snapshot is found in the table
+   * older than the timestamp
+   */
+  public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    Long snapshotId = null;
+    for (HistoryEntry logEntry : table.history()) {
+      if (logEntry.timestampMillis() <= timestampMillis) {
+        snapshotId = logEntry.snapshotId();
+      }
+    }
+
+    Preconditions.checkArgument(snapshotId != null,
+        "Cannot find a snapshot older than %s", DateTimeUtil.formatTimestampMillis(timestampMillis));
+    return snapshotId;
+  }
+
+  /**
+   * Returns the schema of the table for the specified snapshot.
+   *
+   * @param table a {@link Table}
+   * @param snapshotId the ID of the snapshot
+   * @return the schema
+   */
+  public static Schema schemaFor(Table table, long snapshotId) {
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Cannot find snapshot with ID %s", snapshotId);
+    Integer schemaId = snapshot.schemaId();
+
+    // schemaId could be null, if snapshot was created before Iceberg added schema id to snapshot
+    if (schemaId != null) {
+      Schema schema = table.schemas().get(schemaId);
+      Preconditions.checkState(schema != null,
+          "Cannot find schema with schema id %s", schemaId);
+      return schema;
+    }
+
+    // TODO: recover the schema by reading previous metadata files
+    return table.schema();
   }
 }
