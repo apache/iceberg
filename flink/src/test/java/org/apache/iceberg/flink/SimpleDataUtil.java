@@ -38,12 +38,11 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
@@ -58,6 +57,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -267,17 +267,33 @@ public class SimpleDataUtil {
 
   public static Map<Long, List<DataFile>> snapshotToDataFiles(Table table) throws IOException {
     table.refresh();
+
     Map<Long, List<DataFile>> result = Maps.newHashMap();
-    List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests();
-    for (ManifestFile manifestFile : manifestFiles) {
-      try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFile, table.io())) {
-        List<DataFile> dataFiles = Lists.newArrayList(reader);
-        if (result.containsKey(manifestFile.snapshotId())) {
-          result.get(manifestFile.snapshotId()).addAll(dataFiles);
-        } else {
-          result.put(manifestFile.snapshotId(), dataFiles);
-        }
+    Snapshot current = table.currentSnapshot();
+    while (current != null) {
+      List<DataFile> addedFiles = Lists.newArrayList();
+      TableScan tableScan = table.newScan();
+      if (current.parentId() != null) {
+        // Collect the data files that was added only in current snapshot.
+        tableScan.appendsBetween(current.parentId(), current.snapshotId());
+      } else {
+        // Collect the data files that was added in the oldest snapshot.
+        tableScan.useSnapshot(current.snapshotId());
       }
+      try (CloseableIterable<FileScanTask> scanTasks = tableScan.planFiles()) {
+        Iterables.addAll(addedFiles, Iterables.transform(scanTasks, FileScanTask::file));
+      }
+      // Accumulate to the <snapshot, <data-files-added-from-specific-snapshot>> map.
+      result.compute(current.snapshotId(), (snapshotId, files) -> {
+        if (files == null) {
+          return addedFiles;
+        } else {
+          files.addAll(addedFiles);
+          return files;
+        }
+      });
+      // Iterate to the parent snapshot.
+      current = table.snapshot(current.parentId());
     }
     return result;
   }
