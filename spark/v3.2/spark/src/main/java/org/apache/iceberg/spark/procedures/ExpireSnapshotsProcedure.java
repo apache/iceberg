@@ -27,7 +27,7 @@ import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -59,7 +59,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   });
 
   public static ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<ExpireSnapshotsProcedure>() {
+    return new Builder<ExpireSnapshotsProcedure>() {
       @Override
       protected ExpireSnapshotsProcedure doBuild() {
         return new ExpireSnapshotsProcedure(tableCatalog());

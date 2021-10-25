@@ -22,7 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -53,7 +53,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
   });
 
   public static ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<RewriteManifestsProcedure>() {
+    return new Builder<RewriteManifestsProcedure>() {
       @Override
       protected RewriteManifestsProcedure doBuild() {
         return new RewriteManifestsProcedure(tableCatalog());

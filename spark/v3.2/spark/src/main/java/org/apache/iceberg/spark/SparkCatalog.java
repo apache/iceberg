@@ -400,6 +400,7 @@ public class SparkCatalog extends BaseCatalog {
             .toArray(new String[0]);
       }
     }
+    initializeProcedures(name, options, false);
   }
 
   @Override

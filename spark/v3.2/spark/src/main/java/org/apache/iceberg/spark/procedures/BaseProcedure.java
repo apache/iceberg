@@ -25,7 +25,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
-import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -129,26 +128,5 @@ abstract class BaseProcedure implements Procedure {
 
   protected InternalRow newInternalRow(Object... values) {
     return new GenericInternalRow(values);
-  }
-
-  protected abstract static class Builder<T extends BaseProcedure> implements ProcedureBuilder {
-    private TableCatalog tableCatalog;
-
-    @Override
-    public Builder<T> withTableCatalog(TableCatalog newTableCatalog) {
-      this.tableCatalog = newTableCatalog;
-      return this;
-    }
-
-    @Override
-    public T build() {
-      return doBuild();
-    }
-
-    protected abstract T doBuild();
-
-    TableCatalog tableCatalog() {
-      return tableCatalog;
-    }
   }
 }

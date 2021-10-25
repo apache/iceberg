@@ -19,25 +19,38 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkProcedures {
+public class SparkProcedures implements ProcedureProvider {
+
+  private static final Namespace SYSTEM_NAMESPACE = Namespace.of("system");
+
+  @Override
+  public String getName() {
+    return "system";
+  }
+
+  @Override
+  public String getDescription() {
+    return "Default Iceberg procedures for Spark";
+  }
+
+  @Override
+  public Namespace getNamespace() {
+    return SYSTEM_NAMESPACE;
+  }
+
+  @Override
+  public Map<String, Supplier<ProcedureBuilder>> getProcedureBuilders(String catalogName,
+      CaseInsensitiveStringMap options, boolean forSessionCatalog) {
+    return BUILDERS;
+  }
 
   private static final Map<String, Supplier<ProcedureBuilder>> BUILDERS = initProcedureBuilders();
-
-  private SparkProcedures() {
-  }
-
-  public static ProcedureBuilder newBuilder(String name) {
-    // procedure resolution is case insensitive to match the existing Spark behavior for functions
-    Supplier<ProcedureBuilder> builderSupplier = BUILDERS.get(name.toLowerCase(Locale.ROOT));
-    return builderSupplier != null ? builderSupplier.get() : null;
-  }
 
   private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
     ImmutableMap.Builder<String, Supplier<ProcedureBuilder>> mapBuilder = ImmutableMap.builder();
@@ -54,8 +67,4 @@ public class SparkProcedures {
     return mapBuilder.build();
   }
 
-  public interface ProcedureBuilder {
-    ProcedureBuilder withTableCatalog(TableCatalog tableCatalog);
-    Procedure build();
-  }
 }

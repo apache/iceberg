@@ -25,6 +25,7 @@ import org.apache.iceberg.actions.Spark3SnapshotAction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -50,8 +51,8 @@ class SnapshotTableProcedure extends BaseProcedure {
     super(tableCatalog);
   }
 
-  public static SparkProcedures.ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<SnapshotTableProcedure>() {
+  public static ProcedureBuilder builder() {
+    return new Builder<SnapshotTableProcedure>() {
       @Override
       protected SnapshotTableProcedure doBuild() {
         return new SnapshotTableProcedure(tableCatalog());

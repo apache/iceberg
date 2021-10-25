@@ -260,6 +260,8 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
+
+    initializeProcedures(name, options, true);
   }
 
   @Override
