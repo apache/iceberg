@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 final class InMemoryFileStore {
 
-  private final ConcurrentMap<String, ByteBuffer> store;
+  private final ConcurrentMap<String, byte[]> store;
 
   InMemoryFileStore() {
     this.store = new ConcurrentHashMap<>();
@@ -40,21 +40,22 @@ final class InMemoryFileStore {
    * Put the file contents at the given location, overwrite if it already exists.
    */
   public void put(String location, ByteBuffer data) {
-    store.put(location, data.duplicate());
-  }
-
-  /**
-   * Put the file contents at the given location only if does not already exist.
-   */
-  public ByteBuffer putIfAbsent(String location, ByteBuffer data) {
-    return store.putIfAbsent(location, data.duplicate());
+    // Copy the contents and store it.
+    byte[] bytes = new byte[data.remaining()];
+    data.get(bytes);
+    store.put(location, bytes);
   }
 
   /**
    * Get the file contents for the given location.
    */
   public Optional<ByteBuffer> get(String location) {
-    return Optional.ofNullable(store.get(location)).map(ByteBuffer::duplicate);
+    return Optional.ofNullable(store.get(location)).map(bytes -> {
+      // Copy the contents and return it.
+      byte[] copy = new byte[bytes.length];
+      System.arraycopy(bytes, 0, copy, 0, bytes.length);
+      return ByteBuffer.wrap(copy);
+    });
   }
 
   /**
