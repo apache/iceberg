@@ -20,6 +20,7 @@
 package org.apache.iceberg.io.inmemory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -54,7 +55,7 @@ public class InMemoryFileIOTest {
     assertFalse(store.exists("file1"));
 
     // Create the file
-    store.put("file1", new byte[0]);
+    store.put("file1", ByteBuffer.wrap(new byte[0]));
     assertTrue(store.exists("file1"));
 
     // Delete the file
@@ -67,7 +68,7 @@ public class InMemoryFileIOTest {
   public void testNewInputFile() throws IOException {
     String fileName = "file1";
 
-    store.put(fileName, "data1".getBytes(UTF_8));
+    store.put(fileName, ByteBuffer.wrap("data1".getBytes(UTF_8)));
 
     InputFile inputFile = fileIO.newInputFile(fileName);
     assertNotNull(inputFile);

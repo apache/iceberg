@@ -20,8 +20,10 @@
 package org.apache.iceberg.io.inmemory;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.io.SeekableInputStream;
 
 final class InMemoryInputStream extends SeekableInputStream {
@@ -32,24 +34,35 @@ final class InMemoryInputStream extends SeekableInputStream {
       super(buf);
     }
 
-    synchronized void seek(long newPos) {
+    void seek(long newPos) {
       reset();
       long actuallySkipped = skip(newPos);
       if (actuallySkipped < newPos) {
-        throw new UncheckedIOException(new IOException("Skipped to position: " + actuallySkipped +
-          ". Can't seek to " + newPos + " position. EOF reached!"));
+        throw new UncheckedIOException(new EOFException("Cannot seek to position: " + newPos + ", EOF reached"));
       }
     }
 
-    synchronized long position() {
+    @Override
+    public void mark(int readAheadLimit) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean markSupported() {
+      return false;
+    }
+
+    long position() {
       return pos;
     }
   }
 
   private final SeekableByteArrayInputStream inputStream;
 
-  InMemoryInputStream(byte[] data) {
-    this.inputStream = new SeekableByteArrayInputStream(data);
+  InMemoryInputStream(ByteBuffer buffer) {
+    byte[] bytes = new byte[buffer.remaining()];
+    buffer.get(bytes);
+    this.inputStream = new SeekableByteArrayInputStream(bytes);
   }
 
   @Override

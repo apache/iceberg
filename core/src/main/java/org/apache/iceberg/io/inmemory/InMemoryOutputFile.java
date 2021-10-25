@@ -37,15 +37,15 @@ final class InMemoryOutputFile implements OutputFile {
 
   @Override
   public PositionOutputStream create() {
-    if (store.putIfAbsent(location, new byte[0]) != null) {
-      throw new UncheckedIOException(new IOException("Location: " + location + " already exists!"));
+    if (store.exists(location)) {
+      throw new UncheckedIOException(new IOException("Cannot create file, already exists: " + location));
     }
+
     return new InMemoryOutputStream(data -> store.put(location, data));
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    store.put(location, new byte[0]);
     return new InMemoryOutputStream(data -> store.put(location, data));
   }
 

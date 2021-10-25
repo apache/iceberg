@@ -43,17 +43,17 @@ final class InMemoryCatalogDb implements AutoCloseable {
   }
 
   /**
-   * Put the namespace in the namespace db if it does not already exist.
+   * Put the namespace and properties in the namespace db.
    */
-  void putNamespaceEntryIfAbsent(Namespace namespace, Map<String, String> properties) {
-    namespaceDb.computeIfAbsent(namespace, k -> new HashMap<>(properties));
+  void putNamespaceEntry(Namespace namespace, Map<String, String> properties) {
+    namespaceDb.put(namespace, ImmutableMap.copyOf(properties));
   }
 
   /**
    * Get a copy of the namespace properties.
    * This method returns {@code null} if the namespace does not exist.
    */
-  ImmutableMap<String, String> getNamespaceProperties(Namespace namespace) {
+  ImmutableMap<String, String> namespaceProperties(Namespace namespace) {
     Map<String, String> properties = namespaceDb.get(namespace);
     return properties != null ? ImmutableMap.copyOf(properties) : null;
   }
@@ -66,8 +66,9 @@ final class InMemoryCatalogDb implements AutoCloseable {
       if (v == null) {
         throw new IllegalStateException("Namespace does not exist: " + namespace);
       } else {
-        v.putAll(properties);
-        return v;
+        Map<String, String> newProperties = new HashMap<>(v);
+        newProperties.putAll(properties);
+        return newProperties;
       }
     });
   }
@@ -99,7 +100,7 @@ final class InMemoryCatalogDb implements AutoCloseable {
   /**
    * Get the list of namespaces in the namespace db.
    */
-  ImmutableSet<Namespace> getNamespaceList() {
+  ImmutableSet<Namespace> listNamespaces() {
     return ImmutableSet.copyOf(namespaceDb.keySet());
   }
 
@@ -107,27 +108,24 @@ final class InMemoryCatalogDb implements AutoCloseable {
    * Create the table entry if it does not already exist.
    * Otherwise, if the existing location matches the {@code expectedOldLocation},
    * update the entry with {@code newLocation}.
-   * If the namespace does not exist,
-   * put the namespace entry with empty properties as well.
    */
-  void createOrUpdateTableEntry(TableIdentifier tableIdentifier, String expectedOldLocation, String newLocation) {
-    putNamespaceEntryIfAbsent(tableIdentifier.namespace(), ImmutableMap.of());
-    tableDb.compute(tableIdentifier, (k, existingLocation) -> {
+  void createOrUpdateTableEntry(TableIdentifier identifier, String expectedOldLocation, String newLocation) {
+    tableDb.compute(identifier, (k, existingLocation) -> {
       if (!Objects.equal(existingLocation, expectedOldLocation)) {
-        throw new CommitFailedException("Table: %s cannot be updated from '%s' to '%s'" +
-          " because it has been concurrently modified to '%s'",
-          tableIdentifier, expectedOldLocation, newLocation, existingLocation);
+        throw new CommitFailedException("Cannot create/update table %s metadata location from %s to %s" +
+          " because it has been concurrently modified to %s",
+          identifier, expectedOldLocation, newLocation, existingLocation);
       }
       return newLocation;
     });
   }
 
   /**
-   * Get table location.
+   * Get current metadata location for the table.
    * This method returns {@code null} if the table does not exist.
    */
-  String getTableLocation(TableIdentifier tableIdentifier) {
-    return tableDb.get(tableIdentifier);
+  String currentMetadataLocation(TableIdentifier identifier) {
+    return tableDb.get(identifier);
   }
 
   /**
@@ -135,28 +133,27 @@ final class InMemoryCatalogDb implements AutoCloseable {
    * This method returns {@code true} if the table was successfully removed,
    * and {@code false} otherwise.
    */
-  boolean removeTable(TableIdentifier tableIdentifier) {
-    return tableDb.remove(tableIdentifier) != null;
+  boolean removeTable(TableIdentifier identifier) {
+    return tableDb.remove(identifier) != null;
   }
 
   /**
    * Get the set of table identifiers.
    */
-  ImmutableSet<TableIdentifier> getTableList() {
+  ImmutableSet<TableIdentifier> listTables() {
     return ImmutableSet.copyOf(tableDb.keySet());
   }
 
   /**
-   * Move table entry from source ('from') to destination ('to').
+   * Move table entry from {@code fromIdentifier} to {@code toIdentifier}.
    */
-  void moveTableEntry(TableIdentifier from, TableIdentifier to) {
-    String fromLocation = tableDb.remove(from);
+  void moveTableEntry(TableIdentifier fromIdentifier, TableIdentifier toIdentifier) {
+    String fromLocation = tableDb.remove(fromIdentifier);
     if (fromLocation != null) {
-      putNamespaceEntryIfAbsent(to.namespace(), ImmutableMap.of());
-      tableDb.put(to, fromLocation);
+      tableDb.put(toIdentifier, fromLocation);
     } else {
       throw new IllegalStateException(
-        String.format("Failed to rename 'from' table: %s to 'to' table: %s. The 'from' location is null!", from, to));
+        String.format("Cannot rename from %s to %s because source table does not exist", fromIdentifier, toIdentifier));
     }
   }
 

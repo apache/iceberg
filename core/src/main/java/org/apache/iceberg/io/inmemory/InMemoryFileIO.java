@@ -34,14 +34,10 @@ public final class InMemoryFileIO implements FileIO {
   private final InMemoryFileStore store;
 
   public InMemoryFileIO() {
-    this(InMemoryFileStoreFactory.create());
+    store = new InMemoryFileStore();
   }
 
-  public InMemoryFileIO(InMemoryFileStore store) {
-    this.store = store;
-  }
-
-  public InMemoryFileStore getStore() {
+  InMemoryFileStore getStore() {
     return store;
   }
 

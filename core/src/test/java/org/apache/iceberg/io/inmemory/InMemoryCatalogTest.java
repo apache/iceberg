@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io.inmemory;
 
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
@@ -142,12 +143,16 @@ public class InMemoryCatalogTest {
     assertTrue(catalog.dropNamespace(namespace));
   }
 
-  @Test(expected = NamespaceNotEmptyException.class)
+  @Test
   public void dropNamespace_notEmpty() {
     Namespace namespace = Namespace.of("a");
     catalog.createNamespace(namespace);
     catalog.createTable(TableIdentifier.of(namespace, "table1"), new Schema());
-    assertTrue(catalog.dropNamespace(namespace));
+    AssertHelpers.assertThrows(
+        "Dropping a non-empty namespace should fail",
+        NamespaceNotEmptyException.class,
+        "Namespace 'a' is not empty, contains 1 table(s).",
+        () -> catalog.dropNamespace(namespace));
   }
 
   @Test
@@ -225,26 +230,36 @@ public class InMemoryCatalogTest {
     assertTrue(catalog.tableExists(toTableIdentifier));
   }
 
-  @Test(expected = NoSuchTableException.class)
+  @Test
   public void testRenameTable_fromDoesNotExist() {
     TableIdentifier fromTableIdentifier = TableIdentifier.of("db1", "table1");
-    TableIdentifier toTableIdentifier = TableIdentifier.of("db1", "table2");
+    TableIdentifier toTableIdentifier = TableIdentifier.of("db2", "table2");
 
-    // Rename should fail because 'db2.table1' does not exist
-    catalog.renameTable(fromTableIdentifier, toTableIdentifier);
+    catalog.createNamespace(Namespace.of("db2"));
+
+    // Rename should fail because 'db1.table1' does not exist
+    AssertHelpers.assertThrows(
+        "Renaming a table that does not exist should fail",
+        NoSuchTableException.class,
+        "Cannot rename db1.table1 to db2.table2 because the table db1.table1 does not exist",
+        () -> catalog.renameTable(fromTableIdentifier, toTableIdentifier));
   }
 
-  @Test(expected = AlreadyExistsException.class)
+  @Test
   public void testRenameTable_toAlreadyExists() {
     TableIdentifier fromTableIdentifier = TableIdentifier.of("db1", "table1");
-    TableIdentifier toTableIdentifier = TableIdentifier.of("db1", "table2");
+    TableIdentifier toTableIdentifier = TableIdentifier.of("db2", "table2");
 
-    // Create both 'db1.table1' and 'db2.table2'
+    // Create both 'db1.table1' and 'db1.table2'
     catalog.createTable(fromTableIdentifier, new Schema());
     catalog.createTable(toTableIdentifier, new Schema());
 
     // Rename should fail because 'db2.table2' already exists
-    catalog.renameTable(fromTableIdentifier, toTableIdentifier);
+    AssertHelpers.assertThrows(
+        "Renaming a table to an existing table should fail",
+        AlreadyExistsException.class,
+        "Cannot rename db1.table1 to db2.table2 because the table db2.table2 already exists",
+        () -> catalog.renameTable(fromTableIdentifier, toTableIdentifier));
   }
 
   @Test
