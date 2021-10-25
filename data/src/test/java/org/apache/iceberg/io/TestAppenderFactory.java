@@ -67,6 +67,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     return new Object[][] {
         new Object[] {"avro", false},
         new Object[] {"avro", true},
+        new Object[] {"orc", false},
+        new Object[] {"orc", true},
         new Object[] {"parquet", false},
         new Object[] {"parquet", true}
     };

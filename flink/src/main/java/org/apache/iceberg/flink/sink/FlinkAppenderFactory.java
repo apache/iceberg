@@ -162,6 +162,18 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
+        case ORC:
+          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+              .withPartition(partition)
+              .overwrite()
+              .setAll(props)
+              .rowSchema(eqDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
         case PARQUET:
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
@@ -201,10 +213,25 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withKeyMetadata(outputFile.keyMetadata())
               .buildPositionWriter();
 
+        case ORC:
+          RowType orcPosDeleteSchema = FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
+          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(orcPosDeleteSchema, iSchema))
+              .withPartition(partition)
+              .overwrite()
+              .setAll(props)
+              .metricsConfig(metricsConfig)
+              .rowSchema(posDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .transformPaths(path -> StringData.fromString(path.toString()))
+              .buildPositionWriter();
+
         case PARQUET:
-          RowType flinkPosDeleteSchema = FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
+          RowType parquetPosDeleteSchema =
+              FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
+              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(parquetPosDeleteSchema, msgType))
               .withPartition(partition)
               .overwrite()
               .setAll(props)
