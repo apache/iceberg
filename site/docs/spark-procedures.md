@@ -365,3 +365,45 @@ Migrate `db.sample` in the current catalog to an Iceberg table without adding an
 CALL catalog_name.system.migrate('db.sample')
 ```
 
+### `add_files`
+
+Attempts to directly add files from a Hive or file based table into a given Iceberg table. Unlike migrate or
+snapshot, `add_files` can import files from a specific partition or partitions and does not create a new Iceberg table.
+This command will create metadata for the new files and will not move them. This procedure will not analyze the schema 
+of the files to determine if they actually match the schema of the Iceberg table. Upon completion, the Iceberg table 
+will then treat these files as if they are part of the set of files  owned by Iceberg. This means any subsequent 
+`expire_snapshot` calls will be able to physically delete the added files. This method should not be used if 
+`migrate` or `snapshot` are possible.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which will have files added to|
+| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
+| `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+
+Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
+
+Warning : Files added by this method can be physically deleted by Iceberg operations
+
+#### Examples
+
+Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table
+`db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
+```sql
+CALL spark_catalog.system.add_files(
+table => 'db.tbl',
+source_table => 'db.src_tbl',
+partition_filter => map('part_col_1', 'A')
+)
+```
+
+Add files from a `parquet` file based table at location `path/to/table` to the Iceberg table `db.tbl`. Add all
+files regardless of what partition they belong to.
+```sql
+CALL spark_catalog.system.add_files(
+  table => 'db.tbl',
+  source_table => '`parquet`.`path/to/table`'
+)
+```

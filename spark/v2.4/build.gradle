@@ -21,6 +21,22 @@ if (jdkVersion != '8') {
   throw new GradleException("Spark 2.4 must be built with Java 8")
 }
 
+def sparkProjects = [
+    project(':iceberg-spark:iceberg-spark2'),
+    project(':iceberg-spark:iceberg-spark-runtime')
+]
+
+configure(sparkProjects) {
+  configurations {
+    all {
+      resolutionStrategy {
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
+      }
+    }
+  }
+}
+
 project(':iceberg-spark:iceberg-spark2') {
   configurations.all {
     resolutionStrategy {

@@ -553,7 +553,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
       return decimalFactory.ofBigDecimal(
-              DecimalUtility.getBigDecimalFromArrowBuf(vector.getDataBuffer(), rowId, scale),
+              DecimalUtility.getBigDecimalFromArrowBuf(vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
               precision, scale);
     }
   }

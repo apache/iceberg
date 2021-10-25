@@ -23,6 +23,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 
 public class DataTableScan extends BaseTableScan {
@@ -60,6 +61,15 @@ public class DataTableScan extends BaseTableScan {
     Preconditions.checkState(currentSnapshot != null, "Cannot scan appends after %s, there is no current snapshot",
         fromSnapshotId);
     return appendsBetween(fromSnapshotId, currentSnapshot.snapshotId());
+  }
+
+  @Override
+  public TableScan useSnapshot(long scanSnapshotId) {
+    // call method in superclass just for the side effect of argument validation;
+    // we do not use its return value
+    super.useSnapshot(scanSnapshotId);
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
+    return newRefinedScan(tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
   }
 
   @Override

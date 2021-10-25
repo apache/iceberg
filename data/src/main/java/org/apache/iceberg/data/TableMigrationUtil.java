@@ -95,7 +95,7 @@ public class TableMigrationUtil {
           .map(stat -> {
             InputFile file = HadoopInputFile.fromLocation(stat.getPath().toString(), conf);
             long rowCount = Avro.rowCount(file);
-            Metrics metrics = new Metrics(rowCount, null, null, null);
+            Metrics metrics = new Metrics(rowCount, null, null, null, null);
             String partitionKey = spec.fields().stream()
                 .map(PartitionField::name)
                 .map(name -> String.format("%s=%s", name, partitionPath.get(name)))

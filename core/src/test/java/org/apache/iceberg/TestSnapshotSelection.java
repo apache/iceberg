@@ -69,6 +69,7 @@ public class TestSnapshotSelection extends TableTestBase {
             null, // no column sizes
             ImmutableMap.of(1, 3L), // value count
             ImmutableMap.of(1, 0L), // null count
+            null,
             ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
             ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds
         .build();
