@@ -274,8 +274,6 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     Table table = createTable(tableName, key, partitioned);
     sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
 
-    sql("SELECT * FROM %s", tableName);
-
     table.refresh();
     List<Snapshot> snapshots = findValidSnapshots(table);
     int expectedSnapshotNum = expectedRecordsPerCheckpoint.size();
@@ -283,9 +281,9 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
 
     for (int i = 0; i < expectedSnapshotNum; i++) {
       long snapshotId = snapshots.get(i).snapshotId();
-      List<Row> expectedRowss = expectedRecordsPerCheckpoint.get(i);
+      List<Row> expectedRows = expectedRecordsPerCheckpoint.get(i);
       Assert.assertEquals("Should have the expected records for the checkpoint#" + i,
-          expectedRowSet(table, expectedRowss), actualRowSet(table, snapshotId));
+          expectedRowSet(table, expectedRows), actualRowSet(table, snapshotId));
     }
 
     if (expectedSnapshotNum > 0) {

@@ -29,18 +29,27 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 public class RowDataProjection implements RowData {
+  /**
+   * Creates a projecting wrapper for {@link RowData} rows.
+   * <p>
+   * This projection does not work with repeated types like lists and maps.
+   *
+   * @param schema schema of rows wrapped by this projection
+   * @param projectedSchema result schema of the projected rows
+   * @return a wrapper to project rows
+   */
+  public static RowDataProjection create(Schema schema, Schema projectedSchema) {
+    return new RowDataProjection(FlinkSchemaUtil.convert(schema), schema.asStruct(), projectedSchema.asStruct());
+  }
 
   private final RowData.FieldGetter[] getters;
   private RowData rowData;
-
-  public static RowDataProjection create(Schema schema, Schema projectSchema) {
-    return new RowDataProjection(FlinkSchemaUtil.convert(schema), schema.asStruct(), projectSchema.asStruct());
-  }
 
   private RowDataProjection(RowType rowType, Types.StructType rowStruct, Types.StructType projectType) {
     this.getters = new RowData.FieldGetter[projectType.fields().size()];
