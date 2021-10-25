@@ -33,6 +33,21 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.types.BinaryType;
+import org.apache.spark.sql.types.BooleanType;
+import org.apache.spark.sql.types.ByteType;
+import org.apache.spark.sql.types.CharType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.DoubleType;
+import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.IntegerType;
+import org.apache.spark.sql.types.LongType;
+import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StringType;
+import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.VarcharType;
 
 /**
  * A utility class that converts Spark values to Iceberg's internal representation.
@@ -116,5 +131,33 @@ public class SparkValueConverter {
       }
     }
     return record;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static Object convertAtomicValue(DataType atomic, Object object) {
+    if (atomic instanceof BooleanType ||
+          atomic instanceof IntegerType ||
+          atomic instanceof LongType ||
+          atomic instanceof StringType ||
+          atomic instanceof FloatType ||
+          atomic instanceof DoubleType ||
+          atomic instanceof DecimalType ||
+          atomic instanceof CharType ||
+          atomic instanceof VarcharType) {
+      return object;
+    } else if (atomic instanceof ShortType) {
+      return ((Short) object).intValue();
+    } else if (atomic instanceof ByteType) {
+      return ((Byte) object).intValue();
+    } else if (atomic instanceof DateType) {
+      return DateTimeUtils.fromJavaDate((Date) object);
+    } else if (atomic instanceof TimestampType) {
+      return DateTimeUtils.fromJavaTimestamp((Timestamp) object);
+    } else if (atomic instanceof BinaryType) {
+      return ByteBuffer.wrap((byte[]) object);
+    }
+
+    throw new UnsupportedOperationException(
+        "Not a supported type: " + atomic.catalogString());
   }
 }
