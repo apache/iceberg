@@ -282,16 +282,13 @@ public class SimpleDataUtil {
       }
       try (CloseableIterable<FileScanTask> scanTasks = tableScan.planFiles()) {
         Iterables.addAll(addedFiles, Iterables.transform(scanTasks, FileScanTask::file));
+        result.put(current.snapshotId(), addedFiles);
       }
-      // Accumulate to the <snapshot, <data-files-added-from-specific-snapshot>> map.
-      result.compute(current.snapshotId(), (snapshotId, files) -> {
-        if (files == null) {
-          return addedFiles;
-        } else {
-          files.addAll(addedFiles);
-          return files;
-        }
-      });
+
+      // Continue to traverse the parent snapshot if exists.
+      if (current.parentId() == null) {
+        break;
+      }
       // Iterate to the parent snapshot.
       current = table.snapshot(current.parentId());
     }
