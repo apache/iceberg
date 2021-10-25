@@ -407,3 +407,36 @@ CALL spark_catalog.system.add_files(
   source_table => '`parquet`.`path/to/table`'
 )
 ```
+
+## `Metadata information`
+
+### `ancestors_of`
+
+Get the snapshot ancestors info by a particular snapshot
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which will get ancestors |
+| `snapshot_id` | ✔️  | long | Snapshot ID to get ancestors |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `snapshot_id` | long | the ancestor snapshot id |
+| `timestamp` | long | timestamp |
+
+#### Examples
+
+Get all the snapshot ancestors of current snapshots(default)
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl')
+```
+
+Get all the snapshot ancestors by a particular snapshot
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl', 1)
+CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
+```
