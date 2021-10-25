@@ -228,10 +228,9 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .buildPositionWriter();
 
         case PARQUET:
-          RowType parquetPosDeleteSchema =
-              FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
+          RowType flinkPosDeleteSchema = FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(parquetPosDeleteSchema, msgType))
+              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
               .withPartition(partition)
               .overwrite()
               .setAll(props)
