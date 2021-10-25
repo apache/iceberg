@@ -18,6 +18,10 @@
  */
 
 project(':iceberg-flink') {
+  project.ext {
+    flinkVersion = System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : ""
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -28,11 +32,11 @@ project(':iceberg-flink') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
-    compileOnly "org.apache.flink:flink-streaming-java_2.12"
-    compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
-    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
-    compileOnly "org.apache.flink:flink-table-planner-blink_2.12"
-    compileOnly "org.apache.flink:flink-table-planner_2.12"
+    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}:tests"
+    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-table-planner-blink_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-table-planner_2.12:${flinkVersion}"
     compileOnly "org.apache.hadoop:hadoop-hdfs"
     compileOnly "org.apache.hadoop:hadoop-common"
     compileOnly("org.apache.hadoop:hadoop-minicluster") {
@@ -56,13 +60,13 @@ project(':iceberg-flink') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    testImplementation "org.apache.flink:flink-core"
-    testImplementation "org.apache.flink:flink-runtime_2.12"
-    testImplementation "org.apache.flink:flink-table-planner-blink_2.12"
-    testImplementation ("org.apache.flink:flink-test-utils-junit") {
+    testImplementation "org.apache.flink:flink-core:${flinkVersion}"
+    testImplementation "org.apache.flink:flink-runtime_2.12:${flinkVersion}"
+    testImplementation "org.apache.flink:flink-table-planner-blink_2.12:${flinkVersion}"
+    testImplementation ("org.apache.flink:flink-test-utils-junit:${flinkVersion}") {
       exclude group: 'junit'
     }
-    testImplementation("org.apache.flink:flink-test-utils_2.12") {
+    testImplementation("org.apache.flink:flink-test-utils_2.12:${flinkVersion}") {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
     }
