@@ -56,6 +56,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -271,7 +272,6 @@ public class SimpleDataUtil {
     Map<Long, List<DataFile>> result = Maps.newHashMap();
     Snapshot current = table.currentSnapshot();
     while (current != null) {
-      List<DataFile> addedFiles = Lists.newArrayList();
       TableScan tableScan = table.newScan();
       if (current.parentId() != null) {
         // Collect the data files that was added only in current snapshot.
@@ -281,8 +281,7 @@ public class SimpleDataUtil {
         tableScan.useSnapshot(current.snapshotId());
       }
       try (CloseableIterable<FileScanTask> scanTasks = tableScan.planFiles()) {
-        Iterables.addAll(addedFiles, Iterables.transform(scanTasks, FileScanTask::file));
-        result.put(current.snapshotId(), addedFiles);
+        result.put(current.snapshotId(), ImmutableList.copyOf(Iterables.transform(scanTasks, FileScanTask::file)));
       }
 
       // Continue to traverse the parent snapshot if exists.
