@@ -438,7 +438,7 @@ public class HiveTableTest extends HiveTableBaseTest {
   @Test(timeout = 60000, expected = NotFoundException.class)
   public void testMissingMetadataWontCauseHang() throws Exception {
     catalog.loadTable(TABLE_IDENTIFIER);
-//    HiveConf.setIntVar(catalog.getConf(), HiveConf.ConfVars.HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, 3);
+    catalog.getConf().set(HiveTableOperations.HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, 3);
 
     File realLocation = new File(metadataLocation(TABLE_NAME));
     File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
