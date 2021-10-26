@@ -230,7 +230,7 @@ public abstract class IcebergSourceBenchmark {
     }
 
     RowDelta rowDelta = table().newRowDelta();
-    writer.result().deleteFiles().forEach(deleteFile -> rowDelta.addDeletes(deleteFile));
+    writer.result().deleteFiles().forEach(rowDelta::addDeletes);
     rowDelta.validateDeletedFiles().commit();
   }
 

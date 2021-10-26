@@ -36,6 +36,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
@@ -61,9 +62,10 @@ import static org.apache.spark.sql.functions.expr;
  */
 public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBenchmark {
 
-  private static final int NUM_FILES = 50;
-  private static final int NUM_ROWS = 100 * 1000;
-  private static final double PERCENTAGE_DELETE_ROW = 0.05;
+  private static final int NUM_FILES = 5;
+  private static final int NUM_ROWS = 1000 * 1000;
+  @Param({"0", "0.05", "0.25"})
+  private double PERCENTAGE_DELETE_ROW;
 
   @Setup
   public void setupBenchmark() throws IOException {
