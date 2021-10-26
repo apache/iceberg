@@ -203,7 +203,8 @@ public class OrcMetrics {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
         min = ((DoubleColumnStatistics) columnStats).getMinimum();
         if (type.typeId() == Type.TypeID.FLOAT) {
-          min = ((Double) min).floatValue();
+          float orcMin = ((Double) min).floatValue();
+          min = Float.isFinite(orcMin) ? orcMin : Float.NEGATIVE_INFINITY;
         }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
@@ -247,7 +248,8 @@ public class OrcMetrics {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
         max = ((DoubleColumnStatistics) columnStats).getMaximum();
         if (type.typeId() == Type.TypeID.FLOAT) {
-          max = ((Double) max).floatValue();
+          float orcMax = ((Double) max).floatValue();
+          max = Float.isFinite(orcMax) ? orcMax : Float.POSITIVE_INFINITY;
         }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
