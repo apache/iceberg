@@ -28,10 +28,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
 /**
- * A delete writer capable of writing to multiple specs and partitions that keeps delete writers for each
- * seen spec/partition pair open until this writer is closed.
+ * A position delete writer capable of writing to multiple specs and partitions that keeps position delete writers
+ * for each seen spec/partition pair open until this writer is closed.
  */
-public class FanoutDeleteWriter<T> extends FanoutWriter<PositionDelete<T>, DeleteWriteResult> {
+public class FanoutPositionDeleteWriter<T> extends FanoutWriter<PositionDelete<T>, DeleteWriteResult> {
 
   private final FileWriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
@@ -40,8 +40,8 @@ public class FanoutDeleteWriter<T> extends FanoutWriter<PositionDelete<T>, Delet
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
-  public FanoutDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                            FileIO io, long targetFileSizeInBytes) {
+  public FanoutPositionDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
+                                    FileIO io, long targetFileSizeInBytes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;

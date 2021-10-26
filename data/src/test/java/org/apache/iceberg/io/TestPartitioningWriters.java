@@ -471,7 +471,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   @Test
   public void testFanoutDeleteWriterNoRecords() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
-    FanoutDeleteWriter<T> writer = new FanoutDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    FanoutPositionDeleteWriter<T> writer =
+        new FanoutPositionDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
 
     writer.close();
     DeleteWriteResult result = writer.result();
@@ -573,7 +574,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec bucketedSpec = table.specs().get(2);
 
     // delete some records
-    FanoutDeleteWriter<T> writer = new FanoutDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    FanoutPositionDeleteWriter<T> writer =
+        new FanoutPositionDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
     writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
     writer.write(positionDelete(dataFile2.path(), 0L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.write(positionDelete(dataFile2.path(), 1L, null), identitySpec, partitionKey(identitySpec, "fff"));
