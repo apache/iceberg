@@ -412,14 +412,14 @@ CALL spark_catalog.system.add_files(
 
 ### `ancestors_of`
 
-Get the snapshot ancestors info by a particular snapshot
+Report the live snapshot IDs of parents of a specified snapshot
 
 #### Usage
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Table which will get ancestors |
-| `snapshot_id` | ✔️  | long | Snapshot ID to get ancestors |
+| `snapshot_id` |  ️  | long | Snapshot ID to get ancestors |
 
 #### Output
 

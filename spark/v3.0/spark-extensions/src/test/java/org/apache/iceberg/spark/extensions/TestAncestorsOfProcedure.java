@@ -30,10 +30,7 @@ import org.junit.Test;
 
 public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
-  public TestAncestorsOfProcedure(
-      String catalogName,
-      String implementation,
-      Map<String, String> config) {
+  public TestAncestorsOfProcedure(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
