@@ -112,10 +112,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    *
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
    */
-  @Deprecated
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
     setConf(conf);
     initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));

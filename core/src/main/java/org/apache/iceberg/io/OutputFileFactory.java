@@ -62,7 +62,7 @@ public class OutputFileFactory {
    * @param operationId Third part of the file name
    */
   private OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
-                           EncryptionManager encryptionManager, int partitionId, long taskId, String operationId) {
+                            EncryptionManager encryptionManager, int partitionId, long taskId, String operationId) {
     this.defaultSpec = spec;
     this.format = format;
     this.locations = locations;
