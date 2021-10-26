@@ -53,9 +53,9 @@ import static org.apache.spark.sql.functions.expr;
  * Iceberg. 5% of rows are deleted in each data file.
  * <p>
  * This class uses a dataset with a flat schema.
- * To run this benchmark for spark-3:
+ * To run this benchmark for spark-3.2:
  * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark3:jmh
+ *   ./gradlew :iceberg-spark:iceberg-spark-3.2:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-delete-benchmark-result.txt
  * </code>
@@ -65,7 +65,7 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
   private static final int NUM_FILES = 5;
   private static final int NUM_ROWS = 1000 * 1000;
   @Param({"0", "0.05", "0.25"})
-  private double PERCENTAGE_DELETE_ROW;
+  private double percentageDeleteRow;
 
   @Setup
   public void setupBenchmark() throws IOException {
@@ -117,10 +117,12 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
           .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
       appendAsFile(df);
 
-      // add pos-deletes
-      table().refresh();
-      for (DataFile file : table().currentSnapshot().addedFiles()) {
-        writePosDeletes(file.path(), NUM_ROWS, PERCENTAGE_DELETE_ROW);
+      if(percentageDeleteRow > 0) {
+        // add pos-deletes
+        table().refresh();
+        for (DataFile file : table().currentSnapshot().addedFiles()) {
+          writePosDeletes(file.path(), NUM_ROWS, percentageDeleteRow);
+        }
       }
     }
   }
