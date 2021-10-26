@@ -469,6 +469,17 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
+  public void testFanoutDeleteWriterNoRecords() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+    FanoutDeleteWriter<T> writer = new FanoutDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+
+    writer.close();
+    DeleteWriteResult result = writer.result();
+    Assert.assertEquals("Result should contain 0 delete files", 0, result.deleteFiles().size());
+    Assert.assertEquals("Result should reference 0 data files", 0, result.referencedDataFiles().size());
+  }
+
+  @Test
   public void testFanoutDataWriterMultiplePartitions() throws IOException {
     table.updateSpec()
         .addField(Expressions.ref("data"))
@@ -502,6 +513,88 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         toRow(3, "bbb"),
         toRow(4, "bbb"),
         toRow(5, "ccc")
+    );
+    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
+  public void testFanoutDeleteWriterMultipleSpecs() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // insert some unpartitioned data
+    ImmutableList<T> unpart_rows = ImmutableList.of(
+        toRow(1, "aaa"),
+        toRow(2, "bbb"),
+        toRow(3, "ccc")
+    );
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, unpart_rows, table.spec(), null);
+    table.newFastAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    // identity partition using the 'data' column
+    table.updateSpec().addField("data").commit();
+    // insert some partitioned data
+    ImmutableList<T> part_fff = ImmutableList.of(
+        toRow(4, "fff"),
+        toRow(5, "fff"),
+        toRow(6, "fff")
+    );
+    ImmutableList<T> part_rrr = ImmutableList.of(
+        toRow(7, "rrr"),
+        toRow(8, "rrr"),
+        toRow(9, "rrr")
+    );
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, part_fff, table.spec(), partitionKey(table.spec(), "fff"));
+    DataFile dataFile3 = writeData(writerFactory, fileFactory, part_rrr, table.spec(), partitionKey(table.spec(), "rrr"));
+    table.newFastAppend()
+        .appendFile(dataFile2)
+        .appendFile(dataFile3)
+        .commit();
+
+    // switch to using bucket partitioning on the 'data' column
+    table.updateSpec().removeField("data").addField(Expressions.bucket("data", 16)).commit();
+    // insert some data
+    ImmutableList<T> bucketed_rows = ImmutableList.of(
+        toRow(10, "rrr"),
+        toRow(11, "rrr"),
+        toRow(12, "rrr")
+    );
+    DataFile dataFile4 = writeData(writerFactory, fileFactory, bucketed_rows, table.spec(), partitionKey(table.spec(), "rrr"));
+    table.newFastAppend()
+      .appendFile(dataFile4)
+      .commit();
+
+    PartitionSpec unpartitionedSpec = table.specs().get(0);
+    PartitionSpec identitySpec = table.specs().get(1);
+    PartitionSpec bucketedSpec = table.specs().get(2);
+
+    // delete some records
+    FanoutDeleteWriter<T> writer = new FanoutDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile2.path(), 1L, null), identitySpec, partitionKey(identitySpec, "fff"));
+    writer.write(positionDelete(dataFile2.path(), 2L, null), identitySpec, partitionKey(identitySpec, "fff"));
+    writer.write(positionDelete(dataFile3.path(), 2L, null), identitySpec, partitionKey(identitySpec, "rrr"));
+    writer.write(positionDelete(dataFile4.path(), 0L, null), bucketedSpec, partitionKey(bucketedSpec, "rrr"));
+    writer.close();
+
+    DeleteWriteResult result = writer.result();
+    Assert.assertEquals("Result should contain 4 delete files", 4, result.deleteFiles().size());
+    Assert.assertEquals("Result should reference 4 data files", 4, result.referencedDataFiles().size());
+
+    RowDelta rowDelta = table.newRowDelta();
+    result.deleteFiles().forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    // check if correct records are read back
+    List<T> expectedRows = ImmutableList.of(
+        toRow(2, "bbb"),
+        toRow(3, "ccc"),
+        toRow(4, "fff"),
+        toRow(7, "rrr"),
+        toRow(8, "rrr"),
+        toRow(11, "rrr"),
+        toRow(12, "rrr")
     );
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
