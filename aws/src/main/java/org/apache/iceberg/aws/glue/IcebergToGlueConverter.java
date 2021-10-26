@@ -19,10 +19,16 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -30,7 +36,9 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -160,21 +168,8 @@ class IcebergToGlueConverter {
       tableInputBuilder
           .storageDescriptor(StorageDescriptor.builder()
               .location(metadata.location())
-              .columns(metadata.schema().columns().stream()
-                  .map(f -> Column.builder()
-                      .name(f.name())
-                      .type(toTypeString(f.type()))
-                      .comment("Iceberg column: { " + f + " }")
-                      .build())
-                  .collect(Collectors.toList()))
-              .build())
-          .partitionKeys(metadata.spec().fields().stream()
-              .map(f -> Column.builder()
-                  .name(f.name())
-                  .type(toTypeString(f.transform().getResultType(metadata.schema().findField(f.sourceId()).type())))
-                  .comment("Iceberg partition field: {" + f + "}")
-                  .build())
-              .collect(Collectors.toList()));
+              .columns(toColumns(metadata))
+              .build());
     } catch (RuntimeException e) {
       LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
     }
@@ -230,5 +225,64 @@ class IcebergToGlueConverter {
       default:
         return type.typeId().name().toLowerCase(Locale.ENGLISH);
     }
+  }
+
+  private static List<Column> toColumns(TableMetadata metadata) {
+    List<Column> columns = new ArrayList<>();
+    Set<NestedField> rootColumnSet = new HashSet<>();
+    // Add schema-column fields
+    for (NestedField field : metadata.schema().columns()) {
+      rootColumnSet.add(field);
+      columns.add(Column.builder()
+          .name(field.name())
+          .type(toTypeString(field.type()))
+          .comment(field.doc())
+          .parameters(convertToParameters("schema-column", field))
+          .build());
+    }
+    // Add schema-subfield
+    for (NestedField field : TypeUtil.indexById(metadata.schema().asStruct()).values()) {
+      if (!rootColumnSet.contains(field)) {
+        columns.add(Column.builder()
+            .name(field.name())
+            .type(toTypeString(field.type()))
+            .comment(field.doc())
+            .parameters(convertToParameters("schema-subfield", field))
+            .build());
+      }
+    }
+    // Add partition-field
+    for (PartitionField partitionField : metadata.spec().fields()) {
+      Type type = partitionField.transform()
+          .getResultType(metadata.schema().findField(partitionField.sourceId()).type());
+      columns.add(Column.builder()
+          .name(partitionField.name())
+          .type(toTypeString(type))
+          .parameters(convertToParameters(type, partitionField))
+          .build());
+    }
+    return columns;
+  }
+
+  private static Map<String, String> convertToParameters(String fieldUsage, NestedField nestedField) {
+    Map<String, String> columnParameters = new HashMap<>();
+    columnParameters.put("iceberg.field.usage", fieldUsage);
+    columnParameters.put("iceberg.field.type.id", nestedField.type().typeId().toString());
+    columnParameters.put("iceberg.field.type.string", toTypeString(nestedField.type()));
+    columnParameters.put("iceberg.field.id", Integer.toString(nestedField.fieldId()));
+    columnParameters.put("iceberg.field.optional", Boolean.toString(nestedField.isOptional()));
+    return columnParameters;
+  }
+
+  private static Map<String, String> convertToParameters(Type type, PartitionField partitionField) {
+    Map<String, String> columnParameters = new HashMap<>();
+    columnParameters.put("iceberg.field.usage", "partition-field");
+    columnParameters.put("iceberg.field.type.id", type.typeId().toString());
+    columnParameters.put("iceberg.field.type.string", toTypeString(type));
+    columnParameters.put("iceberg.field.id", Integer.toString(partitionField.fieldId()));
+    columnParameters.put("iceberg.partition.transform", partitionField.transform().toString());
+    columnParameters.put("iceberg.partition.field-id", Integer.toString(partitionField.fieldId()));
+    columnParameters.put("iceberg.partition.source-id", Integer.toString(partitionField.sourceId()));
+    return columnParameters;
   }
 }
