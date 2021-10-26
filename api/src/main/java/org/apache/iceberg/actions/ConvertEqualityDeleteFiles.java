@@ -28,15 +28,16 @@ public interface ConvertEqualityDeleteFiles
     extends SnapshotUpdate<ConvertEqualityDeleteFiles, ConvertEqualityDeleteFiles.Result> {
 
   /**
-   * A row filter for finding the equality deletes to convert.
+   * A filter for finding the equality deletes to convert.
    * <p>
-   * The row filter will be converted to a partition filter with an inclusive projection, so that candidate deletes are
-   * selected if any row match the expression. The matching delete files will be converted to position delete files.
+   * The filter will be converted to a partition filter with an inclusive projection. Any file that may contain rows
+   * matching this filter will be used by the action. The matching delete files will be converted to position delete
+   * files.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining
    */
-  ConvertEqualityDeleteFiles rowFilter(Expression expression);
+  ConvertEqualityDeleteFiles filter(Expression expression);
 
   /**
    * The action result that contains a summary of the execution.

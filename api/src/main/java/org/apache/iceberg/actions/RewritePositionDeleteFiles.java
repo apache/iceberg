@@ -30,15 +30,15 @@ public interface RewritePositionDeleteFiles
     extends SnapshotUpdate<RewritePositionDeleteFiles, RewritePositionDeleteFiles.Result> {
 
   /**
-   * A row filter for finding deletes to rewrite.
+   * A filter for finding deletes to rewrite.
    * <p>
-   * The row filter will be converted to a partition filter with an inclusive projection, so that candidate deletes are
-   * selected if any row match the expression. The matching delete files will be rewritten.
+   * The filter will be converted to a partition filter with an inclusive projection. Any file that may contain rows
+   * matching this filter will be used by the action. The matching delete files will be rewritten.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining
    */
-  RewritePositionDeleteFiles rowFilter(Expression expression);
+  RewritePositionDeleteFiles filter(Expression expression);
 
   /**
    * The action result that contains a summary of the execution.
