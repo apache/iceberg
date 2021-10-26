@@ -53,30 +53,30 @@ public class SparkProceduresForTest implements ProcedureProvider {
   private static final Namespace TEST_NAMESPACE = Namespace.of(FOR_TEST);
 
   @Override
-  public String getName() {
+  public String name() {
     return FOR_TEST;
   }
 
   @Override
-  public String getDescription() {
+  public String description() {
     return "Some Iceberg procedure for tests";
   }
 
   @Override
-  public Namespace getNamespace() {
+  public Namespace namespace() {
     return TEST_NAMESPACE;
   }
 
   @Override
-  public Map<String, Supplier<ProcedureBuilder>> getProcedureBuilders(String catalogName,
+  public Map<String, Supplier<ProcedureBuilder<?>>> createProcedureBuilders(String catalogName,
       CaseInsensitiveStringMap options, boolean forSessionCatalog) {
     return BUILDERS;
   }
 
-  private static final Map<String, Supplier<ProcedureBuilder>> BUILDERS = initProcedureBuilders();
+  private static final Map<String, Supplier<ProcedureBuilder<?>>> BUILDERS = initProcedureBuilders();
 
-  private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
-    ImmutableMap.Builder<String, Supplier<ProcedureBuilder>> mapBuilder = ImmutableMap.builder();
+  private static Map<String, Supplier<ProcedureBuilder<?>>> initProcedureBuilders() {
+    ImmutableMap.Builder<String, Supplier<ProcedureBuilder<?>>> mapBuilder = ImmutableMap.builder();
     mapBuilder.put(NOOP_PROCEDURE, NoopProcedure::builder);
     return mapBuilder.build();
   }
@@ -104,10 +104,10 @@ public class SparkProceduresForTest implements ProcedureProvider {
       };
     }
 
-    public static ProcedureBuilder builder() {
-      return new ProcedureBuilder.Builder<NoopProcedure>() {
+    public static ProcedureBuilder<NoopProcedure> builder() {
+      return new ProcedureBuilder<NoopProcedure>() {
         @Override
-        protected NoopProcedure doBuild() {
+        public NoopProcedure build(ProcedureBuilderHelper helper) {
           return new NoopProcedure();
         }
       };

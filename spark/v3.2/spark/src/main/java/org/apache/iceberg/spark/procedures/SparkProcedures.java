@@ -30,30 +30,30 @@ public class SparkProcedures implements ProcedureProvider {
   private static final Namespace SYSTEM_NAMESPACE = Namespace.of("system");
 
   @Override
-  public String getName() {
+  public String name() {
     return "system";
   }
 
   @Override
-  public String getDescription() {
+  public String description() {
     return "Default Iceberg procedures for Spark";
   }
 
   @Override
-  public Namespace getNamespace() {
+  public Namespace namespace() {
     return SYSTEM_NAMESPACE;
   }
 
   @Override
-  public Map<String, Supplier<ProcedureBuilder>> getProcedureBuilders(String catalogName,
+  public Map<String, Supplier<ProcedureBuilder<?>>> createProcedureBuilders(String catalogName,
       CaseInsensitiveStringMap options, boolean forSessionCatalog) {
     return BUILDERS;
   }
 
-  private static final Map<String, Supplier<ProcedureBuilder>> BUILDERS = initProcedureBuilders();
+  private static final Map<String, Supplier<ProcedureBuilder<?>>> BUILDERS = initProcedureBuilders();
 
-  private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
-    ImmutableMap.Builder<String, Supplier<ProcedureBuilder>> mapBuilder = ImmutableMap.builder();
+  private static Map<String, Supplier<ProcedureBuilder<?>>> initProcedureBuilders() {
+    ImmutableMap.Builder<String, Supplier<ProcedureBuilder<?>>> mapBuilder = ImmutableMap.builder();
     mapBuilder.put("rollback_to_snapshot", RollbackToSnapshotProcedure::builder);
     mapBuilder.put("rollback_to_timestamp", RollbackToTimestampProcedure::builder);
     mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);

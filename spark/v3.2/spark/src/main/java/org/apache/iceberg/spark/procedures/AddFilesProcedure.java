@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -72,11 +71,11 @@ class AddFilesProcedure extends BaseProcedure {
     super(tableCatalog);
   }
 
-  public static ProcedureBuilder builder() {
-    return new Builder<AddFilesProcedure>() {
+  public static ProcedureBuilder<AddFilesProcedure> builder() {
+    return new ProcedureBuilder<AddFilesProcedure>() {
       @Override
-      protected AddFilesProcedure doBuild() {
-        return new AddFilesProcedure(tableCatalog());
+      public AddFilesProcedure build(ProcedureBuilderHelper helper) {
+        return new AddFilesProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -49,11 +48,11 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
       new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
   });
 
-  public static ProcedureBuilder builder() {
-    return new Builder<RollbackToSnapshotProcedure>() {
+  public static ProcedureBuilder<RollbackToSnapshotProcedure> builder() {
+    return new ProcedureBuilder<RollbackToSnapshotProcedure>() {
       @Override
-      public RollbackToSnapshotProcedure doBuild() {
-        return new RollbackToSnapshotProcedure(tableCatalog());
+      public RollbackToSnapshotProcedure build(ProcedureBuilderHelper helper) {
+        return new RollbackToSnapshotProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

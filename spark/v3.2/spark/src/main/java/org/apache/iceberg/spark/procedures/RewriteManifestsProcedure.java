@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -52,11 +51,11 @@ class RewriteManifestsProcedure extends BaseProcedure {
       new StructField("added_manifests_count", DataTypes.IntegerType, false, Metadata.empty())
   });
 
-  public static ProcedureBuilder builder() {
-    return new Builder<RewriteManifestsProcedure>() {
+  public static ProcedureBuilder<RewriteManifestsProcedure> builder() {
+    return new ProcedureBuilder<RewriteManifestsProcedure>() {
       @Override
-      protected RewriteManifestsProcedure doBuild() {
-        return new RewriteManifestsProcedure(tableCatalog());
+      public RewriteManifestsProcedure build(ProcedureBuilderHelper helper) {
+        return new RewriteManifestsProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

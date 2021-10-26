@@ -27,7 +27,6 @@ import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -58,11 +57,11 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       new StructField("deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
   });
 
-  public static ProcedureBuilder builder() {
-    return new Builder<ExpireSnapshotsProcedure>() {
+  public static ProcedureBuilder<ExpireSnapshotsProcedure> builder() {
+    return new ProcedureBuilder<ExpireSnapshotsProcedure>() {
       @Override
-      protected ExpireSnapshotsProcedure doBuild() {
-        return new ExpireSnapshotsProcedure(tableCatalog());
+      public ExpireSnapshotsProcedure build(ProcedureBuilderHelper helper) {
+        return new ExpireSnapshotsProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

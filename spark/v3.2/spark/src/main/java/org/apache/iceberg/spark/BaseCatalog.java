@@ -29,9 +29,11 @@ import java.util.ServiceLoader;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.spark.procedures.ProcedureBuilder.ProcedureBuilderHelper;
 import org.apache.iceberg.spark.procedures.ProcedureProvider;
 import org.apache.iceberg.spark.procedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
@@ -45,23 +47,23 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseCatalog.class);
 
-  private final AtomicReference<Map<Identifier, Supplier<ProcedureBuilder>>> procedureBuilders = new AtomicReference<>(
+  private final AtomicReference<Map<Identifier, Supplier<ProcedureBuilder<?>>>> procedureBuilders = new AtomicReference<>(
       Collections.emptyMap());
 
   protected void initializeProcedures(String catalogName, CaseInsensitiveStringMap options,
       boolean forSessionCatalog) {
-    Map<Identifier, Supplier<ProcedureBuilder>> procedureBuilders = new HashMap<>();
+    Map<Identifier, Supplier<ProcedureBuilder<?>>> procedureBuilders = new HashMap<>();
     ServiceLoader<ProcedureProvider> loader = ServiceLoader.load(ProcedureProvider.class);
     for (ProcedureProvider procedureProvider : loader) {
-      Map<String, Supplier<ProcedureBuilder>> provided = procedureProvider.getProcedureBuilders(
+      Map<String, Supplier<ProcedureBuilder<?>>> provided = procedureProvider.createProcedureBuilders(
           catalogName, options, forSessionCatalog);
       if (provided != null && !provided.isEmpty()) {
-        Namespace providerNamespace = procedureProvider.getNamespace();
+        Namespace providerNamespace = procedureProvider.namespace();
         LOG.debug("Adding procedures {} in namespace {} from provider {} ({})",
             String.join(", ", provided.keySet()), providerNamespace,
-            procedureProvider.getName(), procedureProvider.getDescription());
+            procedureProvider.name(), procedureProvider.description());
         String[] namespace = lowerCaseArray(providerNamespace.levels());
-        for (Entry<String, Supplier<ProcedureBuilder>> proc : provided.entrySet()) {
+        for (Entry<String, Supplier<ProcedureBuilder<?>>> proc : provided.entrySet()) {
           Identifier ident = Identifier.of(namespace, proc.getKey());
           if (procedureBuilders.put(ident, proc.getValue()) != null) {
             throw new IllegalArgumentException(
@@ -70,7 +72,7 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
         }
       } else {
         LOG.debug("Ignoring procedure provider {} ({}) as it returned no procedures",
-            lowerCase(procedureProvider.getName()), procedureProvider.getDescription());
+            lowerCase(procedureProvider.name()), procedureProvider.description());
       }
     }
 
@@ -80,10 +82,20 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
-    Supplier<ProcedureBuilder> builder = procedureBuilders.get().get(
+    Supplier<ProcedureBuilder<?>> builder = procedureBuilders.get().get(
         Identifier.of(lowerCaseArray(ident.namespace()), lowerCase(ident.name())));
     if (builder != null) {
-      return builder.get().withTableCatalog(this).build();
+      BaseCatalog catalog = this;
+      return builder.get().build(new ProcedureBuilderHelper() {
+        @Override
+        public <P extends CatalogPlugin> P plugin(Class<P> pluginType) {
+          if (pluginType.isAssignableFrom(catalog.getClass())) {
+            return pluginType.cast(catalog);
+          }
+          throw new IllegalArgumentException(String.format("Catalog %s does not implement %s",
+              catalog.getClass().getSimpleName(), pluginType.getSimpleName()));
+        }
+      });
     }
     throw new NoSuchProcedureException(ident);
   }

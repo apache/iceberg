@@ -14,38 +14,15 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 
 /** Builder interface to create a new {@link Procedure} instance. */
-public interface ProcedureBuilder {
+public interface ProcedureBuilder<P extends Procedure> {
 
-  ProcedureBuilder withTableCatalog(TableCatalog tableCatalog);
+  P build(ProcedureBuilderHelper helper);
 
-  Procedure build();
-
-  /**
-   * Helper class to create a {@link ProcedureBuilder}.
-   * @param <T> type of the procedure.
-   */
-  abstract class Builder<T extends Procedure> implements ProcedureBuilder {
-    private TableCatalog tableCatalog;
-
-    @Override
-    public Builder<T> withTableCatalog(TableCatalog newTableCatalog) {
-      this.tableCatalog = newTableCatalog;
-      return this;
-    }
-
-    @Override
-    public T build() {
-      return doBuild();
-    }
-
-    protected abstract T doBuild();
-
-    TableCatalog tableCatalog() {
-      return tableCatalog;
-    }
+  interface ProcedureBuilderHelper {
+    <T extends CatalogPlugin> T plugin(Class<T> pluginType);
   }
 }

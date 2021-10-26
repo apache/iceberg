@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -50,11 +49,11 @@ class RollbackToTimestampProcedure extends BaseProcedure {
       new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
   });
 
-  public static ProcedureBuilder builder() {
-    return new Builder<RollbackToTimestampProcedure>() {
+  public static ProcedureBuilder<RollbackToTimestampProcedure> builder() {
+    return new ProcedureBuilder<RollbackToTimestampProcedure>() {
       @Override
-      protected RollbackToTimestampProcedure doBuild() {
-        return new RollbackToTimestampProcedure(tableCatalog());
+      public RollbackToTimestampProcedure build(ProcedureBuilderHelper helper) {
+        return new RollbackToTimestampProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

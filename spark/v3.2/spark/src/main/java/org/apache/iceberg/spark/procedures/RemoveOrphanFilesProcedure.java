@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -53,11 +52,11 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty())
   });
 
-  public static ProcedureBuilder builder() {
-    return new Builder<RemoveOrphanFilesProcedure>() {
+  public static ProcedureBuilder<RemoveOrphanFilesProcedure> builder() {
+    return new ProcedureBuilder<RemoveOrphanFilesProcedure>() {
       @Override
-      protected RemoveOrphanFilesProcedure doBuild() {
-        return new RemoveOrphanFilesProcedure(tableCatalog());
+      public RemoveOrphanFilesProcedure build(ProcedureBuilderHelper helper) {
+        return new RemoveOrphanFilesProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -50,11 +49,11 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
       new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
   });
 
-  public static ProcedureBuilder builder() {
-    return new Builder<CherrypickSnapshotProcedure>() {
+  public static ProcedureBuilder<CherrypickSnapshotProcedure> builder() {
+    return new ProcedureBuilder<CherrypickSnapshotProcedure>() {
       @Override
-      protected CherrypickSnapshotProcedure doBuild() {
-        return new CherrypickSnapshotProcedure(tableCatalog());
+      public CherrypickSnapshotProcedure build(ProcedureBuilderHelper helper) {
+        return new CherrypickSnapshotProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }

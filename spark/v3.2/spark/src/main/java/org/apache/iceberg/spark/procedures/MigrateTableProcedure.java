@@ -24,7 +24,6 @@ import org.apache.iceberg.actions.CreateAction;
 import org.apache.iceberg.actions.Spark3MigrateAction;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
-import org.apache.iceberg.spark.procedures.ProcedureBuilder.Builder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -48,11 +47,11 @@ class MigrateTableProcedure extends BaseProcedure {
     super(tableCatalog);
   }
 
-  public static ProcedureBuilder builder() {
-    return new Builder<MigrateTableProcedure>() {
+  public static ProcedureBuilder<MigrateTableProcedure> builder() {
+    return new ProcedureBuilder<MigrateTableProcedure>() {
       @Override
-      protected MigrateTableProcedure doBuild() {
-        return new MigrateTableProcedure(tableCatalog());
+      public MigrateTableProcedure build(ProcedureBuilderHelper helper) {
+        return new MigrateTableProcedure(helper.plugin(TableCatalog.class));
       }
     };
   }
