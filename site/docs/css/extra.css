@@ -17,6 +17,12 @@
  * under the License.
  */
 
+.center img {
+  position: absolute;
+  left: 50%;
+  padding-left: 600px;
+}
+
 .navbar-brand:before {
   content: ' ';
   display: block;
@@ -43,6 +49,22 @@
 .headerlink {
   padding-left: 1em;
   opacity: 0;
+}
+
+.navbar {
+  background-color: #F2F2F2;
+}
+
+.wm-toc-li.wm-current, .wm-toc-li.wm-current:hover {
+  background-color: #B8E1F3;
+}
+
+.wm-top-tool-expanded {
+  position: absolute;
+  right: 0px;
+  padding: inherit;
+  width: 100%;
+  background-color: #21252B;
 }
 
 h2, h3, h4 {
@@ -95,7 +117,131 @@ pre {
 
 .spec-img {
   float: right;
-  max-width: 50%; 
-  min-width: 265px; 
+  max-width: 50%;
+  min-width: 265px;
   margin: 1em 0 1em 2em;
+}
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+  line-height: 16px;
+  vertical-align: middle;
+  color: #2879BE;
+}
+
+.dropdown-content-wrapper {
+  position: absolute;
+  padding-top: 16px;
+}
+
+.dropdown-content {
+  display: none;
+  background-color: #F2F2F2;
+  min-width: 100px;
+  padding-right: 5px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-left: 2px;
+  border-style: solid;
+  border-color: #999999;
+  border-width: 1px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
+.dropdown-content a {
+  display: block;
+}
+
+.dropdown-content span:hover {background-color: #F1F1F1}
+
+.wm-toctree a, .wm-toctree a:visited, .wm-toctree a:hover, .wm-toctree a:focus {
+  color: black;
+  text-decoration: none;
+  outline: none;
+}
+
+.wm-top-title {
+  display: inline-block;
+  line-height: 16px;
+  vertical-align: middle;
+  color: black;
+}
+
+.wm-version-dropdown a {
+  display: inline-block;
+  line-height: 30px;
+  vertical-align: middle;
+  color: black;
+}
+
+.wm-version-dropdown:after {
+  content: '\A';
+  white-space: pre;
+}
+
+.wm-version-dropdown:hover {
+  color: #2879BE;
+  text-decoration: none;
+}
+
+.wm-top-link, .wm-top-link:hover, .wm-top-link:active, .wm-top-link:visited, .wm-top-link:focus {
+  color: black;
+  text-decoration: none;
+}
+
+.top-right-nav-item {
+  height: 50px;
+  padding-left: 10px;
+  white-space: nowrap;
+}
+
+.top-center-nav-warning {
+  height: 50px;
+  display: inline-block;
+  margin: 0 auto;
+  padding-left: 20px;
+  z-index: -1;
+}
+
+.wm-toc-opener > .wm-toc-text::before {
+  content: initial;
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 8px;
+  width: 14px;
+}
+
+.wm-toc-opener.wm-toc-open > .wm-toc-text::before {
+  content: initial;
+}
+
+#hideable-navs{
+  display: block;
+}
+
+/* Get rid of topbar links when screen width shrinks */
+@media (max-width: 960px)
+{
+  #hideable-navs
+  {
+    display: none;
+  }
+}
+
+@media (max-width: 1536px)
+{
+  #not-latest-version-warning
+  {
+    display: none;
+  }
+}
+
+.navigation-icon {
+  height: 1em;
 }

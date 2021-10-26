@@ -25,20 +25,37 @@ remote_name: apache
 remote_branch: asf-site
 use_directory_urls: true
 
-theme: cinder
+theme:
+  name: windmill
+  custom_dir: docs/theme_customization
 copyright: "Copyright 2018-2021 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
 extra_css:
   - css/extra.css
+  - css/font-awesome.min.css
+extra_javascript:
+  - js/extra.js
 extra:
   versions:
-    iceberg: 0.12.0
+    iceberg: "#0.12.0"
     nessie: 0.9.2
+  version_warning: You are not currently looking at the latest
+  logo: img/favicon-96x96.png
+  version: 0.12.0
+  article_nav_top: false
+  article_nav_bottom: false
+  include_search_page: true
+  search_index_only: true
 plugins:
   - redirects:
       redirect_maps:
         'time-travel.md': 'spark-queries/#time-travel'
         'presto.md': 'trino-prestodb.md'
-  - markdownextradata  
+        '/': '/0.12.0'
+  - markdownextradata
+  - search
+  - exclude-search:
+      exclude:
+        - exclude/*
 markdown_extensions:
   - toc:
       permalink: True
@@ -49,59 +66,48 @@ markdown_extensions:
   - admonition
   - pymdownx.tilde
 nav:
-  - Project:
-    - About: index.md
-    - Roadmap: roadmap.md
-    - Community: community.md
-    - Releases: releases.md
-    - Blogs: blogs.md
-    - Trademarks: trademarks.md
-    - How to Release: how-to-release.md
-    - Security: security.md
-  - Getting Started: getting-started.md
   - Tables:
-    - Configuration: configuration.md
-    - Schemas: schemas.md
-    - Partitioning: partitioning.md
-    - Table evolution: evolution.md
-    - Maintenance: maintenance.md
-    - Performance: performance.md
-    - Reliability: reliability.md
+      - Configuration: 0.12.0/tables/configuration.md
+      - Schemas: 0.12.0/tables/schemas.md
+      - Partitioning: 0.12.0/tables/partitioning.md
+      - Table evolution: 0.12.0/tables/evolution.md
+      - Maintenance: 0.12.0/tables/maintenance.md
+      - Performance: 0.12.0/tables/performance.md
+      - Reliability: 0.12.0/tables/reliability.md
   - Engines:
-    - Spark:
-      - Getting Started: getting-started.md
-      - Configuration: spark-configuration.md
-      - DDL: spark-ddl.md
-      - Queries: spark-queries.md
-      - Writes: spark-writes.md
-      - Maintenance Procedures: spark-procedures.md
-      - Structured Streaming: spark-structured-streaming.md
-      - Time Travel: spark-queries/#time-travel
-    - Flink:
-      - Getting Started: flink.md
-      - Flink Connector: flink-connector.md
-    - Hive: hive.md
-    - Trino: https://trino.io/docs/current/connector/iceberg.html
-    - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
+      - Spark:
+          - Spark Quickstart: 0.12.0/engines/spark/getting-started.md
+          - Configuration: 0.12.0/engines/spark/spark-configuration.md
+          - DDL: 0.12.0/engines/spark/spark-ddl.md
+          - Queries: 0.12.0/engines/spark/spark-queries.md
+          - Writes: 0.12.0/engines/spark/spark-writes.md
+          - Maintenance Procedures: 0.12.0/engines/spark/spark-procedures.md
+          - Structured Streaming: 0.12.0/engines/spark/spark-structured-streaming.md
+      - Flink:
+          - Flink Getting Started: 0.12.0/engines/flink/flink.md
+          - Flink Connector: 0.12.0/engines/flink/flink-connector.md
+      - Hive: 0.12.0/engines/hive/hive.md
+      - Trino: https://trino.io/docs/current/connector/iceberg.html
+      - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
   - Integrations:
-    - AWS: aws.md
-    - Nessie: nessie.md
-    - JDBC: jdbc.md
-  - API:
-    - Javadoc: /javadoc/
-    - Java API intro: api.md
-    - Java Quickstart: java-api-quickstart.md
-    - Java Custom Catalog: custom-catalog.md
-    - Python Quickstart: python-quickstart.md
-    - Python API Intro: python-api-intro.md
-    - Python Feature Support: python-feature-support.md
+      - AWS: 0.12.0/integrations/aws/aws.md
+      - Nessie: 0.12.0/integrations/nessie/nessie.md
+      - JDBC: 0.12.0/integrations/jdbc/jdbc.md
+  - Java API:
+      - Java Quickstart: 0.12.0/java/java-api-quickstart.md
+      - Java API intro: 0.12.0/java/api.md
+      - Java Custom Catalog: 0.12.0/java/custom-catalog.md
+      - Javadoc: 0.12.0/java/javadoc/0.12.0
+  - Python API:
+      - Python Quickstart: 0.12.0/python/python-quickstart.md
+      - Python API Intro: 0.12.0/python/python-api-intro.md
+      - Python Feature Support: 0.12.0/python/python-feature-support.md
   - Format:
-    - Definitions: terms.md
-    - Spec: spec.md
-  - GitHub: https://github.com/apache/iceberg
+      - Terms: 0.12.0/terms.md
+      - Spec: 0.12.0/spec.md
   - ASF:
-    - License: https://www.apache.org/licenses/
-    - Security: https://www.apache.org/security/
-    - Sponsors: https://www.apache.org/foundation/thanks.html
-    - Donate: https://www.apache.org/foundation/sponsorship.html
-    - Events: https://www.apache.org/events/current-event.html
+      - License: https://www.apache.org/licenses/
+      - Security: https://www.apache.org/security/
+      - Sponsors: https://www.apache.org/foundation/thanks.html
+      - Donate: https://www.apache.org/foundation/sponsorship.html
+      - Events: https://www.apache.org/events/current-event.html

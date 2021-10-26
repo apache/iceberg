@@ -56,6 +56,10 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+## How to Release
+
+To learn how to perform a release, refer to the [How to Release](/0.12.0/how-to-release.md) guide.
+
 ## 0.12.0 Release Notes
 
 Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commits authored by 74 contributors over a 139 day period.

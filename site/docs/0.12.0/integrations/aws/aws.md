@@ -14,7 +14,7 @@
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
- 
+
 # Iceberg AWS Integrations
 
 Iceberg provides integration with different AWS services through the `iceberg-aws` module. 
