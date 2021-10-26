@@ -83,8 +83,8 @@ public class CachingCatalog implements Catalog {
   private final boolean caseSensitive;
   private final boolean expirationEnabled;
   private final long expirationIntervalMillis;
-
-  private Cache<TableIdentifier, Table> tableCache = createTableCache(expirationEnabled, expirationIntervalMillis);
+  private final boolean recordCacheStats;
+  private Cache<TableIdentifier, Table> tableCache;
 
   private CachingCatalog(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
       long expirationIntervalMillis) {
@@ -92,23 +92,32 @@ public class CachingCatalog implements Catalog {
     this.caseSensitive = caseSensitive;
     this.expirationEnabled = expirationEnabled;
     this.expirationIntervalMillis = expirationIntervalMillis;
+    this.recordCacheStats = false;
+
+    this.tableCache = createTableCache(expirationEnabled, expirationIntervalMillis);
   }
 
-  // For testing
+  // The tableCache should only be passed in during tests, so that a ticket can be used
+  // to control for cache entry expiration.
+  @VisibleForTesting
   public CachingCatalog(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
-      long expirationIntervalMillis, Cache<TableIdentifier, Table> tableCache) {
-    this(catalog, caseSensitive, expirationEnabled, expirationIntervalMillis);
+      long expirationIntervalMillis, Cache<TableIdentifier, Table> tableCache, boolean recordCacheStats) {
+    this.catalog = catalog;
+    this.caseSensitive = caseSensitive;
+    this.expirationEnabled = expirationEnabled;
+    this.expirationIntervalMillis = expirationIntervalMillis;
     this.tableCache = tableCache;
+    this.recordCacheStats = recordCacheStats;
   }
 
   private Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled,
       long expirationIntervalMillis) {
-    return createTableCache(expirationEnabled, expirationIntervalMillis, null);
+    return createTableCache(expirationEnabled, expirationIntervalMillis, null, false);
   }
 
   @VisibleForTesting
   public static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled, long expirationMillis,
-      Ticker ticker) {
+      Ticker ticker, boolean recordTableStats) {
     // TODO - move this somewhere better - this is just for getting tests to work.
     Preconditions.checkArgument(!expirationEnabled || expirationMillis > 0L,
         "The cache expiration time must be greater than zero if cache expiration is enabled");
@@ -117,8 +126,14 @@ public class CachingCatalog implements Catalog {
       .softValues();
 
     if (expirationEnabled) {
+      // TODO - Update this to be a write expiration so that it matches current semantics.
       LOG.info("Instantiating CachingCatalog with a cache expiration interval of {} milliseconds", expirationMillis);
       cacheBuilder = cacheBuilder.expireAfterAccess(Duration.ofMillis(expirationMillis));
+    }
+
+    if (recordTableStats) {
+      LOG.info("Instantiating CachingCatalog an internal cache that records statistics on hits and misses");
+      cacheBuilder = cacheBuilder.recordStats();
     }
 
     if (ticker != null) {
