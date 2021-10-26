@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
@@ -288,7 +289,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateNamespace() throws Exception {
-    HadoopCatalog catalog = hadoopCatalog();
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
 
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
@@ -297,11 +301,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         catalog.createNamespace(t.namespace(), meta)
     );
 
-    String metaLocation1 = catalog.defaultWarehouseLocation(TableIdentifier.parse("db/ns1/ns2"));
+    String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
     Assert.assertTrue(fs1.isDirectory(new Path(metaLocation1)));
 
-    String metaLocation2 = catalog.defaultWarehouseLocation(TableIdentifier.parse("db/ns2/ns3"));
+    String metaLocation2 = warehouseLocation + "/" + "db/ns2/ns3";
     FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
     Assert.assertTrue(fs2.isDirectory(new Path(metaLocation2)));
 
@@ -404,7 +408,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testDropNamespace() throws IOException {
-    HadoopCatalog catalog = hadoopCatalog();
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
     Namespace namespace1 = Namespace.of("db");
     Namespace namespace2 = Namespace.of("db", "ns1");
 
@@ -426,7 +433,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertTrue(catalog.dropTable(tbl2));
     Assert.assertTrue(catalog.dropNamespace(namespace2));
     Assert.assertTrue(catalog.dropNamespace(namespace1));
-    String metaLocation = catalog.getConf().get(CatalogProperties.WAREHOUSE_LOCATION) + "/" + "db";
+    String metaLocation = warehouseLocation + "/" + "db";
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
   }
