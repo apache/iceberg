@@ -87,9 +87,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
+  private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "hive.iceberg.metadata.refresh.max.retries";
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
+  private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
       .impl(IMetaStoreClient.class, "alter_table_with_environmentContext",
@@ -144,6 +146,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
+  private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
 
@@ -164,6 +167,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
+    this.metadataRefreshMaxRetries = conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
   }
 
   @Override
@@ -199,7 +203,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    refreshFromMetadataLocation(metadataLocation);
+//    refreshFromMetadataLocation(metadataLocation);
+    refreshFromMetadataLocation(metadataLocation, this.metadataRefreshMaxRetries);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")

@@ -48,6 +48,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -432,6 +433,22 @@ public class HiveTableTest extends HiveTableBaseTest {
     hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
+  }
+
+  @Test(timeout = 60000, expected = NotFoundException.class)
+  public void testMissingMetadataWontCauseHang() throws Exception {
+    catalog.loadTable(TABLE_IDENTIFIER);
+//    HiveConf.setIntVar(catalog.getConf(), HiveConf.ConfVars.HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, 3);
+
+    File realLocation = new File(metadataLocation(TABLE_NAME));
+    File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
+    realLocation.renameTo(fakeLocation);
+
+    try {
+      catalog.loadTable(TABLE_IDENTIFIER);
+    } finally {
+      realLocation.renameTo(realLocation);
+    }
   }
 
   private void assertHiveEnabled(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean expected) {
