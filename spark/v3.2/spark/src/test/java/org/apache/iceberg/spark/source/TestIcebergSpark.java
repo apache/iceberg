@@ -153,9 +153,9 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterDecimalBucketUDF() {
-    IcebergSpark.registerBucketUDF(spark, "iceberg_decimal_binary_16", new DecimalType(4, 2), 16);
+    IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_decimal_16", new DecimalType(4, 2), 16);
     List<Row> results =
-        spark.sql("SELECT iceberg_decimal_binary_16(11.11)").collectAsList();
+        spark.sql("SELECT iceberg_bucket_decimal_16(11.11)").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals((int) Transforms.bucket(Types.DecimalType.of(4, 2), 16)
             .apply(new BigDecimal("11.11")),
