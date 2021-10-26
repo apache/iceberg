@@ -117,7 +117,7 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
           .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
       appendAsFile(df);
 
-      if(percentageDeleteRow > 0) {
+      if (percentageDeleteRow > 0) {
         // add pos-deletes
         table().refresh();
         for (DataFile file : table().currentSnapshot().addedFiles()) {
