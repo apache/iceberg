@@ -38,10 +38,10 @@ github:
     - marton-bod
     - nastra
     - samarthjain
-    - mccheah
     - szehon-ho
     - findepi
     - SreeramGarlapati
+    - samredai
 
 notifications:
     commits:      commits@iceberg.apache.org
