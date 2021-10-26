@@ -297,11 +297,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         catalog.createNamespace(t.namespace(), meta)
     );
 
-    String metaLocation1 = catalog.getConf().get(CatalogProperties.WAREHOUSE_LOCATION) + "/" + "db/ns1/ns2";
+    String metaLocation1 = catalog.defaultWarehouseLocation(TableIdentifier.parse("db/ns1/ns2"));
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
     Assert.assertTrue(fs1.isDirectory(new Path(metaLocation1)));
 
-    String metaLocation2 = catalog.getConf().get("") + "/" + "db/ns2/ns3";
+    String metaLocation2 = catalog.defaultWarehouseLocation(TableIdentifier.parse("db/ns2/ns3"));
     FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
     Assert.assertTrue(fs2.isDirectory(new Path(metaLocation2)));
 
