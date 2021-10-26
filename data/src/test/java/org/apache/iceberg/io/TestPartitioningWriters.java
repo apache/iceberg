@@ -522,12 +522,12 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // insert some unpartitioned data
-    ImmutableList<T> unpart_rows = ImmutableList.of(
+    ImmutableList<T> unpartRows = ImmutableList.of(
         toRow(1, "aaa"),
         toRow(2, "bbb"),
         toRow(3, "ccc")
     );
-    DataFile dataFile1 = writeData(writerFactory, fileFactory, unpart_rows, table.spec(), null);
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, unpartRows, table.spec(), null);
     table.newFastAppend()
         .appendFile(dataFile1)
         .commit();
@@ -535,18 +535,20 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     // identity partition using the 'data' column
     table.updateSpec().addField("data").commit();
     // insert some partitioned data
-    ImmutableList<T> part_fff = ImmutableList.of(
+    ImmutableList<T> identityRows1 = ImmutableList.of(
         toRow(4, "fff"),
         toRow(5, "fff"),
         toRow(6, "fff")
     );
-    ImmutableList<T> part_rrr = ImmutableList.of(
+    ImmutableList<T> identityRows2 = ImmutableList.of(
         toRow(7, "rrr"),
         toRow(8, "rrr"),
         toRow(9, "rrr")
     );
-    DataFile dataFile2 = writeData(writerFactory, fileFactory, part_fff, table.spec(), partitionKey(table.spec(), "fff"));
-    DataFile dataFile3 = writeData(writerFactory, fileFactory, part_rrr, table.spec(), partitionKey(table.spec(), "rrr"));
+    DataFile dataFile2 =
+        writeData(writerFactory, fileFactory, identityRows1, table.spec(), partitionKey(table.spec(), "fff"));
+    DataFile dataFile3 =
+        writeData(writerFactory, fileFactory, identityRows2, table.spec(), partitionKey(table.spec(), "rrr"));
     table.newFastAppend()
         .appendFile(dataFile2)
         .appendFile(dataFile3)
@@ -555,15 +557,16 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     // switch to using bucket partitioning on the 'data' column
     table.updateSpec().removeField("data").addField(Expressions.bucket("data", 16)).commit();
     // insert some data
-    ImmutableList<T> bucketed_rows = ImmutableList.of(
+    ImmutableList<T> bucketedRows = ImmutableList.of(
         toRow(10, "rrr"),
         toRow(11, "rrr"),
         toRow(12, "rrr")
     );
-    DataFile dataFile4 = writeData(writerFactory, fileFactory, bucketed_rows, table.spec(), partitionKey(table.spec(), "rrr"));
+    DataFile dataFile4 =
+        writeData(writerFactory, fileFactory, bucketedRows, table.spec(), partitionKey(table.spec(), "rrr"));
     table.newFastAppend()
-      .appendFile(dataFile4)
-      .commit();
+        .appendFile(dataFile4)
+        .commit();
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec identitySpec = table.specs().get(1);
@@ -572,10 +575,13 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     // delete some records
     FanoutDeleteWriter<T> writer = new FanoutDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
     writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile2.path(), 0L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.write(positionDelete(dataFile2.path(), 1L, null), identitySpec, partitionKey(identitySpec, "fff"));
-    writer.write(positionDelete(dataFile2.path(), 2L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.write(positionDelete(dataFile3.path(), 2L, null), identitySpec, partitionKey(identitySpec, "rrr"));
     writer.write(positionDelete(dataFile4.path(), 0L, null), bucketedSpec, partitionKey(bucketedSpec, "rrr"));
+    // pepper in some out-of-order spec deletes, which shouldn't cause problems for fanout writer
+    writer.write(positionDelete(dataFile1.path(), 1L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile2.path(), 2L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.close();
 
     DeleteWriteResult result = writer.result();
@@ -588,9 +594,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     // check if correct records are read back
     List<T> expectedRows = ImmutableList.of(
-        toRow(2, "bbb"),
         toRow(3, "ccc"),
-        toRow(4, "fff"),
         toRow(7, "rrr"),
         toRow(8, "rrr"),
         toRow(11, "rrr"),
