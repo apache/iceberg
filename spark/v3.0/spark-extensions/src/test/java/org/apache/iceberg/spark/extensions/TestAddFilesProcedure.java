@@ -782,6 +782,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     partitionedDF.write().insertInto(sourceTableName);
   }
 
+  // Update this to not write a file for import using Iceberg's ID numbers
   public List<Record> createOrcFile(File orcFile, int numRows) throws IOException {
     // Needs to be deleted but depend on the rule to delete the file for us again at the end.
     if (orcFile.exists()) {
