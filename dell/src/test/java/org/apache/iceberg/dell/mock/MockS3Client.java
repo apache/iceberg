@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -105,7 +105,7 @@ public class MockS3Client implements S3Client {
     S3ObjectMetadata metadata = request.getObjectMetadata();
     objectData.put(
         new EcsURI(request.getBucketName(), request.getKey()),
-        ObjectData.create(getContent(request.getEntity()), metadata));
+        ObjectData.create(convertContent(request.getEntity()), metadata));
     return new PutObjectResult();
   }
 
@@ -116,7 +116,7 @@ public class MockS3Client implements S3Client {
     if (old == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
-    byte[] appendedData = getContent(content);
+    byte[] appendedData = convertContent(content);
     if (objectData.replace(uri, old, old.appendContent(appendedData))) {
       return old.getLength();
     } else {
@@ -124,7 +124,7 @@ public class MockS3Client implements S3Client {
     }
   }
 
-  private byte[] getContent(Object entity) {
+  private byte[] convertContent(Object entity) {
     if (entity instanceof InputStream) {
       try (InputStream inputStream = (InputStream) entity) {
         return IOUtils.toByteArray(inputStream);

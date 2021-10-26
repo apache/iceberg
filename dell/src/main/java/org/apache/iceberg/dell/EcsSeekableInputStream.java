@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -69,20 +69,20 @@ public class EcsSeekableInputStream extends SeekableInputStream {
 
   @Override
   public int read() throws IOException {
-    syncNewPosToPos();
+    checkAndUseNewPos();
     pos += 1;
     return internal.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    syncNewPosToPos();
+    checkAndUseNewPos();
     int delta = internal.read(b, off, len);
     pos += delta;
     return delta;
   }
 
-  private void syncNewPosToPos() throws IOException {
+  private void checkAndUseNewPos() throws IOException {
     if (newPos < 0) {
       return;
     }
