@@ -236,8 +236,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   // a metadata delete is possible iff matching files can be deleted entirely
   private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+    boolean caseSensitive = Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
     TableScan scan = table().newScan()
         .filter(deleteExpr)
+        .caseSensitive(caseSensitive)
         .includeColumnStats()
         .ignoreResiduals();
 
