@@ -17,36 +17,24 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.mock;
 
 import com.emc.object.s3.S3Client;
+import java.util.Map;
+import org.apache.iceberg.dell.EcsClientProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-/**
- * Property constants of catalog
- */
-public interface EcsClientProperties {
+public class MockEcsClientFactory {
 
-  /**
-   * Access key id
-   */
-  String ACCESS_KEY_ID = "s3.access.key.id";
+  private MockEcsClientFactory() {
+  }
 
-  /**
-   * Secret access key
-   */
-  String SECRET_ACCESS_KEY = "s3.secret.access.key";
+  public static final Map<String, String> MOCK_ECS_CLIENT_PROPERTIES = ImmutableMap.of(
+      EcsClientProperties.ECS_CLIENT_FACTORY,
+      MockEcsClientFactory.class.getName() + "#create"
+  );
 
-  /**
-   * S3 endpoint
-   */
-  String ENDPOINT = "s3.endpoint";
-
-  /**
-   * Factory method of {@link S3Client}.
-   * <p>
-   * The method should be static and use format like: "org.apache.iceberg.dell.EcsClientFactory#create"
-   * <p>
-   * The method must have only one parameter. And return exact {@link S3Client} type.
-   */
-  String ECS_CLIENT_FACTORY = "ecs.client.factory";
+  public static S3Client create(Map<String, String> properties) {
+    return new MockS3Client();
+  }
 }
