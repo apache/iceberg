@@ -88,7 +88,7 @@ git add $projectdir/version.txt
 git commit -m "Add version.txt for release $version" $projectdir/version.txt
 
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
-git tag -am "$tag" $tagrc $set_version_hash
+git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
 
 echo "Pushing $tagrc to $remote..."
 git push $remote $tagrc

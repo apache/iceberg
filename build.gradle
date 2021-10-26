@@ -18,6 +18,8 @@
  */
 
 import groovy.transform.Memoized
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 buildscript {
   repositories {
@@ -572,14 +574,21 @@ String getProjectVersion() {
   }
 
   try {
-    // the tag is annotated with 'apache-iceberg-', so we fetch the version from there
-    def version = gitVersion(prefix: 'apache-iceberg-')
+    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
+    String version = gitVersion(prefix: 'release-base-')
+    Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
+    Matcher matcher = pattern.matcher(version)
+    if (matcher.matches()) {
+      // bump the MINOR version and always set the PATCH version to 0
+      version = matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0"
+    }
     if (project.hasProperty('versionSuffix')) {
-      return version + project.getProperties().get("versionSuffix")
+      return version + "-" + project.getProperties().get("versionSuffix")
     }
     return version
-  } catch (NullPointerException e) {
-    throw new Exception("Neither version.txt nor git version exists")
+  } catch (Exception e) {
+    throw new Exception("Neither version.txt nor git version exists: " + e.getMessage(), e)
   }
 }
 
