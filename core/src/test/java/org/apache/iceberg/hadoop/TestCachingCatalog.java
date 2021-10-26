@@ -233,13 +233,15 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     // Get the table again, which should put a new entry representing the same table identifier back in the cache.
     // Ensure that the returned Table's reference the same thing, but are not the same object.
     Table tbl2 = catalog.loadTable(tableIdent);
+    Assert.assertNotSame("CachingCatalog should return a new instance after expiration", tbl1, tbl2);
     Assert.assertEquals("CachingCatalog should return functionally equivalent tables on load after expiration",
         tbl1.name(), tbl2.name());
-    Assert.assertNotSame("CachingCatalog should return a new instance after expiration", tbl1, tbl2);
 
     // Allow table's to be GC'd.
     tbl1 = null;
     tbl2 = null;
+    Assert.assertNull("Ensure tbl1 has been made eligible for GC", tbl1);
+    Assert.assertNull("Ensure tbl2 has been made eligible for GC", tbl2);
 
     // Ensure that the cache is now re-populated from the table load
     Assert.assertEquals("Reloading the expired table should repopulate its cache entry",
@@ -255,6 +257,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     ticker.advance(expirationMillis);
     tableCache.cleanUp();
     ticker.advance(100 * expirationMillis);
+    tableCache.cleanUp();
+    ticker.advance(50 * expirationMillis);
     tableCache.cleanUp();
     // Access the table via a load, see if that keeps cache behavior or not.
     Assert.assertEquals("CachingCatalog should expire tables after they have not been accessed",
