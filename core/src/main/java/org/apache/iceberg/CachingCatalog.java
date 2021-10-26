@@ -46,8 +46,8 @@ public class CachingCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
 
   // TODO - Make a Builder.
-  public static Catalog wrap(Catalog catalog) {
-    return wrap(catalog, true, false, -1);
+  public static CachingCatalog.Builder wrap(Catalog catalog) {
+    return new Builder(catalog);
   }
 
   // TODO - Probably just extend this class as ExpiringCachingCatalog.
@@ -63,7 +63,8 @@ public class CachingCatalog implements Catalog {
   // TODO - Add these as config values and then try to have a background thread refreshing for the streaming case.
   //        If Java9+, use System in built ones. See the Caffeine wiki:
   //        https://github.com/ben-manes/caffeine/wiki/Removal
-  private final Cache<TableIdentifier, Table> tableCache = createTableCache(false, -1);
+  // private final Cache<TableIdentifier, Table> tableCache = createTableCache(expirationEnabled,
+  //     expirationIntervalMillis);
   // private final Cache<TableIdentifier, Table> tableCache = Caffeine
   //     .newBuilder()
   //     .softValues()
@@ -83,6 +84,8 @@ public class CachingCatalog implements Catalog {
   private final boolean expirationEnabled;
   private final long expirationIntervalMillis;
 
+  private Cache<TableIdentifier, Table> tableCache = createTableCache(expirationEnabled, expirationIntervalMillis);
+
   private CachingCatalog(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
       long expirationIntervalMillis) {
     this.catalog = catalog;
@@ -91,10 +94,18 @@ public class CachingCatalog implements Catalog {
     this.expirationIntervalMillis = expirationIntervalMillis;
   }
 
-  private static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled,
+  // For testing
+  public CachingCatalog(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
+      long expirationIntervalMillis, Cache<TableIdentifier, Table> tableCache) {
+    this(catalog, caseSensitive, expirationEnabled, expirationIntervalMillis);
+    this.tableCache = tableCache;
+  }
+
+  private Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled,
       long expirationIntervalMillis) {
     return createTableCache(expirationEnabled, expirationIntervalMillis, null);
   }
+
   @VisibleForTesting
   public static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled, long expirationMillis,
       Ticker ticker) {
@@ -195,6 +206,38 @@ public class CachingCatalog implements Catalog {
     }
 
     return builder.build();
+  }
+
+  public static class Builder {
+    private final Catalog catalog;
+    private boolean caseSensitive;
+    // TODO - Use CatalogProperties.
+    private boolean expirationEnabled = false;
+    // TODO - Change name from INTERVAL_MILLIS to just MILLIS - INTERVAL_MILLIS implies that it happens on a schedule.
+    private long expirationMillis;
+
+    private Builder(Catalog catalog) {
+      this.catalog = catalog;
+    }
+
+    public Builder caseSensitive(boolean caseSensitive) {
+      this.caseSensitive = caseSensitive;
+      return this;
+    }
+
+    public Builder expirationEnabled(boolean expirationEnabled) {
+      this.expirationEnabled = expirationEnabled;
+      return this;
+    }
+
+    public Builder withExpirationMillis(long expirationMillis) {
+      this.expirationMillis = expirationMillis;
+      return this;
+    }
+
+    public CachingCatalog build() {
+      return new CachingCatalog(catalog, caseSensitive, expirationEnabled, expirationMillis);
+    }
   }
 
   @Override

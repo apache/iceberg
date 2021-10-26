@@ -408,7 +408,16 @@ public class SparkCatalog extends BaseCatalog {
     SparkSession sparkSession = SparkSession.active();
     this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
     this.tables = new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
-    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
+    if (cacheEnabled) {
+      this.icebergCatalog = CachingCatalog
+          .wrap(catalog)
+          .expirationEnabled(cacheExpirationEnabled)
+          .withExpirationMillis(cacheExpirationIntervalMillis)
+          .build();
+    } else {
+      this.icebergCatalog = catalog;
+    }
+
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {

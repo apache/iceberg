@@ -20,6 +20,7 @@
 package org.apache.iceberg.hadoop;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Ticker;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Locale;
@@ -44,7 +45,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     String warehousePath = temp.newFolder().getAbsolutePath();
 
     HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog).build();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
@@ -81,7 +82,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     String warehousePath = temp.newFolder().getAbsolutePath();
 
     HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog).build();
 
     // create the original table
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
@@ -129,7 +130,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     String warehousePath = temp.newFolder().getAbsolutePath();
 
     HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog).build();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
@@ -148,7 +149,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     String warehousePath = temp.newFolder().getAbsolutePath();
 
     HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog).build();
 
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
@@ -167,7 +168,73 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   @Test
   public void testTableExpiration() {
+
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    boolean caseSensitive = true;
+    boolean expirationEnabled = true;
+    long expirationMillis = Duration.ofMinutes(5).toMillis();
+
+    // Create CachingCatalog with a controllable ticker for testing cache expiry.
+    Ticker ticker = new FakeTicker();
+    Cache<TableIdentifier, Table> tableCache = CachingCatalog.createTableCache(
+        expirationEnabled, expirationMillis, ticker);
+    HadopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
+    Catalog catalog = new CachingCatalog(hadoopCatalog, caseSensitive, expirationEnabled, expirationMillis, tableCache);
+
     long expirationMillis = Duration.ofSeconds(100).toMillis();
     Cache<TableIdentifier, Table> cache = CachingCatalog.createTableCache(true, expirationMillis, new FakeTicker());
+  }
+
+  @Test
+  public void testMetadataTablesExpireOnCacheExpiration() {
+    // create the original table
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // remember the original snapshot
+    Snapshot oldSnapshot = table.currentSnapshot();
+
+    // populate the cache with metadata tables
+    for (MetadataTableType type : MetadataTableType.values()) {
+      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name()));
+      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)));
+    }
+
+    // drop the original table
+    catalog.dropTable(tableIdent);
+
+    // create a new table with the same name
+    table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // remember the new snapshot
+    Snapshot newSnapshot = table.currentSnapshot();
+
+    Assert.assertNotEquals("Snapshots must be different", oldSnapshot, newSnapshot);
+
+    // validate metadata tables were correctly invalidated
+    for (MetadataTableType type : MetadataTableType.values()) {
+      TableIdentifier metadataIdent1 = TableIdentifier.parse(tableIdent + "." + type.name());
+      Table metadataTable1 = catalog.loadTable(metadataIdent1);
+      Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable1.currentSnapshot());
+
+      TableIdentifier metadataIdent2 = TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT));
+      Table metadataTable2 = catalog.loadTable(metadataIdent2);
+      Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable2.currentSnapshot());
+    }
+  }
+
+  private Catalog createCachingCatalog(boolean expirationEnabled, long expirationMillis, Ticker ticker)
+      throws IOException {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    Cache<TableIdentifier, Table> tableCache = CachingCatalog.createTableCache(
+        expirationEnabled, expirationMillis, ticker);
+    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
+    return new CachingCatalog(hadoopCatalog, true, expirationEnabled, expirationMillis, tableCache);
   }
 }
