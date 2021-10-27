@@ -86,8 +86,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
-  private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "iceberg.hive.metadata-refresh-max-retries";
+  private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
@@ -164,11 +164,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
+    this.metadataRefreshMaxRetries = conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES,
+            HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
-    this.metadataRefreshMaxRetries = conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES,
-            HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
   }
 
   @Override
