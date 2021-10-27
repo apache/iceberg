@@ -147,7 +147,7 @@ public class TestIcebergSpark {
         spark.sql("SELECT iceberg_bucket_binary_16(X'0020001F')").collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertEquals((int) Transforms.bucket(Types.BinaryType.get(), 16)
-            .apply(ByteBuffer.wrap((new byte[]{0x00, 0x20, 0x00, 0x1F}))),
+            .apply(ByteBuffer.wrap(new byte[]{0x00, 0x20, 0x00, 0x1F})),
         results.get(0).getInt(0));
   }
 
