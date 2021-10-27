@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -40,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
@@ -286,5 +289,29 @@ public class GlueCatalogTableTest extends GlueTestBase {
     Assert.assertEquals("skipArchive should not create new version",
         1, glue.getTableVersions(GetTableVersionsRequest.builder()
             .databaseName(namespace).tableName(tableName).build()).tableVersions().size());
+  }
+
+  @Test
+  public void testColumnCommentsAndParameters() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+        .databaseName(namespace).name(tableName).build());
+    List<Column> columns = response.table().storageDescriptor().columns();
+    // Test Column Size
+    Assert.assertEquals(1, columns.size());
+    String comment = columns.get(0).comment();
+    Map<String, String> actualParameters = columns.get(0).parameters();
+    // Test Column Comment
+    Assert.assertEquals("c1", comment);
+    // Test Column Parameter
+    Map<String, String> expectedParameters = new HashMap<>();
+    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, "schema-column");
+    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1");
+    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false");
+    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string");
+    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING");
+    Assert.assertTrue(actualParameters.size() > 0);
+    Assert.assertEquals(expectedParameters, actualParameters);
   }
 }
