@@ -90,24 +90,11 @@
                     <img src="{{ base_url }}/img/GitHub-Mark-32px.png"/>
                 </a>
             </div>
+            {% for display, href in config.extra.topnav.items() %}
             <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="/security/"> Security </a>
+                <a href="{{href}}"> {{display}} </a>
             </div>
-            <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="/trademarks/"> Trademarks </a>
-            </div>
-            <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="/blogs/"> Blogs </a>
-            </div>
-            <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="/community/"> Community </a>
-            </div>
-            <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="/roadmap/"> Roadmap </a>
-            </div>
-            <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="/releases/"> Releases </a>
-            </div>
+            {% endfor %}
         </div>
         {# Logo and title #}
         <div class="wm-top-brand wm-top-link wm-vcenter" style="display: table-cell;">
