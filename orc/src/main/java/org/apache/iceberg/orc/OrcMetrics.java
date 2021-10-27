@@ -201,13 +201,15 @@ public class OrcMetrics {
         min = fieldMetrics.lowerBound();
       } else {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
-        min = ((DoubleColumnStatistics) columnStats).getMinimum();
-        if (type.typeId() == Type.TypeID.FLOAT) {
-          float orcMin = ((Double) min).floatValue();
-          min = Float.isNaN(orcMin) ? Float.NEGATIVE_INFINITY : orcMin;
+        Double orcMin = ((DoubleColumnStatistics) columnStats).getMinimum();
+        if (type.typeId() == Type.TypeID.DOUBLE) {
+          min = Optional.of(orcMin)
+              .filter(d -> !Double.isNaN(d))
+              .orElse(Double.NEGATIVE_INFINITY);
         } else {
-          double orcMin = (Double) min;
-          min = Double.isNaN(orcMin) ? Double.NEGATIVE_INFINITY : orcMin;
+          min = Optional.of(orcMin.floatValue())
+              .filter(f -> Float.isNaN(f))
+              .orElse(Float.NEGATIVE_INFINITY);
         }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
@@ -249,13 +251,15 @@ public class OrcMetrics {
         max = fieldMetrics.upperBound();
       } else {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
-        max = ((DoubleColumnStatistics) columnStats).getMaximum();
-        if (type.typeId() == Type.TypeID.FLOAT) {
-          float orcMax = ((Double) max).floatValue();
-          max = Float.isNaN(orcMax) ? Float.POSITIVE_INFINITY : orcMax;
+        Double orcMax = ((DoubleColumnStatistics) columnStats).getMaximum();
+        if (type.typeId() == Type.TypeID.DOUBLE) {
+          max = Optional.of(orcMax)
+              .filter(d -> !Double.isNaN(d))
+              .orElse(Double.POSITIVE_INFINITY);
         } else {
-          double orcMax = (Double) max;
-          max = Double.isNaN(orcMax) ? Double.POSITIVE_INFINITY : orcMax;
+          max = Optional.of(orcMax.floatValue())
+              .filter(f -> Float.isNaN(f))
+              .orElse(Float.POSITIVE_INFINITY);
         }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
