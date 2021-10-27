@@ -17,21 +17,9 @@
  * under the License.
  */
 
-def flinkProjects = [
-  project(':iceberg-flink:iceberg-flink-1.12'),
-  // TODO project(':iceberg-flink-1.12-runtime')
-]
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 
-configure(flinkProjects) {
-  project.ext {
-    flinkVersion = '1.12.5'
-  }
+
+public class IcebergMain {
+  private static final Class<FlinkSchemaUtil> UTIL = FlinkSchemaUtil.class;
 }
-
-project(':iceberg-flink:iceberg-flink-1.12') {
-
-  dependencies {
-    implementation project(":iceberg-flink")
-  }
-}
-
