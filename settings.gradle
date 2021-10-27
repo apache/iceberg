@@ -72,7 +72,7 @@ if (!knownSparkVersions.containsAll(sparkVersions)) {
   throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
 }
 
-if (flinkVersions.contains("1.12.5") || flinkVersions.contains("1.13.2")) {
+if (flinkVersions.contains("1.13")) {
   include 'flink'
   include 'flink-runtime'
   project(':flink').name = 'iceberg-flink'
