@@ -18,6 +18,8 @@
  */
 
 import groovy.transform.Memoized
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 buildscript {
   repositories {
@@ -557,7 +559,7 @@ project(':iceberg-nessie') {
 }
 
 @Memoized
-boolean isVersionFileExists() {
+boolean versionFileExists() {
   return file('version.txt').exists()
 }
 
@@ -567,19 +569,28 @@ String getVersionFromFile() {
 }
 
 String getProjectVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
   try {
-    return gitVersion()
-  } catch (NullPointerException e) {
-    throw new Exception("Neither version.txt nor git version exists")
+    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
+    String version = gitVersion(prefix: 'release-base-')
+    Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
+    Matcher matcher = pattern.matcher(version)
+    if (matcher.matches()) {
+      // bump the MINOR version and always set the PATCH version to 0
+      return matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0-SNAPSHOT"
+    }
+    return version
+  } catch (Exception e) {
+    throw new Exception("Neither version.txt nor git version exists: " + e.getMessage(), e)
   }
 }
 
 String getJavadocVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
