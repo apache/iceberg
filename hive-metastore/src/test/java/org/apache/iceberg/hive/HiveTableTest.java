@@ -445,7 +445,8 @@ public class HiveTableTest extends HiveTableBaseTest {
     realLocation.renameTo(fakeLocation);
 
     try {
-      AssertHelpers.assertThrows("Wont hang on metadata file not found", NotFoundException.class, () -> catalog.loadTable(TABLE_IDENTIFIER));
+      AssertHelpers.assertThrows("Wont hang on missing metadata file", NotFoundException.class,
+              () -> catalog.loadTable(TABLE_IDENTIFIER));
     } finally {
       realLocation.renameTo(realLocation);
     }
