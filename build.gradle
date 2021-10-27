@@ -581,10 +581,7 @@ String getProjectVersion() {
     Matcher matcher = pattern.matcher(version)
     if (matcher.matches()) {
       // bump the MINOR version and always set the PATCH version to 0
-      version = matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0"
-    }
-    if (project.hasProperty('versionSuffix')) {
-      return version + "-" + project.getProperties().get("versionSuffix")
+      return matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0-SNAPSHOT"
     }
     return version
   } catch (Exception e) {

@@ -34,4 +34,4 @@ jobs:
         with:
           java-version: 8
       - run: |
-          ./gradlew publishApachePublicationToMavenRepository -PversionSuffix=SNAPSHOT -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
+          ./gradlew publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
