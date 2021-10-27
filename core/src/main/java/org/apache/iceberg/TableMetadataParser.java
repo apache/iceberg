@@ -278,7 +278,7 @@ public class TableMetadataParser {
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
-    String locationPrefix = JsonUtil.getString(LOCATION_PREFIX, node);
+    String locationPrefix = JsonUtil.getStringOrNull(LOCATION_PREFIX, node);
     long lastSequenceNumber;
     if (formatVersion > 1) {
       lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);

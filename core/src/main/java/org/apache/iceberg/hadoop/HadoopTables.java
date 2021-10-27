@@ -310,7 +310,7 @@ public class HadoopTables implements Tables, Configurable {
 
     @Override
     public Catalog.TableBuilder withLocationPrefix(String newPrefix) {
-      Preconditions.checkArgument(newPrefix == null || locationPrefix.equals(newPrefix),
+      Preconditions.checkArgument(newPrefix == null || newPrefix.equals(locationPrefix),
           String.format("Table location prefix %s differs from the table location prefix (%s) from the PathIdentifier",
               newPrefix, locationPrefix));
       return this;

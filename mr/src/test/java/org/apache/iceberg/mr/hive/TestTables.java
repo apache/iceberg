@@ -299,12 +299,13 @@ abstract class TestTables {
 
     @Override
     public Table create(Schema schema, PartitionSpec spec, SortOrder sortOrder,
-                        Map<String, String> properties, String tableIdentifier) {
+        Map<String, String> properties, String locationPrefix, String tableIdentifier) {
       TableIdentifier tableIdent = TableIdentifier.parse(tableIdentifier);
       return catalog.buildTable(tableIdent, schema)
           .withPartitionSpec(spec)
           .withSortOrder(sortOrder)
           .withProperties(properties)
+          .withLocationPrefix(locationPrefix)
           .create();
     }
 
