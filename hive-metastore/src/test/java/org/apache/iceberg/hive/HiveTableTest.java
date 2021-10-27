@@ -442,14 +442,13 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     File realLocation = new File(metadataLocation(TABLE_NAME));
     File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
-    realLocation.renameTo(fakeLocation);
 
-    try {
-      AssertHelpers.assertThrows("Wont hang on missing metadata file", NotFoundException.class,
-              () -> catalog.loadTable(TABLE_IDENTIFIER));
-    } finally {
-      realLocation.renameTo(realLocation);
-    }
+    Assert.assertTrue(realLocation.renameTo(fakeLocation));
+    AssertHelpers.assertThrows(
+            "HiveTableOperations shouldn't hang indefinitely when a missing metadata file is encountered",
+            NotFoundException.class,
+            () -> catalog.loadTable(TABLE_IDENTIFIER));
+    Assert.assertTrue(fakeLocation.renameTo(realLocation));
   }
 
   private void assertHiveEnabled(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean expected) {
