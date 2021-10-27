@@ -432,10 +432,8 @@ class BaseTransaction implements Transaction {
   }
 
   private static Long currentId(TableMetadata meta) {
-    if (meta != null) {
-      if (meta.currentSnapshot() != null) {
+    if (meta != null && meta.currentSnapshot() != null) {
         return meta.currentSnapshot().snapshotId();
-      }
     }
     return null;
   }
