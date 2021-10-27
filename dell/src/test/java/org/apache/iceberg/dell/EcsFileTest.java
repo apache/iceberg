@@ -1,20 +1,15 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.iceberg.dell;
@@ -42,34 +37,37 @@ public class EcsFileTest {
   public void generalTest() throws IOException {
     String objectName = "test";
     String location = new EcsURI(rule.getBucket(), objectName).toString();
-    EcsFile file = new EcsFile(rule.getClient(), location);
+    EcsInputFile inputFile = new EcsInputFile(rule.getClient(), location);
+    EcsOutputFile outpufFile = new EcsOutputFile(rule.getClient(), location);
 
     // absent
-    assertFalse("file is absent", file.exists());
-    assertEquals("file length is 0 if absent", 0, file.getLength());
+    assertFalse("file is absent", inputFile.exists());
+    assertEquals("file length is 0 if absent", 0, inputFile.getLength());
 
     // write and read
-    try (PositionOutputStream output = file.create()) {
+    try (PositionOutputStream output = outpufFile.create()) {
       output.write("1234567890".getBytes());
     }
-    assertTrue("file is present", file.exists());
-    assertEquals("file length is 10", 10, file.getLength());
-    try (SeekableInputStream input = file.newStream()) {
+
+    assertTrue("file is present", inputFile.exists());
+    assertEquals("file length is 10", 10, inputFile.getLength());
+    try (SeekableInputStream input = inputFile.newStream()) {
       assertEquals("file content", "1234567890",
           IOUtils.toString(input));
     }
 
     // rewrite file
-    try (PositionOutputStream output = file.createOrOverwrite()) {
+    try (PositionOutputStream output = outpufFile.createOrOverwrite()) {
       output.write("987654321".getBytes());
     }
-    assertEquals("new file length is 9", 9, file.getLength());
-    try (SeekableInputStream input = file.newStream()) {
+
+    assertEquals("new file length is 9", 9, inputFile.getLength());
+    try (SeekableInputStream input = inputFile.newStream()) {
       assertEquals("new file content", "987654321",
           IOUtils.toString(input));
     }
 
     // write checker
-    assertThrows("If file exists, throw exception", AlreadyExistsException.class, file::create);
+    assertThrows("If file exists, throw exception", AlreadyExistsException.class, outpufFile::create);
   }
 }
