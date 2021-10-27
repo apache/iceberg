@@ -204,7 +204,10 @@ public class OrcMetrics {
         min = ((DoubleColumnStatistics) columnStats).getMinimum();
         if (type.typeId() == Type.TypeID.FLOAT) {
           float orcMin = ((Double) min).floatValue();
-          min = Float.isFinite(orcMin) ? orcMin : Float.NEGATIVE_INFINITY;
+          min = Float.isNaN(orcMin) ? Float.NEGATIVE_INFINITY : orcMin;
+        } else {
+          double orcMin = (Double) min;
+          min = Double.isNaN(orcMin) ? Double.NEGATIVE_INFINITY : orcMin;
         }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
@@ -249,7 +252,10 @@ public class OrcMetrics {
         max = ((DoubleColumnStatistics) columnStats).getMaximum();
         if (type.typeId() == Type.TypeID.FLOAT) {
           float orcMax = ((Double) max).floatValue();
-          max = Float.isFinite(orcMax) ? orcMax : Float.POSITIVE_INFINITY;
+          max = Float.isNaN(orcMax) ? Float.POSITIVE_INFINITY : orcMax;
+        } else {
+          double orcMax = (Double) max;
+          max = Double.isNaN(orcMax) ? Double.POSITIVE_INFINITY : orcMax;
         }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
