@@ -55,6 +55,14 @@ class IcebergToGlueConverter {
 
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
+  public static final String ICEBERG_FIELD_USAGE = "iceberg.field.usage";
+  public static final String ICEBERG_FIELD_TYPE_ID = "iceberg.field.type.id";
+  public static final String ICEBERG_FIELD_TYPE_STRING = "iceberg.field.type.string";
+  public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
+  public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
+  public static final String ICEBERG_PARTITION_TRANSFORM = "iceberg.partition.transform";
+  public static final String ICEBERG_PARTITION_FIELD_ID = "iceberg.partition.field-id";
+  public static final String ICEBERG_PARTITION_SOURCE_ID = "iceberg.partition.source-id";
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -266,23 +274,23 @@ class IcebergToGlueConverter {
 
   private static Map<String, String> convertToParameters(String fieldUsage, NestedField nestedField) {
     Map<String, String> columnParameters = new HashMap<>();
-    columnParameters.put("iceberg.field.usage", fieldUsage);
-    columnParameters.put("iceberg.field.type.id", nestedField.type().typeId().toString());
-    columnParameters.put("iceberg.field.type.string", toTypeString(nestedField.type()));
-    columnParameters.put("iceberg.field.id", Integer.toString(nestedField.fieldId()));
-    columnParameters.put("iceberg.field.optional", Boolean.toString(nestedField.isOptional()));
+    columnParameters.put(ICEBERG_FIELD_USAGE, fieldUsage);
+    columnParameters.put(ICEBERG_FIELD_TYPE_ID, nestedField.type().typeId().toString());
+    columnParameters.put(ICEBERG_FIELD_TYPE_STRING, toTypeString(nestedField.type()));
+    columnParameters.put(ICEBERG_FIELD_ID, Integer.toString(nestedField.fieldId()));
+    columnParameters.put(ICEBERG_FIELD_OPTIONAL, Boolean.toString(nestedField.isOptional()));
     return columnParameters;
   }
 
   private static Map<String, String> convertToParameters(Type type, PartitionField partitionField) {
     Map<String, String> columnParameters = new HashMap<>();
-    columnParameters.put("iceberg.field.usage", "partition-field");
-    columnParameters.put("iceberg.field.type.id", type.typeId().toString());
-    columnParameters.put("iceberg.field.type.string", toTypeString(type));
-    columnParameters.put("iceberg.field.id", Integer.toString(partitionField.fieldId()));
-    columnParameters.put("iceberg.partition.transform", partitionField.transform().toString());
-    columnParameters.put("iceberg.partition.field-id", Integer.toString(partitionField.fieldId()));
-    columnParameters.put("iceberg.partition.source-id", Integer.toString(partitionField.sourceId()));
+    columnParameters.put(ICEBERG_FIELD_USAGE, "partition-field");
+    columnParameters.put(ICEBERG_FIELD_TYPE_ID, type.typeId().toString());
+    columnParameters.put(ICEBERG_FIELD_TYPE_STRING, toTypeString(type));
+    columnParameters.put(ICEBERG_FIELD_ID, Integer.toString(partitionField.fieldId()));
+    columnParameters.put(ICEBERG_PARTITION_TRANSFORM, partitionField.transform().toString());
+    columnParameters.put(ICEBERG_PARTITION_FIELD_ID, Integer.toString(partitionField.fieldId()));
+    columnParameters.put(ICEBERG_PARTITION_SOURCE_ID, Integer.toString(partitionField.sourceId()));
     return columnParameters;
   }
 }
