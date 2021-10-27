@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -435,17 +436,16 @@ public class HiveTableTest extends HiveTableBaseTest {
     assertHiveEnabled(hmsTable, false);
   }
 
-  @Test(timeout = 60000, expected = NotFoundException.class)
-  public void testMissingMetadataWontCauseHang() throws Exception {
+  @Test
+  public void testMissingMetadataWontCauseHang() {
     catalog.loadTable(TABLE_IDENTIFIER);
-    catalog.getConf().set(HiveTableOperations.HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, 3);
 
     File realLocation = new File(metadataLocation(TABLE_NAME));
     File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
     realLocation.renameTo(fakeLocation);
 
     try {
-      catalog.loadTable(TABLE_IDENTIFIER);
+      AssertHelpers.assertThrows("Wont hang on metadata file not found", NotFoundException.class, () -> catalog.loadTable(TABLE_IDENTIFIER));
     } finally {
       realLocation.renameTo(realLocation);
     }
