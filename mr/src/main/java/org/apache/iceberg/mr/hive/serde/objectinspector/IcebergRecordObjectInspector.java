@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -168,6 +169,15 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
       return Objects.hash(field, oi, position);
     }
 
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("field", field)
+          .add("ObjectInspector type", oi.getTypeName())
+          .add("ObjectInspector category", oi.getCategory())
+          .add("position", position)
+          .toString();
+    }
   }
 
 }

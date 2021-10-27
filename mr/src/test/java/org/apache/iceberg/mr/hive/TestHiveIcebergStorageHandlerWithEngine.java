@@ -224,6 +224,79 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
+  public void testBug() {
+    shell.setHiveSessionValue("hive.cbo.enable", true);
+    String engine_config = "CREATE TABLE engine_config (\n" +
+        "   application_id STRING,\n" +
+        "   config STRING\n" +
+        " ) PARTITIONED BY (dt STRING,emr_cluster_id STRING)\n" +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'";
+    shell.executeStatement(engine_config);
+    shell.executeStatement("INSERT INTO engine_config VALUES ('APP-1', 'c0', '2021-10-21', 'CLUSTER-1')");
+
+    String process_info = "CREATE TABLE process_info (\n" +
+        "   application_id STRING,\n" +
+        "   engine STRING,\n" +
+        "   node_type STRING,\n" +
+        "   bytes_read BIGINT,\n" +
+        "   bytes_write BIGINT,\n" +
+        "   fd_count_avg BIGINT,\n" +
+        "   thread_count_avg INT\n" +
+        " ) PARTITIONED BY (dt STRING,emr_cluster_id STRING)\n" +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'";
+    shell.executeStatement(process_info);
+    shell.executeStatement(
+        "INSERT INTO process_info VALUES('APP-1','map', 'MR', 0, 0, 0, 0, '2021-10-21', 'CLUSTER-1')");
+
+    String mr_job_info = "CREATE TABLE mr_job_info (\n" +
+        "   application_id STRING,\n" +
+        "   queue STRING,\n" +
+        "   user_name STRING\n" +
+        " ) PARTITIONED BY (dt STRING,emr_cluster_id STRING)\n" +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'";
+    shell.executeStatement(mr_job_info);
+    shell.executeStatement("INSERT INTO mr_job_info VALUES ('APP-1','QUEUE-1', 'openinx', '2021-10-21', 'CLUSTER-1')");
+
+    String mr_task_info = "CREATE TABLE mr_task_info (\n" +
+        "   application_id STRING,\n" +
+        "   elapse_time STRING\n" +
+        " ) PARTITIONED BY (dt STRING,emr_cluster_id STRING)\n" +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'";
+    shell.executeStatement(mr_task_info);
+    shell.executeStatement("INSERT INTO mr_task_info VALUES ('APP-1','NaN', '2021-10-21', 'CLUSTER-1')");
+
+    String query = "SELECT\n" +
+        "    j.user_name,\n" +
+        "    j.queue,\n" +
+        "    \"MR\" AS engine,\n" +
+        "    SUM(r.bytes_read) AS total_bytes_read\n" +
+        "FROM\n" +
+        "    process_info r\n" +
+        "    JOIN engine_config c ON \n" +
+        "        r.emr_cluster_id = c.emr_cluster_id \n" +
+        "        AND r.dt = c.dt\n" +
+        "        AND r.application_id = c.application_id\n" +
+        "    JOIN mr_job_info j ON \n" +
+        "        j.emr_cluster_id = c.emr_cluster_id \n" +
+        "        AND j.dt = c.dt\n" +
+        "        AND j.application_id = c.application_id\n" +
+        "    JOIN mr_task_info t ON\n" +
+        "        j.emr_cluster_id = t.emr_cluster_id \n" +
+        "        AND j.dt = t.dt\n" +
+        "        AND j.application_id = t.application_id\n" +
+        "WHERE\n" +
+        "    j.emr_cluster_id = 'CLUSTER-1' \n" +
+        "    AND j.dt = '2021-10-21'\n" +
+        "    AND r.engine = \"MR\"\n" +
+        "GROUP BY\n" +
+        "    j.emr_cluster_id,\n" +
+        "    j.dt,\n" +
+        "    j.user_name,\n" +
+        "    j.queue";
+    shell.executeStatement(query);
+  }
+
+  @Test
   public void testCBOWithSelectedColumnsOverlapJoin() throws IOException {
     shell.setHiveSessionValue("hive.cbo.enable", true);
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
