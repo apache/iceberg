@@ -271,11 +271,11 @@ public class OrcMetrics {
 
   // ORC uses NaN in its metrics for floating point numbers (float and double).
   // To avoid storing NaN in the Iceberg metrics, NaN is normalized to +/- Infinity for max / min respectively.
-  private static Object normalizeFloatingPointColumnsIfNeeded(Bound bound, Type type, Double value) {
+  private static Object normalizeFloatingPointColumnsIfNeeded(Bound bound, Type type, double value) {
     if (type.typeId() == Type.TypeID.DOUBLE) {
       return Double.isNaN(value) ? (bound == Bound.UPPER ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY) : value;
     }
-    float asFloat = value.floatValue();
+    float asFloat = (float) value;
     return Float.isNaN(asFloat) ? (bound == Bound.UPPER ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY) : asFloat;
   }
 
