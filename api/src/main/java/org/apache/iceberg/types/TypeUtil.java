@@ -160,6 +160,12 @@ public class TypeUtil {
     return indexer.byId();
   }
 
+  public static Map<Integer, String> indexQuotedNameById(Types.StructType struct) {
+    IndexByName indexer = new IndexByName(true);
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
     indexByName(struct).forEach((name, integer) ->

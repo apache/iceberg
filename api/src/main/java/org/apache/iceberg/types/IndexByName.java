@@ -20,12 +20,14 @@
 package org.apache.iceberg.types;
 
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -36,6 +38,15 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   private final Deque<String> shortFieldNames = Lists.newLinkedList();
   private final Map<String, Integer> nameToId = Maps.newHashMap();
   private final Map<String, Integer> shortNameToId = Maps.newHashMap();
+  private final boolean quote;
+
+  public IndexByName() {
+    this(false);
+  }
+
+  public IndexByName(boolean quote) {
+    this.quote = quote;
+  }
 
   /**
    * Returns a mapping from full field name to ID.
@@ -166,9 +177,10 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   }
 
   private void addField(String name, int fieldId) {
-    String fullName = name;
+    String fullName = quote(name);
     if (!fieldNames.isEmpty()) {
-      fullName = DOT.join(DOT.join(fieldNames.descendingIterator()), name);
+      Iterator<String> quotedFieldNames = Iterators.transform(fieldNames.descendingIterator(), this::quote);
+      fullName = DOT.join(DOT.join(quotedFieldNames), quote(name));
     }
 
     Integer existingFieldId = nameToId.put(fullName, fieldId);
@@ -177,10 +189,15 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
     // also track the short name, if this is a nested field
     if (!shortFieldNames.isEmpty()) {
-      String shortName = DOT.join(DOT.join(shortFieldNames.descendingIterator()), name);
+      Iterator<String> quotedShortFieldNames = Iterators.transform(shortFieldNames.descendingIterator(), this::quote);
+      String shortName = DOT.join(DOT.join(quotedShortFieldNames), quote(name));
       if (!shortNameToId.containsKey(shortName)) {
         shortNameToId.put(shortName, fieldId);
       }
     }
+  }
+
+  private String quote(String name) {
+    return quote ? String.format("`%s`", name.replace("`", "``")) : name;
   }
 }

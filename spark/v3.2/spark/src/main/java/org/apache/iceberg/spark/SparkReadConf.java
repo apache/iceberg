@@ -139,6 +139,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public long metadataSplitSize() {
+    return confParser.longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .tableProperty(TableProperties.METADATA_SPLIT_SIZE)
+        .defaultValue(TableProperties.METADATA_SPLIT_SIZE_DEFAULT)
+        .parse();
+  }
+
   public int splitLookback() {
     return confParser.intConf()
         .option(SparkReadOptions.LOOKBACK)
