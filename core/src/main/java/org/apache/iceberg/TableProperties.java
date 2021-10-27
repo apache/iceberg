@@ -41,6 +41,13 @@ public class TableProperties {
   public static final String FORMAT_VERSION = "format-version";
 
   /**
+   * Reserved table property for UUID.
+   * <p>
+   * This reserved property is keyword is used to store the UUID of the table.
+   */
+  public static final String UUID = "uuid";
+
+  /**
    * Reserved Iceberg table properties list.
    * <p>
    * Reserved table properties are only used to control behaviors when creating or updating a table.
