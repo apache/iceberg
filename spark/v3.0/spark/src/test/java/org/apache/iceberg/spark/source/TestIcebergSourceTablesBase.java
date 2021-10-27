@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
@@ -140,7 +141,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       rows.forEach(row -> {
         row.put(2, 0L);
         GenericData.Record file = (GenericData.Record) row.get("data_file");
-        file.put(0, FileContent.DATA.id());
+        asMetadataRecord(file);
         expected.add(row);
       });
     }
@@ -298,7 +299,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         rows.forEach(row -> {
           row.put(2, 0L);
           GenericData.Record file = (GenericData.Record) row.get("data_file");
-          file.put(0, FileContent.DATA.id());
+          asMetadataRecord(file);
           expected.add(row);
         });
       }
@@ -373,7 +374,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            file.put(0, FileContent.DATA.id());
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -429,7 +430,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            file.put(0, FileContent.DATA.id());
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -536,7 +537,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            file.put(0, FileContent.DATA.id());
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -633,7 +634,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            file.put(0, FileContent.DATA.id());
+            asMetadataRecord(file);
             expected.add(file);
           }
         }
@@ -1180,5 +1181,45 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .collectAsList();
 
     Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  @Test
+  public void testFilesTablePartitionId() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    int spec0 = table.spec().specId();
+
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    // change partition spec
+    table.refresh();
+    table.updateSpec().removeField("id").commit();
+    int spec1 = table.spec().specId();
+
+    // add a second file
+    df2.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    List<Integer> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "files"))
+        .sort(DataFile.SPEC_ID.name())
+        .collectAsList()
+        .stream().map(r -> (Integer) r.getAs(DataFile.SPEC_ID.name())).collect(Collectors.toList());
+
+    Assert.assertEquals("Should have two partition specs", ImmutableList.of(spec0, spec1), actual);
+  }
+
+  private void asMetadataRecord(GenericData.Record file) {
+    file.put(0, FileContent.DATA.id());
+    file.put(3, 0); // specId
   }
 }
