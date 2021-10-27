@@ -32,10 +32,12 @@ copyright: "Copyright 2018-2021 <a href='https://www.apache.org/'>The Apache Sof
 extra_css:
   - css/extra.css
 extra:
+  github_url: https://github.com/apache/iceberg
+  slack_url: https://join.slack.com/t/apache-iceberg/shared_invite/zt-tlv0zjz6-jGJEkHfb1~heMCJA3Uycrg
   topnav:
+    Blogs: /blogs
     Security: /security
     Trademarks: /trademarks
-    Blogs: /blogs
     Community: /community
     Roadmap: /roadmap
     Releases: /releases

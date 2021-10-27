@@ -86,8 +86,13 @@
         {% endif %}
         <div id="hideable-navs">
             <div class="top-right-nav-item pull-right wm-vcenter">
-                <a href="https://github.com/apache/iceberg" target="_blank">
-                    <img src="{{ base_url }}/img/GitHub-Mark-32px.png"/>
+                <a href="{{config.extra.github_url}}" target="_blank">
+                    <img src="{{ base_url }}/img/GitHub-Mark.png" class="topbar-icon" alt="github"/>
+                </a>
+            </div>
+            <div class="top-right-nav-item pull-right wm-vcenter">
+                <a href="{{config.extra.slack_url}}" target="_blank">
+                    <img src="{{ base_url }}/img/Slack_Mark_Web.png" class="topbar-icon" alt="slack"/>
                 </a>
             </div>
             {% for display, href in config.extra.topnav.items() %}

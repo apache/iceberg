@@ -67,6 +67,16 @@
   background-color: #21252B;
 }
 
+.wm-toc-text {
+  font-size: 18px;
+  padding: 8px;
+}
+
+.wm-page-toc-text {
+  font-size: 1.4rem;
+  padding: 3px 3px 3px 1.2rem;
+}
+
 h2, h3, h4 {
   margin-top: 2em;
 }
@@ -144,6 +154,17 @@ pre {
   height: 50px;
   padding-left: 10px;
   white-space: nowrap;
+  font-size: 18px;
+}
+
+.top-right-nav-item a {
+  color: #000000;
+}
+
+.top-right-nav-item a:hover {
+  transition: color 0.1s ease;
+  color: #277ABE;
+  text-decoration: none;
 }
 
 .wm-toc-opener > .wm-toc-text::before {
@@ -163,7 +184,7 @@ pre {
 }
 
 /* Get rid of topbar links when screen width shrinks */
-@media (max-width: 960px)
+@media (max-width: 1024px)
 {
   #hideable-navs
   {
@@ -173,4 +194,25 @@ pre {
 
 .navigation-icon {
   height: 1em;
+}
+
+.topbar-icon {
+  height: 32px;
+}
+
+/*Navigation fa icons*/
+.fa-table {
+  color: #000000;
+}
+
+.fa-cogs {
+  color: #000000;
+}
+
+.fa-handshake-o {
+  color: #000000;
+}
+
+.fa-object-ungroup {
+  color: #000000;
 }
