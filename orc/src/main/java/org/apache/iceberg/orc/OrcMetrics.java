@@ -201,16 +201,8 @@ public class OrcMetrics {
         min = fieldMetrics.lowerBound();
       } else {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
-        Double orcMin = ((DoubleColumnStatistics) columnStats).getMinimum();
-        if (type.typeId() == Type.TypeID.DOUBLE) {
-          min = Optional.of(orcMin)
-              .filter(d -> !Double.isNaN(d))
-              .orElse(Double.NEGATIVE_INFINITY);
-        } else {
-          min = Optional.of(orcMin.floatValue())
-              .filter(f -> Float.isNaN(f))
-              .orElse(Float.NEGATIVE_INFINITY);
-        }
+        min = normalizeFloatingPointColumnsIfNeeded(Bound.LOWER, type,
+            ((DoubleColumnStatistics) columnStats).getMinimum());
       }
     } else if (columnStats instanceof StringColumnStatistics) {
       min = ((StringColumnStatistics) columnStats).getMinimum();
@@ -251,16 +243,8 @@ public class OrcMetrics {
         max = fieldMetrics.upperBound();
       } else {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
-        Double orcMax = ((DoubleColumnStatistics) columnStats).getMaximum();
-        if (type.typeId() == Type.TypeID.DOUBLE) {
-          max = Optional.of(orcMax)
-              .filter(d -> !Double.isNaN(d))
-              .orElse(Double.POSITIVE_INFINITY);
-        } else {
-          max = Optional.of(orcMax.floatValue())
-              .filter(f -> Float.isNaN(f))
-              .orElse(Float.POSITIVE_INFINITY);
-        }
+        max = normalizeFloatingPointColumnsIfNeeded(Bound.UPPER, type,
+            ((DoubleColumnStatistics) columnStats).getMaximum());
       }
     } else if (columnStats instanceof StringColumnStatistics) {
       max = ((StringColumnStatistics) columnStats).getMaximum();
@@ -283,6 +267,16 @@ public class OrcMetrics {
       max = booleanStats.getTrueCount() > 0;
     }
     return Optional.ofNullable(Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
+  }
+
+  // ORC uses NaN in its metrics for floating point numbers (float and double).
+  // To avoid storing NaN in the Iceberg metrics, NaN is normalized to +/- Infinity for max / min respectively.
+  private static Object normalizeFloatingPointColumnsIfNeeded(Bound bound, Type type, Double value) {
+    if (type.typeId() == Type.TypeID.DOUBLE) {
+      return Double.isNaN(value) ? (bound == Bound.UPPER ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY) : value;
+    }
+    float asFloat = value.floatValue();
+    return Float.isNaN(asFloat) ? (bound == Bound.UPPER ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY) : asFloat;
   }
 
   private static Object truncateIfNeeded(Bound bound, Type type, Object value, MetricsMode metricsMode) {
