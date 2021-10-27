@@ -578,10 +578,11 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         new FanoutPositionDeleteWriter<>(writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
     writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
     writer.write(positionDelete(dataFile2.path(), 0L, null), identitySpec, partitionKey(identitySpec, "fff"));
-    writer.write(positionDelete(dataFile2.path(), 1L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.write(positionDelete(dataFile3.path(), 2L, null), identitySpec, partitionKey(identitySpec, "rrr"));
+    // test out-of-order partition
+    writer.write(positionDelete(dataFile2.path(), 1L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.write(positionDelete(dataFile4.path(), 0L, null), bucketedSpec, partitionKey(bucketedSpec, "rrr"));
-    // pepper in some out-of-order spec deletes, which shouldn't cause problems for fanout writer
+    // test out-of-order spec
     writer.write(positionDelete(dataFile1.path(), 1L, null), unpartitionedSpec, null);
     writer.write(positionDelete(dataFile2.path(), 2L, null), identitySpec, partitionKey(identitySpec, "fff"));
     writer.close();
