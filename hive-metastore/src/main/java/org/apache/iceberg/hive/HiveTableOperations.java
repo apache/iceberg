@@ -164,8 +164,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
-    this.metadataRefreshMaxRetries = conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES,
-            HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    this.metadataRefreshMaxRetries =
+        conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
