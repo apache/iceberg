@@ -222,7 +222,7 @@ public class TestRowDataProjection {
             )
         ))
     );
-    AssertHelpers.assertThrows("Should be error because cannot project a partial nested map key.",
+    AssertHelpers.assertThrows("Should not allow to project a partial map key with non-primitive type.",
         IllegalArgumentException.class, "Cannot project a partial map key or value",
         () -> generateAndValidate(schema, partialMapKey)
     );
@@ -240,7 +240,7 @@ public class TestRowDataProjection {
             )
         ))
     );
-    AssertHelpers.assertThrows("Should be error because cannot project a partial nested map value.",
+    AssertHelpers.assertThrows("Should not allow to project a partial map value with non-primitive type.",
         IllegalArgumentException.class, "Cannot project a partial map key or value",
         () -> generateAndValidate(schema, partialMapValue)
     );
@@ -299,7 +299,7 @@ public class TestRowDataProjection {
             )
         ))
     );
-    AssertHelpers.assertThrows("Should be error because cannot project a partial nested list element.",
+    AssertHelpers.assertThrows("Should not allow to project a partial list element with non-primitive type.",
         IllegalArgumentException.class, "Cannot project a partial list element",
         () -> generateAndValidate(schema, partialList)
     );

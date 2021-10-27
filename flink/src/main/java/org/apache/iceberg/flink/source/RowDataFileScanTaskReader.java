@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -77,7 +78,8 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
     // Project the RowData to remove the extra meta columns.
     if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
-      RowDataProjection rowDataProjection = RowDataProjection.create(deletes.requiredSchema(), projectedSchema);
+      RowDataProjection rowDataProjection = RowDataProjection.create(
+          deletes.requiredRowType(), deletes.requiredSchema().asStruct(), projectedSchema.asStruct());
       iterable = CloseableIterable.transform(iterable, rowDataProjection::wrap);
     }
 
@@ -165,14 +167,20 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   }
 
   private static class FlinkDeleteFilter extends DeleteFilter<RowData> {
+    private final RowType requiredRowType;
     private final RowDataWrapper asStructLike;
     private final InputFilesDecryptor inputFilesDecryptor;
 
     FlinkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
                       InputFilesDecryptor inputFilesDecryptor) {
       super(task, tableSchema, requestedSchema);
-      this.asStructLike = new RowDataWrapper(FlinkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
+      this.requiredRowType = FlinkSchemaUtil.convert(requiredSchema());
+      this.asStructLike = new RowDataWrapper(requiredRowType, requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;
+    }
+
+    public RowType requiredRowType() {
+      return requiredRowType;
     }
 
     @Override
