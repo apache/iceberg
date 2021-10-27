@@ -62,3 +62,6 @@ derby.log
 # Python stuff
 python_legacy/.mypy_cache/
 python/.mypy_cache/
+
+# idea test output
+out
