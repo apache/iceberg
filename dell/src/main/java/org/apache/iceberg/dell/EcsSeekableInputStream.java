@@ -49,7 +49,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
   private long pos = -1;
   private InputStream internal;
 
-  public EcsSeekableInputStream(S3Client client, EcsURI uri) {
+  EcsSeekableInputStream(S3Client client, EcsURI uri) {
     this.client = client;
     this.uri = uri;
   }
