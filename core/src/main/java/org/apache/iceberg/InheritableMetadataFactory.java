@@ -69,7 +69,7 @@ class InheritableMetadataFactory {
         BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
         file.setSpecId(specId);
         if (file.path() != null) {
-          file.setFilePath(MetadataPathUtils.toAbsolutePath(file.path().toString(), tableLocation));
+          file.setFilePath(MetadataPathUtils.toAbsolutePath(file.path().toString(), locationPrefix));
         }
       }
       if (manifestEntry.snapshotId() == null) {

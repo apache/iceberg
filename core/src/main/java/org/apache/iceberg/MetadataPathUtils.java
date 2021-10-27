@@ -42,6 +42,9 @@ public final class MetadataPathUtils {
    * @return the absolute path
    */
   public static String toAbsolutePath(String path, String locationPrefix) {
+    if (locationPrefix == null) {
+      return path;
+    }
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
     // convert to absolute path by appending the table location
     Path relativePath = Paths.get(path);
@@ -55,6 +58,9 @@ public final class MetadataPathUtils {
    * @return new metadata path
    */
   public static String toAbsolutePath(ManifestFile manifest, String locationPrefix) {
+    if (locationPrefix == null) {
+      return manifest.path();
+    }
     Path metadataPath = Paths.get(manifest.path());
     Path prefix = Paths.get(locationPrefix);
     return !metadataPath.startsWith(prefix) ? Paths.get(locationPrefix, manifest.path()).toString() : manifest.path();
@@ -70,7 +76,7 @@ public final class MetadataPathUtils {
       boolean useRelativePaths) {
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
     // TODO: Fix this after tests are changed to always pass the table location. Table location cannot be null.
-    if (tableLocation == null || locationPrefix == null) {
+    if (locationPrefix == null || tableLocation == null) {
       return path;
     }
 
