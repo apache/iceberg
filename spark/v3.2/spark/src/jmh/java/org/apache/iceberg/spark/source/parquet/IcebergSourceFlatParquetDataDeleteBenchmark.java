@@ -34,7 +34,6 @@ import org.apache.iceberg.spark.source.IcebergSourceBenchmark;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
@@ -94,10 +93,10 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
   @Benchmark
   @Threads(1)
   public void readIcebergVectorized() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
-    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
+    withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
       materialize(df);
@@ -111,7 +110,6 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
           .withColumn("intCol", expr("CAST(longCol AS INT)"))
           .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
           .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
           .withColumn("dateCol", date_add(current_date(), fileNum))
           .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
           .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
@@ -134,7 +132,6 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
         required(2, "intCol", Types.IntegerType.get()),
         required(3, "floatCol", Types.FloatType.get()),
         optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
         optional(6, "dateCol", Types.DateType.get()),
         optional(7, "timestampCol", Types.TimestampType.withZone()),
         optional(8, "stringCol", Types.StringType.get()));
