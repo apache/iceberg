@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 class Type(object):
     def __init__(self, type_string: str, repr_string: str, is_primitive=False):
         self._type_string = type_string
@@ -34,7 +35,9 @@ class Type(object):
 
 class FixedType(Type):
     def __init__(self, length: int):
-        super().__init__(f"fixed[{length}]", f"FixedType(length={length})", is_primitive=True)
+        super().__init__(
+            f"fixed[{length}]", f"FixedType(length={length})", is_primitive=True
+        )
         self._length = length
 
     @property
@@ -44,8 +47,11 @@ class FixedType(Type):
 
 class DecimalType(Type):
     def __init__(self, precision: int, scale: int):
-        super().__init__(f"decimal({precision}, {scale})",
-                         f"DecimalType(precision={precision}, scale={scale})", is_primitive=True)
+        super().__init__(
+            f"decimal({precision}, {scale})",
+            f"DecimalType(precision={precision}, scale={scale})",
+            is_primitive=True,
+        )
         self._precision = precision
         self._scale = scale
 
@@ -59,7 +65,14 @@ class DecimalType(Type):
 
 
 class NestedField(object):
-    def __init__(self, is_optional: bool, field_id: int, name: str, field_type: Type, doc: str = None):
+    def __init__(
+        self,
+        is_optional: bool,
+        field_id: int,
+        name: str,
+        field_type: Type,
+        doc: str = None,
+    ):
         self._is_optional = is_optional
         self._id = field_id
         self._name = name
@@ -87,17 +100,26 @@ class NestedField(object):
         return self._type
 
     def __repr__(self):
-        return (f"NestedField(is_optional={self._is_optional}, field_id={self._id}, "
-                f"name={repr(self._name)}, field_type={repr(self._type)}, doc={repr(self._doc)})")
+        return (
+            f"NestedField(is_optional={self._is_optional}, field_id={self._id}, "
+            f"name={repr(self._name)}, field_type={repr(self._type)}, doc={repr(self._doc)})"
+        )
 
     def __str__(self):
-        return (f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}"
-                "" if self._doc is None else f" ({self._doc})")
+        return (
+            f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}"
+            ""
+            if self._doc is None
+            else f" ({self._doc})"
+        )
 
 
 class StructType(Type):
     def __init__(self, fields: list):
-        super().__init__(f"struct<{', '.join(map(str, fields))}>", f"StructType(fields={repr(fields)})")
+        super().__init__(
+            f"struct<{', '.join(map(str, fields))}>",
+            f"StructType(fields={repr(fields)})",
+        )
         self._fields = fields
 
     @property
@@ -117,8 +139,10 @@ class ListType(Type):
 
 class MapType(Type):
     def __init__(self, key: NestedField, value: NestedField):
-        super().__init__(f"map<{key.type}, {value.type}>",
-                         f"MapType(key={repr(key)}, value={repr(value)})")
+        super().__init__(
+            f"map<{key.type}, {value.type}>",
+            f"MapType(key={repr(key)}, value={repr(value)})",
+        )
         self._key_field = key
         self._value_field = value
 
