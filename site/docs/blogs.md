@@ -23,6 +23,10 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Date**: October 20th, 2021, **Company**: Memiiso Community
 **Author**: [Ismail Simsek](https://www.linkedin.com/in/ismailsimsek/)
 
+### [How to Analyze CDC Data in Iceberg Data Lake Using Flink](https://www.alibabacloud.com/blog/how-to-analyze-cdc-data-in-iceberg-data-lake-using-flink_597838)
+**Date**: June 15, 2021, **Company**: Alibaba Cloud Community
+**Author**: Li Jinsong, Hu Zheng
+
 ### [Apache Iceberg: An Architectural Look Under the Covers](https://www.dremio.com/apache-iceberg-an-architectural-look-under-the-covers/)
 **Date**: July 6th, 2021, **Company**: Dremio
 
