@@ -30,8 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          # we need to fetch all tags so that getProjectVersion() in build.gradle correctly determines the next SNAPSHOT version from the newest tag
+          fetch-depth: 0
       - uses: actions/setup-java@v1
         with:
           java-version: 8
       - run: |
+          ./gradlew printVersion
           ./gradlew publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
