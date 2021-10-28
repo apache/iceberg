@@ -418,15 +418,28 @@ Report the live snapshot IDs of parents of a specified snapshot
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which will get ancestors |
-| `snapshot_id` |  ️  | long | Snapshot ID to get ancestors |
+| `table`       | ✔️  | string | Name of the table to report live snapshot IDs |
+| `snapshot_id` |  ️  | long | Use a specified snapshot to get the live snapshot IDs of parents |
+
+> tip : Using snapshot_id
+> 
+> I have snapshots
+> ```shell
+> A -> B - > C -> (D)
+> ```
+> I then roll back to B and add C' and D', So i have the following live snapshots
+> ```shell
+> A -> B - > C -> D
+>       \ -> C' -> (D')
+> ```
+> Now I can specify id D to get the live snapshot IDs: A -> B -> C -> D
 
 #### Output
 
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `snapshot_id` | long | the ancestor snapshot id |
-| `timestamp` | long | timestamp |
+| `timestamp` | long | snapshot creation time |
 
 #### Examples
 
