@@ -21,14 +21,18 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -79,6 +83,28 @@ public class TestMetadataTableScans extends TableTestBase {
       table.newRowDelta()
           .addDeletes(FILE_D2_DELETES)
           .commit();
+    }
+  }
+
+  @Test
+  public void testManifestsTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+            .appendFile(FILE_A)
+            .appendFile(FILE_B)
+            .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    Table manifestsTable = new ManifestsTable(table.ops(), table);
+    TableScan scan = manifestsTable.newScan()
+            .filter(Expressions.lessThan("length", 10000L));
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
+      for (FileScanTask task : tasks) {
+        Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
+      }
     }
   }
 
@@ -176,6 +202,29 @@ public class TestMetadataTableScans extends TableTestBase {
         .filter(Expressions.equal("snapshot_id", 1L))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
+  }
+
+  @Test
+  public void testAllManifestsTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+            .appendFile(FILE_A)
+            .appendFile(FILE_B)
+            .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    Table allManifestsTable = new AllManifestsTable(table.ops(), table);
+
+    TableScan scan = allManifestsTable.newScan()
+            .filter(Expressions.lessThan("length", 10000L));
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
+      for (FileScanTask task : tasks) {
+        Assert.assertTrue("Rows should not be empty", Iterables.size(task.asDataTask().rows()) > 0);
+      }
+    }
   }
 
   @Test
@@ -324,6 +373,32 @@ public class TestMetadataTableScans extends TableTestBase {
     validateIncludesPartitionScan(tasksUnary, 1);
     validateIncludesPartitionScan(tasksUnary, 2);
     validateIncludesPartitionScan(tasksUnary, 3);
+  }
+
+  @Test
+  public void testFilesTableScanWithDroppedPartition() throws IOException {
+    preparePartitionedTable();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+    TableScan scan = dataFilesTable.newScan();
+
+    Schema schema = dataFilesTable.schema();
+    Types.StructType actualType = schema.findField(DataFile.PARTITION_ID).type().asStructType();
+    Types.StructType expectedType = Types.StructType.of(
+        Types.NestedField.optional(1000, "data_bucket", Types.IntegerType.get())
+    );
+    Assert.assertEquals("Partition type must match", expectedType, actualType);
+    Accessor<StructLike> accessor = schema.accessorForField(1000);
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Set<Integer> results = StreamSupport.stream(tasks.spliterator(), false)
+          .flatMap(fileScanTask -> Streams.stream(fileScanTask.asDataTask().rows()))
+          .map(accessor::get).map(i -> (Integer) i).collect(Collectors.toSet());
+      Assert.assertEquals("Partition value must match", Sets.newHashSet(0, 1, 2, 3), results);
+    }
   }
 
   @Test

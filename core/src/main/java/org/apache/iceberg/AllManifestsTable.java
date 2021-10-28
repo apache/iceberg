@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -118,6 +119,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      Map<Integer, PartitionSpec> specs = table().specs();
 
       return CloseableIterable.withNoopClose(Iterables.transform(ops.current().snapshots(), snap -> {
         if (snap.manifestListLocation() != null) {
@@ -128,14 +130,14 @@ public class AllManifestsTable extends BaseMetadataTable {
               .withRecordCount(1)
               .withFormat(FileFormat.AVRO)
               .build();
-          return new ManifestListReadTask(ops.io(), schema(), table().spec(), new BaseFileScanTask(
+          return new ManifestListReadTask(ops.io(), schema(), specs, new BaseFileScanTask(
               manifestListAsDataFile, null,
               schemaString, specString, residuals));
         } else {
           return StaticDataTask.of(
               ops.io().newInputFile(ops.current().metadataFileLocation()),
               MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(),
-              manifest -> ManifestsTable.manifestFileToRow(table().spec(), manifest)
+              manifest -> ManifestsTable.manifestFileToRow(specs.get(manifest.partitionSpecId()), manifest)
           );
         }
       }));
@@ -145,13 +147,13 @@ public class AllManifestsTable extends BaseMetadataTable {
   static class ManifestListReadTask implements DataTask {
     private final FileIO io;
     private final Schema schema;
-    private final PartitionSpec spec;
+    private final Map<Integer, PartitionSpec> specs;
     private final FileScanTask manifestListTask;
 
-    ManifestListReadTask(FileIO io, Schema schema,  PartitionSpec spec, FileScanTask manifestListTask) {
+    ManifestListReadTask(FileIO io, Schema schema, Map<Integer, PartitionSpec> specs, FileScanTask manifestListTask) {
       this.io = io;
       this.schema = schema;
-      this.spec = spec;
+      this.specs = specs;
       this.manifestListTask = manifestListTask;
     }
 
@@ -173,7 +175,7 @@ public class AllManifestsTable extends BaseMetadataTable {
           .build()) {
 
         CloseableIterable<StructLike> rowIterable =  CloseableIterable.transform(manifests,
-            manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
+            manifest -> ManifestsTable.manifestFileToRow(specs.get(manifest.partitionSpecId()), manifest));
 
         StructProjection projection = StructProjection.create(MANIFEST_FILE_SCHEMA, schema);
         return CloseableIterable.transform(rowIterable, projection::wrap);
