@@ -21,6 +21,8 @@ package org.apache.iceberg.hive;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.HiveMetaHookLoader;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.RetryingMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -32,12 +34,9 @@ import org.apache.thrift.transport.TTransportException;
 
 public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
-  // use appropriate ctor depending on whether we're working with Hive1, Hive2, or Hive3 dependencies
-  // we need to do this because there is a breaking API change between Hive1, Hive2, and Hive3
   private static final DynMethods.StaticMethod GET_CLIENT = DynMethods.builder("getProxy")
-      .impl(RetryingMetaStoreClient.class, HiveConf.class)
-      .impl(RetryingMetaStoreClient.class, HiveConf.class, Boolean.TYPE)
-      .impl(RetryingMetaStoreClient.class, Configuration.class, Boolean.TYPE)
+      .impl(RetryingMetaStoreClient.class, HiveConf.class, HiveMetaHookLoader.class, String.class) // Hive 1 and 2
+      .impl(RetryingMetaStoreClient.class, Configuration.class, HiveMetaHookLoader.class, String.class) // Hive 3
       .buildStatic();
 
   private final HiveConf hiveConf;
@@ -53,7 +52,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   protected IMetaStoreClient newClient()  {
     try {
       try {
-        return GET_CLIENT.invoke(hiveConf, true);
+        return GET_CLIENT.invoke(hiveConf, null, HiveMetaStoreClient.class.getName());
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
         if (e.getCause() instanceof MetaException) {
