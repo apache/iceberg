@@ -216,3 +216,8 @@ pre {
 .fa-object-ungroup {
   color: #000000;
 }
+
+#index-page-logo {
+  background: rgba(0, 0, 0, 0);
+  border: 0;
+}
