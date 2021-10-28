@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.glue;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -96,65 +96,66 @@ public class IcebergToGlueConverterTest {
     TableInput expectedTableInput = TableInput.builder().storageDescriptor(
         StorageDescriptor.builder()
             .location("s3://test")
-            .columns(new ArrayList<Column>() {{
-                add(Column.builder()
+            .columns(ImmutableList.of(
+                Column.builder()
                     .name("x")
                     .type("string")
                     .comment("comment1")
-                    .parameters(new HashMap<String, String>() {{
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, "schema-column");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING");
-                      }})
-                    .build());
-                add(Column.builder()
+                    .parameters(ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string",
+                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING"
+                    ))
+                    .build(),
+                Column.builder()
                     .name("y")
                     .type("struct<z:int>")
                     .comment("comment2")
-                    .parameters(new HashMap<String, String>() {{
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, "schema-column");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "2");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "struct<z:int>");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRUCT");
-                      }})
-                    .build());
-                add(Column.builder()
+                    .parameters(ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "struct<z:int>",
+                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRUCT"
+                    ))
+                    .build(),
+                Column.builder()
                     .name("z")
                     .type("int")
-                    .parameters(new HashMap<String, String>() {{
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, "schema-subfield");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "3");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "int");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "INTEGER");
-                      }})
-                    .build());
-                add(Column.builder()
+                    .parameters(ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_SUBFIELD,
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "int",
+                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "INTEGER"
+                    ))
+                    .build(),
+                Column.builder()
                     .name("x")
                     .type("string")
-                    .parameters(new HashMap<String, String>() {{
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, "partition-field");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string");
-                        put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1000");
-                        put(IcebergToGlueConverter.ICEBERG_PARTITION_FIELD_ID, "1000");
-                        put(IcebergToGlueConverter.ICEBERG_PARTITION_SOURCE_ID, "1");
-                        put(IcebergToGlueConverter.ICEBERG_PARTITION_TRANSFORM, "identity");
-                      }})
-                    .build());
-              }})
-            .build())
+                    .parameters(ImmutableMap.<String, String>builder()
+                        .put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.PARTITION_FIELD)
+                        .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING")
+                        .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string")
+                        .put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1000")
+                        .put(IcebergToGlueConverter.ICEBERG_PARTITION_FIELD_ID, "1000")
+                        .put(IcebergToGlueConverter.ICEBERG_PARTITION_SOURCE_ID, "1")
+                        .put(IcebergToGlueConverter.ICEBERG_PARTITION_TRANSFORM, "identity")
+                        .build()
+                    )
+                    .build()
+                )
+            ).build())
         .build();
 
-    // Assert on location
     Assert.assertEquals(
+        "Location do not match",
         expectedTableInput.storageDescriptor().location(),
         actualTableInput.storageDescriptor().location());
-    // Assert on columns
     Assert.assertEquals(
+        "Columns do not match",
         expectedTableInput.storageDescriptor().columns(),
         actualTableInput.storageDescriptor().columns());
   }

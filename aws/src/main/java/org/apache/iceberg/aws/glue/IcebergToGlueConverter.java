@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.aws.glue;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +32,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -63,6 +63,9 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_PARTITION_TRANSFORM = "iceberg.partition.transform";
   public static final String ICEBERG_PARTITION_FIELD_ID = "iceberg.partition.field-id";
   public static final String ICEBERG_PARTITION_SOURCE_ID = "iceberg.partition.source-id";
+  public static final String SCHEMA_COLUMN = "schema-column";
+  public static final String SCHEMA_SUBFIELD = "schema-subfield";
+  public static final String PARTITION_FIELD = "partition-field";
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -236,8 +239,8 @@ class IcebergToGlueConverter {
   }
 
   private static List<Column> toColumns(TableMetadata metadata) {
-    List<Column> columns = new ArrayList<>();
-    Set<NestedField> rootColumnSet = new HashSet<>();
+    List<Column> columns = Lists.newArrayList();
+    Set<NestedField> rootColumnSet = Sets.newHashSet();
     // Add schema-column fields
     for (NestedField field : metadata.schema().columns()) {
       rootColumnSet.add(field);
@@ -245,7 +248,7 @@ class IcebergToGlueConverter {
           .name(field.name())
           .type(toTypeString(field.type()))
           .comment(field.doc())
-          .parameters(convertToParameters("schema-column", field))
+          .parameters(convertToParameters(SCHEMA_COLUMN, field))
           .build());
     }
     // Add schema-subfield
@@ -255,7 +258,7 @@ class IcebergToGlueConverter {
             .name(field.name())
             .type(toTypeString(field.type()))
             .comment(field.doc())
-            .parameters(convertToParameters("schema-subfield", field))
+            .parameters(convertToParameters(SCHEMA_SUBFIELD, field))
             .build());
       }
     }
@@ -266,31 +269,30 @@ class IcebergToGlueConverter {
       columns.add(Column.builder()
           .name(partitionField.name())
           .type(toTypeString(type))
-          .parameters(convertToParameters(type, partitionField))
+          .parameters(convertToPartitionFieldParameters(type, partitionField))
           .build());
     }
     return columns;
   }
 
-  private static Map<String, String> convertToParameters(String fieldUsage, NestedField nestedField) {
-    Map<String, String> columnParameters = new HashMap<>();
-    columnParameters.put(ICEBERG_FIELD_USAGE, fieldUsage);
-    columnParameters.put(ICEBERG_FIELD_TYPE_ID, nestedField.type().typeId().toString());
-    columnParameters.put(ICEBERG_FIELD_TYPE_STRING, toTypeString(nestedField.type()));
-    columnParameters.put(ICEBERG_FIELD_ID, Integer.toString(nestedField.fieldId()));
-    columnParameters.put(ICEBERG_FIELD_OPTIONAL, Boolean.toString(nestedField.isOptional()));
-    return columnParameters;
+  private static Map<String, String> convertToParameters(String fieldUsage, NestedField field) {
+    return ImmutableMap.of(ICEBERG_FIELD_USAGE, fieldUsage,
+        ICEBERG_FIELD_TYPE_ID, field.type().typeId().toString(),
+        ICEBERG_FIELD_TYPE_STRING, toTypeString(field.type()),
+        ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+        ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
+    );
   }
 
-  private static Map<String, String> convertToParameters(Type type, PartitionField partitionField) {
-    Map<String, String> columnParameters = new HashMap<>();
-    columnParameters.put(ICEBERG_FIELD_USAGE, "partition-field");
-    columnParameters.put(ICEBERG_FIELD_TYPE_ID, type.typeId().toString());
-    columnParameters.put(ICEBERG_FIELD_TYPE_STRING, toTypeString(type));
-    columnParameters.put(ICEBERG_FIELD_ID, Integer.toString(partitionField.fieldId()));
-    columnParameters.put(ICEBERG_PARTITION_TRANSFORM, partitionField.transform().toString());
-    columnParameters.put(ICEBERG_PARTITION_FIELD_ID, Integer.toString(partitionField.fieldId()));
-    columnParameters.put(ICEBERG_PARTITION_SOURCE_ID, Integer.toString(partitionField.sourceId()));
-    return columnParameters;
+  private static Map<String, String> convertToPartitionFieldParameters(Type type, PartitionField partitionField) {
+    return ImmutableMap.<String, String>builder()
+        .put(ICEBERG_FIELD_USAGE, PARTITION_FIELD)
+        .put(ICEBERG_FIELD_TYPE_ID, type.typeId().toString())
+        .put(ICEBERG_FIELD_TYPE_STRING, toTypeString(type))
+        .put(ICEBERG_FIELD_ID, Integer.toString(partitionField.fieldId()))
+        .put(ICEBERG_PARTITION_TRANSFORM, partitionField.transform().toString())
+        .put(ICEBERG_PARTITION_FIELD_ID, Integer.toString(partitionField.fieldId()))
+        .put(ICEBERG_PARTITION_SOURCE_ID, Integer.toString(partitionField.sourceId()))
+        .build();
   }
 }

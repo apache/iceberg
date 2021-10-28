@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.glue;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +37,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -305,12 +305,12 @@ public class GlueCatalogTableTest extends GlueTestBase {
     // Test Column Comment
     Assert.assertEquals("c1", comment);
     // Test Column Parameter
-    Map<String, String> expectedParameters = new HashMap<>();
-    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, "schema-column");
-    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1");
-    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false");
-    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string");
-    expectedParameters.put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING");
+    Map<String, String> expectedParameters = ImmutableMap.of(
+        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
+        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string",
+        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_ID, "STRING");
     Assert.assertTrue(actualParameters.size() > 0);
     Assert.assertEquals(expectedParameters, actualParameters);
   }
