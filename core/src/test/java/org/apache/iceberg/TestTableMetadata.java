@@ -196,8 +196,7 @@ public class TestTableMetadata {
     Assert.assertEquals("Format version should match",
         expected.formatVersion(), metadata.formatVersion());
     Assert.assertNull("Table UUID should not be assigned", metadata.uuid());
-    Assert.assertEquals("Table location prefix should match",
-        expected.locationPrefix(), metadata.locationPrefix());
+    Assert.assertNull("Table location prefix should be unassigned", metadata.locationPrefix());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
     Assert.assertEquals("Last sequence number should default to 0",
