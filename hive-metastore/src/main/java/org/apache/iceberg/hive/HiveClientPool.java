@@ -35,7 +35,8 @@ import org.apache.thrift.transport.TTransportException;
 public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
   private static final DynMethods.StaticMethod GET_CLIENT = DynMethods.builder("getProxy")
-      .impl(RetryingMetaStoreClient.class, HiveConf.class, HiveMetaHookLoader.class, String.class) // Hive 1 and 2
+      .impl(RetryingMetaStoreClient.class, HiveConf.class) // Hive 1 (HiveMetaHookLoader cannot be null)
+      .impl(RetryingMetaStoreClient.class, HiveConf.class, HiveMetaHookLoader.class, String.class) // Hive 2
       .impl(RetryingMetaStoreClient.class, Configuration.class, HiveMetaHookLoader.class, String.class) // Hive 3
       .buildStatic();
 
