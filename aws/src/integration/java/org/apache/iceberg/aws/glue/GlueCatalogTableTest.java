@@ -36,10 +36,13 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
@@ -51,6 +54,8 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
+
+import static org.apache.iceberg.expressions.Expressions.truncate;
 
 public class GlueCatalogTableTest extends GlueTestBase {
 
@@ -286,5 +291,71 @@ public class GlueCatalogTableTest extends GlueTestBase {
     Assert.assertEquals("skipArchive should not create new version",
         1, glue.getTableVersions(GetTableVersionsRequest.builder()
             .databaseName(namespace).tableName(tableName).build()).tableVersions().size());
+  }
+
+  @Test
+  public void testColumnCommentsAndParameters() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    table.updateSchema().addColumn("c2", Types.StructType.of(
+        Types.NestedField.required(3, "z", Types.IntegerType.get())), "c2").commit();
+    table.updateSpec().addField(truncate("c1", 8)).commit();
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+        .databaseName(namespace).name(tableName).build());
+    List<Column> actualColumns = response.table().storageDescriptor().columns();
+
+    List<Column> expectedColumns = ImmutableList.of(
+        Column.builder()
+            .name("c1")
+            .type("string")
+            .comment("c1")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string",
+                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRING"
+            ))
+            .build(),
+        Column.builder()
+            .name("c2")
+            .type("struct<z:int>")
+            .comment("c2")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "struct<z:int>",
+                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRUCT"
+            ))
+            .build(),
+        Column.builder()
+            .name("z")
+            .type("int")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_SUBFIELD,
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "int",
+                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "INTEGER"
+            ))
+            .build(),
+        Column.builder()
+            .name("c1_trunc_8")
+            .type("string")
+            .parameters(ImmutableMap.<String, String>builder()
+                .put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.PARTITION_FIELD)
+                .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRING")
+                .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string")
+                .put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1000")
+                .put(IcebergToGlueConverter.ICEBERG_PARTITION_FIELD_ID, "1000")
+                .put(IcebergToGlueConverter.ICEBERG_PARTITION_SOURCE_ID, "1")
+                .put(IcebergToGlueConverter.ICEBERG_PARTITION_TRANSFORM, "truncate[8]")
+                .build()
+            )
+            .build()
+    );
+    Assert.assertEquals("Columns do not match", expectedColumns, actualColumns);
   }
 }
