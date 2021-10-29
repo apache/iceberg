@@ -1099,6 +1099,8 @@ project(":iceberg-spark3-extensions") {
       exclude group: 'org.apache.arrow'
     }
 
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
