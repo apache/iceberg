@@ -19,10 +19,18 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
@@ -32,7 +40,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
@@ -54,19 +61,17 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
         "USING iceberg " +
         "PARTITIONED BY (date)", tableName);
 
-    for (int batchNum = 0; batchNum < 4; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("id", "data", "date", "ts");
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).append();
-    }
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
-    Dataset<Row> dimDF = spark.range(10)
-        .withColumn("date", current_date())
+    Dataset<Row> dimDF = spark.range(1, 10)
+        .withColumn("date", expr("DATE '1970-01-02'"))
         .select("id", "date");
     dimDF.coalesce(1).write().mode("append").insertInto("dim");
 
@@ -74,10 +79,12 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
         "SELECT f.* FROM %s f JOIN dim d ON f.date = d.date AND d.id = 1 ORDER BY id",
         tableName);
 
-    assertContainsRuntimeFilter(query);
+    assertQueryContainsRuntimeFilter(query);
+
+    deleteNotMatchingFiles(Expressions.equal("date", 1), 3);
 
     assertEquals("Should have expected rows",
-        sql("SELECT * FROM %s WHERE date = CURRENT_DATE() ORDER BY id", tableName),
+        sql("SELECT * FROM %s WHERE date = DATE '1970-01-02' ORDER BY id", tableName),
         sql(query));
   }
 
@@ -87,27 +94,27 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
         "USING iceberg " +
         "PARTITIONED BY (bucket(8, id))", tableName);
 
-    for (int batchNum = 0; batchNum < 4; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("id", "data", "date", "ts");
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
-    }
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
     Dataset<Row> dimDF = spark.range(1, 2)
-        .withColumn("date", current_date())
+        .withColumn("date", expr("DATE '1970-01-02'"))
         .select("id", "date");
     dimDF.coalesce(1).write().mode("append").insertInto("dim");
 
     String query = String.format(
-        "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = CURRENT_DATE() ORDER BY date",
+        "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = DATE '1970-01-02' ORDER BY date",
         tableName);
 
-    assertContainsRuntimeFilter(query);
+    assertQueryContainsRuntimeFilter(query);
+
+    deleteNotMatchingFiles(Expressions.equal("id", 1), 7);
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 ORDER BY date", tableName),
@@ -118,15 +125,13 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
   public void testBucketedTableWithMultipleSpecs() throws NoSuchTableException {
     sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) USING iceberg", tableName);
 
-    for (int batchNum = 0; batchNum < 2; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("id", "data", "date", "ts");
+    Dataset<Row> df1 = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 2 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).append();
-    }
+    df1.coalesce(1).writeTo(tableName).append();
 
     Table table = validationCatalog.loadTable(tableIdent);
     table.updateSpec()
@@ -135,33 +140,32 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
 
     sql("REFRESH TABLE %s", tableName);
 
-    for (int batchNum = 0; batchNum < 4; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("id", "data", "date", "ts");
+    Dataset<Row> df2 = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
-    }
+    df2.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
     Dataset<Row> dimDF = spark.range(1, 2)
-        .withColumn("date", current_date())
+        .withColumn("date", expr("DATE '1970-01-02'"))
         .select("id", "date");
     dimDF.coalesce(1).write().mode("append").insertInto("dim");
 
     String query = String.format(
-        "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = CURRENT_DATE() ORDER BY date",
+        "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = DATE '1970-01-02' ORDER BY date",
         tableName);
 
-    assertContainsRuntimeFilter(query);
+    assertQueryContainsRuntimeFilter(query);
+
+    deleteNotMatchingFiles(Expressions.equal("id", 1), 7);
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 ORDER BY date", tableName),
         sql(query));
   }
-
 
   @Test
   public void testSourceColumnWithDots() throws NoSuchTableException {
@@ -169,28 +173,32 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
         "USING iceberg " +
         "PARTITIONED BY (bucket(8, `i.d`))", tableName);
 
-    for (int batchNum = 0; batchNum < 4; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumnRenamed("id", "i.d")
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("`i.d`", "data", "date", "ts");
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumnRenamed("id", "i.d")
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(`i.d` % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("`i.d`", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
-    }
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
+
+    sql("SELECT * FROM %s WHERE `i.d` = 1", tableName);
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
     Dataset<Row> dimDF = spark.range(1, 2)
-        .withColumn("date", current_date())
+        .withColumn("date", expr("DATE '1970-01-02'"))
         .select("id", "date");
     dimDF.coalesce(1).write().mode("append").insertInto("dim");
 
     String query = String.format(
-        "SELECT f.* FROM %s f JOIN dim d ON f.`i.d` = d.id AND d.date = CURRENT_DATE() ORDER BY date",
+        "SELECT f.* FROM %s f JOIN dim d ON f.`i.d` = d.id AND d.date = DATE '1970-01-02' ORDER BY date",
         tableName);
 
-    assertContainsRuntimeFilter(query);
+    assertQueryContainsRuntimeFilter(query);
+
+    deleteNotMatchingFiles(Expressions.equal("i.d", 1), 7);
+
+    sql(query);
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE `i.d` = 1 ORDER BY date", tableName),
@@ -203,28 +211,28 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
         "USING iceberg " +
         "PARTITIONED BY (bucket(8, `i``d`))", tableName);
 
-    for (int batchNum = 0; batchNum < 4; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumnRenamed("id", "i`d")
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("`i``d`", "data", "date", "ts");
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumnRenamed("id", "i`d")
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(`i``d` % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("`i``d`", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
-    }
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
     Dataset<Row> dimDF = spark.range(1, 2)
-        .withColumn("date", current_date())
+        .withColumn("date", expr("DATE '1970-01-02'"))
         .select("id", "date");
     dimDF.coalesce(1).write().mode("append").insertInto("dim");
 
     String query = String.format(
-        "SELECT f.* FROM %s f JOIN dim d ON f.`i``d` = d.id AND d.date = CURRENT_DATE() ORDER BY date",
+        "SELECT f.* FROM %s f JOIN dim d ON f.`i``d` = d.id AND d.date = DATE '1970-01-02' ORDER BY date",
         tableName);
 
-    assertContainsRuntimeFilter(query);
+    assertQueryContainsRuntimeFilter(query);
+
+    deleteNotMatchingFiles(Expressions.equal("i`d", 1), 7);
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE `i``d` = 1 ORDER BY date", tableName),
@@ -235,30 +243,58 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
   public void testUnpartitionedTable() throws NoSuchTableException {
     sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) USING iceberg", tableName);
 
-    for (int batchNum = 0; batchNum < 4; batchNum++) {
-      Dataset<Row> df = spark.range(100)
-          .withColumn("date", date_add(current_date(), batchNum))
-          .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-          .withColumn("data", expr("CAST(date AS STRING)"))
-          .select("id", "data", "date", "ts");
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).append();
-    }
+    df.coalesce(1).writeTo(tableName).append();
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
     Dataset<Row> dimDF = spark.range(1, 2)
-        .withColumn("date", current_date())
+        .withColumn("date", expr("DATE '1970-01-02'"))
         .select("id", "date");
     dimDF.coalesce(1).write().mode("append").insertInto("dim");
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 ORDER BY date", tableName),
-        sql("SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = CURRENT_DATE() ORDER BY date", tableName));
+        sql("SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND d.date = DATE '1970-01-02' ORDER BY date", tableName));
   }
 
-  private void assertContainsRuntimeFilter(String query) {
+  private void assertQueryContainsRuntimeFilter(String query) {
     List<Row> output = spark.sql("EXPLAIN EXTENDED " + query).collectAsList();
     String plan = output.get(0).getString(0);
     Assert.assertTrue("Plan must contain planned runtime filter", plan.contains("dynamicpruningexpression"));
+  }
+
+  private void deleteNotMatchingFiles(Expression filter, int expectedDeletedFileCount) {
+    Table table = validationCatalog.loadTable(tableIdent);
+    FileIO io = table.io();
+
+    Set<String> matchingFileLocations = Sets.newHashSet();
+    try (CloseableIterable<FileScanTask> files = table.newScan().filter(filter).planFiles()) {
+      for (FileScanTask file : files) {
+        String path = file.file().path().toString();
+        matchingFileLocations.add(path);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    Set<String> deletedFileLocations = Sets.newHashSet();
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      for (FileScanTask file : files) {
+        String path = file.file().path().toString();
+        if (!matchingFileLocations.contains(path)) {
+          io.deleteFile(path);
+          deletedFileLocations.add(path);
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    Assert.assertEquals("Deleted unexpected number of files", expectedDeletedFileCount, deletedFileLocations.size());
   }
 }

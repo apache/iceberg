@@ -45,6 +45,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -184,10 +185,10 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
       }
     }
 
-    Map<Integer, String> nameById = TypeUtil.indexQuotedNameById(table().schema().asStruct());
+    Map<Integer, String> nameById = TypeUtil.indexQuotedNameById(expectedSchema().asStruct());
     return partitionFieldSourceIds.stream()
         .filter(fieldId -> expectedSchema().findField(fieldId) != null)
-        .map(fieldId -> org.apache.spark.sql.connector.expressions.Expressions.column(nameById.get(fieldId)))
+        .map(fieldId -> Spark3Util.toNamedReference(nameById.get(fieldId)))
         .toArray(NamedReference[]::new);
   }
 
@@ -202,7 +203,7 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
           Binder.bind(expectedSchema().asStruct(), expr, caseSensitive());
           runtimeFilterExpr = Expressions.and(runtimeFilterExpr, expr);
         } catch (ValidationException e) {
-          LOG.error("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
+          LOG.warn("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
         }
       } else {
         LOG.warn("Unsupported runtime filter {}", filter);
@@ -228,8 +229,9 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
           })
           .collect(Collectors.toList());
 
-      LOG.info("{} files matched runtime filter {}", filteredFiles.size(), runtimeFilterExpr);
+      LOG.info("{}/{} files matched runtime filter {}", filteredFiles.size(), files().size(), runtimeFilterExpr);
 
+      // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
       if (filteredFiles.size() < files().size()) {
         this.specIds = null;
         this.files = filteredFiles;
