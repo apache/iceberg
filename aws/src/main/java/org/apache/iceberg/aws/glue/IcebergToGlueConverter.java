@@ -56,7 +56,7 @@ class IcebergToGlueConverter {
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
   public static final String ICEBERG_FIELD_USAGE = "iceberg.field.usage";
-  public static final String ICEBERG_FIELD_TYPE_ID = "iceberg.field.type.id";
+  public static final String ICEBERG_FIELD_TYPE_TYPE_ID = "iceberg.field.type.typeid";
   public static final String ICEBERG_FIELD_TYPE_STRING = "iceberg.field.type.string";
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
@@ -277,7 +277,7 @@ class IcebergToGlueConverter {
 
   private static Map<String, String> convertToParameters(String fieldUsage, NestedField field) {
     return ImmutableMap.of(ICEBERG_FIELD_USAGE, fieldUsage,
-        ICEBERG_FIELD_TYPE_ID, field.type().typeId().toString(),
+        ICEBERG_FIELD_TYPE_TYPE_ID, field.type().typeId().toString(),
         ICEBERG_FIELD_TYPE_STRING, toTypeString(field.type()),
         ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
         ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
@@ -287,7 +287,7 @@ class IcebergToGlueConverter {
   private static Map<String, String> convertToPartitionFieldParameters(Type type, PartitionField partitionField) {
     return ImmutableMap.<String, String>builder()
         .put(ICEBERG_FIELD_USAGE, PARTITION_FIELD)
-        .put(ICEBERG_FIELD_TYPE_ID, type.typeId().toString())
+        .put(ICEBERG_FIELD_TYPE_TYPE_ID, type.typeId().toString())
         .put(ICEBERG_FIELD_TYPE_STRING, toTypeString(type))
         .put(ICEBERG_FIELD_ID, Integer.toString(partitionField.fieldId()))
         .put(ICEBERG_PARTITION_TRANSFORM, partitionField.transform().toString())
