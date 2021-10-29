@@ -201,8 +201,10 @@ public class OrcMetrics {
         min = fieldMetrics.lowerBound();
       } else {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
-        min = normalizeFloatingPointColumnsIfNeeded(Bound.LOWER, type,
-            ((DoubleColumnStatistics) columnStats).getMinimum());
+        min = replaceNaN(((DoubleColumnStatistics) columnStats).getMinimum(), Double.NEGATIVE_INFINITY);
+        if (type.typeId() == Type.TypeID.FLOAT) {
+          min = ((Double) min).floatValue();
+        }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
       min = ((StringColumnStatistics) columnStats).getMinimum();
@@ -243,8 +245,10 @@ public class OrcMetrics {
         max = fieldMetrics.upperBound();
       } else {
         // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
-        max = normalizeFloatingPointColumnsIfNeeded(Bound.UPPER, type,
-            ((DoubleColumnStatistics) columnStats).getMaximum());
+        max = replaceNaN(((DoubleColumnStatistics) columnStats).getMaximum(), Double.POSITIVE_INFINITY);
+        if (type.typeId() == Type.TypeID.FLOAT) {
+          max = ((Double) max).floatValue();
+        }
       }
     } else if (columnStats instanceof StringColumnStatistics) {
       max = ((StringColumnStatistics) columnStats).getMaximum();
@@ -269,14 +273,8 @@ public class OrcMetrics {
     return Optional.ofNullable(Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
   }
 
-  // ORC uses NaN in its metrics for floating point numbers (float and double).
-  // To avoid storing NaN in the Iceberg metrics, NaN is normalized to +/- Infinity for max / min respectively.
-  private static Object normalizeFloatingPointColumnsIfNeeded(Bound bound, Type type, double value) {
-    if (type.typeId() == Type.TypeID.DOUBLE) {
-      return Double.isNaN(value) ? (bound == Bound.UPPER ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY) : value;
-    }
-    float asFloat = (float) value;
-    return Float.isNaN(asFloat) ? (bound == Bound.UPPER ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY) : asFloat;
+  private static Object replaceNaN(double value, double replacement) {
+    return Double.isNaN(value) ? replacement : value;
   }
 
   private static Object truncateIfNeeded(Bound bound, Type type, Object value, MetricsMode metricsMode) {
