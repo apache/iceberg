@@ -180,7 +180,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     String fullName = quote(name);
     if (!fieldNames.isEmpty()) {
       Iterator<String> quotedFieldNames = Iterators.transform(fieldNames.descendingIterator(), this::quote);
-      fullName = DOT.join(DOT.join(quotedFieldNames), fullName);
+      fullName = DOT.join(DOT.join(quotedFieldNames), quote(name));
     }
 
     Integer existingFieldId = nameToId.put(fullName, fieldId);
@@ -190,7 +190,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     // also track the short name, if this is a nested field
     if (!shortFieldNames.isEmpty()) {
       Iterator<String> quotedShortFieldNames = Iterators.transform(shortFieldNames.descendingIterator(), this::quote);
-      String shortName = DOT.join(DOT.join(quotedShortFieldNames), fullName);
+      String shortName = DOT.join(DOT.join(quotedShortFieldNames), quote(name));
       if (!shortNameToId.containsKey(shortName)) {
         shortNameToId.put(shortName, fieldId);
       }
