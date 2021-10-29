@@ -91,6 +91,18 @@ if (sparkVersions.contains("3.0")) {
   project(':iceberg-spark:spark3-runtime').name = 'iceberg-spark3-runtime'
 }
 
+if (sparkVersions.contains("3.1")) {
+  include ':iceberg-spark:spark-3.1'
+  include ':iceberg-spark:spark-3.1-extensions'
+  include ':iceberg-spark:spark-3.1-runtime'
+  project(':iceberg-spark:spark-3.1').projectDir = file('spark/v3.1/spark')
+  project(':iceberg-spark:spark-3.1').name = 'iceberg-spark-3.1'
+  project(':iceberg-spark:spark-3.1-extensions').projectDir = file('spark/v3.1/spark-extensions')
+  project(':iceberg-spark:spark-3.1-extensions').name = 'iceberg-spark-3.1-extensions'
+  project(':iceberg-spark:spark-3.1-runtime').projectDir = file('spark/v3.1/spark-runtime')
+  project(':iceberg-spark:spark-3.1-runtime').name = 'iceberg-spark-3.1-runtime'
+}
+
 if (sparkVersions.contains("3.2")) {
   include ':iceberg-spark:spark-3.2'
   include ':iceberg-spark:spark-3.2-extensions'
