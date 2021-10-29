@@ -73,7 +73,9 @@ import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -120,9 +122,6 @@ public class TestMetricsRowGroupFilterTypes {
       optional(16, "_fixed_decimal", Types.DecimalType.of(31, 2))
   );
 
-  private static final File ORC_FILE = new File("/tmp/stats-row-group-filter-types-test.orc");
-
-  private static final File PARQUET_FILE = new File("/tmp/stats-row-group-filter-types-test.parquet");
   private static MessageType parquetSchema = null;
   private static BlockMetaData rowGroupMetadata = null;
 
@@ -135,8 +134,17 @@ public class TestMetricsRowGroupFilterTypes {
       DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   private static final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  private File ORC_FILE;
+  private File PARQUET_FILE;
+
   @Before
   public void createInputFile() throws IOException {
+    ORC_FILE = temp.newFile();
+    PARQUET_FILE = temp.newFile();
+
     List<Record> records = new ArrayList<>();
     // create 50 records
     for (int i = 0; i < 50; i += 1) {
