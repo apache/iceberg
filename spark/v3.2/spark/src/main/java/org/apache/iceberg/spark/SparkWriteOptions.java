@@ -55,4 +55,11 @@ public class SparkWriteOptions {
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
+
+  // Overrides the default distribution mode for a write operation
+  public static final String DISTRIBUTION_MODE = "distribution-mode";
+
+  // Controls whether to ignore the table sort order during a write operation
+  public static final String IGNORE_SORT_ORDER = "ignore-sort-order";
+  public static final boolean IGNORE_SORT_ORDER_DEFAULT = false;
 }
