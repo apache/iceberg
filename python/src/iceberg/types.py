@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import Optional
+
 
 class Type(object):
     def __init__(self, type_string: str, repr_string: str, is_primitive=False):
@@ -71,7 +73,7 @@ class NestedField(object):
         field_id: int,
         name: str,
         field_type: Type,
-        doc: str = None,
+        doc: Optional[str] = None,
     ):
         self._is_optional = is_optional
         self._id = field_id
