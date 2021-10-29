@@ -89,9 +89,9 @@ public class TestMetadataTableScans extends TableTestBase {
   @Test
   public void testManifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .appendFile(FILE_B)
-            .commit();
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
     table.refresh();
@@ -207,9 +207,9 @@ public class TestMetadataTableScans extends TableTestBase {
   @Test
   public void testAllManifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .appendFile(FILE_B)
-            .commit();
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
     table.refresh();
@@ -217,7 +217,7 @@ public class TestMetadataTableScans extends TableTestBase {
     Table allManifestsTable = new AllManifestsTable(table.ops(), table);
 
     TableScan scan = allManifestsTable.newScan()
-            .filter(Expressions.lessThan("length", 10000L));
+        .filter(Expressions.lessThan("length", 10000L));
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
