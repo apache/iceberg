@@ -121,42 +121,46 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
 
   private List<FileScanTask> files() {
     if (files == null) {
-      TableScan scan = table()
-          .newScan()
-          .option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize))
-          .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback))
-          .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost))
-          .caseSensitive(caseSensitive())
-          .project(expectedSchema());
-
-      if (snapshotId != null) {
-        scan = scan.useSnapshot(snapshotId);
-      }
-
-      if (asOfTimestamp != null) {
-        scan = scan.asOfTime(asOfTimestamp);
-      }
-
-      if (startSnapshotId != null) {
-        if (endSnapshotId != null) {
-          scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
-        } else {
-          scan = scan.appendsAfter(startSnapshotId);
-        }
-      }
-
-      for (Expression filter : filterExpressions()) {
-        scan = scan.filter(filter);
-      }
-
-      try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
-        this.files = Lists.newArrayList(filesIterable);
-      } catch (IOException e) {
-        throw new UncheckedIOException("Failed to close table scan: " + scan, e);
-      }
+      this.files = planFiles();
     }
 
     return files;
+  }
+
+  private List<FileScanTask> planFiles() {
+    TableScan scan = table()
+        .newScan()
+        .option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize))
+        .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback))
+        .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost))
+        .caseSensitive(caseSensitive())
+        .project(expectedSchema());
+
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
+    }
+
+    if (asOfTimestamp != null) {
+      scan = scan.asOfTime(asOfTimestamp);
+    }
+
+    if (startSnapshotId != null) {
+      if (endSnapshotId != null) {
+        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
+      } else {
+        scan = scan.appendsAfter(startSnapshotId);
+      }
+    }
+
+    for (Expression filter : filterExpressions()) {
+      scan = scan.filter(filter);
+    }
+
+    try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
+      return Lists.newArrayList(filesIterable);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close table scan: " + scan, e);
+    }
   }
 
   @Override
@@ -194,21 +198,7 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
 
   @Override
   public void filter(Filter[] filters) {
-    Expression runtimeFilterExpr = Expressions.alwaysTrue();
-
-    for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
-      if (expr != null) {
-        try {
-          Binder.bind(expectedSchema().asStruct(), expr, caseSensitive());
-          runtimeFilterExpr = Expressions.and(runtimeFilterExpr, expr);
-        } catch (ValidationException e) {
-          LOG.warn("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
-        }
-      } else {
-        LOG.warn("Unsupported runtime filter {}", filter);
-      }
-    }
+    Expression runtimeFilterExpr = convertRuntimeFilters(filters);
 
     if (runtimeFilterExpr != Expressions.alwaysTrue()) {
       Map<Integer, Evaluator> evaluatorsBySpecId = Maps.newHashMap();
@@ -240,6 +230,26 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
 
       runtimeFilterExpressions.add(runtimeFilterExpr);
     }
+  }
+
+  private Expression convertRuntimeFilters(Filter[] filters) {
+    Expression runtimeFilterExpr = Expressions.alwaysTrue();
+
+    for (Filter filter : filters) {
+      Expression expr = SparkFilters.convert(filter);
+      if (expr != null) {
+        try {
+          Binder.bind(expectedSchema().asStruct(), expr, caseSensitive());
+          runtimeFilterExpr = Expressions.and(runtimeFilterExpr, expr);
+        } catch (ValidationException e) {
+          LOG.warn("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
+        }
+      } else {
+        LOG.warn("Unsupported runtime filter {}", filter);
+      }
+    }
+
+    return runtimeFilterExpr;
   }
 
   @Override
