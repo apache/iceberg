@@ -45,5 +45,5 @@ public class FlinkConfigOptions {
       .key("source.iceberg.reader.fetch-record-batch-size")
       .intType()
       .defaultValue(2048)
-      .withDescription("The target record batch size for split reader fetch.");
+      .withDescription("The target number of records for Iceberg reader fetch batch.");
 }

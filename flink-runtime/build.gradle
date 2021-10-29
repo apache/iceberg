@@ -43,6 +43,8 @@ project(':iceberg-flink-runtime') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
+    // flink-connector-base is not part of Flink runtime.
+    // Hence, iceberg-flink-runtime should include it a transitive dependency.
     implementation "org.apache.flink:flink-connector-base"
   }
 

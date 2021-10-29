@@ -38,7 +38,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 @Internal
 public class DataIterator<T> implements CloseableIterator<T> {
+
   private final FileScanTaskReader<T> fileScanTaskReader;
+
   private final InputFilesDecryptor inputFilesDecryptor;
   private final CombinedScanTask combinedTask;
 
@@ -49,6 +51,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
                       FileIO io, EncryptionManager encryption) {
     this.fileScanTaskReader = fileScanTaskReader;
+
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.combinedTask = task;
 
