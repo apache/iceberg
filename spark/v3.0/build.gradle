@@ -126,6 +126,8 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
+    compileOnly project(':iceberg-data')
+    compileOnly project(':iceberg-orc')
     compileOnly project(':iceberg-common')
     compileOnly project(':iceberg-spark')
     compileOnly project(':iceberg-spark:iceberg-spark3')
@@ -137,6 +139,8 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
