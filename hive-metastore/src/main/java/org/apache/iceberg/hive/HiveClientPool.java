@@ -35,8 +35,7 @@ import org.apache.thrift.transport.TTransportException;
 public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
   private static final DynMethods.StaticMethod GET_CLIENT = DynMethods.builder("getProxy")
-      .impl(RetryingMetaStoreClient.class, HiveConf.class) // Hive 1 (HiveMetaHookLoader cannot be null)
-      .impl(RetryingMetaStoreClient.class, HiveConf.class, HiveMetaHookLoader.class, String.class) // Hive 2
+      .impl(RetryingMetaStoreClient.class, HiveConf.class, HiveMetaHookLoader.class, String.class) // Hive 1 and 2
       .impl(RetryingMetaStoreClient.class, Configuration.class, HiveMetaHookLoader.class, String.class) // Hive 3
       .buildStatic();
 
@@ -53,7 +52,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   protected IMetaStoreClient newClient()  {
     try {
       try {
-        return GET_CLIENT.invoke(hiveConf, null, HiveMetaStoreClient.class.getName());
+        return GET_CLIENT.invoke(hiveConf, (HiveMetaHookLoader) tbl -> null, HiveMetaStoreClient.class.getName());
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
         if (e.getCause() instanceof MetaException) {
