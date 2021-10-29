@@ -423,16 +423,13 @@ Report the live snapshot IDs of parents of a specified snapshot
 
 > tip : Using snapshot_id
 > 
-> I have snapshots
-> ```shell
-> A -> B - > C -> (D)
-> ```
-> I then roll back to B and add C' and D', So i have the following live snapshots
+> Given snapshots history with roll back to B and addition of C' -> D'
 > ```shell
 > A -> B - > C -> D
 >       \ -> C' -> (D')
 > ```
-> Now I can specify id D to get the live snapshot IDs: A -> B -> C -> D
+> Not specifying the snapshot ID would return A -> B -> C' -> D', while providing the snapshot ID of
+> D as an argument would return A-> B -> C -> D
 
 #### Output
 
