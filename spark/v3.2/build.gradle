@@ -33,6 +33,8 @@ configure(sparkProjects) {
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.12.3'
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.12.3'
+        // enforce the newer version of netty buffer in test
+        force 'io.netty:netty-buffer:4.1.68.Final'
       }
     }
   }
