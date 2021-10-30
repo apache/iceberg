@@ -19,7 +19,7 @@
 
 def flinkProjects = [
     project(':iceberg-flink:iceberg-flink-1.12'),
-    // TODO project(':iceberg-flink-1.12-runtime')
+    project(':iceberg-flink:iceberg-flink-1.12-runtime')
 ]
 
 configure(flinkProjects) {
@@ -33,11 +33,11 @@ project(':iceberg-flink:iceberg-flink-1.12') {
   sourceSets {
     main {
       java.srcDirs = [
-        "${project(':iceberg-flink').projectDir}/common/src/main/java",
+        "${project(':iceberg-flink').projectDir}/src/main/java",
         "src/main/java"
       ]
       resources.srcDirs = [
-        "${project(':iceberg-flink').projectDir}/common/src/main/resources",
+        "${project(':iceberg-flink').projectDir}/src/main/resources",
         "src/main/resources"
       ]
     }
@@ -52,7 +52,6 @@ project(':iceberg-flink:iceberg-flink-1.12') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
-    implementation project(":iceberg-flink")
 
     compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}:tests"
@@ -129,6 +128,64 @@ project(':iceberg-flink:iceberg-flink-1.12') {
       exclude group: 'javax.transaction', module: 'transaction-api'
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
+  }
+}
+
+project(':iceberg-flink:iceberg-flink-1.12-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
+  configurations {
+    implementation {
+      exclude group: 'org.apache.flink'
+      // included in Flink
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'commons-codec'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
+    }
+  }
+
+  dependencies {
+    implementation project(':iceberg-flink:iceberg-flink-1.12')
+    implementation project(':iceberg-aws')
+    implementation(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+  }
+
+  shadowJar {
+    configurations = [project.configurations.runtimeClasspath]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+
+    classifier null
+  }
+
+  jar {
+    enabled = false
   }
 }
 
