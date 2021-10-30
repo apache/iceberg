@@ -407,3 +407,46 @@ CALL spark_catalog.system.add_files(
   source_table => '`parquet`.`path/to/table`'
 )
 ```
+
+## `Metadata information`
+
+### `ancestors_of`
+
+Report the live snapshot IDs of parents of a specified snapshot
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to report live snapshot IDs |
+| `snapshot_id` |  ️  | long | Use a specified snapshot to get the live snapshot IDs of parents |
+
+> tip : Using snapshot_id
+> 
+> Given snapshots history with roll back to B and addition of C' -> D'
+> ```shell
+> A -> B - > C -> D
+>       \ -> C' -> (D')
+> ```
+> Not specifying the snapshot ID would return A -> B -> C' -> D', while providing the snapshot ID of
+> D as an argument would return A-> B -> C -> D
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `snapshot_id` | long | the ancestor snapshot id |
+| `timestamp` | long | snapshot creation time |
+
+#### Examples
+
+Get all the snapshot ancestors of current snapshots(default)
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl')
+```
+
+Get all the snapshot ancestors by a particular snapshot
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl', 1)
+CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
+```
