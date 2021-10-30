@@ -249,10 +249,10 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
     return SerializableTable.copyOf(this);
   }
 
-  private Map<String, String> filterProperties(Map<String, String> properties) {
+  private Map<String, String> filterProperties(Map<String, String> tableProperties) {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
 
-    properties.forEach((property, value) -> {
+    tableProperties.forEach((property, value) -> {
       if (property.startsWith("read.")) {
         builder.put(property, value);
       }
