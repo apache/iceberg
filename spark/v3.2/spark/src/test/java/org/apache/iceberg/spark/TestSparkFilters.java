@@ -27,7 +27,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.GreaterThan;
@@ -44,7 +44,13 @@ public class TestSparkFilters {
 
   @Test
   public void testQuotedAttributes() {
-    Map<String, String> attrMap = ImmutableMap.of("`i.d`", "i.d", "`i``d`", "i`d", "`d`.b.`d``d`", "d.b.d`d");
+    Map<String, String> attrMap = Maps.newHashMap();
+    attrMap.put("id", "id");
+    attrMap.put("`i.d`", "i.d");
+    attrMap.put("`i``d`", "i`d");
+    attrMap.put("`d`.b.`dd```", "d.b.dd`");
+    attrMap.put("a.`aa```.c", "a.aa`.c");
+
     attrMap.forEach((quoted, unquoted) -> {
       IsNull isNull = IsNull.apply(quoted);
       Expression expectedIsNull = Expressions.isNull(unquoted);

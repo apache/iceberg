@@ -189,10 +189,13 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
       }
     }
 
-    Map<Integer, String> nameById = TypeUtil.indexQuotedNameById(expectedSchema().asStruct());
+    Map<Integer, String> quotedNameById = TypeUtil.indexQuotedNameById(
+        expectedSchema().asStruct(),
+        name -> String.format("`%s`", name.replace("`", "``")));
+
     return partitionFieldSourceIds.stream()
         .filter(fieldId -> expectedSchema().findField(fieldId) != null)
-        .map(fieldId -> Spark3Util.toNamedReference(nameById.get(fieldId)))
+        .map(fieldId -> Spark3Util.toNamedReference(quotedNameById.get(fieldId)))
         .toArray(NamedReference[]::new);
   }
 

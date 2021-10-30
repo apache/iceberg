@@ -71,7 +71,7 @@ import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 public class SparkFilters {
 
-  private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])([^`]|$)");
+  private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])(.|$)");
 
   private SparkFilters() {
   }
