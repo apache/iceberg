@@ -39,6 +39,7 @@ import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
@@ -274,12 +275,12 @@ public class SparkTableUtil {
    * @param metricsConfig a metrics conf
    * @return a List of DataFile
    * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec, Configuration,
-   * MetricsConfig, NameMapping)}
+   * MetricsConfig, NameMapping, Schema)}
    */
   @Deprecated
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
                                              SerializableConfiguration conf, MetricsConfig metricsConfig) {
-    return listPartition(partition, spec, conf, metricsConfig, null);
+    return listPartition(partition, spec, conf, metricsConfig, null, null);
   }
 
   /**
@@ -294,14 +295,14 @@ public class SparkTableUtil {
    * @param mapping a name mapping
    * @return a List of DataFile
    * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec, Configuration,
-   * MetricsConfig, NameMapping)}
+   * MetricsConfig, NameMapping, Schema)}
    */
   @Deprecated
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
                                              SerializableConfiguration conf, MetricsConfig metricsConfig,
-                                             NameMapping mapping) {
+                                             NameMapping mapping, Schema schema) {
     return TableMigrationUtil.listPartition(partition.values, partition.uri, partition.format, spec, conf.get(),
-        metricsConfig, mapping);
+        metricsConfig, mapping, schema);
   }
 
 
@@ -463,7 +464,8 @@ public class SparkTableUtil {
       NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
       List<DataFile> files = TableMigrationUtil.listPartition(
-          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
+          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping,
+          targetTable.schema());
 
       if (checkDuplicateFiles) {
         Dataset<Row> importedFiles = spark.createDataset(
@@ -517,8 +519,8 @@ public class SparkTableUtil {
 
     Dataset<DataFile> filesToImport = partitionDS
         .flatMap((FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
-                listPartition(sparkPartition, spec, serializableConf, metricsConfig, nameMapping).iterator(),
-            Encoders.javaSerialization(DataFile.class));
+                listPartition(sparkPartition, spec, serializableConf, metricsConfig, nameMapping,
+                    targetTable.schema()).iterator(), Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {
       Dataset<Row> importedFiles = filesToImport

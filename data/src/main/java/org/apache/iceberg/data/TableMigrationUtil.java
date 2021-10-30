@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -36,19 +37,29 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.types.CheckCompatibility;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TableMigrationUtil {
 
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+
+  private static final Logger LOG = LoggerFactory.getLogger(TableMigrationUtil.class);
 
   private TableMigrationUtil() {
   }
@@ -73,11 +84,11 @@ public class TableMigrationUtil {
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
-                                             NameMapping mapping) {
+                                             NameMapping mapping, Schema schema) {
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf);
     } else if (format.contains("parquet")) {
-      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
+      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping, schema);
     } else if (format.contains("orc")) {
       return listOrcPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else {
@@ -117,7 +128,7 @@ public class TableMigrationUtil {
 
   private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
                                                      PartitionSpec spec, Configuration conf,
-                                                     MetricsConfig metricsSpec, NameMapping mapping) {
+                                                     MetricsConfig metricsSpec, NameMapping mapping, Schema schema) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -129,6 +140,9 @@ public class TableMigrationUtil {
             try {
               ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
               metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
+              if (!canImportSchema(ParquetSchemaUtil.convert(metadata.getFileMetaData().getSchema()), schema)) {
+                throw new ValidationException("Mismatch in table and imported file schema");
+              }
             } catch (IOException e) {
               throw new RuntimeException("Unable to read the footer of the parquet file: " +
                   stat.getPath(), e);
@@ -180,5 +194,21 @@ public class TableMigrationUtil {
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
     }
+  }
+
+  /**
+   * @param importSchema the schema of file being imported
+   * @param tableSchema schema of the table to which file is to be imported
+   * @return if the files schema is compatible with table's schema
+   */
+  public static boolean canImportSchema(Schema importSchema, Schema tableSchema) {
+    // Assigning ids by name look up, required for checking compatibility
+    Schema schemaWithIds = TypeUtil.assignFreshIds(importSchema, tableSchema, new AtomicInteger(1000)::incrementAndGet);
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, schemaWithIds, false);
+    if (!errors.isEmpty()) {
+      String errorString = Joiner.on("\n\t").join(errors);
+      LOG.error("Imported file's schema not compatible with table's schema. Errors : {}", errorString);
+    }
+    return errors.isEmpty();
   }
 }
