@@ -33,8 +33,14 @@ project(':iceberg-flink:iceberg-flink-1.13') {
 
   sourceSets {
     main {
-      java.srcDirs = ["src/main/java"]
-      resources.srcDirs = ["src/main/resources"]
+      java.srcDirs = [
+          "${project(':iceberg-flink').projectDir}/src/main/java",
+          "src/main/java"
+      ]
+      resources.srcDirs = [
+          "${project(':iceberg-flink').projectDir}/src/main/resources",
+          "src/main/resources"
+      ]
     }
   }
 

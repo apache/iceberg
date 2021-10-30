@@ -59,7 +59,7 @@ project(':iceberg-flink') {
     testImplementation "org.apache.flink:flink-core"
     testImplementation "org.apache.flink:flink-runtime_2.12"
     testImplementation "org.apache.flink:flink-table-planner-blink_2.12"
-    testImplementation ("org.apache.flink:flink-test-utils-junit") {
+    testImplementation("org.apache.flink:flink-test-utils-junit") {
       exclude group: 'junit'
     }
     testImplementation("org.apache.flink:flink-test-utils_2.12") {
@@ -115,4 +115,3 @@ if (flinkVersions.contains("1.12")) {
 if (flinkVersions.contains("1.13")) {
   apply from: file("$projectDir/v1.13/build.gradle")
 }
-
