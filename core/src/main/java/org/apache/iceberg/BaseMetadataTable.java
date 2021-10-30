@@ -41,11 +41,13 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   private final TableOperations ops;
   private final Table table;
   private final String name;
+  private final Map<String, String> properties;
 
   protected BaseMetadataTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;
+    this.properties = filterProperties(table.properties());
   }
 
   /**
@@ -135,7 +137,7 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
 
   @Override
   public Map<String, String> properties() {
-    return ImmutableMap.of();
+    return properties;
   }
 
   @Override
@@ -245,5 +247,17 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
 
   final Object writeReplace() {
     return SerializableTable.copyOf(this);
+  }
+
+  private Map<String, String> filterProperties(Map<String, String> properties) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+    properties.forEach((property, value) -> {
+      if (property.startsWith("read.")) {
+        builder.put(property, value);
+      }
+    });
+
+    return builder.build();
   }
 }

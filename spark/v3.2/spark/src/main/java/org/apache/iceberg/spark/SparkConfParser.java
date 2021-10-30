@@ -22,7 +22,6 @@ package org.apache.iceberg.spark;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.RuntimeConfig;
@@ -35,8 +34,7 @@ class SparkConfParser {
   private final Map<String, String> options;
 
   SparkConfParser(SparkSession spark, Table table, Map<String, String> options) {
-    // use table ops as metadata tables have empty properties
-    this.properties = ((HasTableOperations) table).operations().current().properties();
+    this.properties = table.properties();
     this.sessionConf = spark.conf();
     this.options = options;
   }
