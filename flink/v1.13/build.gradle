@@ -17,7 +17,32 @@
  * under the License.
  */
 
-project(':iceberg-flink') {
+def flinkProjects = [
+  project(':iceberg-flink:iceberg-flink-1.13'),
+  project(':iceberg-flink:iceberg-flink-1.13-runtime')
+]
+
+configure(flinkProjects) {
+  project.ext {
+    flinkVersion = '1.13.2'
+  }
+}
+
+project(':iceberg-flink:iceberg-flink-1.13') {
+
+  sourceSets {
+    main {
+      java.srcDirs = [
+          "${project(':iceberg-flink').projectDir}/src/main/java",
+          "src/main/java"
+      ]
+      resources.srcDirs = [
+          "${project(':iceberg-flink').projectDir}/src/main/resources",
+          "src/main/resources"
+      ]
+    }
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -28,11 +53,11 @@ project(':iceberg-flink') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
-    compileOnly "org.apache.flink:flink-streaming-java_2.12"
-    compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
-    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
-    compileOnly "org.apache.flink:flink-table-planner-blink_2.12"
-    compileOnly "org.apache.flink:flink-table-planner_2.12"
+    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}:tests"
+    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-table-planner-blink_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-table-planner_2.12:${flinkVersion}"
     compileOnly "org.apache.hadoop:hadoop-hdfs"
     compileOnly "org.apache.hadoop:hadoop-common"
     compileOnly("org.apache.hadoop:hadoop-minicluster") {
@@ -56,13 +81,13 @@ project(':iceberg-flink') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    testImplementation "org.apache.flink:flink-core"
-    testImplementation "org.apache.flink:flink-runtime_2.12"
-    testImplementation "org.apache.flink:flink-table-planner-blink_2.12"
-    testImplementation("org.apache.flink:flink-test-utils-junit") {
+    testImplementation "org.apache.flink:flink-core:${flinkVersion}"
+    testImplementation "org.apache.flink:flink-runtime_2.12:${flinkVersion}"
+    testImplementation "org.apache.flink:flink-table-planner-blink_2.12:${flinkVersion}"
+    testImplementation ("org.apache.flink:flink-test-utils-junit:${flinkVersion}") {
       exclude group: 'junit'
     }
-    testImplementation("org.apache.flink:flink-test-utils_2.12") {
+    testImplementation("org.apache.flink:flink-test-utils_2.12:${flinkVersion}") {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
     }
@@ -106,12 +131,60 @@ project(':iceberg-flink') {
   }
 }
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
+project(':iceberg-flink:iceberg-flink-1.13-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
 
-if (flinkVersions.contains("1.12")) {
-  apply from: file("$projectDir/v1.12/build.gradle")
-}
+  tasks.jar.dependsOn tasks.shadowJar
 
-if (flinkVersions.contains("1.13")) {
-  apply from: file("$projectDir/v1.13/build.gradle")
+  configurations {
+    implementation {
+      exclude group: 'org.apache.flink'
+      // included in Flink
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'commons-codec'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
+    }
+  }
+
+  dependencies {
+    implementation project(':iceberg-flink:iceberg-flink-1.13')
+    implementation project(':iceberg-aws')
+    implementation(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+  }
+
+  shadowJar {
+    configurations = [project.configurations.runtimeClasspath]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+
+    classifier null
+  }
+
+  jar {
+    enabled = false
+  }
 }
