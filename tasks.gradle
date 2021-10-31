@@ -19,8 +19,6 @@
 
 
 task aggregateJavadoc(type: Javadoc) {
-  project.rootProject.version = getJavadocVersion()
-
   dependsOn subprojects.javadoc
   source subprojects.javadoc.source
   destinationDir project.rootProject.file("site/docs/javadoc/${getJavadocVersion()}")
