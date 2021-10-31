@@ -52,7 +52,7 @@ public class InputFormatConfig {
 
   /**
    * @deprecated please use {@link #catalogPropertyConfigKey(String, String)}
-   * with config key {@link org.apache.iceberg.CatalogUtil#ICEBERG_CATALOG_TYPE} to specify the type of a catalog.
+   * with config key {@link org.apache.iceberg.CatalogProperties#CATALOG_TYPE} to specify the type of a catalog.
    */
   @Deprecated
   public static final String CATALOG = "iceberg.mr.catalog";
