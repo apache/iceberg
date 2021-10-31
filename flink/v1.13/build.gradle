@@ -29,7 +29,6 @@ configure(flinkProjects) {
 }
 
 project(':iceberg-flink:iceberg-flink-1.13') {
-  apply plugin: 'scala'
 
   sourceSets {
     main {
