@@ -9,6 +9,7 @@ tmp/
 *.ipr
 *.iws
 *.iml
+out
 
 # gradle build
 .gradle
