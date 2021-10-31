@@ -18,12 +18,12 @@
 from setuptools import setup
 
 setup(
-    name='py-iceberg',
+    name="py-iceberg",
     install_requires=[],
     extras_require={
         "dev": [
             "tox-travis==0.12",
             "pytest",
         ],
-    }
+    },
 )

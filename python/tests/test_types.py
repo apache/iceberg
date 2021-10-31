@@ -15,15 +15,47 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from iceberg.types import (BinaryType, BooleanType, DateType, DecimalType, DoubleType, FixedType,
-                           FloatType, IntegerType, ListType, LongType, MapType, NestedField, StringType,
-                           StructType, TimestampType, TimestamptzType, TimeType, UUIDType)
 import pytest
 
+from iceberg.types import (
+    BinaryType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FixedType,
+    FloatType,
+    IntegerType,
+    ListType,
+    LongType,
+    MapType,
+    NestedField,
+    StringType,
+    StructType,
+    TimestampType,
+    TimestamptzType,
+    TimeType,
+    UUIDType,
+)
 
-@pytest.mark.parametrize("input_type",
-                         [BooleanType, IntegerType, LongType, FloatType, DoubleType, DateType, TimeType,
-                          TimestampType, TimestamptzType, StringType, UUIDType, BinaryType])
+
+@pytest.mark.parametrize(
+    "input_type",
+    [
+        BooleanType,
+        IntegerType,
+        LongType,
+        FloatType,
+        DoubleType,
+        DateType,
+        TimeType,
+        TimestampType,
+        TimestamptzType,
+        StringType,
+        UUIDType,
+        BinaryType,
+    ],
+)
 def test_repr_primitive_types(input_type):
     assert input_type == eval(repr(input_type))
 
@@ -40,25 +72,47 @@ def test_decimal_type():
     type_var = DecimalType(precision=9, scale=2)
     assert type_var.precision == 9
     assert type_var.scale == 2
-    assert str(type_var) == 'decimal(9, 2)'
+    assert str(type_var) == "decimal(9, 2)"
     assert repr(type_var) == "DecimalType(precision=9, scale=2)"
     assert str(type_var) == str(eval(repr(type_var)))
 
 
 def test_struct_type():
-    type_var = StructType([NestedField(True, 1, "optional_field", IntegerType),
-                           NestedField(False, 2, "required_field", FixedType(5)),
-                           NestedField(False, 3, "required_field", StructType([
-                               NestedField(True, 4, "optional_field", DecimalType(8, 2)),
-                               NestedField(False, 5, "required_field", LongType)]))])
+    type_var = StructType(
+        [
+            NestedField(True, 1, "optional_field", IntegerType),
+            NestedField(False, 2, "required_field", FixedType(5)),
+            NestedField(
+                False,
+                3,
+                "required_field",
+                StructType(
+                    [
+                        NestedField(True, 4, "optional_field", DecimalType(8, 2)),
+                        NestedField(False, 5, "required_field", LongType),
+                    ]
+                ),
+            ),
+        ]
+    )
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
 
 
 def test_list_type():
-    type_var = ListType(NestedField(False, 1, "required_field", StructType([
-        NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-        NestedField(False, 3, "required_field", LongType)])))
+    type_var = ListType(
+        NestedField(
+            False,
+            1,
+            "required_field",
+            StructType(
+                [
+                    NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+                    NestedField(False, 3, "required_field", LongType),
+                ]
+            ),
+        )
+    )
     assert isinstance(type_var.element.type, StructType)
     assert len(type_var.element.type.fields) == 2
     assert type_var.element.field_id == 1
@@ -66,8 +120,10 @@ def test_list_type():
 
 
 def test_map_type():
-    type_var = MapType(NestedField(True, 1, "optional_field", DoubleType),
-                       NestedField(False, 2, "required_field", UUIDType))
+    type_var = MapType(
+        NestedField(True, 1, "optional_field", DoubleType),
+        NestedField(False, 2, "required_field", UUIDType),
+    )
     assert type_var.key.type == DoubleType
     assert type_var.key.field_id == 1
     assert type_var.value.type == UUIDType
@@ -76,12 +132,30 @@ def test_map_type():
 
 
 def test_nested_field():
-    field_var = NestedField(True, 1, "optional_field1", StructType([
-        NestedField(True, 2, "optional_field2", ListType(
-            NestedField(False, 3, "required_field3", DoubleType))),
-        NestedField(False, 4, "required_field4", MapType(
-            NestedField(True, 5, "optional_field5", TimeType),
-            NestedField(False, 6, "required_field6", UUIDType)))]))
+    field_var = NestedField(
+        True,
+        1,
+        "optional_field1",
+        StructType(
+            [
+                NestedField(
+                    True,
+                    2,
+                    "optional_field2",
+                    ListType(NestedField(False, 3, "required_field3", DoubleType)),
+                ),
+                NestedField(
+                    False,
+                    4,
+                    "required_field4",
+                    MapType(
+                        NestedField(True, 5, "optional_field5", TimeType),
+                        NestedField(False, 6, "required_field6", UUIDType),
+                    ),
+                ),
+            ]
+        ),
+    )
     assert field_var.is_optional
     assert not field_var.is_required
     assert field_var.field_id == 1
