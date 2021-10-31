@@ -33,8 +33,16 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -50,6 +58,8 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
@@ -646,6 +656,42 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   }
 
+  @Test
+  public void addOrcFileWithDoubleAndFloatColumns() throws Exception {
+    // Spark Session Catalog cannot load metadata tables
+    // with "The namespace in session catalog must have exactly one name part"
+    Assume.assumeFalse(catalogName.equals("spark_catalog"));
+
+    // Create an ORC file
+    File outputFile = temp.newFile("test.orc");
+    final int numRows = 5;
+    List<Record> expectedRecords = createOrcFile(outputFile, numRows);
+    String createIceberg =
+        "CREATE TABLE %s (x float, y double, z long) USING iceberg";
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`orc`.`%s`')",
+        catalogName, tableName, outputFile.getPath());
+    Assert.assertEquals(1L, result);
+
+    List<Object[]> expected = expectedRecords.stream()
+        .map(record -> new Object[]{record.get(0), record.get(1), record.get(2)})
+        .collect(Collectors.toList());
+
+    // x goes 2.00, 1.99, 1.98, ...
+    assertEquals("Iceberg table contains correct data",
+        expected,
+        sql("SELECT * FROM %s ORDER BY x DESC", tableName));
+
+    List<Object[]> actualRecordCount = sql("select %s from %s.files",
+        DataFile.RECORD_COUNT.name(),
+        tableName);
+    List<Object[]> expectedRecordCount = Lists.newArrayList();
+    expectedRecordCount.add(new Object[]{(long) numRows});
+    assertEquals("Iceberg file metadata should have correct metadata count",
+        expectedRecordCount, actualRecordCount);
+  }
+
   private static final StructField[] struct = {
       new StructField("id", DataTypes.IntegerType, false, Metadata.empty()),
       new StructField("name", DataTypes.StringType, false, Metadata.empty()),
@@ -734,5 +780,37 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     partitionedDF.write().insertInto(sourceTableName);
     partitionedDF.write().insertInto(sourceTableName);
+  }
+
+  // Update this to not write a file for import using Iceberg's ID numbers
+  public List<Record> createOrcFile(File orcFile, int numRows) throws IOException {
+    // Needs to be deleted but depend on the rule to delete the file for us again at the end.
+    if (orcFile.exists()) {
+      orcFile.delete();
+    }
+    final org.apache.iceberg.Schema icebergSchema = new org.apache.iceberg.Schema(
+        optional(1, "x", Types.FloatType.get()),
+        optional(2, "y", Types.DoubleType.get()),
+        optional(3, "z", Types.LongType.get())
+    );
+
+    List<Record> records = Lists.newArrayListWithExpectedSize(numRows);
+    for (int i = 0; i < numRows; i += 1) {
+      Record record = org.apache.iceberg.data.GenericRecord.create(icebergSchema);
+      record.setField("x", ((float) (100 - i)) / 100F + 1.0F); // 2.0f, 1.99f, 1.98f, ...
+      record.setField("y", ((double) i) / 100.0D + 2.0D); // 2.0d, 2.01d, 2.02d, ...
+      record.setField("z", 5_000_000_000L + i);
+      records.add(record);
+    }
+
+    OutputFile outFile = Files.localOutput(orcFile);
+    try (FileAppender<Record> appender = org.apache.iceberg.orc.ORC.write(outFile)
+        .schema(icebergSchema)
+        .metricsConfig(MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")))
+        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .build()) {
+      appender.addAll(records);
+    }
+    return records;
   }
 }
