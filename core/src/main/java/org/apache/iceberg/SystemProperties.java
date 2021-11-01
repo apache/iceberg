@@ -51,7 +51,7 @@ public class SystemProperties {
     }
     return defaultValue;
   }
-  
+
   public static int getInteger(String systemProperty, int defaultValue) {
     String value = System.getProperty(systemProperty);
     if (value != null) {
@@ -59,6 +59,4 @@ public class SystemProperties {
     }
     return defaultValue;
   }
-  
-  
 }
