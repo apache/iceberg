@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.parquet;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -49,12 +51,22 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        builder.addField(originalField);
+        if (field != null) {
+          hasChange = true;
+          builder.addField(field);
+        } else {
+          if (isStruct(originalField)) {
+            hasChange = true;
+            builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
+          } else {
+            builder.addField(originalField);
+          }
+        }
         fieldCount += 1;
       } else if (field != null) {
+        hasChange = true;
         builder.addField(field);
         fieldCount += 1;
-        hasChange = true;
       }
     }
 
@@ -104,12 +116,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       return list;
     } else if (element != null) {
       if (!Objects.equal(element, originalElement)) {
-        Integer listId = getId(list);
-        // the element type was projected
-        Type listType = Types.list(list.getRepetition())
-            .element(element)
-            .named(list.getName());
-        return listId == null ? listType : listType.withId(listId);
+        return list.withNewFields(repeated.withNewFields(element));
       }
       return list;
     }
@@ -129,14 +136,8 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     if ((keyId != null && selectedIds.contains(keyId)) || (valueId != null && selectedIds.contains(valueId))) {
       return map;
     } else if (value != null) {
-      Integer mapId = getId(map);
       if (!Objects.equal(value, originalValue)) {
-        Type mapType = Types.map(map.getRepetition())
-            .key(originalKey)
-            .value(value)
-            .named(map.getName());
-
-        return mapId == null ? mapType : mapType.withId(mapId);
+        return map.withNewFields(repeated.withNewFields(originalKey, value));
       }
       return map;
     }
@@ -151,5 +152,16 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
 
   private Integer getId(Type type) {
     return type.getId() == null ? null : type.getId().intValue();
+  }
+
+  private boolean isStruct(Type field) {
+    if (field.isPrimitive()) {
+      return false;
+    } else {
+      GroupType groupType = field.asGroupType();
+      LogicalTypeAnnotation logicalTypeAnnotation = groupType.getLogicalTypeAnnotation();
+      return !logicalTypeAnnotation.equals(LogicalTypeAnnotation.mapType()) &&
+          !logicalTypeAnnotation.equals(LogicalTypeAnnotation.listType());
+    }
   }
 }

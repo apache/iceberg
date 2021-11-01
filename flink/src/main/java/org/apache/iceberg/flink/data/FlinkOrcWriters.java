@@ -32,6 +32,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,7 +43,6 @@ import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
-import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 class FlinkOrcWriters {
@@ -90,16 +90,11 @@ class FlinkOrcWriters {
   }
 
   static OrcValueWriter<RowData> struct(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
-    return new StructWriter(writers, types);
+    return new RowDataWriter(writers, types);
   }
 
   private static class StringWriter implements OrcValueWriter<StringData> {
     private static final StringWriter INSTANCE = new StringWriter();
-
-    @Override
-    public Class<?> getJavaClass() {
-      return StringData.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, StringData data, ColumnVector output) {
@@ -112,11 +107,6 @@ class FlinkOrcWriters {
     private static final DateWriter INSTANCE = new DateWriter();
 
     @Override
-    public Class<?> getJavaClass() {
-      return Integer.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, Integer data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data;
     }
@@ -124,11 +114,6 @@ class FlinkOrcWriters {
 
   private static class TimeWriter implements OrcValueWriter<Integer> {
     private static final TimeWriter INSTANCE = new TimeWriter();
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Integer.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, Integer millis, ColumnVector output) {
@@ -140,11 +125,6 @@ class FlinkOrcWriters {
 
   private static class TimestampWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampWriter INSTANCE = new TimestampWriter();
-
-    @Override
-    public Class<?> getJavaClass() {
-      return TimestampData.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
@@ -160,11 +140,6 @@ class FlinkOrcWriters {
 
   private static class TimestampTzWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampTzWriter INSTANCE = new TimestampTzWriter();
-
-    @Override
-    public Class<TimestampData> getJavaClass() {
-      return TimestampData.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
@@ -184,11 +159,6 @@ class FlinkOrcWriters {
     Decimal18Writer(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return DecimalData.class;
     }
 
     @Override
@@ -212,11 +182,6 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Class<?> getJavaClass() {
-      return DecimalData.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
       Preconditions.checkArgument(scale == data.scale(),
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
@@ -234,11 +199,6 @@ class FlinkOrcWriters {
     ListWriter(OrcValueWriter<T> elementWriter, LogicalType elementType) {
       this.elementWriter = elementWriter;
       this.elementGetter = ArrayData.createElementGetter(elementType);
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return ArrayData.class;
     }
 
     @Override
@@ -279,11 +239,6 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Class<?> getJavaClass() {
-      return MapData.class;
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
     public void nonNullWrite(int rowId, MapData data, ColumnVector output) {
       MapColumnVector cv = (MapColumnVector) output;
@@ -311,12 +266,11 @@ class FlinkOrcWriters {
     }
   }
 
-  static class StructWriter implements OrcValueWriter<RowData> {
-    private final List<OrcValueWriter<?>> writers;
+  static class RowDataWriter extends GenericOrcWriters.StructWriter<RowData> {
     private final List<RowData.FieldGetter> fieldGetters;
 
-    StructWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
-      this.writers = writers;
+    RowDataWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
+      super(writers);
 
       this.fieldGetters = Lists.newArrayListWithExpectedSize(types.size());
       for (int i = 0; i < types.size(); i++) {
@@ -324,29 +278,11 @@ class FlinkOrcWriters {
       }
     }
 
-    List<OrcValueWriter<?>> writers() {
-      return writers;
+    @Override
+    protected Object get(RowData struct, int index) {
+      return fieldGetters.get(index).getFieldOrNull(struct);
     }
 
-    @Override
-    public Class<?> getJavaClass() {
-      return RowData.class;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public void nonNullWrite(int rowId, RowData data, ColumnVector output) {
-      StructColumnVector cv = (StructColumnVector) output;
-      for (int c = 0; c < writers.size(); ++c) {
-        OrcValueWriter writer = writers.get(c);
-        writer.write(rowId, fieldGetters.get(c).getFieldOrNull(data), cv.fields[c]);
-      }
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writers.stream().flatMap(OrcValueWriter::metrics);
-    }
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

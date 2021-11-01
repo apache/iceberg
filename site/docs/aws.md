@@ -344,7 +344,7 @@ Data stored in S3 with a traditional Hive storage layout can face S3 request thr
 
 Iceberg by default uses the Hive storage layout, but can be switched to use the `ObjectStoreLocationProvider`. 
 With `ObjectStoreLocationProvider`, a determenistic hash is generated for each stored file, with the hash appended 
-directly after the `write.object-storage.path`. This ensures files written to s3 are equally distributed across multiple [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket. Resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider` having a shared and short `write.object-storage.path` across your Iceberg tables will improve performance.
+directly after the `write.data.path`. This ensures files written to s3 are equally distributed across multiple [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket. Resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider` having a shared and short `write.data.path` across your Iceberg tables will improve performance.
 
 For more information on how S3 scales API QPS, checkout the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier]( https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
 
@@ -358,7 +358,7 @@ CREATE TABLE my_catalog.my_ns.my_table (
 USING iceberg
 OPTIONS (
     'write.object-storage.enabled'=true, 
-    'write.object-storage.path'='s3://my-table-data-bucket')
+    'write.data.path'='s3://my-table-data-bucket')
 PARTITIONED BY (category);
 ```
 
@@ -372,10 +372,10 @@ Which will write the data to S3 with a hash (`2d3905f8`) appended directly after
 s3://my-table-data-bucket/2d3905f8/my_ns.db/my_table/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
 
-Note, the path resolution logic for `ObjectStoreLocationProvider` is as follows:
-- if `write.object-storage.path` is set, use it
-- if not found, fallback to `write.folder-storage.path`
-- if not found, use `<tableLocation>/data`
+Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data.path` then `<tableLocation>/data`.
+However, for the older versions up to 0.12.0, the logic is as follows:
+- before 0.12.0, `write.object-storage.path` must be set.
+- at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
 
 For more details, please refer to the [LocationProvider Configuration](../custom-catalog/#custom-location-provider-implementation) section.  
 

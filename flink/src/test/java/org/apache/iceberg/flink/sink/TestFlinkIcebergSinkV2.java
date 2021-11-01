@@ -95,6 +95,10 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         new Object[] {"avro", 1, false},
         new Object[] {"avro", 2, true},
         new Object[] {"avro", 2, false},
+        new Object[] {"orc", 1, true},
+        new Object[] {"orc", 1, false},
+        new Object[] {"orc", 2, true},
+        new Object[] {"orc", 2, false},
         new Object[] {"parquet", 1, true},
         new Object[] {"parquet", 1, false},
         new Object[] {"parquet", 2, true},
@@ -160,7 +164,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
-        .build();
+        .append();
 
     // Execute the program.
     env.execute("Test Iceberg Change-Log DataStream.");
@@ -338,12 +342,12 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     AssertHelpers.assertThrows("Should be error because upsert mode and overwrite mode enable at the same time.",
         IllegalStateException.class, "OVERWRITE mode shouldn't be enable",
-        () -> builder.equalityFieldColumns(ImmutableList.of("id")).overwrite(true).build()
+        () -> builder.equalityFieldColumns(ImmutableList.of("id")).overwrite(true).append()
     );
 
     AssertHelpers.assertThrows("Should be error because equality field columns are empty.",
         IllegalStateException.class, "Equality field columns shouldn't be empty",
-        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).build()
+        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append()
     );
   }
 

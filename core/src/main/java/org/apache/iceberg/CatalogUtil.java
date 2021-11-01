@@ -220,6 +220,11 @@ public class CatalogUtil {
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
+    } else {
+      String catalogType = options.get(ICEBERG_CATALOG_TYPE);
+      Preconditions.checkArgument(catalogType == null,
+          "Cannot create catalog %s, both type and catalog-impl are set: type=%s, catalog-impl=%s",
+          name, catalogType, catalogImpl);
     }
 
     return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);

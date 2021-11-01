@@ -155,4 +155,18 @@ public class AssertHelpers {
         AvroRuntimeException.class,
         () -> record.get(field));
   }
+
+  /**
+   * Same as {@link AssertHelpers#assertThrowsCause}, but this method compares root cause.
+   */
+  public static void assertThrowsRootCause(String message,
+                                           Class<? extends Exception> expected,
+                                           String containedInMessage,
+                                           Runnable runnable) {
+    Assertions.assertThatThrownBy(runnable::run)
+        .as(message)
+        .getRootCause()
+        .isInstanceOf(expected)
+        .hasMessageContaining(containedInMessage);
+  }
 }

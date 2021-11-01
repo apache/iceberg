@@ -17,8 +17,7 @@
   - under the License.
   -->
 
-# ![Iceberg](img/Iceberg-logo.png)
-
+<img id="index-page-logo" src="img/Iceberg-logo.png" alt="iceberg" />
 
 **Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to compute engines including Spark, Trino, PrestoDB, Flink and Hive using a high-performance table format that works just like a SQL table.
 

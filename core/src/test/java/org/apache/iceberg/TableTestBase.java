@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.LongStream;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -78,7 +79,7 @@ public class TableTestBase {
       .build();
   // Equality delete files.
   static final DeleteFile FILE_A2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofEqualityDeletes(3)
+      .ofEqualityDeletes(1)
       .withPath("/path/to/data-a2-deletes.parquet")
       .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=0")
@@ -365,6 +366,20 @@ public class TableTestBase {
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
+  void validateTableDeleteFiles(Table tbl, DeleteFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DeleteFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().planFiles()) {
+      for (DeleteFile file : task.deletes()) {
+        actualFilePaths.add(file.path());
+      }
+    }
+    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
+  }
+
   List<String> paths(DataFile... dataFiles) {
     List<String> paths = Lists.newArrayListWithExpectedSize(dataFiles.length);
     for (DataFile file : dataFiles) {
@@ -452,6 +467,11 @@ public class TableTestBase {
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
         .build();
+  }
+
+  protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {
+    PositionDelete<T> positionDelete = PositionDelete.create();
+    return positionDelete.set(path, pos, row);
   }
 
   static void validateManifestEntries(ManifestFile manifest,

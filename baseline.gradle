@@ -66,6 +66,7 @@ subprojects {
           // error-prone is slow, don't run on tests and generated src
           '-XepExcludedPaths:.*/(test|generated-src)/.*',
           // specific to Palantir
+          '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
           '-Xep:FinalClass:OFF',
           '-Xep:PreferSafeLoggingPreconditions:OFF',
           '-Xep:PreferSafeLoggableExceptions:OFF',

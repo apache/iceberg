@@ -104,7 +104,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
     addSchema(AvroSchemaUtil.convert(writeSchema, "table"));
   }
 
-  private void addSchema(org.apache.avro.Schema writeSchema) {
+  private void addSchema(Schema writeSchema) {
     long fp = SchemaNormalization.parsingFingerprint64(writeSchema);
     decoders.put(fp, new RawDecoder<>(readSchema, writeSchema));
   }
@@ -165,7 +165,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
      * @param readSchema the schema used to construct datum instances
      * @param writeSchema the schema used to decode buffers
      */
-    private RawDecoder(org.apache.iceberg.Schema readSchema, org.apache.avro.Schema writeSchema) {
+    private RawDecoder(org.apache.iceberg.Schema readSchema, Schema writeSchema) {
       this.reader = new ProjectionDatumReader<>(
           avroSchema -> DataReader.create(readSchema, avroSchema),
           readSchema, ImmutableMap.of(), null);

@@ -24,8 +24,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 /**
@@ -44,20 +44,6 @@ public class Metrics implements Serializable {
   public Metrics() {
   }
 
-  /**
-   * @deprecated will be removed in 0.12.0; use {@link #Metrics(Long, Map, Map, Map, Map)} instead.
-   */
-  @Deprecated
-  public Metrics(Long rowCount,
-                 Map<Integer, Long> columnSizes,
-                 Map<Integer, Long> valueCounts,
-                 Map<Integer, Long> nullValueCounts) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-  }
-
   public Metrics(Long rowCount,
                  Map<Integer, Long> columnSizes,
                  Map<Integer, Long> valueCounts,
@@ -68,24 +54,6 @@ public class Metrics implements Serializable {
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
     this.nanValueCounts = nanValueCounts;
-  }
-
-  /**
-   * @deprecated will be removed in 0.12.0; use {@link #Metrics(Long, Map, Map, Map, Map, Map, Map)} instead.
-   */
-  @Deprecated
-  public Metrics(Long rowCount,
-                 Map<Integer, Long> columnSizes,
-                 Map<Integer, Long> valueCounts,
-                 Map<Integer, Long> nullValueCounts,
-                 Map<Integer, ByteBuffer> lowerBounds,
-                 Map<Integer, ByteBuffer> upperBounds) {
-    this.rowCount = rowCount;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-    this.lowerBounds = lowerBounds;
-    this.upperBounds = upperBounds;
   }
 
   public Metrics(Long rowCount,
@@ -230,7 +198,7 @@ public class Metrics implements Serializable {
       return null;
 
     } else {
-      Map<Integer, ByteBuffer> result = new HashMap<>(size);
+      Map<Integer, ByteBuffer> result = Maps.newHashMapWithExpectedSize(size);
 
       for (int i = 0; i < size; ++i) {
         Integer key = (Integer) in.readObject();

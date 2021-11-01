@@ -28,7 +28,6 @@ import java.util.Map;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
-import org.apache.flink.table.descriptors.CatalogDescriptorValidator;
 import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -70,6 +69,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String BASE_NAMESPACE = "base-namespace";
   public static final String CACHE_ENABLED = "cache-enabled";
 
+  public static final String TYPE = "type";
+  public static final String PROPERTY_VERSION = "property-version";
+
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
    *
@@ -81,6 +83,10 @@ public class FlinkCatalogFactory implements CatalogFactory {
   static CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
     String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
+      String catalogType = properties.get(ICEBERG_CATALOG_TYPE);
+      Preconditions.checkArgument(catalogType == null,
+          "Cannot create catalog %s, both catalog-type and catalog-impl are set: catalog-type=%s, catalog-impl=%s",
+          name, catalogType, catalogImpl);
       return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);
     }
 
@@ -97,15 +103,16 @@ public class FlinkCatalogFactory implements CatalogFactory {
         return CatalogLoader.hadoop(name, hadoopConf, properties);
 
       default:
-        throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+        throw new UnsupportedOperationException("Unknown catalog-type: " + catalogType +
+            " (Must be 'hive' or 'hadoop')");
     }
   }
 
   @Override
   public Map<String, String> requiredContext() {
     Map<String, String> context = Maps.newHashMap();
-    context.put(CatalogDescriptorValidator.CATALOG_TYPE, "iceberg");
-    context.put(CatalogDescriptorValidator.CATALOG_PROPERTY_VERSION, "1");
+    context.put(TYPE, "iceberg");
+    context.put(PROPERTY_VERSION, "1");
     return context;
   }
 

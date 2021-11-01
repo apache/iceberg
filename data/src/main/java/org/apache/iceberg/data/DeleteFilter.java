@@ -38,11 +38,13 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -158,8 +160,14 @@ public abstract class DeleteFilter<T> {
 
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, deleteSchema));
+
+      // copy the delete records because they will be held in a set
+      CloseableIterable<Record> records = CloseableIterable.combine(
+          deleteRecords, readDeletesService, readDeletesWorkerPoolSize);
+
       StructLikeSet deleteSet = Deletes.toEqualitySet(
-          CloseableIterable.combine(deleteRecords, readDeletesService, readDeletesWorkerPoolSize),
+          CloseableIterable.transform(
+              records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
@@ -244,6 +252,16 @@ public abstract class DeleteFilter<T> {
         return builder.build();
 
       case ORC:
+        // Reusing containers is automatic for ORC. No need to set 'reuseContainers' here.
+        ORC.ReadBuilder orcBuilder = ORC.read(input)
+            .project(deleteSchema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema));
+
+        if (deleteFile.content() == FileContent.POSITION_DELETES) {
+          orcBuilder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), dataFile.path()));
+        }
+
+        return orcBuilder.build();
       default:
         throw new UnsupportedOperationException(String.format(
             "Cannot read deletes, %s is not a supported format: %s", deleteFile.format().name(), deleteFile.path()));

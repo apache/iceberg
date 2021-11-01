@@ -20,6 +20,7 @@
 
 package org.apache.iceberg.types;
 
+import java.util.Set;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -323,48 +324,24 @@ public class TestTypeUtil {
   }
 
   @Test
-  public void testProjectList() {
+  public void testGetProjectedIds() {
     Schema schema = new Schema(
         Lists.newArrayList(
             required(10, "a", Types.IntegerType.get()),
             required(11, "A", Types.IntegerType.get()),
-            required(12, "list", Types.ListType.ofRequired(13,
-                Types.StructType.of(
-                    optional(20, "foo", Types.IntegerType.get()),
-                    required(21, "subList", Types.ListType.ofRequired(14,
-                        Types.StructType.of(
-                            required(15, "x", Types.IntegerType.get()),
-                            required(16, "y", Types.IntegerType.get()),
-                            required(17, "z", Types.IntegerType.get())))))))));
+            required(35, "emptyStruct", Types.StructType.of()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
 
+    Set<Integer> expectedIds = Sets.newHashSet(10, 11, 35, 12, 13, 14, 15, 16, 17);
+    Set<Integer> actualIds = TypeUtil.getProjectedIds(schema);
 
-    AssertHelpers.assertThrows("Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(12))
-    );
-
-    AssertHelpers.assertThrows("Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(21))
-    );
-
-    Schema expectedDepthOne = new Schema(
-        Lists.newArrayList(
-            required(12, "list", Types.ListType.ofRequired(13,
-                Types.StructType.of()))));
-    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(13));
-    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
-
-    Schema expectedDepthTwo = new Schema(
-        Lists.newArrayList(
-            required(10, "a", Types.IntegerType.get()),
-            required(12, "list", Types.ListType.ofRequired(13,
-                Types.StructType.of(
-                    optional(20, "foo", Types.IntegerType.get()),
-                    required(21, "subList", Types.ListType.ofRequired(14,
-                        Types.StructType.of())))))));
-    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(10, 13, 20, 14));
-    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    Assert.assertEquals(expectedIds, actualIds);
   }
 
   @Test
@@ -474,5 +451,35 @@ public class TestTypeUtil {
         );
 
     TypeUtil.indexByName(Types.StructType.of(nestedType));
+  }
+
+  @Test
+  public void testSelectNot() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get())
+            ))));
+
+    Schema expectedNoPrimitive = new Schema(
+        Lists.newArrayList(
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get())
+            ))));
+
+    Schema actualNoPrimitve = TypeUtil.selectNot(schema, Sets.newHashSet(1));
+    Assert.assertEquals(expectedNoPrimitive.asStruct(), actualNoPrimitve.asStruct());
+
+    // Expected legacy behavior is to completely remove structs if their elements are removed
+    Schema expectedNoStructElements = new Schema(required(1, "id", Types.LongType.get()));
+    Schema actualNoStructElements = TypeUtil.selectNot(schema, Sets.newHashSet(3, 4));
+    Assert.assertEquals(expectedNoStructElements.asStruct(), actualNoStructElements.asStruct());
+
+    // Expected legacy behavior is to ignore selectNot on struct elements.
+    Schema actualNoStruct = TypeUtil.selectNot(schema, Sets.newHashSet(2));
+    Assert.assertEquals(schema.asStruct(), actualNoStruct.asStruct());
   }
 }
