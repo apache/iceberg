@@ -109,7 +109,7 @@ git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$t
 echo "Signing the tarball..."
 [[ -z "$keyid" ]] && keyopt="-u $keyid"
 gpg --detach-sig $keyopt --armor --output ${projectdir}/${tarball}.asc ${projectdir}/$tarball
-sha512sum ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
+shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
 
 
 echo "Checking out Iceberg RC subversion repo..."
