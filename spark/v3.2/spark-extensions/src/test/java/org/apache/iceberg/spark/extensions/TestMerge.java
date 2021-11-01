@@ -368,6 +368,40 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  /**
+   * Tests a merge where the ordering of columns doesn't match between the source and target tables,
+   * but the dataframe's schema matches. This ensures that there are no regressions to
+   * SPARK-34720 so data corruption doesn't happen.
+   */
+  @Test
+  public void testMergeRespectsByNameColumnResolution() {
+    createAndInitTable("id INT, v INT, dep STRING",
+        "{ \"id\": 1, \"v\": 0101, \"dep\": \"emp-id-one\" }\n" +
+        "{ \"id\": 6, \"v\": 0606, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView("source", "v INT, id INT, dep STRING",
+        "{ \"v\": 1001, \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"v\": 6006, \"id\": 6, \"dep\": \"emp-id-6\" }\n" +
+        "{ \"v\": 7007, \"id\": 7, \"dep\": \"emp-id-7\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT * ", tableName);
+
+    // Prior to SPARK-34720, the values from col id and v woud be silently switched
+    // due to Spark resolving the plan using ordinal position.
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, 1001, "emp-id-1"), // updated
+        row(6, 6006, "emp-id-6"), // updated
+        row(7, 7007, "emp-id-7")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows,
+        sql("SELECT id, v, dep FROM %s ORDER BY id", tableName));
+  }
+
   @Test
   public void testMergeWithSingleConditionalDelete() {
     createAndInitTable("id INT, dep STRING",
