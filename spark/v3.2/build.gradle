@@ -33,8 +33,6 @@ configure(sparkProjects) {
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.12.3'
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.12.3'
-        // enforce the newer version of netty buffer in test
-        force 'io.netty:netty-buffer:4.1.68.Final'
       }
     }
   }
@@ -86,6 +84,8 @@ project(':iceberg-spark:iceberg-spark-3.2') {
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
+      // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
