@@ -52,6 +52,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
@@ -560,17 +561,59 @@ public class TestJdbcCatalog {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     // Test with null metadata
     AssertHelpers.assertThrows("Cannot create a namespace with null or empty metadata", IllegalArgumentException.class,
-            () -> catalog.createNamespace(testNamespace,null));
+            () -> catalog.createNamespace(testNamespace, null));
     Assert.assertFalse(catalog.namespaceExists(testNamespace));
 
     // Test with metadata
-    Map<String, String> testMetadata = new HashMap<String, String>(){{
-      put("key_1", "value_1");
-      put("key_2", "value_2");
-      put("key_3", "value_3");
-    }};
+    Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2", "key_3", "value_3");
     catalog.createNamespace(testNamespace, testMetadata);
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
+  }
+
+  @Test
+  public void testSetProperties() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2",
+            "key_3", "value_3");
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    // Add more properties to set to test insert and update
+    Map<String, String> propertiesToSet = ImmutableMap.of("key_1", "new_value_1", "key_2", "value_2", "key_3",
+            "new_value_3", "key_4", "value_4", "key_5", "value_5");
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
+    Assert.assertTrue(catalog.setProperties(testNamespace, propertiesToSet));
+
+    Map<String, String> allProperties = catalog.getProperties(testNamespace);
+    Assert.assertEquals(5, allProperties.size());
+
+    Map<String, String> namespaceProperties = catalog.getProperties(testNamespace);
+    for (Map.Entry<String, String> keyValue : namespaceProperties.entrySet()) {
+      Assert.assertTrue(propertiesToSet.containsKey(keyValue.getKey()));
+      Assert.assertEquals(keyValue.getValue(), propertiesToSet.get(keyValue.getKey()));
+    }
+  }
+
+  @Test
+  public void testRemoveProperties() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2",
+            "key_3", "value_3", "key_4", "value_4");
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    Set<String> propertiesToRemove = ImmutableSet.of("key_2", "key_4");
+    catalog.removeProperties(testNamespace, propertiesToRemove);
+    Map<String, String> remainderProperties = catalog.getProperties(testNamespace);
+
+    Assert.assertEquals(2, remainderProperties.size());
+    Assert.assertTrue(remainderProperties.containsKey("key_1"));
+    Assert.assertTrue(remainderProperties.containsKey("key_3"));
+
+    // Remove remaining properties to test if it deletes the namespace
+    Set<String> removeAllProperties = ImmutableSet.of("key_1", "key_3");
+    catalog.removeProperties(testNamespace, removeAllProperties);
+    Assert.assertFalse(catalog.namespaceExists(testNamespace));
+    AssertHelpers.assertThrows("Namespace does not exist", NoSuchNamespaceException.class,
+            () -> catalog.removeProperties(testNamespace, removeAllProperties));
   }
 
   @Test

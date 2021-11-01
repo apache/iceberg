@@ -36,6 +36,7 @@ final class JdbcUtil {
   protected static final String TABLE_NAME = "table_name";
   protected static final String METADATA_LOCATION = "metadata_location";
   protected static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
+
   public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
       " SET " + METADATA_LOCATION + " = ? , " + PREVIOUS_METADATA_LOCATION + " = ? " +
       " WHERE " + CATALOG_NAME + " = ? AND " +
@@ -86,15 +87,21 @@ final class JdbcUtil {
           NAMESPACE_PROPERTY_VALUE + " VARCHAR(5500)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY + ")" +
           ")";
-
   protected static final String GET_NAMESPACE_PROPERTIES_SQL = "SELECT " + NAMESPACE_NAME +
-          " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
-          " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ? LIMIT 1";
-
-  protected static final String DO_COMMIT_CREATE_NAMESPACE_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
-          " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
-          ", " + NAMESPACE_PROPERTY_VALUE + ") " +
-          " VALUES (?,?,?,?)";
+      " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ? LIMIT 1";
+  protected static final String INSERT_NAMESPACE_PROPERTIES_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
+      ", " + NAMESPACE_PROPERTY_VALUE + ") VALUES (?,?,?,?)";
+  protected static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
+  protected static final String UPDATE_NAMESPACE_PROPERTIES_SQL = "UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE {} END WHERE " +  CATALOG_NAME + " = ? AND " +
+          NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ";
+  protected static final String UPDATE_PROPERTIES_VALUES_BASE = " WHEN " + NAMESPACE_PROPERTY_KEY + " = ? THEN ?";
+  protected static final String GET_ALL_NAMESPACE_PROPERTIES_SQL = "SELECT * " +
+      " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? ";
+  protected static final String DELETE_NAMESPACE_PROPERTIES_SQL = "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ";
 
   // Utilities
   private static final Joiner JOINER_DOT = Joiner.on('.');
