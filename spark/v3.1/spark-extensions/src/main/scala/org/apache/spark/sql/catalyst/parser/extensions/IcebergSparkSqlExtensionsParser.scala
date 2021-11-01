@@ -25,7 +25,6 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
-import org.apache.iceberg.common.DynConstructors
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
@@ -42,9 +41,7 @@ import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
-  import IcebergSparkSqlExtensionsParser._
-
-  private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
+  private lazy val substitutor = new VariableSubstitution()
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
   /**
@@ -160,14 +157,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         throw new IcebergParseException(Option(command), e.message, position, position)
     }
   }
-}
-
-object IcebergSparkSqlExtensionsParser {
-  private val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
-    DynConstructors.builder()
-      .impl(classOf[VariableSubstitution])
-      .impl(classOf[VariableSubstitution], classOf[SQLConf])
-      .build()
 }
 
 /* Copied from Apache Spark's to avoid dependency on Spark Internals */
