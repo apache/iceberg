@@ -49,7 +49,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
                           ExecutorService workerPool) {
     this(iterables, workerPool, Runtime.getRuntime().availableProcessors());
   }
-  
+
   ParallelIterable(Iterable<? extends Iterable<T>> iterables,
                           ExecutorService workerPool,
                           int workerPoolSize) {
