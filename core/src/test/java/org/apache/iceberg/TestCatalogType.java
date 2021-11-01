@@ -59,7 +59,9 @@ public class TestCatalogType {
     Assertions.assertThatThrownBy(() -> CatalogType.of("FOO"))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
-            "Unknown catalog type: FOO. Valid values are [hive, hadoop, glue, nessie, dynamodb, jdbc]. To use a custom catalog, please use the [catalog-impl] conf instead of [type] with the value set to a fully qualified catalog impl class name.");
+            "Unknown catalog type: FOO. Valid values are [hive, hadoop, glue, nessie, dynamodb, " +
+                "jdbc]. To use a custom catalog, please use the [catalog-impl] conf instead of " +
+                "[type] with the value set to a fully qualified catalog impl class name.");
   }
 
   @ParameterizedTest

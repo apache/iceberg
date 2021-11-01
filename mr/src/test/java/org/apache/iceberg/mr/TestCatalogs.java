@@ -283,8 +283,9 @@ public class TestCatalogs {
   @Test
   public void testLoadCatalogHadoop() {
     String catalogName = "barCatalog";
-    conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
-            CatalogType.HADOOP.value());
+    conf.set(
+        InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
+        CatalogType.HADOOP.value());
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.WAREHOUSE_LOCATION),
         "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
@@ -299,8 +300,9 @@ public class TestCatalogs {
   @Test
   public void testLoadCatalogHadoopWithLegacyWarehouseLocation() {
     String catalogName = "barCatalog";
-    conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
-            CatalogType.HADOOP.value());
+    conf.set(
+        InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
+        CatalogType.HADOOP.value());
     conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(hadoopCatalog.isPresent());
