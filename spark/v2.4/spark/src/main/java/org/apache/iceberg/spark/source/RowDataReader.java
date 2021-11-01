@@ -53,7 +53,6 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
-  private final Map<String, String> tableProperties;
 
   RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task);
@@ -61,12 +60,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
-    this.tableProperties = table.properties();
   }
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema, expectedSchema, tableProperties);
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema, expectedSchema);
 
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
@@ -81,10 +79,6 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
   protected Schema tableSchema() {
     return tableSchema;
-  }
-
-  protected Map<String, String> tableProperties() {
-    return tableProperties;
   }
 
   protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
@@ -187,9 +181,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
-                      Map<String, String> tableProperties) {
-      super(task, tableSchema, requestedSchema, tableProperties);
+    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+      super(task, tableSchema, requestedSchema);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 

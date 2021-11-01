@@ -51,7 +51,6 @@ class GenericReader implements Serializable {
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
-  private final Map<String, String> tableProperties;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
     this.io = scan.table().io();
@@ -59,7 +58,6 @@ class GenericReader implements Serializable {
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
-    this.tableProperties = scan.table().properties();
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
@@ -72,7 +70,7 @@ class GenericReader implements Serializable {
   }
 
   public CloseableIterable<Record> open(FileScanTask task) {
-    DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection, tableProperties);
+    DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
     CloseableIterable<Record> records = openFile(task, readSchema);

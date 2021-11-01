@@ -201,7 +201,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private CloseableIterator<T> currentIterator;
     private FileIO io;
     private EncryptionManager encryptionManager;
-    private Map<String, String> tableProperties;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -214,7 +213,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
-      this.tableProperties = table.properties();
       this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT);
       this.expectedSchema = readSchema(conf, tableSchema, caseSensitive);
@@ -300,7 +298,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case HIVE:
           return openTask(currentTask, readSchema);
         case GENERIC:
-          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema, tableProperties);
+          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
           Schema requiredSchema = deletes.requiredSchema();
           return deletes.filter(openTask(currentTask, requiredSchema));
         default:

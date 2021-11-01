@@ -53,15 +53,13 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
-  private final Map<String, String> tableProperties;
 
-  public RowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema, String nameMapping,
-                                   boolean caseSensitive, Map<String, String> tableProperties) {
+  public RowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema,
+                                   String nameMapping, boolean caseSensitive) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
-    this.tableProperties = tableProperties;
   }
 
   @Override
@@ -71,8 +69,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
         PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
 
-    FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema, tableProperties,
-        inputFilesDecryptor);
+    FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
     return deletes
         .filter(newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor))
         .iterator();
@@ -163,8 +160,8 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     private final InputFilesDecryptor inputFilesDecryptor;
 
     FlinkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
-                      Map<String, String> tableProperties, InputFilesDecryptor inputFilesDecryptor) {
-      super(task, tableSchema, requestedSchema, tableProperties);
+                      InputFilesDecryptor inputFilesDecryptor) {
+      super(task, tableSchema, requestedSchema);
       this.asStructLike = new RowDataWrapper(FlinkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;
     }

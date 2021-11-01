@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * Run iterables in parallel.
- * @deprecated use {@link CloseableIterable#combine(Iterable, ExecutorService, int)} instead.
+ * @deprecated please use {@link CloseableIterable#combine(Iterable, ExecutorService, int)} instead.
  */
 @Deprecated
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
@@ -42,10 +42,15 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
   private final int workerPoolSize;
 
   /**
-   * @deprecated use {@link CloseableIterable#combine(Iterable, ExecutorService, int)} instead.
+   * @deprecated please use {@link CloseableIterable#combine(Iterable, ExecutorService, int)} instead.
    */
   @Deprecated
   public ParallelIterable(Iterable<? extends Iterable<T>> iterables,
+                          ExecutorService workerPool) {
+    this(iterables, workerPool, Runtime.getRuntime().availableProcessors());
+  }
+  
+  ParallelIterable(Iterable<? extends Iterable<T>> iterables,
                           ExecutorService workerPool,
                           int workerPoolSize) {
     this.iterables = iterables;

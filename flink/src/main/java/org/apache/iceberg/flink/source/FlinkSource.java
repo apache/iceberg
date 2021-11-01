@@ -196,8 +196,7 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build(),
-          table.properties());
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
