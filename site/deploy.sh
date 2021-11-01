@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+set -e
+
 # manualy clean site, then copy .asf.yml in so that the build is clean even
 # though --dirty is used so that .asf.yml is included in the deploy
 rm -rf site
