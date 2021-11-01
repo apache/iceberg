@@ -217,7 +217,7 @@ public class CatalogUtil {
 
     if (catalogImpl == null) {
       if (catalogType == null) {
-        LOG.info("Neither {} nor {} were configured. Falling back to the default of {}",
+        LOG.info("Neither {} nor {} were configured. Falling back to the default type {}",
             CatalogProperties.CATALOG_IMPL, CatalogProperties.CATALOG_TYPE,
             CatalogType.HIVE.value());
         catalogType = CatalogType.HIVE.value();

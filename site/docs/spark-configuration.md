@@ -54,7 +54,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 
 | Property                                           | Values                        | Description                                                          |
 | -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| spark.sql.catalog._catalog-name_.type              | `hive`, `hadoop`, `nessie`, `jdbc`, `glue` or `dynamodb`| Type of catalog. Leave unset if using a custom catalog. |
+| spark.sql.catalog._catalog-name_.type              | `hive`, `hadoop`, `nessie`, `jdbc`, `glue` or `dynamodb`| Type of catalog. Leave unset if using a custom catalog|
 | spark.sql.catalog._catalog-name_.catalog-impl      |                               | Catalog implementation, must not be null if type is empty|
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |

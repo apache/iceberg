@@ -47,12 +47,6 @@ public enum CatalogType {
     return catalogImpl;
   }
 
-  /**
-   * Returns catalog-impl class name for the input type name.
-   *
-   * @param inputType Non-null input type.
-   * @return catalog-impl class name
-   */
   public static CatalogType of(String inputType) {
     try {
       return CatalogType.valueOf(inputType.toUpperCase(Locale.ENGLISH));
