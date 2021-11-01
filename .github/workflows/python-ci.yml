@@ -22,11 +22,11 @@ on:
   push:
     paths:
     - '.github/workflows/python-ci.yml'
-    - 'python_legacy/**'
+    - 'python/**'
   pull_request:
     paths:
     - '.github/workflows/python-ci.yml'
-    - 'python_legacy/**'
+    - 'python/**'
 
 jobs:
   tox:
@@ -40,10 +40,10 @@ jobs:
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python }}
-    - working-directory: ./python_legacy
+    - working-directory: ./python
       run: |
         pip install -e .[dev]
         pip install -U tox-gh-actions
-    - working-directory: ./python_legacy
+    - working-directory: ./python
       run: tox
 

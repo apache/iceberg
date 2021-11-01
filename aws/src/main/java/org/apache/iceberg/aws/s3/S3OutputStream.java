@@ -175,6 +175,7 @@ class S3OutputStream extends PositionOutputStream {
       stream.close();
     }
 
+    createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
     stagingFiles.add(currentStagingFile);
@@ -325,6 +326,26 @@ class S3OutputStream extends PositionOutputStream {
       return new FileInputStream(file);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  private void createStagingDirectoryIfNotExists() throws IOException, SecurityException {
+    if (!stagingDirectory.exists()) {
+      LOG.info("Staging directory does not exist, trying to create one: {}",
+          stagingDirectory.getAbsolutePath());
+      boolean createdStagingDirectory = stagingDirectory.mkdirs();
+      if (createdStagingDirectory) {
+        LOG.info("Successfully created staging directory: {}", stagingDirectory.getAbsolutePath());
+      } else {
+        if (stagingDirectory.exists()) {
+          LOG.info("Successfully created staging directory by another process: {}",
+              stagingDirectory.getAbsolutePath());
+        } else {
+          throw new IOException(
+              "Failed to create staging directory due to some unknown reason: " + stagingDirectory
+                  .getAbsolutePath());
+        }
+      }
     }
   }
 

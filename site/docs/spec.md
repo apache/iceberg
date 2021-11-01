@@ -232,6 +232,9 @@ The set of metadata columns is:
 |-----------------------------|---------------|-------------|
 | **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
 | **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
+| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
+| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
+| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
 | **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
 | **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
@@ -263,7 +266,7 @@ Partition specs capture the transform from table data to partition values. This 
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `date`      |
-| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`                                                                                        | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
@@ -558,7 +561,7 @@ Table metadata consists of the following fields:
 
 | v1         | v2         | Field | Description |
 | ---------- | ---------- | ----- | ----------- |
-| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version. |
 | _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
 | _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |

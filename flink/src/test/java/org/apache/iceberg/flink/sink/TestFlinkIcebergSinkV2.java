@@ -96,6 +96,10 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
@@ -105,6 +109,10 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
@@ -114,6 +122,10 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
         new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
         new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
         new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
         new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
         new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
@@ -177,7 +189,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
-        .build();
+        .append();
 
     // Execute the program.
     env.execute("Test Iceberg Change-Log DataStream.");
@@ -355,12 +367,12 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     AssertHelpers.assertThrows("Should be error because upsert mode and overwrite mode enable at the same time.",
         IllegalStateException.class, "OVERWRITE mode shouldn't be enable",
-        () -> builder.equalityFieldColumns(ImmutableList.of("id")).overwrite(true).build()
+        () -> builder.equalityFieldColumns(ImmutableList.of("id")).overwrite(true).append()
     );
 
     AssertHelpers.assertThrows("Should be error because equality field columns are empty.",
         IllegalStateException.class, "Equality field columns shouldn't be empty",
-        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).build()
+        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append()
     );
   }
 

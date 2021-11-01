@@ -22,7 +22,6 @@ package org.apache.iceberg.mr.hive;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -46,6 +45,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +55,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   private ObjectInspector inspector;
   private Schema tableSchema;
-  private Map<ObjectInspector, Deserializer> deserializers = new HashMap<>(1);
+  private Map<ObjectInspector, Deserializer> deserializers = Maps.newHashMapWithExpectedSize(1);
   private Container<Record> row = new Container<>();
 
   @Override

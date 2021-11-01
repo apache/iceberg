@@ -77,7 +77,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
-  private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
@@ -113,29 +112,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    *
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
    */
-  @Deprecated
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
     setConf(conf);
     initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
-  }
-
-  /**
-   * The constructor of the HadoopCatalog. It gets the value of <code>fs.defaultFS</code> property
-   * from the passed Hadoop configuration as its default file system, and use the default directory
-   * <code>iceberg/warehouse</code> as the warehouse directory.
-   *
-   * @param conf The Hadoop configuration
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
-   */
-  @Deprecated
-  public HadoopCatalog(Configuration conf) {
-    setConf(conf);
-    String hadoopWarehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
-    initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, hadoopWarehouseLocation));
   }
 
   @Override

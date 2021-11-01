@@ -19,12 +19,15 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.util.BinPacking;
+import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,6 +113,16 @@ public abstract class SortStrategy extends BinPackStrategy {
       return dataFiles;
     } else {
       return super.selectFilesToRewrite(dataFiles);
+    }
+  }
+
+  @Override
+  public Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> dataFiles) {
+    if (rewriteAll) {
+      ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize(), 1, false);
+      return packer.pack(dataFiles, FileScanTask::length);
+    } else {
+      return super.planFileGroups(dataFiles);
     }
   }
 

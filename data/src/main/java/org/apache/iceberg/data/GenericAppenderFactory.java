@@ -154,6 +154,19 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
+        case ORC:
+          return ORC.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(GenericOrcWriter::buildWriter)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .metricsConfig(metricsConfig)
+              .rowSchema(eqDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
         case PARQUET:
           return Parquet.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(GenericParquetWriter::buildWriter)
@@ -185,6 +198,17 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         case AVRO:
           return Avro.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .rowSchema(posDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .buildPositionWriter();
+
+        case ORC:
+          return ORC.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(GenericOrcWriter::buildWriter)
               .withPartition(partition)
               .overwrite()
               .setAll(config)

@@ -36,13 +36,15 @@ public class TestFlinkRollingFileWriters extends TestRollingFileWriters<RowData>
 
   @Override
   protected FileWriterFactory<RowData> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                        Schema equalityDeleteRowSchema) {
+                                                        Schema equalityDeleteRowSchema,
+                                                        Schema positionDeleteRowSchema) {
     return FlinkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(format())
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
+        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 

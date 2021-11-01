@@ -162,6 +162,18 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
+        case ORC:
+          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+              .withPartition(partition)
+              .overwrite()
+              .setAll(props)
+              .rowSchema(eqDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
         case PARQUET:
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
@@ -199,6 +211,20 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
+              .buildPositionWriter();
+
+        case ORC:
+          RowType orcPosDeleteSchema = FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
+          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(orcPosDeleteSchema, iSchema))
+              .withPartition(partition)
+              .overwrite()
+              .setAll(props)
+              .metricsConfig(metricsConfig)
+              .rowSchema(posDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .transformPaths(path -> StringData.fromString(path.toString()))
               .buildPositionWriter();
 
         case PARQUET:

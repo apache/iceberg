@@ -40,7 +40,6 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -49,7 +48,6 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -87,6 +85,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         new Object[] {"parquet", 1},
         new Object[] {"parquet", 2},
         new Object[] {"orc", 1},
+        new Object[] {"orc", 2}
     };
   }
 
@@ -676,66 +675,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2));
       assertMaxCommittedCheckpointId(jobId, checkpoint);
       assertFlinkManifests(0);
-    }
-  }
-
-  @Test
-  public void testValidateDataFileExist() throws Exception {
-    Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
-    long timestamp = 0;
-    long checkpoint = 10;
-    JobID jobId = new JobID();
-    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
-
-    RowData insert1 = SimpleDataUtil.createInsert(1, "aaa");
-    DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(insert1));
-
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
-      harness.setup();
-      harness.open();
-
-      // Txn#1: insert the row <1, 'aaa'>
-      harness.processElement(WriteResult.builder()
-              .addDataFiles(dataFile1)
-              .build(),
-          ++timestamp);
-      harness.snapshot(checkpoint, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpoint);
-
-      // Txn#2: Overwrite the committed data-file-1
-      RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
-      DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(insert2));
-      new TestTableLoader(tablePath)
-          .loadTable()
-          .newOverwrite()
-          .addFile(dataFile2)
-          .deleteFile(dataFile1)
-          .commit();
-    }
-
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
-      harness.setup();
-      harness.open();
-
-      // Txn#3: position-delete the <1, 'aaa'> (NOT committed).
-      DeleteFile deleteFile1 = writePosDeleteFile(appenderFactory,
-          "pos-delete-file-1",
-          ImmutableList.of(Pair.of(dataFile1.path(), 0L)));
-      harness.processElement(WriteResult.builder()
-              .addDeleteFiles(deleteFile1)
-              .addReferencedDataFiles(dataFile1.path())
-              .build(),
-          ++timestamp);
-      harness.snapshot(++checkpoint, ++timestamp);
-
-      // Txn#3: validate will be failure when committing.
-      final long currentCheckpointId = checkpoint;
-      AssertHelpers.assertThrows("Validation should be failure because of non-exist data files.",
-          ValidationException.class, "Cannot commit, missing data files",
-          () -> {
-            harness.notifyOfCompletedCheckpoint(currentCheckpointId);
-            return null;
-          });
     }
   }
 

@@ -273,7 +273,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals("should create table using format v2",
         2, ops.refresh().formatVersion());
 
-    AssertHelpers.assertThrowsCause("should fail to downgrade to v1",
+    AssertHelpers.assertThrowsRootCause("should fail to downgrade to v1",
         IllegalArgumentException.class,
         "Cannot downgrade v2 table to v1",
         () -> sql("ALTER TABLE tl SET('format-version'='1')"));

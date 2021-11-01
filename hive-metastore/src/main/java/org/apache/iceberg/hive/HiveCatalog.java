@@ -27,7 +27,7 @@ import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
@@ -52,7 +52,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -64,37 +63,19 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private String name;
   private Configuration conf;
   private FileIO fileIO;
-  private ClientPool<HiveMetaStoreClient, TException> clients;
+  private ClientPool<IMetaStoreClient, TException> clients;
 
   public HiveCatalog() {
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @param conf Hadoop Configuration
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
-   */
-  @Deprecated
-  public HiveCatalog(Configuration conf) {
-    this.name = "hive";
-    this.conf = conf;
-    this.fileIO = new HadoopFileIO(conf);
-    Map<String, String> properties = ImmutableMap.of(
-            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                    String.valueOf(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT)),
-            CatalogProperties.CLIENT_POOL_SIZE,
-            conf.get(CatalogProperties.CLIENT_POOL_SIZE,
-                    String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))
-    );
-    this.clients = new CachedClientPool(conf, properties);
   }
 
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     this.name = inputName;
+    if (conf == null) {
+      LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
+      this.conf = new Configuration();
+    }
+
     if (properties.containsKey(CatalogProperties.URI)) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));
     }
@@ -269,7 +250,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       return ImmutableList.of();
     }
     try {
-      List<Namespace> namespaces = clients.run(HiveMetaStoreClient::getAllDatabases)
+      List<Namespace> namespaces = clients.run(IMetaStoreClient::getAllDatabases)
           .stream()
           .map(Namespace::of)
           .collect(Collectors.toList());
