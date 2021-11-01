@@ -20,6 +20,7 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 abstract class BaseOSSFile {
   private final OSS client;
@@ -42,12 +43,14 @@ abstract class BaseOSSFile {
     return uri;
   }
 
-  public boolean doesFileExists() {
+  public boolean exists() {
     return client.doesObjectExist(uri.bucket(), uri.key());
   }
 
   @Override
   public String toString() {
-    return uri.toString();
+    return MoreObjects.toStringHelper(this)
+        .add("file", uri)
+        .toString();
   }
 }

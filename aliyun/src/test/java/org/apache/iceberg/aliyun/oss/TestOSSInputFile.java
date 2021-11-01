@@ -23,9 +23,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,6 +45,38 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
     readAndVerify(uri, data);
   }
 
+  @Test
+  public void testFileExists() {
+    OSSURI uri = new OSSURI(location("file.dat"));
+    InputFile inputFile = new OSSInputFile(ossClient().get(), uri);
+    Assert.assertFalse("OSS file should not exist", inputFile.exists());
+
+    int dataSize = 1024;
+    byte[] data = randomData(dataSize);
+    writeOSSData(uri, data);
+
+    Assert.assertTrue("OSS file should exist", inputFile.exists());
+
+    deleteOSSData(uri);
+    Assert.assertFalse("OSS file should not exist", inputFile.exists());
+  }
+
+  @Test
+  public void testGetLength() {
+    OSSURI uri = new OSSURI(location("filelength.dat"));
+    AssertHelpers.assertThrows("File length should not be negative", ValidationException.class,
+        "Invalid file length", () -> new OSSInputFile(ossClient().get(), uri, -1));
+
+    InputFile inputFile = new OSSInputFile(ossClient().get(), uri, 1024);
+    Assert.assertEquals("Should have expected file length", 1024, inputFile.getLength());
+
+    int dataSize = 8;
+    byte[] data = randomData(dataSize);
+    writeOSSData(uri, data);
+    inputFile = new OSSInputFile(ossClient().get(), uri);
+    Assert.assertEquals("Should have expected file length", data.length, inputFile.getLength());
+  }
+
   private void readAndVerify(OSSURI uri, byte[] data) throws IOException {
     InputFile inputFile = new OSSInputFile(ossClient().get(), uri);
     Assert.assertTrue("OSS file should exist", inputFile.exists());
@@ -50,7 +84,7 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
 
     byte[] actual = new byte[data.length];
     try (SeekableInputStream in = inputFile.newStream()) {
-      IOUtils.readFully(in, actual);
+      ByteStreams.readFully(in, actual);
     }
     Assert.assertArrayEquals("Should have same object content", data, actual);
   }
@@ -63,5 +97,9 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
 
   private void writeOSSData(OSSURI uri, byte[] data) {
     ossClient().get().putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
+  }
+
+  private void deleteOSSData(OSSURI uri) {
+    ossClient().get().deleteObject(uri.bucket(), uri.key());
   }
 }
