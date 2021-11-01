@@ -21,17 +21,14 @@ package org.apache.iceberg.flink.source.reader;
 
 import javax.annotation.Nullable;
 import org.apache.flink.connector.file.src.util.ArrayResultIterator;
-import org.apache.flink.connector.file.src.util.CheckpointedPosition;
-import org.apache.flink.connector.file.src.util.MutableRecordAndPosition;
 import org.apache.flink.connector.file.src.util.Pool;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.io.CloseableIterator;
 
 /**
  * Similar to the {@link ArrayResultIterator}.
  * Main difference is the records array can be recycled back to a pool.
  *
- * Each record's {@link RecordAndPosition} will have the same fileOffset (for {@link RecordAndPosition#getOffset()}.
+ * Each record's {@link RecordAndPosition} will have the same fileOffset (for {@link RecordAndPosition#fileOffset()}.
  * The first returned record will have a records-to-skip count of {@code recordOffset + 1}, following
  * the contract that each record needs to point to the position AFTER itself
  * (because a checkpoint taken after the record was emitted needs to resume from after that record).
@@ -40,21 +37,21 @@ final class RecyclableArrayIterator<E> implements CloseableIterator<RecordAndPos
   private final Pool.Recycler<E[]> recycler;
   private final E[] records;
   private final int num;
-  private final MutableRecordAndPosition<E> recordAndPosition;
+  private final RecordAndPosition<E> recordAndPosition;
 
   private int pos;
 
   RecyclableArrayIterator(Pool.Recycler<E[]> recycler) {
-    this(recycler, null, 0, CheckpointedPosition.NO_OFFSET, 0L);
+    this(recycler, null, 0, -1, 0L);
   }
 
   RecyclableArrayIterator(
-      Pool.Recycler<E[]> recycler, final E[] newRecords,
-      final int newNum, final long fileOffset, final long recordOffset) {
+      Pool.Recycler<E[]> recycler, E[] newRecords,
+      int newNum, int fileOffset, long recordOffset) {
     this.recycler = recycler;
     this.records = newRecords;
     this.num = newNum;
-    this.recordAndPosition = new MutableRecordAndPosition<>();
+    this.recordAndPosition = new RecordAndPosition<>();
     this.recordAndPosition.set(null, fileOffset, recordOffset);
 
     this.pos = 0;
@@ -69,7 +66,7 @@ final class RecyclableArrayIterator<E> implements CloseableIterator<RecordAndPos
   @Nullable
   public RecordAndPosition<E> next() {
     if (pos < num) {
-      recordAndPosition.setNext(records[pos++]);
+      recordAndPosition.record(records[pos++]);
       return recordAndPosition;
     } else {
       return null;

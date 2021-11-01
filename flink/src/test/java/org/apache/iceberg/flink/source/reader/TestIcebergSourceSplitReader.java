@@ -26,7 +26,6 @@ import java.util.List;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.flink.connector.testutils.source.reader.TestingReaderContext;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
@@ -114,16 +113,16 @@ public class TestIcebergSourceSplitReader {
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch0 = reader.fetch();
-    final List<Row> rowBatch0 = readRows(readBatch0, split.splitId(), 0L, 0L);
+    final List<Row> rowBatch0 = readRows(readBatch0, split.splitId(), 0, 0L);
     TestHelpers.assertRecords(rowBatch0, recordBatchList.get(0), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1
         = reader.fetch();
-    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1L, 0L);
+    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1, 0L);
     TestHelpers.assertRecords(rowBatch1, recordBatchList.get(1), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch2 = reader.fetch();
-    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2L, 0L);
+    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2, 0L);
     TestHelpers.assertRecords(rowBatch2, recordBatchList.get(2), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> finishedBatch = reader.fetch();
@@ -133,15 +132,15 @@ public class TestIcebergSourceSplitReader {
 
   @Test
   public void testResumeFromEndOfFirstBatch() throws Exception {
-    final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 0L, 2L);
+    final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 0, 2L);
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1 = reader.fetch();
-    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1L, 0L);
+    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1, 0L);
     TestHelpers.assertRecords(rowBatch1, recordBatchList.get(1), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch2 = reader.fetch();
-    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2L, 0L);
+    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2, 0L);
     TestHelpers.assertRecords(rowBatch2, recordBatchList.get(2), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> finishedBatch = reader.fetch();
@@ -151,15 +150,15 @@ public class TestIcebergSourceSplitReader {
 
   @Test
   public void testResumeFromStartOfSecondBatch() throws Exception {
-    final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 1L, 0L);
+    final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 1, 0L);
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1 = reader.fetch();
-    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1L, 0L);
+    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1, 0L);
     TestHelpers.assertRecords(rowBatch1, recordBatchList.get(1), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch2 = reader.fetch();
-    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2L, 0L);
+    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2, 0L);
     TestHelpers.assertRecords(rowBatch2, recordBatchList.get(2), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> finishedBatch
@@ -170,15 +169,15 @@ public class TestIcebergSourceSplitReader {
 
   @Test
   public void testResumeFromMiddleOfSecondBatch() throws Exception {
-    final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 1L, 1L);
+    final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 1, 1L);
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1 = reader.fetch();
-    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1L, 1L);
+    final List<Row> rowBatch1 = readRows(readBatch1, split.splitId(), 1, 1L);
     TestHelpers.assertRecords(rowBatch1, recordBatchList.get(1).subList(1, 2), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch2 = reader.fetch();
-    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2L, 0L);
+    final List<Row> rowBatch2 = readRows(readBatch2, split.splitId(), 2, 0L);
     TestHelpers.assertRecords(rowBatch2, recordBatchList.get(2), TestFixtures.SCHEMA);
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> finishedBatch
@@ -189,16 +188,16 @@ public class TestIcebergSourceSplitReader {
 
   private List<Row> readRows(
       RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch,
-      String expectedSplitId, long expectedOffset, long expectedStartingRecordOffset) {
+      String expectedSplitId, int expectedFileOffset, long expectedStartingRecordOffset) {
     Assert.assertEquals(expectedSplitId, readBatch.nextSplit());
     final List<RowData> rowDataList = new ArrayList<>();
     RecordAndPosition<RowData> row;
     int num = 0;
     while ((row = readBatch.nextRecordFromSplit()) != null) {
-      Assert.assertEquals(expectedOffset, row.getOffset());
+      Assert.assertEquals(expectedFileOffset, row.fileOffset());
       num++;
-      Assert.assertEquals(expectedStartingRecordOffset + num, row.getRecordSkipCount());
-      rowDataList.add(row.getRecord());
+      Assert.assertEquals(expectedStartingRecordOffset + num, row.recordOffset());
+      rowDataList.add(row.record());
     }
     readBatch.recycle();
     return TestHelpers.convertRowDataToRow(rowDataList, TestFixtures.ROW_TYPE);

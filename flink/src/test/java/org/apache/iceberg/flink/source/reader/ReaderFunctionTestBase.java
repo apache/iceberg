@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -137,16 +136,16 @@ public abstract class ReaderFunctionTestBase<T> {
    */
   private List<T> extractRecordsAndAssertPosition(
       RecordsWithSplitIds<RecordAndPosition<T>> batch,
-      long expectedCount, long exptectedFileOffset, long startRecordOffset) {
+      long expectedCount, int exptectedFileOffset, long startRecordOffset) {
     // need to call nextSplit first in order to read the batch
     batch.nextSplit();
     final List<T> records = new ArrayList<>();
     long recordOffset = startRecordOffset;
     RecordAndPosition<T> recordAndPosition;
     while ((recordAndPosition = batch.nextRecordFromSplit()) != null) {
-      records.add(recordAndPosition.getRecord());
-      Assert.assertEquals("expected file offset", exptectedFileOffset, recordAndPosition.getOffset());
-      Assert.assertEquals("expected record offset", recordOffset, recordAndPosition.getRecordSkipCount() - 1);
+      records.add(recordAndPosition.record());
+      Assert.assertEquals("expected file offset", exptectedFileOffset, recordAndPosition.fileOffset());
+      Assert.assertEquals("expected record offset", recordOffset, recordAndPosition.recordOffset() - 1);
       recordOffset++;
     }
     Assert.assertEquals("expected record count", expectedCount, records.size());
@@ -159,17 +158,17 @@ public abstract class ReaderFunctionTestBase<T> {
     final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
-    final List<T> actual0 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(0).size(), 0L, 0L);
+    final List<T> actual0 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(0).size(), 0, 0L);
     assertRecords(recordBatchList.get(0), actual0, TestFixtures.SCHEMA);
     batch0.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
-    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1L, 0L);
+    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1, 0L);
     assertRecords(recordBatchList.get(1), actual1, TestFixtures.SCHEMA);
     batch1.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch2 = reader.next();
-    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2L, 0L);
+    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2, 0L);
     assertRecords(recordBatchList.get(2), actual2, TestFixtures.SCHEMA);
     batch2.recycle();
   }
@@ -178,21 +177,21 @@ public abstract class ReaderFunctionTestBase<T> {
   public void testCheckpointedPositionBeforeFirstFile() throws IOException {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
-        new Position(0L, 0L));
+        new Position(0, 0L));
     final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
-    final List<T> actual0 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(0).size(), 0L, 0L);
+    final List<T> actual0 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(0).size(), 0, 0L);
     assertRecords(recordBatchList.get(0), actual0, TestFixtures.SCHEMA);
     batch0.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
-    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1L, 0L);
+    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1, 0L);
     assertRecords(recordBatchList.get(1), actual1, TestFixtures.SCHEMA);
     batch1.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch2 = reader.next();
-    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2L, 0L);
+    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2, 0L);
     assertRecords(recordBatchList.get(2), actual2, TestFixtures.SCHEMA);
     batch2.recycle();
   }
@@ -201,57 +200,55 @@ public abstract class ReaderFunctionTestBase<T> {
   public void testCheckpointedPositionMiddleFirstFile() throws IOException {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
-        new Position(0L, 1L));
+        new Position(0, 1L));
     final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
-    final List<T> actual0 = extractRecordsAndAssertPosition(batch0, 1L, 0L, 1L);
+    final List<T> actual0 = extractRecordsAndAssertPosition(batch0, 1L, 0, 1L);
     assertRecords(recordBatchList.get(0).subList(1, 2), actual0, TestFixtures.SCHEMA);
     batch0.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
-    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1L, 0L);
+    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1, 0L);
     assertRecords(recordBatchList.get(1), actual1, TestFixtures.SCHEMA);
     batch1.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch2 = reader.next();
-    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2L, 0L);
+    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2, 0L);
     assertRecords(recordBatchList.get(2), actual2, TestFixtures.SCHEMA);
     batch2.recycle();
   }
 
   @Test
   public void testCheckpointedPositionAfterFirstFile() throws IOException {
-    final IcebergSourceSplit split = new IcebergSourceSplit(
-        icebergSplit.task(),
-        new Position(0L, 2L));
+    final IcebergSourceSplit split = new IcebergSourceSplit(icebergSplit.task(),
+        new Position(0, 2L));
     final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
-    final List<T> actual1 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(1).size(), 1L, 0L);
+    final List<T> actual1 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(1).size(), 1, 0L);
     assertRecords(recordBatchList.get(1), actual1, TestFixtures.SCHEMA);
     batch0.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch2 = reader.next();
-    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2L, 0L);
+    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2, 0L);
     assertRecords(recordBatchList.get(2), actual2, TestFixtures.SCHEMA);
     batch2.recycle();
   }
 
   @Test
   public void testCheckpointedPositionBeforeSecondFile() throws IOException {
-    final IcebergSourceSplit split = new IcebergSourceSplit(
-        icebergSplit.task(),
-        new Position(1L, 0L));
+    final IcebergSourceSplit split = new IcebergSourceSplit(icebergSplit.task(),
+        new Position(1, 0L));
     final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
-    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1L, 0L);
+    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1, 0L);
     assertRecords(recordBatchList.get(1), actual1, TestFixtures.SCHEMA);
     batch1.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch2 = reader.next();
-    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2L, 0L);
+    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2, 0L);
     assertRecords(recordBatchList.get(2), actual2, TestFixtures.SCHEMA);
     batch2.recycle();
   }
@@ -260,16 +257,16 @@ public abstract class ReaderFunctionTestBase<T> {
   public void testCheckpointedPositionMidSecondFile() throws IOException {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
-        new Position(1L, 1L));
+        new Position(1, 1L));
     final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
-    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, 1L, 1L, 1L);
+    final List<T> actual1 = extractRecordsAndAssertPosition(batch1, 1L, 1, 1L);
     assertRecords(recordBatchList.get(1).subList(1, 2), actual1, TestFixtures.SCHEMA);
     batch1.recycle();
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch2 = reader.next();
-    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2L, 0L);
+    final List<T> actual2 = extractRecordsAndAssertPosition(batch2, recordBatchList.get(2).size(), 2, 0L);
     assertRecords(recordBatchList.get(2), actual2, TestFixtures.SCHEMA);
     batch2.recycle();
   }

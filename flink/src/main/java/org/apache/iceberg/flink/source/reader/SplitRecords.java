@@ -25,7 +25,6 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.io.CloseableIterator;
 
 /**

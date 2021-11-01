@@ -43,10 +43,10 @@ public class DataIterator<T> implements CloseableIterator<T> {
 
   private final InputFilesDecryptor inputFilesDecryptor;
   private final CombinedScanTask combinedTask;
+  private final Position position;
 
-  private Iterator<FileScanTask> tasks;
+  private Iterator<FileScanTask> fileTasksIterator;
   private CloseableIterator<T> currentIterator;
-  private Position position;
 
   public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
                       FileIO io, EncryptionManager encryption) {
@@ -54,12 +54,12 @@ public class DataIterator<T> implements CloseableIterator<T> {
 
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.combinedTask = task;
-
-    this.tasks = task.files().iterator();
-    this.currentIterator = CloseableIterator.empty();
     // fileOffset starts at -1 because we started
     // from an empty iterator that is not from the split files.
-    this.position = new Position(-1L, 0L);
+    this.position = new Position(-1, 0L);
+
+    this.fileTasksIterator = task.files().iterator();
+    this.currentIterator = CloseableIterator.empty();
   }
 
   public void seek(Position startingPosition) {
@@ -68,7 +68,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
         "Checkpointed file offset is %d, while CombinedScanTask has %d files",
         startingPosition.fileOffset(), combinedTask.files().size());
     for (long i = 0L; i < startingPosition.fileOffset(); ++i) {
-      tasks.next();
+      fileTasksIterator.next();
     }
     updateCurrentIterator();
     // skip records within the file
@@ -106,9 +106,9 @@ public class DataIterator<T> implements CloseableIterator<T> {
    */
   private void updateCurrentIterator() {
     try {
-      while (!currentIterator.hasNext() && tasks.hasNext()) {
+      while (!currentIterator.hasNext() && fileTasksIterator.hasNext()) {
         currentIterator.close();
-        currentIterator = openTaskIterator(tasks.next());
+        currentIterator = openTaskIterator(fileTasksIterator.next());
         position.advanceFile();
       }
     } catch (IOException e) {
@@ -124,7 +124,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   public void close() throws IOException {
     // close the current iterator
     currentIterator.close();
-    tasks = null;
+    fileTasksIterator = null;
   }
 
   public Position position() {

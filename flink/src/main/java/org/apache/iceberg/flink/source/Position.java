@@ -37,10 +37,10 @@ public class Position implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
-  private long fileOffset;
+  private int fileOffset;
   private long recordOffset;
 
-  public Position(long fileOffset, long recordOffset) {
+  public Position(int fileOffset, long recordOffset) {
     this.fileOffset = fileOffset;
     this.recordOffset = recordOffset;
   }
@@ -54,12 +54,12 @@ public class Position implements Serializable {
     this.recordOffset += 1L;
   }
 
-  public void update(long newFileOffset, long newRecordOffset) {
+  public void update(int newFileOffset, long newRecordOffset) {
     this.fileOffset = newFileOffset;
     this.recordOffset = newRecordOffset;
   }
 
-  public long fileOffset() {
+  public int fileOffset() {
     return fileOffset;
   }
 

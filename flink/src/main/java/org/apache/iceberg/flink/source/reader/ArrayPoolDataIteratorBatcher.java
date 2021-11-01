@@ -24,13 +24,18 @@ import java.io.UncheckedIOException;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderOptions;
+import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.file.src.util.Pool;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.Position;
 import org.apache.iceberg.io.CloseableIterator;
 
+/**
+ * FLIP-27's {@link SplitReader#fetch()} returns batched {@link RecordsWithSplitIds}
+ * {@link DataIterator} can return reused object, like {@code RowData}. In order to
+ * work with batched fetch API, we need to store cloned objects into object pools.
+ */
 class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
   private final Configuration config;
   private final RecordFactory<T> recordFactory;
@@ -41,7 +46,7 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
   }
 
   @Override
-  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(
+  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> batch(
       String splitId, DataIterator<T> inputIterator) {
     return new ArrayPoolBatchIterator(splitId, inputIterator);
   }
@@ -70,6 +75,9 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
       final T[] batch = getCachedEntry();
       int num = 0;
       while (inputIterator.hasNext() && num < batchSize) {
+        // The record produced by inputIterator can be reused like for the RowData case.
+        // inputIterator.next() can't be called again until the copy is made
+        // since the record is not consumed immediately.
         T nextRecord = inputIterator.next();
         recordFactory.clone(nextRecord, batch[num]);
         num++;
@@ -79,6 +87,7 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
           break;
         }
       }
+
       if (num == 0) {
         return null;
       } else {

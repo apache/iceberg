@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,7 +36,7 @@ public class TestRecyclableArrayIterator {
   @Test
   public void testGetElements() {
     final String[] elements = new String[]{"1", "2", "3", "4"};
-    final long initialOffset = 3;
+    final int initialOffset = 3;
     final long initialSkipCount = 17;
 
     // dummy recycler
@@ -46,9 +45,9 @@ public class TestRecyclableArrayIterator {
 
     for (int i = 0; i < elements.length; i++) {
       final RecordAndPosition<String> recAndPos = iter.next();
-      Assert.assertEquals(elements[i], recAndPos.getRecord());
-      Assert.assertEquals(initialOffset, recAndPos.getOffset());
-      Assert.assertEquals(initialSkipCount + i + 1, recAndPos.getRecordSkipCount());
+      Assert.assertEquals(elements[i], recAndPos.record());
+      Assert.assertEquals(initialOffset, recAndPos.fileOffset());
+      Assert.assertEquals(initialSkipCount + i + 1, recAndPos.recordOffset());
     }
   }
 
@@ -56,7 +55,7 @@ public class TestRecyclableArrayIterator {
   public void testExhausted() {
     // dummy recycler
     final RecyclableArrayIterator<String> iter = new RecyclableArrayIterator<>(
-        ignored -> System.currentTimeMillis(), new String[]{"1", "2"}, 2, 0L, 0L);
+        ignored -> System.currentTimeMillis(), new String[]{"1", "2"}, 2, 0, 0L);
 
     iter.next();
     iter.next();
@@ -68,7 +67,7 @@ public class TestRecyclableArrayIterator {
   public void testArraySubRange() {
     // dummy recycler
     final RecyclableArrayIterator<String> iter = new RecyclableArrayIterator<>(ignored -> System.currentTimeMillis(),
-        new String[]{"1", "2", "3"}, 2, 0L, 0L);
+        new String[]{"1", "2", "3"}, 2, 0, 0L);
 
     Assert.assertNotNull(iter.next());
     Assert.assertNotNull(iter.next());

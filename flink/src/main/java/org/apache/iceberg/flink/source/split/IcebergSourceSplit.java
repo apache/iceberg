@@ -54,11 +54,11 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   }
 
   public static IcebergSourceSplit fromCombinedScanTask(CombinedScanTask combinedScanTask) {
-    return fromCombinedScanTask(combinedScanTask, 0L, 0L);
+    return fromCombinedScanTask(combinedScanTask, 0, 0L);
   }
 
   public static IcebergSourceSplit fromCombinedScanTask(
-      CombinedScanTask combinedScanTask, long fileOffset, long recordOffset) {
+      CombinedScanTask combinedScanTask, int fileOffset, long recordOffset) {
     return new IcebergSourceSplit(combinedScanTask, new Position(fileOffset, recordOffset));
   }
 
@@ -85,7 +85,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
         .toString();
   }
 
-  public void updatePosition(long newFileOffset, long newRecordOffset) {
+  public void updatePosition(int newFileOffset, long newRecordOffset) {
     position.update(newFileOffset, newRecordOffset);
   }
 

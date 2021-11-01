@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
-import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
@@ -43,7 +42,7 @@ public abstract class DataIteratorReaderFunction<T> implements ReaderFunction<T>
     if (split.position() != null) {
       inputIterator.seek(split.position());
     }
-    return batcher.apply(split.splitId(), inputIterator);
+    return batcher.batch(split.splitId(), inputIterator);
   }
 
 }
