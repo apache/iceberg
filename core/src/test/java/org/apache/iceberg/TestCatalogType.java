@@ -34,7 +34,10 @@ public class TestCatalogType {
   @MethodSource("mixedCaseCatalogTypeImpls")
   public void testCaseInsensitivity(Arguments inputCase) {
     String inputType = (inputCase.get()[0] != null) ? (String) inputCase.get()[0] : null;
-    Assertions.assertThat(CatalogType.getCatalogImpl(inputType)).isEqualTo(inputCase.get()[1]);
+    Assertions.assertThat(CatalogType.of(inputType).impl())
+        .as("Unexpected catalog impl class detected for %s. This change can break client configuration.",
+            inputType)
+        .isEqualTo(inputCase.get()[1]);
   }
 
   static Stream<Arguments> mixedCaseCatalogTypeImpls() {
@@ -53,16 +56,19 @@ public class TestCatalogType {
 
   @Test
   public void testUnknownCatalog() {
-    Assertions.assertThatThrownBy(() -> CatalogType.getCatalogImpl("FOO"))
+    Assertions.assertThatThrownBy(() -> CatalogType.of("FOO"))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
-            "Unknown catalog type: FOO. Valid values are [hive, hadoop, glue, nessie, dynamodb, jdbc]");
+            "Unknown catalog type: FOO. Valid values are [hive, hadoop, glue, nessie, dynamodb, jdbc]. To use a custom catalog, please use the [catalog-impl] conf instead of [type] with the value set to a fully qualified catalog impl class name.");
   }
 
   @ParameterizedTest
   @MethodSource("typeWithNames")
   public void testTypeNames(Arguments inputCase) {
-    Assertions.assertThat(((CatalogType) inputCase.get()[0]).getTypeName())
+    CatalogType type = (CatalogType) inputCase.get()[0];
+    Assertions.assertThat(type.value())
+        .as("Unexpected typeName detected for %s. This change can break client configuration.",
+            type)
         .isEqualTo(inputCase.get()[1]);
   }
 

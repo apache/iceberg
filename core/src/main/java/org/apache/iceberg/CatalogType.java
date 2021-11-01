@@ -32,16 +32,18 @@ public enum CatalogType {
   JDBC("org.apache.iceberg.jdbc.JdbcCatalog");
 
   private final String catalogImpl;
+  private final String value;
 
   CatalogType(String catalogImpl) {
     this.catalogImpl = catalogImpl;
+    this.value = name().toLowerCase(Locale.ENGLISH);
   }
 
-  public String getTypeName() {
-    return name().toLowerCase(Locale.ENGLISH);
+  public String value() {
+    return value;
   }
 
-  public String getCatalogImpl() {
+  public String impl() {
     return catalogImpl;
   }
 
@@ -51,14 +53,18 @@ public enum CatalogType {
    * @param inputType Non-null input type.
    * @return catalog-impl class name
    */
-  public static String getCatalogImpl(String inputType) {
+  public static CatalogType of(String inputType) {
     try {
-      CatalogType type = CatalogType.valueOf(inputType.toUpperCase(Locale.ENGLISH));
-      return type.getCatalogImpl();
+      return CatalogType.valueOf(inputType.toUpperCase(Locale.ENGLISH));
     } catch (IllegalArgumentException e) {
       throw new UnsupportedOperationException(
-          String.format("Unknown catalog type: %s. Valid values are [%s]", inputType,
-              Arrays.stream(values()).map(CatalogType::getTypeName).collect(Collectors.joining(", "))));
+          String.format(
+              "Unknown catalog type: %s. Valid values are [%s]. To use a custom catalog, please " +
+                  "use the [%s] conf instead of [%s] with the value set to a fully qualified catalog impl class name.",
+              inputType,
+              Arrays.stream(values()).map(CatalogType::value).collect(Collectors.joining(", ")),
+              CatalogProperties.CATALOG_IMPL,
+              CatalogProperties.CATALOG_TYPE));
     }
   }
 }

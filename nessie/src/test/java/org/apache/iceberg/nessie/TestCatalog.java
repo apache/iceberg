@@ -28,7 +28,8 @@ public class TestCatalog {
   @Test
   public void testCatalogTypeImpl() {
     Assertions.assertThat(
-        CatalogType.getCatalogImpl(CatalogType.NESSIE.getTypeName()))
+        CatalogType.of(CatalogType.NESSIE.value()).impl())
+        .as("Unexpected catalog implementation class found for type NESSIE")
         .isEqualTo(NessieCatalog.class.getName());
   }
 }

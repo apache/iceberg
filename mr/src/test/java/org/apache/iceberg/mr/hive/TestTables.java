@@ -369,7 +369,7 @@ abstract class TestTables {
     public Map<String, String> properties() {
       return ImmutableMap.of(
           InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.CATALOG_TYPE),
-          CatalogType.HADOOP.getTypeName(),
+          CatalogType.HADOOP.value(),
           InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.WAREHOUSE_LOCATION),
           warehouseLocation
       );
@@ -415,15 +415,15 @@ abstract class TestTables {
   static class HiveTestTables extends TestTables {
 
     HiveTestTables(Configuration conf, TemporaryFolder temp, String catalogName) {
-      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogType.HIVE.getTypeName(),
+      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogType.HIVE.value(),
               ImmutableMap.of(), conf), temp, catalogName);
     }
 
     @Override
     public Map<String, String> properties() {
-      return ImmutableMap
-          .of(InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.CATALOG_TYPE),
-              CatalogType.HIVE.getTypeName());
+      return ImmutableMap.of(
+          InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.CATALOG_TYPE),
+          CatalogType.HIVE.value());
     }
 
     @Override

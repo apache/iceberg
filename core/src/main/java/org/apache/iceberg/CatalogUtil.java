@@ -54,6 +54,15 @@ public class CatalogUtil {
    *   <li>hadoop: org.apache.iceberg.hadoop.HadoopCatalog</li>
    * </ul>
    */
+
+  // NOTE: Following property will be deprecated post 1.0.0. Use CatalogProperties.CATALOG_TYPE instead.
+  public static final String ICEBERG_CATALOG_TYPE = "type";
+  // NOTE: Following properties will be deprecated post 1.0.0. Use CatalogType instead.
+  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
+  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
+  public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
+  public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
+
   private CatalogUtil() {
   }
 
@@ -207,8 +216,13 @@ public class CatalogUtil {
         name, catalogType, catalogImpl);
 
     if (catalogImpl == null) {
-      catalogType = (catalogType == null) ? CatalogType.HIVE.getTypeName() : catalogType;
-      catalogImpl = CatalogType.getCatalogImpl(catalogType);
+      if (catalogType == null) {
+        LOG.info("Neither {} nor {} were configured. Falling back to the default of {}",
+            CatalogProperties.CATALOG_IMPL, CatalogProperties.CATALOG_TYPE,
+            CatalogType.HIVE.value());
+        catalogType = CatalogType.HIVE.value();
+      }
+      catalogImpl = CatalogType.of(catalogType).impl();
     }
 
     return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);

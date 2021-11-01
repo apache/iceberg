@@ -30,14 +30,16 @@ public class CatalogTest {
   @Test
   public void testGlueCatalogTypeImpl() {
     Assertions.assertThat(
-        CatalogType.getCatalogImpl(CatalogType.GLUE.getTypeName()))
+        CatalogType.of(CatalogType.GLUE.value()).impl())
+        .as("Invalid GLUE implementation class defined in %s", CatalogType.class.getName())
         .isEqualTo(GlueCatalog.class.getName());
   }
 
   @Test
   public void testDynamoCatalogTypeImpl() {
     Assertions.assertThat(
-        CatalogType.getCatalogImpl(CatalogType.DYNAMODB.getTypeName()))
+        CatalogType.of(CatalogType.DYNAMODB.value()).impl())
+        .as("Invalid DYNAMODB implementation class name defined in %s", CatalogType.class.getName())
         .isEqualTo(DynamoDbCatalog.class.getName());
   }
 }

@@ -353,7 +353,7 @@ public class TestIcebergInputFormats {
     conf.set("warehouse.location", warehouseLocation);
     conf.set(InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME);
     conf.set(InputFormatConfig.catalogPropertyConfigKey(Catalogs.ICEBERG_DEFAULT_CATALOG_NAME,
-        CatalogProperties.CATALOG_TYPE), CatalogType.HADOOP.getTypeName());
+        CatalogProperties.CATALOG_TYPE), CatalogType.HADOOP.value());
     conf.set(InputFormatConfig.catalogPropertyConfigKey(Catalogs.ICEBERG_DEFAULT_CATALOG_NAME,
         CatalogProperties.WAREHOUSE_LOCATION), warehouseLocation);
 
