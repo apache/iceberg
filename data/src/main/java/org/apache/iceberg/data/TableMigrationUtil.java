@@ -70,8 +70,10 @@ public class TableMigrationUtil {
    * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
    * <p>
-   * Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but not file footers,
+   * Note:
+   * 1. certain metrics, like NaN counts, that are only supported by iceberg file writers but not file footers,
    * will not be populated.
+   * 2. Schema compatibility checks are currently done only for parquet file format
    *
    * @param partition partition key, e.g., "a=1/b=2"
    * @param uri           partition location URI
@@ -80,6 +82,7 @@ public class TableMigrationUtil {
    * @param conf          a Hadoop conf
    * @param metricsConfig a metrics conf
    * @param mapping       a name mapping
+   * @param schema        table's schema
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
@@ -140,9 +143,8 @@ public class TableMigrationUtil {
             try {
               ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
               metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
-              if (!canImportSchema(ParquetSchemaUtil.convert(metadata.getFileMetaData().getSchema()), schema)) {
-                throw new ValidationException("Mismatch in table and imported file schema");
-              }
+              // Checks if the imported file schema is compatible with schema of the table to which it is imported
+              canImportSchema(ParquetSchemaUtil.convert(metadata.getFileMetaData().getSchema()), schema);
             } catch (IOException e) {
               throw new RuntimeException("Unable to read the footer of the parquet file: " +
                   stat.getPath(), e);
@@ -197,18 +199,19 @@ public class TableMigrationUtil {
   }
 
   /**
+   * Check the if the schemas are compatible.
+   * Throws {@link ValidationException} when incompatible
    * @param importSchema the schema of file being imported
    * @param tableSchema schema of the table to which file is to be imported
-   * @return if the files schema is compatible with table's schema
    */
-  public static boolean canImportSchema(Schema importSchema, Schema tableSchema) {
+  public static void canImportSchema(Schema importSchema, Schema tableSchema) {
     // Assigning ids by name look up, required for checking compatibility
     Schema schemaWithIds = TypeUtil.assignFreshIds(importSchema, tableSchema, new AtomicInteger(1000)::incrementAndGet);
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, schemaWithIds, false);
     if (!errors.isEmpty()) {
       String errorString = Joiner.on("\n\t").join(errors);
-      LOG.error("Imported file's schema not compatible with table's schema. Errors : {}", errorString);
+      throw new ValidationException("Imported file's schema not compatible with table's schema." +
+          " Errors : %s", errorString);
     }
-    return errors.isEmpty();
   }
 }
