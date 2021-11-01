@@ -24,9 +24,11 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.Spark3VersionUtil;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 public class TestDeleteFrom extends SparkCatalogTestBase {
@@ -41,6 +43,10 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromUnpartitionedTable() {
+    // This test fails in Spark 3.1. `canDeleteWhere` was added to `SupportsDelete` in Spark 3.1,
+    // but logic to rewrite the query if `canDeleteWhere` returns false was left to be implemented
+    // later.
+    Assume.assumeTrue(Spark3VersionUtil.isSpark30());
     // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file
     String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
     spark.conf().set("spark.sql.shuffle.partitions", "1");
@@ -68,6 +74,10 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromPartitionedTable() {
+    // This test fails in Spark 3.1. `canDeleteWhere` was added to `SupportsDelete` in Spark 3.1,
+    // but logic to rewrite the query if `canDeleteWhere` returns false was left to be implemented
+    // later.
+    Assume.assumeTrue(Spark3VersionUtil.isSpark30());
     // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file per partition
     String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
     spark.conf().set("spark.sql.shuffle.partitions", "1");
