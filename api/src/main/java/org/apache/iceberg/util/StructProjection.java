@@ -157,7 +157,7 @@ public class StructProjection implements StructLike {
   public <T> T get(int pos, Class<T> javaClass) {
     if (struct == null) {
       // Return a null struct when projecting a nested required field from an optional struct.
-      // More details can see issue #2738.
+      // See more details in issue #2738.
       return null;
     }
 

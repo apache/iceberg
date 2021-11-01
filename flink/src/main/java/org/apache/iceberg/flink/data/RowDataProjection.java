@@ -39,7 +39,7 @@ public class RowDataProjection implements RowData {
   /**
    * Creates a projecting wrapper for {@link RowData} rows.
    * <p>
-   * This projection does not work with repeated types like lists and maps.
+   * This projection will not project the nested children types of repeated types like lists and maps.
    *
    * @param schema schema of rows wrapped by this projection
    * @param projectedSchema result schema of the projected rows
@@ -52,7 +52,7 @@ public class RowDataProjection implements RowData {
   /**
    * Creates a projecting wrapper for {@link RowData} rows.
    * <p>
-   * This projection does not work with repeated types like lists and maps.
+   * This projection will not project the nested children types of repeated types like lists and maps.
    *
    * @param rowType flink row type of rows wrapped by this projection
    * @param schema schema of rows wrapped by this projection
@@ -76,10 +76,9 @@ public class RowDataProjection implements RowData {
     for (int i = 0; i < getters.length; i++) {
       Types.NestedField projectField = projectType.fields().get(i);
       Types.NestedField rowField = rowStruct.field(projectField.fieldId());
-      if (rowField == null) {
-        throw new IllegalArgumentException(String.format(
-            "Cannot locate the project field <%s> in the iceberg struct <%s>", projectField, rowStruct));
-      }
+
+      Preconditions.checkNotNull(rowField,
+          "Cannot locate the project field <%s> in the iceberg struct <%s>", projectField, rowStruct);
 
       getters[i] = createFieldGetter(rowType, fieldIdToPosition.get(projectField.fieldId()), rowField, projectField);
     }
