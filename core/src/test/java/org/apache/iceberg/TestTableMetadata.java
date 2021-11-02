@@ -48,6 +48,8 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
@@ -55,16 +57,20 @@ import static org.apache.iceberg.TableMetadataParser.FORMAT_VERSION;
 import static org.apache.iceberg.TableMetadataParser.LAST_COLUMN_ID;
 import static org.apache.iceberg.TableMetadataParser.LAST_UPDATED_MILLIS;
 import static org.apache.iceberg.TableMetadataParser.LOCATION;
+import static org.apache.iceberg.TableMetadataParser.LOCATION_PREFIX;
 import static org.apache.iceberg.TableMetadataParser.PARTITION_SPEC;
 import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 
+@RunWith(Parameterized.class)
 public class TestTableMetadata {
+
   // Prefix is optional
   private static final String TEST_LOCATION_PREFIX = "s3:/bucket";
   private static final String TEST_LOCATION = "s3://bucket/test/location";
+  public final boolean useRelativePath;
 
   private static final Schema TEST_SCHEMA = new Schema(7,
       Types.NestedField.required(1, "x", Types.LongType.get()),
@@ -82,6 +88,15 @@ public class TestTableMetadata {
       .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
       .build();
 
+  @Parameterized.Parameters(name = "useRelativePath = {0}")
+  public static Object[] parameters() {
+    return new Object[] { true, false };
+  }
+
+  public TestTableMetadata(boolean useRelativePath) {
+    this.useRelativePath = useRelativePath;
+  }
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -90,25 +105,39 @@ public class TestTableMetadata {
   @Test
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
-    Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
-          new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+    Snapshot previousSnapshot;
+    Snapshot currentSnapshot;
     long currentSnapshotId = System.currentTimeMillis();
-    Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, 7, ImmutableList.of(
-          new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
-
+    if (useRelativePath) {
+      previousSnapshot = new BaseSnapshot(
+          ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null,
+          TEST_LOCATION_PREFIX, TEST_LOCATION, useRelativePath, ImmutableList.of(
+              new GenericManifestFile(localInput("file:/tmp" +
+          "/manfiest.1.avro"), SPEC_5.specId())));
+      currentSnapshot = new BaseSnapshot(
+          ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, 7,
+          TEST_LOCATION_PREFIX, TEST_LOCATION, useRelativePath, ImmutableList.of(
+              new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+    } else {
+      previousSnapshot = new BaseSnapshot(
+          ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
+              new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+      currentSnapshot = new BaseSnapshot(
+          ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, 7, ImmutableList.of(
+              new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+    }
     List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
         .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
         .build();
 
-    Schema schema = new Schema(6,
+    Schema schema = new Schema(
+        6,
         Types.NestedField.required(10, "x", Types.StringType.get()));
 
-    TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION_PREFIX,
-        TEST_LOCATION,
-        SEQ_NO, System.currentTimeMillis(), 3,
+    TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(),
+        useRelativePath ? LOCATION_PREFIX : null,
+        TEST_LOCATION, SEQ_NO, System.currentTimeMillis(), 3,
         7, ImmutableList.of(TEST_SCHEMA, schema),
         5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
@@ -122,8 +151,13 @@ public class TestTableMetadata {
         expected.formatVersion(), metadata.formatVersion());
     Assert.assertEquals("Table UUID should match",
         expected.uuid(), metadata.uuid());
-    Assert.assertEquals("Table location prefix should match",
-        expected.locationPrefix(), metadata.locationPrefix());
+    if (useRelativePath) {
+      Assert.assertEquals("Table location prefix should match",
+          expected.locationPrefix(), metadata.locationPrefix());
+    } else {
+      Assert.assertNull("Table location prefix should be unset",
+          metadata.locationPrefix());
+    }
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
     Assert.assertEquals("Last sequence number should match",
@@ -161,10 +195,12 @@ public class TestTableMetadata {
         (Integer) 7, metadata.currentSnapshot().schemaId());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
-    Assert.assertEquals("Previous snapshot files should match",
+    Assert.assertEquals(
+        "Previous snapshot files should match",
         previousSnapshot.allManifests(),
         metadata.snapshot(previousSnapshotId).allManifests());
-    Assert.assertNull("Previous snapshot's schema ID should be null",
+    Assert.assertNull(
+        "Previous snapshot's schema ID should be null",
         metadata.snapshot(previousSnapshotId).schemaId());
   }
 
@@ -183,7 +219,7 @@ public class TestTableMetadata {
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
           new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-    TableMetadata expected = new TableMetadata(null, 1, null,  TEST_LOCATION_PREFIX, TEST_LOCATION,
+    TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION_PREFIX, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TableMetadata.INITIAL_SCHEMA_ID,
         ImmutableList.of(schema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
