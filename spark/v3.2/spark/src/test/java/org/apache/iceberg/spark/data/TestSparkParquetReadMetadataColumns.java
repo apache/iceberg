@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -38,8 +39,10 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.iceberg.spark.source.BatchDataReader;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -58,8 +61,11 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @RunWith(Parameterized.class)
 public class TestSparkParquetReadMetadataColumns {
@@ -166,6 +172,31 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   @Test
+  public void testReadRowNumbersWithDelete() throws IOException {
+    if (vectorized) {
+      List<InternalRow> expectedRowsAfterDelete = new ArrayList<>(EXPECTED_ROWS);
+      // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100, 200)
+      for (int i = 1; i <= 5; i++) {
+        expectedRowsAfterDelete.remove(98);
+      }
+
+      Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
+
+      DeleteFilter deleteFilter = mock(DeleteFilter.class);
+      when(deleteFilter.hasPosDeletes()).thenReturn(true);
+      Roaring64Bitmap deletedRowPos = new Roaring64Bitmap();
+      deletedRowPos.add(98, 103);
+      when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
+
+      builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
+              fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED, Maps.newHashMap(), deleteFilter));
+      builder.recordsPerBatch(RECORDS_PER_BATCH);
+
+      validate(expectedRowsAfterDelete, builder);
+    }
+  }
+
+  @Test
   public void testReadRowNumbersWithFilter() throws IOException {
     // current iceberg supports row group filter.
     for (int i = 1; i < 5; i += 1) {
@@ -212,6 +243,10 @@ public class TestSparkParquetReadMetadataColumns {
       builder = builder.split(splitStart, splitLength);
     }
 
+    validate(expected, builder);
+  }
+
+  private void validate(List<InternalRow> expected, Parquet.ReadBuilder builder) throws IOException {
     try (CloseableIterable<InternalRow> reader = vectorized ? batchesToRows(builder.build()) : builder.build()) {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
