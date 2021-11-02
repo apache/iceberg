@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from enum import Enum
-
-from iceberg.exceptions import OperationError
+from enum import auto, Enum
 
 
 class Operation(Enum):
@@ -37,70 +35,73 @@ class Operation(Enum):
     >>> print(reversed(Operation.EQ))
     Operation.NOT_EQ
 
+    The above examples use the OPERATION_NEGATIONS and OPERATION_REVERSALS maps
+    which map each enum to it's negated enum or reversed enum, respectively.
+
     Raises:
-        OperationError: This is raised when attempting to negate or reverse
+        ValueError: This is raised when attempting to negate or reverse
             an operation that cannot be negated or reversed.
     """
-    TRUE = "TRUE"
-    FALSE = "FALSE"
-    IS_NULL = "IS_NULL"
-    NOT_NULL = "NOT_NULL"
-    IS_NAN = "IS_NAN"
-    NOT_NAN = "NOT_NAN"
-    LT = "LT"
-    LT_EQ = "LT_EQ"
-    GT = "GT"
-    GT_EQ = "GT_EQ"
-    EQ = "EQ"
-    NOT_EQ = "NOT_EQ"
-    IN = "IN"
-    NOT_IN = "NOT_IN"
-    NOT = "NOT"
-    AND = "AND"
-    OR = "OR"
 
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return f"Operation.{self.value}"
+    TRUE = auto()
+    FALSE = auto()
+    IS_NULL = auto()
+    NOT_NULL = auto()
+    IS_NAN = auto()
+    NOT_NAN = auto()
+    LT = auto()
+    LT_EQ = auto()
+    GT = auto()
+    GT_EQ = auto()
+    EQ = auto()
+    NOT_EQ = auto()
+    IN = auto()
+    NOT_IN = auto()
+    NOT = auto()
+    AND = auto()
+    OR = auto()
 
     def __neg__(self):
         """Returns the operation used when this is negated."""
 
         try:
-            return {
-                Operation.TRUE: Operation.FALSE,
-                Operation.FALSE: Operation.TRUE,
-                Operation.IS_NULL: Operation.NOT_NULL,
-                Operation.NOT_NULL: Operation.IS_NULL,
-                Operation.IS_NAN: Operation.NOT_NAN,
-                Operation.NOT_NAN: Operation.IS_NAN,
-                Operation.LT: Operation.GT_EQ,
-                Operation.LT_EQ: Operation.GT,
-                Operation.GT: Operation.LT_EQ,
-                Operation.GT_EQ: Operation.LT,
-                Operation.EQ: Operation.NOT_EQ,
-                Operation.NOT_EQ: Operation.EQ,
-                Operation.IN: Operation.NOT_IN,
-                Operation.NOT_IN: Operation.IN,
-            }[self]
+            return OPERATION_NEGATIONS[self]
         except KeyError:
-            raise OperationError(f"No negation defined for operation {self}")
+            raise ValueError(f"No negation defined for operation {self}")
 
     def __reversed__(self):
-        """	Returns the equivalent operation when the left and right operands are exchanged."""
+        """Returns the equivalent operation when the left and right operands are exchanged."""
 
         try:
-            return {
-                Operation.LT: Operation.GT,
-                Operation.LT_EQ: Operation.GT_EQ,
-                Operation.GT: Operation.LT,
-                Operation.GT_EQ: Operation.LT_EQ,
-                Operation.EQ: Operation.EQ,
-                Operation.NOT_EQ: Operation.NOT_EQ,
-                Operation.AND: Operation.AND,
-                Operation.OR: Operation.OR,
-            }[self]
+            return OPERATION_REVERSALS[self]
         except KeyError:
-            raise OperationError(f"No left-right flip for operation {self}")
+            raise ValueError(f"No left-right flip for operation {self}")
+
+
+OPERATION_NEGATIONS = {
+    Operation.TRUE: Operation.FALSE,
+    Operation.FALSE: Operation.TRUE,
+    Operation.IS_NULL: Operation.NOT_NULL,
+    Operation.NOT_NULL: Operation.IS_NULL,
+    Operation.IS_NAN: Operation.NOT_NAN,
+    Operation.NOT_NAN: Operation.IS_NAN,
+    Operation.LT: Operation.GT_EQ,
+    Operation.LT_EQ: Operation.GT,
+    Operation.GT: Operation.LT_EQ,
+    Operation.GT_EQ: Operation.LT,
+    Operation.EQ: Operation.NOT_EQ,
+    Operation.NOT_EQ: Operation.EQ,
+    Operation.IN: Operation.NOT_IN,
+    Operation.NOT_IN: Operation.IN,
+}
+
+OPERATION_REVERSALS = {
+    Operation.LT: Operation.GT,
+    Operation.LT_EQ: Operation.GT_EQ,
+    Operation.GT: Operation.LT,
+    Operation.GT_EQ: Operation.LT_EQ,
+    Operation.EQ: Operation.EQ,
+    Operation.NOT_EQ: Operation.NOT_EQ,
+    Operation.AND: Operation.AND,
+    Operation.OR: Operation.OR,
+}
