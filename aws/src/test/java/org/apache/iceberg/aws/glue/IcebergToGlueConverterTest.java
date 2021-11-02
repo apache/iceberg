@@ -36,6 +36,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
+import software.amazon.awssdk.services.glue.model.SerDeInfo;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
@@ -158,5 +159,61 @@ public class IcebergToGlueConverterTest {
         "Columns do not match",
         expectedTableInput.storageDescriptor().columns(),
         actualTableInput.storageDescriptor().columns());
+  }
+
+  @Test
+  public void testSetTableFormatAndSerdeInformation() {
+    // Actual TableInput
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    Schema schema = new Schema(
+            Types.NestedField.required(0, "col", Types.StringType.get(), "comment_string_col")
+    );
+
+    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema)
+            .identity("col")
+            .withSpecId(1000)
+            .build();
+
+    TableMetadata tableMetadata = TableMetadata
+            .newTableMetadata(schema, partitionSpec, "s3://test", ImmutableMap.of());
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    TableInput actualTableInput = actualTableInputBuilder.build();
+
+    // Expected TableInput
+    TableInput expectedTableInput = TableInput.builder().storageDescriptor(
+                    StorageDescriptor.builder()
+                            .location("s3://test")
+                            .columns(ImmutableList.of(
+                                    Column.builder()
+                                            .name("col")
+                                            .type("string")
+                                            .comment("comment_string_col")
+                                            .parameters(null)
+                                            .build()))
+                            .inputFormat("org.apache.hadoop.mapred.FileInputFormat")
+                            .outputFormat("org.apache.hadoop.mapred.FileOutputFormat")
+                            .serdeInfo(
+                                    SerDeInfo.builder()
+                                            .serializationLibrary("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe")
+                                            .build())
+                            .build())
+            .build();
+
+    // Assertions
+    Assert.assertEquals(
+            "Not match the input format.",
+            expectedTableInput.storageDescriptor().inputFormat(),
+            actualTableInput.storageDescriptor().inputFormat());
+
+    Assert.assertEquals(
+            "Not match the out format.",
+            expectedTableInput.storageDescriptor().outputFormat(),
+            actualTableInput.storageDescriptor().outputFormat());
+
+    Assert.assertEquals(
+            "Not match the serde lib.",
+            expectedTableInput.storageDescriptor().serdeInfo().serializationLibrary(),
+            actualTableInput.storageDescriptor().serdeInfo().serializationLibrary());
+
   }
 }

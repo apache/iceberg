@@ -43,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
+import software.amazon.awssdk.services.glue.model.SerDeInfo;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
@@ -55,6 +56,9 @@ class IcebergToGlueConverter {
 
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
+  public static final String GLUE_TABLE_INPUT_FORMAT = "org.apache.hadoop.mapred.FileInputFormat";
+  public static final String GLUE_TABLE_OUTPUT_FORMAT = "org.apache.hadoop.mapred.FileOutputFormat";
+  public static final String GLUE_TABLE_SERDELIB = "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe";
   public static final String ICEBERG_FIELD_USAGE = "iceberg.field.usage";
   public static final String ICEBERG_FIELD_TYPE_TYPE_ID = "iceberg.field.type.typeid";
   public static final String ICEBERG_FIELD_TYPE_STRING = "iceberg.field.type.string";
@@ -180,6 +184,9 @@ class IcebergToGlueConverter {
           .storageDescriptor(StorageDescriptor.builder()
               .location(metadata.location())
               .columns(toColumns(metadata))
+              .inputFormat(GLUE_TABLE_INPUT_FORMAT)
+              .outputFormat(GLUE_TABLE_OUTPUT_FORMAT)
+              .serdeInfo(SerDeInfo.builder().serializationLibrary(GLUE_TABLE_SERDELIB).build())
               .build());
     } catch (RuntimeException e) {
       LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
