@@ -19,7 +19,7 @@ from setuptools import setup
 
 setup(
     name="py-iceberg",
-    install_requires=[],
+    install_requires=["mmh3", "pytz"],
     extras_require={
         "dev": [
             "tox-travis==0.12",
