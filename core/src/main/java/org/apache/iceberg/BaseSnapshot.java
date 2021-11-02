@@ -174,7 +174,7 @@ class BaseSnapshot implements Snapshot {
   private void cacheManifests() {
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation), tableLocation,
+      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation), tableLocationPrefix,
           useRelativePaths);
     }
 

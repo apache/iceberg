@@ -220,7 +220,7 @@ public class TableTestBase {
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId,
         this.table.locationPrefix(), this.table.location(),
-        MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
+        MetadataPathUtils.useRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -292,7 +292,7 @@ public class TableTestBase {
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null,
             this.table.locationPrefix(), this.table.location(),
-        MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
+        MetadataPathUtils.useRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);

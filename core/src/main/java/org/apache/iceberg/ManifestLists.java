@@ -37,7 +37,7 @@ class ManifestLists {
     return read(manifestList, null, false);
   }
 
-  static List<ManifestFile> read(InputFile manifestList, String tableLocation, boolean shouldUseRelativePaths) {
+  static List<ManifestFile> read(InputFile manifestList, String locationPrefix, boolean useRelativePaths) {
     try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
         .rename("manifest_file", GenericManifestFile.class.getName())
         .rename("partitions", GenericPartitionFieldSummary.class.getName())
@@ -47,8 +47,8 @@ class ManifestLists {
         .reuseContainers(false)
         .build()) {
 
-      return shouldUseRelativePaths ? updateManifestFilePathsToAbsolutePaths(files,
-          tableLocation) : Lists.newLinkedList(files);
+      return useRelativePaths ? updateManifestFilePathsToAbsolutePaths(files,
+          locationPrefix) : Lists.newLinkedList(files);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
@@ -59,19 +59,19 @@ class ManifestLists {
    * After the manifest files are read and relative paths are enabled on the table, convert the manifest file path to
    * absolute path.
    * @param files list of manifest files
-   * @param tableLocation table location needed for conversion
+   * @param tableLocationPrefix table location needed for conversion
    * @return List of manifest files with absolute file paths.
    */
   private static List<ManifestFile> updateManifestFilePathsToAbsolutePaths(
       CloseableIterable<ManifestFile> files,
-      String tableLocation) {
+      String tableLocationPrefix) {
     List<ManifestFile> manifestFiles = Lists.newLinkedList(files);
     List<ManifestFile> updatedManifestFiles = Lists.newArrayListWithCapacity(manifestFiles.size());
     for (ManifestFile manifestFile : manifestFiles) {
       // update the manifest files if necessary.
       updatedManifestFiles.add(GenericManifestFile.copyOf(manifestFile)
           .withManifestPath(MetadataPathUtils.toAbsolutePath(manifestFile.path(),
-              tableLocation)).build());
+              tableLocationPrefix)).build());
     }
     return updatedManifestFiles;
   }

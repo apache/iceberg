@@ -26,6 +26,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -74,7 +75,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, null, tableLocation);
+    tables.create(SCHEMA, spec, ImmutableMap.of(), tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
@@ -110,7 +111,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, null, tableLocation);
+    tables.create(SCHEMA, spec, ImmutableMap.of(), tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
@@ -144,7 +145,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, null, tableLocation);
+    tables.create(SCHEMA, spec, ImmutableMap.of(), tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
@@ -182,7 +183,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, null, tableLocation);
+    tables.create(SCHEMA, spec, ImmutableMap.of(), tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
