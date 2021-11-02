@@ -61,8 +61,8 @@ import static org.apache.spark.sql.functions.expr;
  */
 public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBenchmark {
 
-  private static final int NUM_FILES = 5;
-  private static final int NUM_ROWS = 1000 * 1000;
+  private static final int NUM_FILES = 1;
+  private static final int NUM_ROWS = 10 * 1000 * 1000;
   @Param({"0", "0.05", "0.25"})
   private double percentageDeleteRow;
 
