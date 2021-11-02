@@ -34,7 +34,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.sources.AlwaysFalse;
 import org.apache.spark.sql.sources.AlwaysFalse$;
+import org.apache.spark.sql.sources.AlwaysTrue;
 import org.apache.spark.sql.sources.AlwaysTrue$;
 import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
@@ -71,8 +73,10 @@ public class SparkFilters {
 
   private static final Map<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
       .<Class<? extends Filter>, Operation>builder()
+      .put(AlwaysTrue.class, Operation.TRUE)
       .put(AlwaysTrue$.class, Operation.TRUE)
       .put(AlwaysFalse$.class, Operation.FALSE)
+      .put(AlwaysFalse.class, Operation.FALSE)
       .put(EqualTo.class, Operation.EQ)
       .put(EqualNullSafe.class, Operation.EQ)
       .put(GreaterThan.class, Operation.GT)

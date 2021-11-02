@@ -25,20 +25,38 @@ remote_name: apache
 remote_branch: asf-site
 use_directory_urls: true
 
-theme: cinder
+theme:
+  name: windmill
+  custom_dir: docs/theme_customization
 copyright: "Copyright 2018-2021 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
 extra_css:
   - css/extra.css
 extra:
+  github_url: https://github.com/apache/iceberg
+  slack_url: https://join.slack.com/t/apache-iceberg/shared_invite/zt-tlv0zjz6-jGJEkHfb1~heMCJA3Uycrg
+  topnav:
+    Blogs: /blogs/
+    Community: /community/
+    Roadmap: /roadmap/
+    Releases: /releases/
+    Flink: /flink/
+    Spark: /getting-started/
   versions:
     iceberg: 0.12.0
     nessie: 0.9.2
+  logo: img/favicon-96x96.png
+  version: 0.12.0
+  article_nav_top: false
+  article_nav_bottom: false
+  include_search_page: true
+  search_index_only: true
 plugins:
   - redirects:
       redirect_maps:
         'time-travel.md': 'spark-queries/#time-travel'
         'presto.md': 'trino-prestodb.md'
-  - markdownextradata  
+  - markdownextradata
+  - search
 markdown_extensions:
   - toc:
       permalink: True
@@ -49,16 +67,6 @@ markdown_extensions:
   - admonition
   - pymdownx.tilde
 nav:
-  - Project:
-    - About: index.md
-    - Roadmap: roadmap.md
-    - Community: community.md
-    - Releases: releases.md
-    - Blogs: blogs.md
-    - Trademarks: trademarks.md
-    - How to Release: how-to-release.md
-    - Security: security.md
-  - Getting Started: getting-started.md
   - Tables:
     - Configuration: configuration.md
     - Schemas: schemas.md
@@ -76,7 +84,6 @@ nav:
       - Writes: spark-writes.md
       - Maintenance Procedures: spark-procedures.md
       - Structured Streaming: spark-structured-streaming.md
-      - Time Travel: spark-queries/#time-travel
     - Flink:
       - Getting Started: flink.md
       - Flink Connector: flink-connector.md
@@ -98,7 +105,9 @@ nav:
   - Format:
     - Definitions: terms.md
     - Spec: spec.md
-  - GitHub: https://github.com/apache/iceberg
+  - Project:
+    - Trademarks: trademarks.md
+    - Security: security.md
   - ASF:
     - License: https://www.apache.org/licenses/
     - Security: https://www.apache.org/security/

@@ -342,7 +342,7 @@ public class TestPartitionPruning {
     // idx 1: file_path, idx 3: partition
     return files.stream()
         .filter(r -> {
-          Row partition = r.getStruct(3);
+          Row partition = r.getStruct(4);
           return condition.test(partition);
         }).map(r -> CountOpenLocalFileSystem.stripScheme(r.getString(1)))
         .collect(Collectors.toSet());

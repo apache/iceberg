@@ -19,18 +19,26 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -47,6 +55,17 @@ class IcebergToGlueConverter {
 
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
+  public static final String ICEBERG_FIELD_USAGE = "iceberg.field.usage";
+  public static final String ICEBERG_FIELD_TYPE_TYPE_ID = "iceberg.field.type.typeid";
+  public static final String ICEBERG_FIELD_TYPE_STRING = "iceberg.field.type.string";
+  public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
+  public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
+  public static final String ICEBERG_PARTITION_TRANSFORM = "iceberg.partition.transform";
+  public static final String ICEBERG_PARTITION_FIELD_ID = "iceberg.partition.field-id";
+  public static final String ICEBERG_PARTITION_SOURCE_ID = "iceberg.partition.source-id";
+  public static final String SCHEMA_COLUMN = "schema-column";
+  public static final String SCHEMA_SUBFIELD = "schema-subfield";
+  public static final String PARTITION_FIELD = "partition-field";
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -160,21 +179,8 @@ class IcebergToGlueConverter {
       tableInputBuilder
           .storageDescriptor(StorageDescriptor.builder()
               .location(metadata.location())
-              .columns(metadata.schema().columns().stream()
-                  .map(f -> Column.builder()
-                      .name(f.name())
-                      .type(toTypeString(f.type()))
-                      .comment("Iceberg column: { " + f + " }")
-                      .build())
-                  .collect(Collectors.toList()))
-              .build())
-          .partitionKeys(metadata.spec().fields().stream()
-              .map(f -> Column.builder()
-                  .name(f.name())
-                  .type(toTypeString(f.transform().getResultType(metadata.schema().findField(f.sourceId()).type())))
-                  .comment("Iceberg partition field: {" + f + "}")
-                  .build())
-              .collect(Collectors.toList()));
+              .columns(toColumns(metadata))
+              .build());
     } catch (RuntimeException e) {
       LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
     }
@@ -230,5 +236,63 @@ class IcebergToGlueConverter {
       default:
         return type.typeId().name().toLowerCase(Locale.ENGLISH);
     }
+  }
+
+  private static List<Column> toColumns(TableMetadata metadata) {
+    List<Column> columns = Lists.newArrayList();
+    Set<NestedField> rootColumnSet = Sets.newHashSet();
+    // Add schema-column fields
+    for (NestedField field : metadata.schema().columns()) {
+      rootColumnSet.add(field);
+      columns.add(Column.builder()
+          .name(field.name())
+          .type(toTypeString(field.type()))
+          .comment(field.doc())
+          .parameters(convertToParameters(SCHEMA_COLUMN, field))
+          .build());
+    }
+    // Add schema-subfield
+    for (NestedField field : TypeUtil.indexById(metadata.schema().asStruct()).values()) {
+      if (!rootColumnSet.contains(field)) {
+        columns.add(Column.builder()
+            .name(field.name())
+            .type(toTypeString(field.type()))
+            .comment(field.doc())
+            .parameters(convertToParameters(SCHEMA_SUBFIELD, field))
+            .build());
+      }
+    }
+    // Add partition-field
+    for (PartitionField partitionField : metadata.spec().fields()) {
+      Type type = partitionField.transform()
+          .getResultType(metadata.schema().findField(partitionField.sourceId()).type());
+      columns.add(Column.builder()
+          .name(partitionField.name())
+          .type(toTypeString(type))
+          .parameters(convertToPartitionFieldParameters(type, partitionField))
+          .build());
+    }
+    return columns;
+  }
+
+  private static Map<String, String> convertToParameters(String fieldUsage, NestedField field) {
+    return ImmutableMap.of(ICEBERG_FIELD_USAGE, fieldUsage,
+        ICEBERG_FIELD_TYPE_TYPE_ID, field.type().typeId().toString(),
+        ICEBERG_FIELD_TYPE_STRING, toTypeString(field.type()),
+        ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+        ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
+    );
+  }
+
+  private static Map<String, String> convertToPartitionFieldParameters(Type type, PartitionField partitionField) {
+    return ImmutableMap.<String, String>builder()
+        .put(ICEBERG_FIELD_USAGE, PARTITION_FIELD)
+        .put(ICEBERG_FIELD_TYPE_TYPE_ID, type.typeId().toString())
+        .put(ICEBERG_FIELD_TYPE_STRING, toTypeString(type))
+        .put(ICEBERG_FIELD_ID, Integer.toString(partitionField.fieldId()))
+        .put(ICEBERG_PARTITION_TRANSFORM, partitionField.transform().toString())
+        .put(ICEBERG_PARTITION_FIELD_ID, Integer.toString(partitionField.fieldId()))
+        .put(ICEBERG_PARTITION_SOURCE_ID, Integer.toString(partitionField.sourceId()))
+        .build();
   }
 }

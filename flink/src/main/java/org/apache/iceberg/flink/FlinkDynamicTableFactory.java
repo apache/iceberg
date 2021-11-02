@@ -39,6 +39,7 @@ import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -70,6 +71,14 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
           .noDefaultValue()
           .withDescription("Table name managed in the underlying iceberg catalog and database.");
 
+  // Flink 1.13.x change the return type from CatalogTable interface to ResolvedCatalogTable which extends the
+  // CatalogTable. Here we use the dynamic method loading approach to avoid adding explicit CatalogTable or
+  // ResolvedCatalogTable class into the iceberg-flink-runtime jar for compatibility purpose.
+  private static final DynMethods.UnboundMethod GET_CATALOG_TABLE = DynMethods.builder("getCatalogTable")
+      .impl(Context.class, "getCatalogTable")
+      .orNoop()
+      .build();
+
   private final FlinkCatalog catalog;
 
   public FlinkDynamicTableFactory() {
@@ -80,12 +89,16 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     this.catalog = catalog;
   }
 
+  private static CatalogTable loadCatalogTable(Context context) {
+    return GET_CATALOG_TABLE.invoke(context);
+  }
+
   @Override
   public DynamicTableSource createDynamicTableSource(Context context) {
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
-    Map<String, String> tableProps = context.getCatalogTable().getOptions();
-    CatalogTable catalogTable = context.getCatalogTable();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
+    CatalogTable catalogTable = loadCatalogTable(context);
+    Map<String, String> tableProps = catalogTable.getOptions();
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -101,9 +114,9 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
   @Override
   public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
-    Map<String, String> tableProps = context.getCatalogTable().getOptions();
-    CatalogTable catalogTable = context.getCatalogTable();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
+    CatalogTable catalogTable = loadCatalogTable(context);
+    Map<String, String> tableProps = catalogTable.getOptions();
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
 
     TableLoader tableLoader;
     if (catalog != null) {

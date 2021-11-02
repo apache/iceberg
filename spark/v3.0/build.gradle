@@ -126,8 +126,9 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
+    compileOnly project(':iceberg-data')
+    compileOnly project(':iceberg-orc')
     compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark')
     compileOnly project(':iceberg-spark:iceberg-spark3')
     compileOnly project(':iceberg-hive-metastore')
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
@@ -137,9 +138,10 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-spark:iceberg-spark3', configuration: 'testArtifacts')
 
     testImplementation "org.apache.avro:avro"
@@ -202,7 +204,6 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-spark:iceberg-spark3', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-spark:iceberg-spark3-extensions', configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed

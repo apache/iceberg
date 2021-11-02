@@ -18,6 +18,8 @@
  */
 
 import groovy.transform.Memoized
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 buildscript {
   repositories {
@@ -29,7 +31,7 @@ buildscript {
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.1'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
-    classpath 'me.champeau.gradle:jmh-gradle-plugin:0.5.3'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
   }
 }
@@ -487,7 +489,10 @@ project(':iceberg-arrow') {
     implementation("org.apache.arrow:arrow-memory-netty") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
+
+    runtimeOnly("io.netty:netty-buffer")
 
     implementation("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -557,7 +562,7 @@ project(':iceberg-nessie') {
 }
 
 @Memoized
-boolean isVersionFileExists() {
+boolean versionFileExists() {
   return file('version.txt').exists()
 }
 
@@ -567,19 +572,28 @@ String getVersionFromFile() {
 }
 
 String getProjectVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
   try {
-    return gitVersion()
-  } catch (NullPointerException e) {
-    throw new Exception("Neither version.txt nor git version exists")
+    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
+    String version = gitVersion(prefix: 'release-base-')
+    Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
+    Matcher matcher = pattern.matcher(version)
+    if (matcher.matches()) {
+      // bump the MINOR version and always set the PATCH version to 0
+      return matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0-SNAPSHOT"
+    }
+    return version
+  } catch (Exception e) {
+    throw new Exception("Neither version.txt nor git version exists: " + e.getMessage(), e)
   }
 }
 
 String getJavadocVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 

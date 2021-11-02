@@ -224,6 +224,17 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withKeyMetadata(file.keyMetadata())
               .buildEqualityWriter();
 
+        case ORC:
+          return ORC.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(SparkOrcWriter::new)
+              .overwrite()
+              .rowSchema(eqDeleteRowSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .equalityFieldIds(equalityFieldIds)
+              .withKeyMetadata(file.keyMetadata())
+              .buildEqualityWriter();
+
         default:
           throw new UnsupportedOperationException(
               "Cannot write equality-deletes for unsupported file format: " + format);
@@ -259,6 +270,17 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(file.keyMetadata())
+              .buildPositionWriter();
+
+        case ORC:
+          return ORC.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(SparkOrcWriter::new)
+              .overwrite()
+              .rowSchema(posDeleteRowSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .withKeyMetadata(file.keyMetadata())
+              .transformPaths(path -> UTF8String.fromString(path.toString()))
               .buildPositionWriter();
 
         default:

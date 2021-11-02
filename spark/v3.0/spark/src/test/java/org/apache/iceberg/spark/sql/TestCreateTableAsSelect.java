@@ -311,4 +311,53 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     Assert.assertEquals("Table should have expected snapshots",
         2, Iterables.size(rtasTable.snapshots()));
   }
+
+  @Test
+  public void testCreateRTASWithPartitionSpecChanging() {
+    sql("CREATE OR REPLACE TABLE %s USING iceberg PARTITIONED BY (part) AS " +
+            "SELECT id, data, CASE WHEN (id %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+            "FROM %s ORDER BY 3, 1", tableName, sourceName);
+
+    Table rtasTable = validationCatalog.loadTable(tableIdent);
+
+    assertEquals("Should have rows matching the source table",
+            sql("SELECT id, data, CASE WHEN (id %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+                    "FROM %s ORDER BY id", sourceName),
+            sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    // Change the partitioning of the table
+    rtasTable.updateSpec().removeField("part").commit(); // Spec 1
+
+    sql("CREATE OR REPLACE TABLE %s USING iceberg PARTITIONED BY (part, id) AS " +
+            "SELECT 2 * id as id, data, CASE WHEN ((2 * id) %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+            "FROM %s ORDER BY 3, 1", tableName, sourceName);
+
+    Schema expectedSchema = new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "part", Types.StringType.get())
+    );
+
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema)
+            .alwaysNull("part", "part_1000")
+            .identity("part")
+            .identity("id")
+            .withSpecId(2) // The Spec is new
+            .build();
+
+    Assert.assertEquals("Should be partitioned by part and id",
+            expectedSpec, rtasTable.spec());
+
+    // the replacement table has a different schema and partition spec than the original
+    Assert.assertEquals("Should have expected nullable schema",
+            expectedSchema.asStruct(), rtasTable.schema().asStruct());
+
+    assertEquals("Should have rows matching the source table",
+            sql("SELECT 2 * id, data, CASE WHEN ((2 * id) %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+                    "FROM %s ORDER BY id", sourceName),
+            sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Assert.assertEquals("Table should have expected snapshots",
+            2, Iterables.size(rtasTable.snapshots()));
+  }
 }

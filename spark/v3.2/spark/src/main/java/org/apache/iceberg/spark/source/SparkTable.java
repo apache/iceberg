@@ -19,25 +19,37 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
+import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
@@ -48,6 +60,8 @@ import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -61,7 +75,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsMerge {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsMerge, SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -161,6 +175,17 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   @Override
+  public MetadataColumn[] metadataColumns() {
+    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
+    return new MetadataColumn[] {
+        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+        new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
+        new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
+        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false)
+    };
+  }
+
+  @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     if (options.containsKey(SparkReadOptions.FILE_SCAN_TASK_SET_ID)) {
       // skip planning the job and fetch already staged file scan tasks
@@ -212,33 +237,46 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
-    if (table().specs().size() > 1) {
-      // cannot guarantee a metadata delete will be successful if we have multiple specs
-      return false;
-    }
-
-    Set<Integer> identitySourceIds = table().spec().identitySourceIds();
-    Schema schema = table().schema();
+    Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Filter filter : filters) {
-      // return false if the filter requires rewrite or if we cannot translate the filter
-      if (requiresRewrite(filter, schema, identitySourceIds) || SparkFilters.convert(filter) == null) {
+      Expression expr = SparkFilters.convert(filter);
+      if (expr != null) {
+        deleteExpr = Expressions.and(deleteExpr, expr);
+      } else {
         return false;
       }
     }
 
-    return true;
+    return deleteExpr == Expressions.alwaysTrue() || canDeleteUsingMetadata(deleteExpr);
   }
 
-  private boolean requiresRewrite(Filter filter, Schema schema, Set<Integer> identitySourceIds) {
-    // TODO: handle dots correctly via v2references
-    // TODO: detect more cases that don't require rewrites
-    Set<String> filterRefs = Sets.newHashSet(filter.references());
-    return filterRefs.stream().anyMatch(ref -> {
-      Types.NestedField field = schema.findField(ref);
-      ValidationException.check(field != null, "Cannot find field %s in schema", ref);
-      return !identitySourceIds.contains(field.fieldId());
-    });
+  // a metadata delete is possible iff matching files can be deleted entirely
+  private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+    boolean caseSensitive = Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
+    TableScan scan = table().newScan()
+        .filter(deleteExpr)
+        .caseSensitive(caseSensitive)
+        .includeColumnStats()
+        .ignoreResiduals();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Map<Integer, Evaluator> evaluators = Maps.newHashMap();
+      StrictMetricsEvaluator metricsEvaluator = new StrictMetricsEvaluator(table().schema(), deleteExpr);
+
+      return Iterables.all(tasks, task -> {
+        DataFile file = task.file();
+        PartitionSpec spec = task.spec();
+        Evaluator evaluator = evaluators.computeIfAbsent(
+            spec.specId(),
+            specId -> new Evaluator(spec.partitionType(), Projections.strict(spec).project(deleteExpr)));
+        return evaluator.eval(file.partition()) || metricsEvaluator.eval(file);
+      });
+
+    } catch (IOException ioe) {
+      LOG.warn("Failed to close task iterable", ioe);
+      return false;
+    }
   }
 
   @Override
