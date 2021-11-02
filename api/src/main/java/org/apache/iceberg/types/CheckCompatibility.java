@@ -96,7 +96,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
     return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, false, true));
   }
 
-  private static final ImmutableList<String> NO_ERRORS = ImmutableList.of();
+  protected static final ImmutableList<String> NO_ERRORS = ImmutableList.of();
 
   private final Schema schema;
   private final boolean checkOrdering;
@@ -105,10 +105,26 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   // the current file schema, maintained while traversing a write schema
   private Type currentType;
 
-  private CheckCompatibility(Schema schema, boolean checkOrdering, boolean checkNullability) {
+  public CheckCompatibility(Schema schema, boolean checkOrdering, boolean checkNullability) {
     this.schema = schema;
     this.checkOrdering = checkOrdering;
     this.checkNullability = checkNullability;
+  }
+
+  public boolean checkOrdering() {
+    return checkOrdering;
+  }
+
+  public boolean checkNullability() {
+    return checkNullability;
+  }
+
+  public Type currentType() {
+    return currentType;
+  }
+
+  public void setCurrentType(Type currentType) {
+    this.currentType = currentType;
   }
 
   @Override

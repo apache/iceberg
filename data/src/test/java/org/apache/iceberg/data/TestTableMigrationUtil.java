@@ -51,7 +51,6 @@ public class TestTableMigrationUtil {
         ValidationException.class, "schema not compatible",
         () -> TableMigrationUtil.canImportSchema(srcSchema2, tgtSchema2));
 
-
     // part_col is optional
     Schema tgtSchema3 = new Schema(
         required(1, "id", Types.IntegerType.get()),
@@ -59,16 +58,6 @@ public class TestTableMigrationUtil {
     );
     Schema srcSchema3 = new Schema(required(1, "id", Types.IntegerType.get()));
     TableMigrationUtil.canImportSchema(srcSchema3, tgtSchema3);
-
-    // part_col is required
-    Schema tgtSchema4 = new Schema(
-        required(1, "id", Types.IntegerType.get()),
-        required(2, "part_col", Types.IntegerType.get())
-    );
-    Schema srcSchema4 = new Schema(required(1, "id", Types.IntegerType.get()));
-    AssertHelpers.assertThrows("Should throw validation exception",
-        ValidationException.class, "schema not compatible",
-        () -> TableMigrationUtil.canImportSchema(srcSchema4, tgtSchema4));
   }
 
   @Test
@@ -118,7 +107,6 @@ public class TestTableMigrationUtil {
     AssertHelpers.assertThrows("Should throw validation exception on nullability incompatible nested fields",
         ValidationException.class, "schema not compatible",
         () -> TableMigrationUtil.canImportSchema(srcSchema3, tgtSchema1));
-
 
     // Struct with NestedField but different type
     Schema srcSchema4 = new Schema(

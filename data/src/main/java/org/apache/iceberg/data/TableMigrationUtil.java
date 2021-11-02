@@ -47,7 +47,7 @@ import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
-import org.apache.iceberg.types.CheckCompatibility;
+import org.apache.iceberg.types.ImportCompatibilityChecker;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
@@ -207,7 +207,7 @@ public class TableMigrationUtil {
   public static void canImportSchema(Schema importSchema, Schema tableSchema) {
     // Assigning ids by name look up, required for checking compatibility
     Schema schemaWithIds = TypeUtil.assignFreshIds(importSchema, tableSchema, new AtomicInteger(1000)::incrementAndGet);
-    List<String> errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, schemaWithIds, false);
+    List<String> errors = ImportCompatibilityChecker.importCompatibilityErrors(tableSchema, schemaWithIds, false);
     if (!errors.isEmpty()) {
       String errorString = Joiner.on("\n\t").join(errors);
       throw new ValidationException("Imported file's schema not compatible with table's schema." +
