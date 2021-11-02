@@ -41,6 +41,16 @@ project(':iceberg-flink:iceberg-flink-1.12') {
         "src/main/resources"
       ]
     }
+    test {
+      java.srcDirs = [
+        "${project(':iceberg-flink').projectDir}/src/test/java",
+        "src/test/java"
+      ]
+      resources.srcDirs = [
+        "${project(':iceberg-flink').projectDir}/src/test/resources",
+        "src/test/resources"
+      ]
+    }
   }
 
   dependencies {
