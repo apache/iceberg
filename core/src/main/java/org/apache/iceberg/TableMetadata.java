@@ -60,14 +60,25 @@ public class TableMetadata implements Serializable {
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
+
+  public static TableMetadata newTableMetadata(Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      String location,
+      Map<String, String> properties) {
+    return newTableMetadata(schema, spec, sortOrder, null, location, properties);
+  }
+
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                SortOrder sortOrder,
+                                               String locationPrefix,
                                                String location,
                                                Map<String, String> properties) {
     int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
         DEFAULT_TABLE_FORMAT_VERSION);
-    return newTableMetadata(schema, spec, sortOrder, null, location, unreservedProperties(properties), formatVersion);
+    return newTableMetadata(schema, spec, sortOrder, locationPrefix, location, unreservedProperties(properties),
+        formatVersion);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,

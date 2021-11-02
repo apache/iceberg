@@ -44,7 +44,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final PartitionSummary stats;
   private final String locationPrefix;
   private final String tableLocation;
-  private final boolean shouldUseRelativePaths;
+  private final boolean useRelativePaths;
   private boolean closed = false;
   private int addedFiles = 0;
   private long addedRows = 0L;
@@ -63,11 +63,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     this.stats = new PartitionSummary(spec);
     this.locationPrefix = null;
     this.tableLocation = null;
-    this.shouldUseRelativePaths = false;
+    this.useRelativePaths = false;
   }
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId, String locationPrefix,
-      String tableLocation, boolean shouldUseRelativePaths) {
+      String tableLocation, boolean useRelativePaths) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(spec, file);
@@ -76,7 +76,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     this.stats = new PartitionSummary(spec);
     this.locationPrefix = locationPrefix;
     this.tableLocation = tableLocation;
-    this.shouldUseRelativePaths = shouldUseRelativePaths;
+    this.useRelativePaths = useRelativePaths;
   }
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
@@ -110,7 +110,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       BaseFile<?> entryFile = (BaseFile<?>) entry.file();
       // Update path to use relative location if needed.
       entryFile.setFilePath(MetadataPathUtils.toRelativePath(entryFile.path().toString(),
-            locationPrefix, tableLocation, shouldUseRelativePaths));
+            locationPrefix, tableLocation, useRelativePaths));
     }
     writer.add(prepare(entry));
   }

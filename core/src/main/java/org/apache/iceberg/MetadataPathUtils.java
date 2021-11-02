@@ -82,9 +82,9 @@ public final class MetadataPathUtils {
 
     // convert to relative path by removing the table location
     Path originalPath = Paths.get(path);
-    Path toRemove = Paths.get(locationPrefix, tableLocation);
+    Path toRemove = Paths.get(locationPrefix);
     return useRelativePaths && originalPath.startsWith(toRemove) ?
-        originalPath.relativize(toRemove).toString() : path;
+        toRemove.relativize(originalPath).toString() : path;
   }
 
   /**
@@ -92,7 +92,7 @@ public final class MetadataPathUtils {
    * @param properties table properties
    * @return true if "write.metadata.use.relative-path" property is true, false otherwise
    */
-  public static boolean shouldUseRelativePath(Map<String, String> properties) {
+  public static boolean useRelativePath(Map<String, String> properties) {
     return PropertyUtil.propertyAsBoolean(properties, WRITE_METADATA_USE_RELATIVE_PATH,
         WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
   }

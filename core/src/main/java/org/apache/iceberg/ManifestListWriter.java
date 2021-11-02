@@ -33,21 +33,21 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
   private final String locationPrefix;
   private final String tableLocation;
-  private final boolean shouldUseRelativePaths;
+  private final boolean useRelativePaths;
 
   private ManifestListWriter(OutputFile file, Map<String, String> meta) {
     this.writer = newAppender(file, meta);
     this.locationPrefix = null;
     this.tableLocation = null;
-    this.shouldUseRelativePaths = false;
+    this.useRelativePaths = false;
   }
 
   private ManifestListWriter(OutputFile file, Map<String, String> meta, String locationPrefix, String tableLocation,
-      boolean shouldUseRelativePaths) {
+      boolean useRelativePaths) {
     this.writer = newAppender(file, meta);
     this.locationPrefix = locationPrefix;
     this.tableLocation = tableLocation;
-    this.shouldUseRelativePaths = shouldUseRelativePaths;
+    this.useRelativePaths = useRelativePaths;
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
@@ -58,7 +58,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   public void add(ManifestFile manifest) {
     // Update the manifest file location to relative path if necessary.
     writer.add(prepare(GenericManifestFile.copyOf(manifest).withManifestPath(MetadataPathUtils.toRelativePath(
-        manifest.path(), locationPrefix, tableLocation, shouldUseRelativePaths)).build()));
+            manifest.path(), locationPrefix, tableLocation, useRelativePaths)).build()));
   }
 
   @Override

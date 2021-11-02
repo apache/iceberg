@@ -141,10 +141,9 @@ public class HadoopTables implements Tables, Configurable {
   @Override
   public Table create(Schema schema, PartitionSpec spec, SortOrder order,
                       Map<String, String> properties, String locationPrefix, String location) {
-    return buildTable(location, schema).withPartitionSpec(spec)
+    return buildTable(locationPrefix, location, schema).withPartitionSpec(spec)
         .withSortOrder(order)
         .withProperties(properties)
-        .withLocationPrefix(locationPrefix)
         .create();
   }
 
@@ -202,13 +201,19 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
-                                      Map<String, String> properties, String location) {
+      Map<String, String> properties, String location) {
+    return tableMetadata(schema, spec, order, properties, null, location);
+  }
+
+
+  private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
+                                      Map<String, String> properties, String locationPrefix, String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
     SortOrder sortOrder = order == null ? SortOrder.unsorted() : order;
-    return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
+    return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, locationPrefix, location, tableProps);
   }
 
   /**
@@ -252,21 +257,21 @@ public class HadoopTables implements Tables, Configurable {
     return orCreate ? builder.createOrReplaceTransaction() : builder.replaceTransaction();
   }
 
+  public Catalog.TableBuilder buildTable(String locationPrefix, String location, Schema schema) {
+    return new HadoopTableBuilder(locationPrefix, location, schema);
+  }
+
   public Catalog.TableBuilder buildTable(String location, Schema schema) {
-    return new HadoopTableBuilder(location, schema);
+    return new HadoopTableBuilder(null, location, schema);
   }
 
   private class HadoopTableBuilder implements Catalog.TableBuilder {
     private final String location;
-    private final String locationPrefix;
+    private String locationPrefix;
     private final Schema schema;
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
-
-    HadoopTableBuilder(String location, Schema schema) {
-      this(null, location, schema);
-    }
 
     HadoopTableBuilder(String locationPrefix, String location, Schema schema) {
       this.locationPrefix = locationPrefix;
@@ -310,9 +315,7 @@ public class HadoopTables implements Tables, Configurable {
 
     @Override
     public Catalog.TableBuilder withLocationPrefix(String newPrefix) {
-      Preconditions.checkArgument(newPrefix == null || newPrefix.equals(locationPrefix),
-          String.format("Table location prefix %s differs from the table location prefix (%s) from the PathIdentifier",
-              newPrefix, locationPrefix));
+      this.locationPrefix = newPrefix;
       return this;
     }
 
@@ -324,7 +327,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, location);
+      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, locationPrefix, location);
       ops.commit(null, metadata);
       return new BaseTable(ops, location);
     }
