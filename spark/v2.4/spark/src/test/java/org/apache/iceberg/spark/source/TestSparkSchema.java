@@ -74,7 +74,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, tableLocation);
+    tables.create(SCHEMA, spec, null, null, tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
@@ -110,7 +110,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, tableLocation);
+    tables.create(SCHEMA, spec, null, null, tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
@@ -144,7 +144,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, tableLocation);
+    tables.create(SCHEMA, spec, null, null, tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
@@ -182,7 +182,7 @@ public class TestSparkSchema {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    tables.create(SCHEMA, spec, null, tableLocation);
+    tables.create(SCHEMA, spec, null, null, tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a")
