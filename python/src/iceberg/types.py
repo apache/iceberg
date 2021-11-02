@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import TypeVar, Generic, List, Dict
+
+
 class Type(object):
     def __init__(self, type_string: str, repr_string: str, is_primitive=False):
         self._type_string = type_string
@@ -96,12 +99,12 @@ class NestedField(object):
 
 
 class StructType(Type):
-    def __init__(self, fields: list):
+    def __init__(self, fields: List[NestedField]):
         super().__init__(f"struct<{', '.join(map(str, fields))}>", f"StructType(fields={repr(fields)})")
         self._fields = fields
 
     @property
-    def fields(self) -> list:
+    def fields(self) -> List[NestedField]:
         return self._fields
 
 
@@ -143,3 +146,142 @@ TimestamptzType = Type("timestamptz", "TimestamptzType", is_primitive=True)
 StringType = Type("string", "StringType", is_primitive=True)
 UUIDType = Type("uuid", "UUIDType", is_primitive=True)
 BinaryType = Type("binary", "BinaryType", is_primitive=True)
+
+
+class Schema(object):
+    """A table Schema
+    """
+    def __init__(self, columns: List[NestedField]):
+        self._struct = StructType(columns)
+
+    @property
+    def columns(self):
+        return self._struct.fields
+
+    def as_struct(self):
+        return self._struct
+
+
+T = TypeVar('T')
+
+
+class SchemaVisitor(Generic[T]):
+    def before_field(self, field: NestedField) -> None:
+        pass
+
+    def after_field(self, field: NestedField) -> None:
+        pass
+
+    def before_list_element(self, element: NestedField) -> None:
+        self.before_field(element)
+
+    def after_list_element(self, element: NestedField) -> None:
+        self.after_field(element)
+
+    def before_map_key(self, key: NestedField) -> None:
+        self.before_field(key)
+
+    def after_map_key(self, key: NestedField) -> None:
+        self.after_field(key)
+
+    def before_map_value(self, value: NestedField) -> None:
+        self.before_field(value)
+
+    def after_map_value(self, value: NestedField) -> None:
+        self.after_field(value)
+
+    def schema(self, schema: Schema, struct_result: T) -> T:
+        return None
+
+    def struct(self, struct: StructType, field_results: List[T]) -> T:
+        return None
+
+    def field(self, field: NestedField, field_result: T) -> T:
+        return None
+
+    def list(self, list_type: ListType, element_result: T) -> T:
+        return None
+
+    def map(self, map_type: MapType, key_result: T, value_result: T) -> T:
+        return None
+
+    def primitive(self, primitive: Type) -> T:
+        return None
+
+
+def visit(obj, visitor: SchemaVisitor[T]) -> T:
+    if isinstance(obj, Schema):
+        return visitor.schema(obj, visit(obj.as_struct(), visitor))
+
+    elif isinstance(obj, StructType):
+        results = []
+        for field in obj.fields:
+            visitor.before_field(field)
+            try:
+                result = visit(field.type, visitor)
+            finally:
+                visitor.after_field(field)
+
+            results.append(visitor.field(field, result))
+
+        return visitor.struct(obj, results)
+
+    elif isinstance(obj, ListType):
+        visitor.before_list_element(obj.element)
+        try:
+            result = visit(obj.element.type, visitor)
+        finally:
+            visitor.after_list_element(obj.element)
+
+        return visitor.list(obj, result)
+
+    elif isinstance(obj, MapType):
+        visitor.before_map_key(obj.key)
+        try:
+            key_result = visit(obj.key.type, visitor)
+        finally:
+            visitor.after_map_key(obj.key)
+
+        visitor.before_map_value(obj.value)
+        try:
+            value_result = visit(obj.value.type, visitor)
+        finally:
+            visitor.after_list_element(obj.value)
+
+        return visitor.map(obj, key_result, value_result)
+
+    elif isinstance(obj, Type):
+        return visitor.primitive(obj)
+
+    else:
+        raise NotImplementedError("Cannot visit non-type: %s" % obj)
+
+
+def index_by_id(schema_or_type) -> Dict[int, NestedField]:
+    class IndexById(SchemaVisitor[Dict[int, NestedField]]):
+        def __init__(self):
+            self._index: Dict[int, NestedField] = {}
+
+        def schema(self, schema, result):
+            return self._index
+
+        def struct(self, struct, results):
+            return self._index
+
+        def field(self, field, result):
+            self._index[field.field_id] = field
+            return self._index
+
+        def list(self, list_type, result):
+            self._index[list_type.element.field_id] = list_type.element
+            return self._index
+
+        def map(self, map_type, key_result, value_result):
+            self._index[map_type.key.field_id] = map_type.key
+            self._index[map_type.value.field_id] = map_type.value
+            return self._index
+
+        def primitive(self, primitive):
+            return self._index
+
+    return visit(schema_or_type, IndexById())
