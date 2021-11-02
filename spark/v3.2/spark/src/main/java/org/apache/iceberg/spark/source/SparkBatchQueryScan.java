@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
@@ -49,7 +48,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -67,11 +66,12 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
-  private final long splitSize;
-  private final int splitLookback;
-  private final long splitOpenFileCost;
+  private final Long splitSize;
+  private final Integer splitLookback;
+  private final Long splitOpenFileCost;
   private final List<Expression> runtimeFilterExpressions;
 
+  private TableScan scan = null; // lazy scan
   private Set<Integer> specIds = null; // lazy cache of scanned spec IDs
   private List<FileScanTask> files = null; // lazy cache of files
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
@@ -101,10 +101,59 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
       throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
     }
 
-    this.splitSize = table instanceof BaseMetadataTable ? readConf.metadataSplitSize() : readConf.splitSize();
-    this.splitLookback = readConf.splitLookback();
-    this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.splitSize = readConf.splitSizeOption();
+    this.splitLookback = readConf.splitLookbackOption();
+    this.splitOpenFileCost = readConf.splitOpenFileCostOption();
     this.runtimeFilterExpressions = Lists.newArrayList();
+  }
+
+  private TableScan scan() {
+    if (scan == null) {
+      this.scan = buildScan();
+    }
+
+    return scan;
+  }
+
+  private TableScan buildScan() {
+    TableScan tableScan = table()
+        .newScan()
+        .caseSensitive(caseSensitive())
+        .project(expectedSchema());
+
+    if (snapshotId != null) {
+      tableScan = tableScan.useSnapshot(snapshotId);
+    }
+
+    if (asOfTimestamp != null) {
+      tableScan = tableScan.asOfTime(asOfTimestamp);
+    }
+
+    if (startSnapshotId != null) {
+      if (endSnapshotId != null) {
+        tableScan = tableScan.appendsBetween(startSnapshotId, endSnapshotId);
+      } else {
+        tableScan = tableScan.appendsAfter(startSnapshotId);
+      }
+    }
+
+    if (splitSize != null) {
+      tableScan = tableScan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
+    }
+
+    if (splitLookback != null) {
+      tableScan = tableScan.option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback));
+    }
+
+    if (splitOpenFileCost != null) {
+      tableScan = tableScan.option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
+    }
+
+    for (Expression filter : filterExpressions()) {
+      tableScan = tableScan.filter(filter);
+    }
+
+    return tableScan;
   }
 
   private Set<Integer> specIds() {
@@ -121,46 +170,14 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
 
   private List<FileScanTask> files() {
     if (files == null) {
-      this.files = planFiles();
-    }
-
-    return files;
-  }
-
-  private List<FileScanTask> planFiles() {
-    TableScan scan = table()
-        .newScan()
-        .option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize))
-        .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback))
-        .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost))
-        .caseSensitive(caseSensitive())
-        .project(expectedSchema());
-
-    if (snapshotId != null) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-
-    if (asOfTimestamp != null) {
-      scan = scan.asOfTime(asOfTimestamp);
-    }
-
-    if (startSnapshotId != null) {
-      if (endSnapshotId != null) {
-        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
-      } else {
-        scan = scan.appendsAfter(startSnapshotId);
+      try (CloseableIterable<FileScanTask> filesIterable = scan().planFiles()) {
+        this.files = Lists.newArrayList(filesIterable);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close table scan: " + scan, e);
       }
     }
 
-    for (Expression filter : filterExpressions()) {
-      scan = scan.filter(filter);
-    }
-
-    try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
-      return Lists.newArrayList(filesIterable);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to close table scan: " + scan, e);
-    }
+    return files;
   }
 
   @Override
@@ -168,10 +185,10 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
     if (tasks == null) {
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files()),
-          splitSize);
+          scan().targetSplitSize());
       CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, splitSize,
-          splitLookback, splitOpenFileCost);
+          splitFiles, scan().targetSplitSize(),
+          scan().splitLookback(), scan().splitOpenFileCost());
       tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -189,9 +206,7 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
       }
     }
 
-    Map<Integer, String> quotedNameById = TypeUtil.indexQuotedNameById(
-        expectedSchema().asStruct(),
-        name -> String.format("`%s`", name.replace("`", "``")));
+    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(expectedSchema());
 
     return partitionFieldSourceIds.stream()
         .filter(fieldId -> expectedSchema().findField(fieldId) != null)
@@ -231,10 +246,13 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
         this.tasks = null;
       }
 
+      // save the evaluated filter for equals/hashCode
       runtimeFilterExpressions.add(runtimeFilterExpr);
     }
   }
 
+  // at this moment, Spark can only pass IN filters for a single attribute
+  // if there are multiple filter attributes, Spark will pass two separate IN filters
   private Expression convertRuntimeFilters(Filter[] filters) {
     Expression runtimeFilterExpr = Expressions.alwaysTrue();
 

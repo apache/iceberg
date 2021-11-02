@@ -34,20 +34,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
  * deserialization.
  */
-public abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
+abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
   protected static final String PARTITION_FIELD_PREFIX = "partition.";
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final TableOperations ops;
   private final Table table;
   private final String name;
-  private final Map<String, String> properties;
 
   protected BaseMetadataTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;
-    this.properties = filterProperties(table.properties());
   }
 
   /**
@@ -137,7 +135,7 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
 
   @Override
   public Map<String, String> properties() {
-    return properties;
+    return ImmutableMap.of();
   }
 
   @Override
@@ -247,17 +245,5 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
 
   final Object writeReplace() {
     return SerializableTable.copyOf(this);
-  }
-
-  private Map<String, String> filterProperties(Map<String, String> tableProperties) {
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-
-    tableProperties.forEach((property, value) -> {
-      if (property.startsWith("read.")) {
-        builder.put(property, value);
-      }
-    });
-
-    return builder.build();
   }
 }
