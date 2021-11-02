@@ -39,6 +39,7 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.internal.ExactComparisonCriteria;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
@@ -157,7 +158,11 @@ public abstract class SparkTestBase {
       Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
-        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        if (expectedValue.getClass().getComponentType().isPrimitive()) {
+          new ExactComparisonCriteria().arrayEquals(newContext, expectedValue, actualValue);
+        } else {
+          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        }
       } else if (expectedValue != ANY) {
         Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
       }

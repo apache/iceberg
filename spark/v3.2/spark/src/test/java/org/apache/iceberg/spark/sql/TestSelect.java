@@ -49,8 +49,8 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    sql("CREATE TABLE %s (id bigint, data string, float float) USING iceberg", tableName);
-    sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, float float, binary binary) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', 1.0, X''), (2, 'b', 2.0, X'11'), (3, 'c', float('NaN'), X'1111')", tableName);
 
     this.scanEventCount = 0;
     this.lastScanEvent = null;
@@ -64,14 +64,16 @@ public class TestSelect extends SparkCatalogTestBase {
   @Test
   public void testSelect() {
     List<Object[]> expected = ImmutableList.of(
-        row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
+        row(1L, "a", 1.0F, new byte[]{}),
+        row(2L, "b", 2.0F, new byte[]{0x11}),
+        row(3L, "c", Float.NaN, new byte[]{0x11, 0x11}));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
   @Test
   public void testSelectRewrite() {
-    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN));
+    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN, new byte[]{0x11, 0x11}));
 
     assertEquals("Should return all expected rows", expected,
         sql("SELECT * FROM %s where float = float('NaN')", tableName));
@@ -119,5 +121,13 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Snapshot metadata table",
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
         sql("SELECT * FROM %s.snapshots", tableName));
+  }
+
+  @Test
+  public void testFilterBinary() {
+    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN, new byte[]{0x11, 0x11}));
+
+    assertEquals("Should return all expected rows", expected,
+        sql("SELECT * FROM %s where binary > X'1101'", tableName));
   }
 }
