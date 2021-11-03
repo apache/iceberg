@@ -46,7 +46,6 @@ import org.apache.spark.sql.types.BooleanType
 case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
 
   import ExtendedDataSourceV2Implicits._
-  import RewriteRowLevelOperationHelper._
 
   override def conf: SQLConf = SQLConf.get
 
@@ -114,10 +113,10 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       if (attr.semanticEquals(assignedExpr)) {
         attr
       } else if (cond == Literal.TrueLiteral) {
-        createAlias(assignedExpr, attr.name)
+        Alias(assignedExpr, attr.name)()
       } else {
         val updatedExpr = If(cond, assignedExpr, attr)
-        createAlias(updatedExpr, attr.name)
+        Alias(updatedExpr, attr.name)()
       }
     }
 

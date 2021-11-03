@@ -25,10 +25,8 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.Spark3VersionUtil;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -51,9 +49,6 @@ public class TestRefreshTable extends SparkCatalogTestBase {
 
   @Test
   public void testRefreshCommand() {
-    Assume.assumeFalse("Spark 3.0 Spark Session Catalog does not use V2 Catalogs so Iceberg refresh is impossible",
-        Spark3VersionUtil.isSpark30() && catalogName.equals("spark_catalog"));
-
     // We are not allowed to change the session catalog after it has been initialized, so build a new one
     if (catalogName.equals("spark_catalog")) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);

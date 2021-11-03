@@ -19,12 +19,8 @@
 
 package org.apache.spark.sql.catalyst.utils
 
-import org.apache.iceberg.common.DynConstructors
-import org.apache.iceberg.spark.Spark3VersionUtil
 import org.apache.iceberg.spark.source.SparkTable
-import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 
@@ -39,30 +35,6 @@ object PlanUtils {
       case s: SubqueryAlias => isIcebergRelation(s.child)
       case r: DataSourceV2Relation => isIcebergTable(r)
       case _ => false
-    }
-  }
-
-  private val repartitionByExpressionCtor: DynConstructors.Ctor[RepartitionByExpression] =
-    DynConstructors.builder()
-      .impl(classOf[RepartitionByExpression],
-        classOf[Seq[Expression]],
-        classOf[LogicalPlan],
-        classOf[Option[Int]])
-      .impl(classOf[RepartitionByExpression],
-        classOf[Seq[Expression]],
-        classOf[LogicalPlan],
-        Integer.TYPE)
-      .build()
-
-  def createRepartitionByExpression(
-      partitionExpressions: Seq[Expression],
-      child: LogicalPlan,
-      numPartitions: Int): RepartitionByExpression = {
-    if (Spark3VersionUtil.isSpark30) {
-      repartitionByExpressionCtor.newInstance(partitionExpressions, child, Integer.valueOf(numPartitions))
-    } else {
-      // Do not pass numPartitions because it is set automatically for AQE
-      repartitionByExpressionCtor.newInstance(partitionExpressions, child, None)
     }
   }
 }

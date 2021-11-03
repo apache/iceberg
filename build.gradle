@@ -489,7 +489,10 @@ project(':iceberg-arrow') {
     implementation("org.apache.arrow:arrow-memory-netty") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
+
+    runtimeOnly("io.netty:netty-buffer")
 
     implementation("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
