@@ -33,7 +33,7 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.assertj.core.util.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
