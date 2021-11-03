@@ -193,6 +193,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
   }
 
   @Override
+  public RemoveUnusedSpecs removeUnusedSpecs() {
+    throw new UnsupportedOperationException("Cannot remove partition specs of a metadata table");
+  }
+
+  @Override
   public List<PartitionStatisticsFile> partitionStatisticsFiles() {
     return ImmutableList.of();
   }

@@ -603,6 +603,33 @@ public class TableMetadata implements Serializable {
         "Invalid table metadata: Cannot find current version");
   }
 
+  /**
+   * Only use when it has been externally validated that the new specs completely cover all
+   * currently referencable data files.
+   */
+  TableMetadata withSpecs(List<PartitionSpec> newSpecs) {
+    return new TableMetadata(
+        null,
+        formatVersion,
+        uuid,
+        location,
+        lastSequenceNumber,
+        System.currentTimeMillis(),
+        lastColumnId,
+        currentSchemaId,
+        schemas,
+        defaultSpecId,
+        newSpecs,
+        lastAssignedPartitionId,
+        defaultSortOrderId,
+        sortOrders,
+        properties,
+        currentSnapshotId,
+        snapshots,
+        snapshotLog,
+        changes);
+  }
+
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
     PartitionSpec.Builder specBuilder =
         PartitionSpec.builderFor(partitionSpec.schema()).withSpecId(partitionSpec.specId());

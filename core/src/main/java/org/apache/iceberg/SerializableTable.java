@@ -344,6 +344,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   @Override
+  public RemoveUnusedSpecs removeUnusedSpecs() {
+    throw new UnsupportedOperationException(errorMsg("removeUnusedSpecs"));
+  }
+
+  @Override
   public RewriteFiles newRewrite() {
     throw new UnsupportedOperationException(errorMsg("newRewrite"));
   }
