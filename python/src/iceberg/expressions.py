@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from enum import auto, Enum
+from enum import Enum, auto
 
 
 class Operation(Enum):
