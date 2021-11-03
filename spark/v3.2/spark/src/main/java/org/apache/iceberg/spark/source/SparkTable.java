@@ -20,6 +20,8 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
@@ -27,6 +29,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -41,15 +44,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.analysis.NoSuchPartitionException;
+import org.apache.spark.sql.catalyst.analysis.PartitionAlreadyExistsException;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
+import org.apache.spark.sql.connector.catalog.SupportsPartitionManagement;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
@@ -62,8 +72,11 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +88,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsMerge, SupportsMetadataColumns {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsMerge, SupportsMetadataColumns, SupportsPartitionManagement {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -296,6 +309,96 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     } catch (ValidationException e) {
       throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
     }
+  }
+
+  @Override
+  public StructType partitionSchema() {
+    List<Types.NestedField> fields = icebergTable.spec().partitionType().fields();
+    StructField[] structFields = new StructField[fields.size()];
+    int index = 0;
+    for (Types.NestedField field : fields) {
+      StructField structField = new StructField(field.name(), SparkSchemaUtil.convert(field.type()), true,
+          Metadata.empty());
+      structFields[index] = structField;
+      ++index;
+    }
+    return new StructType(structFields);
+  }
+
+  @Override
+  public void createPartition(InternalRow ident, Map<String, String> properties)
+      throws PartitionAlreadyExistsException, UnsupportedOperationException {
+    throw new UnsupportedOperationException("not support create partition, use addFile procedure to refresh");
+  }
+
+  @Override
+  public boolean dropPartition(InternalRow ident) {
+    throw new UnsupportedOperationException("not support drop partition, use delete sql instead of it");
+  }
+
+  @Override
+  public void replacePartitionMetadata(InternalRow ident, Map<String, String> properties)
+      throws NoSuchPartitionException, UnsupportedOperationException {
+    throw new UnsupportedOperationException("not support replace partition metadata");
+  }
+
+  @Override
+  public Map<String, String> loadPartitionMetadata(InternalRow ident) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("not support load partition metadata");
+  }
+
+  @Override
+  public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
+    Table table = this.table();
+
+    // get possition by partition name
+    StructType partitionSchema = this.partitionSchema();
+    StructField[] partitionFileds = partitionSchema.fields();
+    Map<String, Integer> fieldToPosition = new HashMap<>(8);
+    for (int i = 0; i < partitionFileds.length; i++) {
+      fieldToPosition.put(partitionFileds[i].name(), i);
+    }
+
+    Set<InternalRow> set = Sets.newHashSet();
+    GenericInternalRow filterPartitionRow = new GenericInternalRow(names.length);
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+
+      // filer ident
+      for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
+        StructLike structLike = dataFile.partition();
+        for (int i = 0; i < names.length; ++i) {
+          Integer indexId = fieldToPosition.get(names[i]);
+          Object value = structLike.get(indexId, Object.class);
+          if (value instanceof String) {
+            filterPartitionRow.update(i, UTF8String.fromString((String) value));
+          } else {
+            filterPartitionRow.update(i, value);
+          }
+        }
+
+        // match ident: none or equal
+        if (names.length < 1 || filterPartitionRow.equals(ident)) {
+          InternalRow internalRow = constructPartitionRow(structLike);
+          set.add(internalRow);
+        }
+      }
+    } catch (IOException e) {
+      LOG.error("listPartitionIdentifiers error", e);
+    }
+    return set.toArray(new InternalRow[0]);
+  }
+
+  private InternalRow constructPartitionRow(StructLike structLike) {
+    GenericInternalRow partitionRow = new GenericInternalRow(structLike.size());
+    for (int i = 0; i < structLike.size(); i++) {
+      Object value = structLike.get(i, Object.class);
+      if (value instanceof String) {
+        partitionRow.update(i, UTF8String.fromString((String) value));
+      } else {
+        partitionRow.update(i, value);
+      }
+    }
+    return partitionRow;
   }
 
   @Override
