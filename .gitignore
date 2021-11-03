@@ -4,7 +4,9 @@
 tmp/
 
 # intellij files
-.idea
+.idea/*
+# Icon for JetBrains Toolbox
+!/.idea/icon.png
 .idea_modules/
 *.ipr
 *.iws
