@@ -95,9 +95,9 @@ Roll back a table to the snapshot that was current at some time.
 
 #### Example
 
-Roll back `db.sample` to a day ago
+Roll back `db.sample` to one day
 ```sql
-CALL catalog_name.system.rollback_to_timestamp('db.sample', date_sub(current_date(), 1))
+CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000')
 ```
 
 ### `set_current_snapshot`
@@ -197,10 +197,10 @@ the `expire_snapshots` procedure will never remove files which are still require
 
 #### Examples
 
-Remove snapshots older than 10 days ago, but retain the last 100 snapshots:
+Remove snapshots older than one day, but retain the last 100 snapshots:
 
 ```sql
-CALL hive_prod.system.expire_snapshots('db.sample', date_sub(current_date(), 10), 100)
+CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
 ```
 
 Erase all snapshots older than the current timestamp but retain the last 5 snapshots:
