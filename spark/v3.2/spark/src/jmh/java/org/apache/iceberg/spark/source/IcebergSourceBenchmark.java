@@ -64,7 +64,7 @@ import org.slf4j.LoggerFactory;
 public abstract class IcebergSourceBenchmark {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceBenchmark.class);
-  private static final long TARGET_FILE_SIZE_IN_BYTES = 50L * 1024 * 1024;
+  private static final long TARGET_FILE_SIZE_IN_BYTES = 512L * 1024 * 1024;
 
   private final Configuration hadoopConf = initHadoopConf();
   private final Table table = initTable();

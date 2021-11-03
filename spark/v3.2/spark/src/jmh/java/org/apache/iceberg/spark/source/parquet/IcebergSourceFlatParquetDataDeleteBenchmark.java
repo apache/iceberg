@@ -63,7 +63,7 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
 
   private static final int NUM_FILES = 1;
   private static final int NUM_ROWS = 10 * 1000 * 1000;
-  @Param({"0", "0.05", "0.25"})
+  @Param({"0", "0.000001", "0.05", "0.25", "0.5", "1"})
   private double percentageDeleteRow;
 
   @Setup
@@ -107,7 +107,7 @@ public class IcebergSourceFlatParquetDataDeleteBenchmark extends IcebergSourceBe
     for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
       Dataset<Row> df = spark().range(NUM_ROWS)
           .withColumnRenamed("id", "longCol")
-          .withColumn("intCol", expr("CAST(longCol AS INT)"))
+          .withColumn("intCol", expr("CAST(MOD(longCol, 2147483647) AS INT)"))
           .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
           .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
           .withColumn("dateCol", date_add(current_date(), fileNum))
