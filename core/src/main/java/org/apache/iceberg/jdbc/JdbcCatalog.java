@@ -122,7 +122,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     connections.run(conn -> {
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE, null);
+      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME, null);
 
       if (tableExists.next()) {
         return true;
@@ -274,7 +274,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
 
         for (int i = 0; i < properties.size() - 1; i++) {
-          sqlStatement.append(", " + JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
+          sqlStatement.append(", ").append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
         }
 
         try (PreparedStatement sql = conn.prepareStatement(sqlStatement.toString())) {
