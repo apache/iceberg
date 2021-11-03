@@ -174,6 +174,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
+  public RemoveUnusedSpecs removeUnusedSpecs() {
+    throw new UnsupportedOperationException("Cannot remove partition specs of a metadata table");
+  }
+
+  @Override
   public ReplaceSortOrder replaceSortOrder() {
     throw new UnsupportedOperationException("Cannot update the sort order of a metadata table");
   }

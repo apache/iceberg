@@ -181,6 +181,13 @@ public interface Table {
   AppendFiles newAppend();
 
   /**
+   * Remove any partition specs from the Metadata that are no longer used in any data files. Always preserves
+   * the current default spec even if it has not yet been used.
+   * @return a new {@link RemoveUnusedSpecs}
+   */
+  RemoveUnusedSpecs removeUnusedSpecs();
+
+  /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
    * <p>
    * Using this method signals to the underlying implementation that the append should not perform
