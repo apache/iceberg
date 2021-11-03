@@ -66,7 +66,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
 
             Preconditions.checkArgument(sType instanceof ArrayType, "Invalid list: %s is not an array", sType);
             ArrayType array = (ArrayType) sType;
-            RowField element = new RowField(
+            RowType.RowField element = new RowField(
                 "element", array.getElementType(), "element of " + array.asSummaryString());
 
             visitor.fieldNames.push(repeatedElement.getName());
@@ -140,7 +140,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
     }
   }
 
-  private static <T> T visitField(RowField sField, Type field, ParquetWithFlinkSchemaVisitor<T> visitor) {
+  private static <T> T visitField(RowType.RowField sField, Type field, ParquetWithFlinkSchemaVisitor<T> visitor) {
     visitor.fieldNames.push(field.getName());
     try {
       return visit(sField.getType(), field, visitor);
@@ -151,13 +151,13 @@ public class ParquetWithFlinkSchemaVisitor<T> {
 
   private static <T> List<T> visitFields(RowType struct, GroupType group,
                                          ParquetWithFlinkSchemaVisitor<T> visitor) {
-    List<RowField> sFields = struct.getFields();
+    List<RowType.RowField> sFields = struct.getFields();
     Preconditions.checkArgument(sFields.size() == group.getFieldCount(),
         "Structs do not match: %s and %s", struct, group);
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
     for (int i = 0; i < sFields.size(); i += 1) {
       Type field = group.getFields().get(i);
-      RowField sField = sFields.get(i);
+      RowType.RowField sField = sFields.get(i);
       Preconditions.checkArgument(field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.getName())),
           "Structs do not match: field %s != %s", field.getName(), sField.getName());
       results.add(visitField(sField, field, visitor));

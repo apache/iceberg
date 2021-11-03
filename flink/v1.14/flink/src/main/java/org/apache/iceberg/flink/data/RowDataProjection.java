@@ -63,7 +63,7 @@ public class RowDataProjection implements RowData {
     return new RowDataProjection(rowType, schema, projectedSchema);
   }
 
-  private final FieldGetter[] getters;
+  private final RowData.FieldGetter[] getters;
   private RowData rowData;
 
   private RowDataProjection(RowType rowType, Types.StructType rowStruct, Types.StructType projectType) {
@@ -72,7 +72,7 @@ public class RowDataProjection implements RowData {
       fieldIdToPosition.put(rowStruct.fields().get(i).fieldId(), i);
     }
 
-    this.getters = new FieldGetter[projectType.fields().size()];
+    this.getters = new RowData.FieldGetter[projectType.fields().size()];
     for (int i = 0; i < getters.length; i++) {
       Types.NestedField projectField = projectType.fields().get(i);
       Types.NestedField rowField = rowStruct.field(projectField.fieldId());
@@ -84,7 +84,7 @@ public class RowDataProjection implements RowData {
     }
   }
 
-  private static FieldGetter createFieldGetter(RowType rowType,
+  private static RowData.FieldGetter createFieldGetter(RowType rowType,
                                                        int position,
                                                        Types.NestedField rowField,
                                                        Types.NestedField projectField) {
