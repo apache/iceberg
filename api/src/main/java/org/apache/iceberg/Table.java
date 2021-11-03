@@ -212,6 +212,17 @@ public interface Table {
   AppendFiles newAppend();
 
   /**
+   * Create a new {@link MetadataMaintenance maintenance API} to perform metadata maintenance
+   * operations.
+   *
+   * @return a new {@link MetadataMaintenance}
+   */
+  default MetadataMaintenance maintenance() {
+    throw new UnsupportedOperationException(
+        "Maintenance operations are not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
    *
    * <p>Using this method signals to the underlying implementation that the append should not

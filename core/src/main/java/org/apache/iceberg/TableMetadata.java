@@ -1108,6 +1108,46 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    Builder removeUnusedSpecs(Iterable<PartitionSpec> specsToRemove) {
+      Set<Integer> specIdsToRemove = Sets.newHashSet();
+      for (PartitionSpec spec : specsToRemove) {
+        Preconditions.checkArgument(
+            spec.specId() != defaultSpecId, "Cannot remove default partition spec");
+        PartitionSpec toBeRemoved = specsById.remove(spec.specId());
+        Preconditions.checkArgument(
+            toBeRemoved == null || toBeRemoved.equals(spec),
+            "Cannot remove an unknown spec, spec id: %s",
+            spec.specId());
+        if (toBeRemoved != null) {
+          specIdsToRemove.add(spec.specId());
+        }
+      }
+      this.specs =
+          specs.stream()
+              .filter(s -> !specIdsToRemove.contains(s.specId()))
+              .collect(Collectors.toList());
+      changes.add(new MetadataUpdate.RemoveUnusedSpecs(specIdsToRemove));
+      return this;
+    }
+
+    Builder removeUnusedSpecsById(Iterable<Integer> specIds) {
+      Set<Integer> specIdsToRemove = Sets.newHashSet();
+      for (Integer specId : specIds) {
+        Preconditions.checkArgument(
+            specId != defaultSpecId, "Cannot remove default partition spec");
+        PartitionSpec toBeRemoved = specsById.remove(specId);
+        if (toBeRemoved != null) {
+          specIdsToRemove.add(specId);
+        }
+      }
+      this.specs =
+          specs.stream()
+              .filter(s -> !specIdsToRemove.contains(s.specId()))
+              .collect(Collectors.toList());
+      changes.add(new MetadataUpdate.RemoveUnusedSpecs(specIdsToRemove));
+      return this;
+    }
+
     public Builder addPartitionSpec(UnboundPartitionSpec spec) {
       addPartitionSpecInternal(spec.bind(schemasById.get(currentSchemaId)));
       return this;

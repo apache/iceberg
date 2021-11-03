@@ -165,6 +165,18 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  class RemoveUnusedSpecs implements MetadataUpdate {
+    private final Set<Integer> specIds;
+
+    public RemoveUnusedSpecs(Set<Integer> specIds) {
+      this.specIds = specIds;
+    }
+
+    public Set<Integer> specIds() {
+      return specIds;
+    }
+  }
+
   class AddSortOrder implements MetadataUpdate {
     private final UnboundSortOrder sortOrder;
 
