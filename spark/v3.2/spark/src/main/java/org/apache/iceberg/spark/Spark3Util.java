@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -636,17 +635,17 @@ public class Spark3Util {
         case NOT_NAN:
           return "not_nan(" + pred.ref().name() + ")";
         case LT:
-          return pred.ref().name() + " < " + sqlString(pred.literal());
+          return pred.ref().name() + " < " + pred.literal();
         case LT_EQ:
-          return pred.ref().name() + " <= " + sqlString(pred.literal());
+          return pred.ref().name() + " <= " + pred.literal();
         case GT:
-          return pred.ref().name() + " > " + sqlString(pred.literal());
+          return pred.ref().name() + " > " + pred.literal();
         case GT_EQ:
-          return pred.ref().name() + " >= " + sqlString(pred.literal());
+          return pred.ref().name() + " >= " + pred.literal();
         case EQ:
-          return pred.ref().name() + " = " + sqlString(pred.literal());
+          return pred.ref().name() + " = " + pred.literal();
         case NOT_EQ:
-          return pred.ref().name() + " != " + sqlString(pred.literal());
+          return pred.ref().name() + " != " + pred.literal();
         case STARTS_WITH:
           return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
         case IN:
@@ -659,17 +658,7 @@ public class Spark3Util {
     }
 
     private static <T> String sqlString(List<org.apache.iceberg.expressions.Literal<T>> literals) {
-      return literals.stream().map(DescribeExpressionVisitor::sqlString).collect(Collectors.joining(", "));
-    }
-
-    private static String sqlString(org.apache.iceberg.expressions.Literal<?> lit) {
-      if (lit.value() instanceof String) {
-        return "'" + lit.value() + "'";
-      } else if (lit.value() instanceof ByteBuffer) {
-        throw new IllegalArgumentException("Cannot convert bytes to SQL literal: " + lit);
-      } else {
-        return lit.value().toString();
-      }
+      return literals.stream().map(Object::toString).collect(Collectors.joining(", "));
     }
   }
 

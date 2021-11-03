@@ -34,6 +34,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
+import javax.xml.bind.DatatypeConverter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -599,6 +600,13 @@ class Literals {
     Object writeReplace() throws ObjectStreamException {
       return new SerializationProxies.FixedLiteralProxy(value());
     }
+
+    @Override
+    public String toString() {
+      byte[] binary = new byte[value().remaining()];
+      value().duplicate().get(binary);
+      return "0x" + DatatypeConverter.printHexBinary(binary);
+    }
   }
 
   static class BinaryLiteral extends BaseLiteral<ByteBuffer> {
@@ -638,6 +646,13 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.BINARY;
+    }
+
+    @Override
+    public String toString() {
+      byte[] binary = new byte[value().remaining()];
+      value().duplicate().get(binary);
+      return "0x" + DatatypeConverter.printHexBinary(binary);
     }
   }
 }
