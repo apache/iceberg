@@ -20,11 +20,15 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSErrorCode;
+import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.SimplifiedObjectMeta;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 abstract class BaseOSSFile {
   private final OSS client;
   private final OSSURI uri;
+  private SimplifiedObjectMeta metadata;
 
   BaseOSSFile(OSS client, OSSURI uri) {
     this.client = client;
@@ -44,7 +48,23 @@ abstract class BaseOSSFile {
   }
 
   public boolean exists() {
-    return client.doesObjectExist(uri.bucket(), uri.key());
+    try {
+      return getObjectMetadata() != null;
+    } catch (OSSException e) {
+      if (e.getErrorCode().equals(OSSErrorCode.NO_SUCH_BUCKET) ||
+          e.getErrorCode().equals(OSSErrorCode.NO_SUCH_KEY)) {
+        return false;
+      }
+      throw e;
+    }
+  }
+
+  protected SimplifiedObjectMeta getObjectMetadata() {
+    if (metadata == null) {
+      metadata = client.getSimplifiedObjectMeta(uri().bucket(), uri().key());
+    }
+
+    return metadata;
   }
 
   @Override

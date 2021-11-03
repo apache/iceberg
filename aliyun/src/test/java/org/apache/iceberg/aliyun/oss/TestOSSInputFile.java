@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.aliyun.oss;
 
+import com.aliyun.oss.OSS;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -31,50 +33,70 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 public class TestOSSInputFile extends AliyunOSSTestBase {
+  private final OSS ossClient = ossClient().get();
+  private final OSS ossMock = mock(OSS.class, delegatesTo(ossClient));
+
   private final Random random = ThreadLocalRandom.current();
 
   @Test
   public void testReadFile() throws Exception {
-    OSSURI uri = new OSSURI(location("readfile.dat"));
+    OSSURI uri = randomURI();
+
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
-
     writeOSSData(uri, data);
 
     readAndVerify(uri, data);
   }
 
   @Test
-  public void testFileExists() {
-    OSSURI uri = new OSSURI(location("file.dat"));
-    InputFile inputFile = new OSSInputFile(ossClient().get(), uri);
+  public void testOSSInputFile() {
+    OSSURI uri = randomURI();
+    AssertHelpers.assertThrows("File length should not be negative", ValidationException.class,
+        "Invalid file length", () -> new OSSInputFile(ossClient().get(), uri, -1));
+  }
+
+  @Test
+  public void testExists() {
+    OSSURI uri = randomURI();
+
+    InputFile inputFile = new OSSInputFile(ossMock, uri);
     Assert.assertFalse("OSS file should not exist", inputFile.exists());
+    verify(ossMock, times(1)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
+    reset(ossMock);
 
     int dataSize = 1024;
     byte[] data = randomData(dataSize);
     writeOSSData(uri, data);
 
     Assert.assertTrue("OSS file should exist", inputFile.exists());
-
-    deleteOSSData(uri);
-    Assert.assertFalse("OSS file should not exist", inputFile.exists());
+    inputFile.exists();
+    verify(ossMock, times(1)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
+    reset(ossMock);
   }
 
   @Test
   public void testGetLength() {
-    OSSURI uri = new OSSURI(location("filelength.dat"));
-    AssertHelpers.assertThrows("File length should not be negative", ValidationException.class,
-        "Invalid file length", () -> new OSSInputFile(ossClient().get(), uri, -1));
-
-    InputFile inputFile = new OSSInputFile(ossClient().get(), uri, 1024);
-    Assert.assertEquals("Should have expected file length", 1024, inputFile.getLength());
+    OSSURI uri = randomURI();
 
     int dataSize = 8;
     byte[] data = randomData(dataSize);
     writeOSSData(uri, data);
-    inputFile = new OSSInputFile(ossClient().get(), uri);
-    Assert.assertEquals("Should have expected file length", data.length, inputFile.getLength());
+
+    verifyLength(ossMock, uri, data, true);
+    verify(ossMock, times(0)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
+    reset(ossMock);
+
+    verifyLength(ossMock, uri, data, false);
+    verify(ossMock, times(1)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
+    reset(ossMock);
   }
 
   private void readAndVerify(OSSURI uri, byte[] data) throws IOException {
@@ -89,6 +111,21 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
     Assert.assertArrayEquals("Should have same object content", data, actual);
   }
 
+  private void verifyLength(OSS ossClientMock, OSSURI uri, byte[] data, boolean isCache) {
+    InputFile inputFile;
+    if (isCache) {
+      inputFile = new OSSInputFile(ossClientMock, uri, data.length);
+    } else {
+      inputFile = new OSSInputFile(ossClientMock, uri);
+    }
+    inputFile.getLength();
+    Assert.assertEquals("Should have expected file length", data.length, inputFile.getLength());
+  }
+
+  private OSSURI randomURI() {
+    return new OSSURI(location(String.format("%s.dat", UUID.randomUUID())));
+  }
+
   private byte[] randomData(int size) {
     byte[] data = new byte[size];
     random.nextBytes(data);
@@ -96,10 +133,6 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
   }
 
   private void writeOSSData(OSSURI uri, byte[] data) {
-    ossClient().get().putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
-  }
-
-  private void deleteOSSData(OSSURI uri) {
-    ossClient().get().deleteObject(uri.bucket(), uri.key());
+    ossClient.putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
   }
 }
