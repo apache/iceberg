@@ -64,6 +64,8 @@ project(':iceberg-spark:iceberg-spark-3.2') {
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
 
     implementation("org.apache.orc:orc-core::nohive") {
@@ -82,6 +84,8 @@ project(':iceberg-spark:iceberg-spark-3.2') {
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
+      // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -132,6 +136,8 @@ project(":iceberg-spark:iceberg-spark-3.2-extensions") {
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
