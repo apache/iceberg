@@ -41,7 +41,7 @@ public class OSSInputFile extends BaseOSSFile implements InputFile {
   @Override
   public long getLength() {
     if (length == null) {
-      length = getObjectMetadata().getSize();
+      length = objectMetadata().getSize();
     }
     return length;
   }

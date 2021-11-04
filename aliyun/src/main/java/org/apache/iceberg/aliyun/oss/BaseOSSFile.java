@@ -49,17 +49,19 @@ abstract class BaseOSSFile {
 
   public boolean exists() {
     try {
-      return getObjectMetadata() != null;
+      return objectMetadata() != null;
     } catch (OSSException e) {
+
       if (e.getErrorCode().equals(OSSErrorCode.NO_SUCH_BUCKET) ||
           e.getErrorCode().equals(OSSErrorCode.NO_SUCH_KEY)) {
         return false;
       }
+
       throw e;
     }
   }
 
-  protected SimplifiedObjectMeta getObjectMetadata() {
+  protected SimplifiedObjectMeta objectMetadata() {
     if (metadata == null) {
       metadata = client.getSimplifiedObjectMeta(uri().bucket(), uri().key());
     }
