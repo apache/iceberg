@@ -288,6 +288,13 @@ public class JsonUtil {
     }
   }
 
+  public static void writeStringIf(
+      boolean condition, String key, String value, JsonGenerator generator) throws IOException {
+    if (condition) {
+      generator.writeStringField(key, value);
+    }
+  }
+
   abstract static class JsonArrayIterator<T> implements Iterator<T> {
 
     private final Iterator<JsonNode> elements;
