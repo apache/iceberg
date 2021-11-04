@@ -134,4 +134,17 @@ public class TestPartitionSQL extends SparkCatalogTestBase {
             row("dt=20210103/age=12")),
         sql("SHOW PARTITIONS %s", tableName));
   }
+
+  @Test
+  public void testUnSupportPartitionsOps() {
+    sql("CREATE TABLE %s (id bigint, age bigint, dt string) USING iceberg PARTITIONED BY (dt, age)", tableName);
+    sql("INSERT INTO %s VALUES (1, 10, '20210101'), (2, 11, '20210102'), (3, 12, '20210103')", tableName);
+
+    AssertHelpers.assertThrows("not support add partition", UnsupportedOperationException.class,
+        () -> sql("ALTER TABLE %s add partition (age = 12, dt = '20210111')", tableName));
+
+    AssertHelpers.assertThrows("not support drop partition", UnsupportedOperationException.class,
+        () -> sql("ALTER TABLE %s drop partition (age = 10, dt = '20210101')", tableName));
+
+  }
 }

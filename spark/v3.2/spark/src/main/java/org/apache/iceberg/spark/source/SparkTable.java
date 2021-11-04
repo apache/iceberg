@@ -19,16 +19,21 @@
 
 package org.apache.iceberg.spark.source;
 
+import com.clearspring.analytics.util.Lists;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.PartitionsTable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -40,6 +45,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -359,32 +365,33 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       fieldToPosition.put(partitionFileds[i].name(), i);
     }
 
+    // get partitions
+    PartitionsTable partitionsTable = (PartitionsTable) MetadataTableUtils.createMetadataTableInstance(table,
+        MetadataTableType.PARTITIONS);
+    CloseableIterable<FileScanTask> fileScanTasks = partitionsTable.newScan().planFiles();
+    DataTask dataTask = (DataTask) fileScanTasks.iterator().next();
+    CloseableIterator<StructLike> partitionRows = dataTask.rows().iterator();
+
     Set<InternalRow> set = Sets.newHashSet();
     GenericInternalRow filterPartitionRow = new GenericInternalRow(names.length);
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-
-      // filer ident
-      for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
-        StructLike structLike = dataFile.partition();
-        for (int i = 0; i < names.length; ++i) {
-          Integer indexId = fieldToPosition.get(names[i]);
-          Object value = structLike.get(indexId, Object.class);
-          if (value instanceof String) {
-            filterPartitionRow.update(i, UTF8String.fromString((String) value));
-          } else {
-            filterPartitionRow.update(i, value);
-          }
-        }
-
-        // match ident: none or equal
-        if (names.length < 1 || filterPartitionRow.equals(ident)) {
-          InternalRow internalRow = constructPartitionRow(structLike);
-          set.add(internalRow);
+    partitionRows.forEachRemaining(partitionStruct -> {
+      StructLike row = partitionStruct.get(0, StructLike.class);
+      for (int i = 0; i < names.length; ++i) {
+        Integer indexId = fieldToPosition.get(names[i]);
+        Object value = row.get(indexId, Object.class);
+        if (value instanceof String) {
+          filterPartitionRow.update(i, UTF8String.fromString((String) value));
+        } else {
+          filterPartitionRow.update(i, value);
         }
       }
-    } catch (IOException e) {
-      LOG.error("listPartitionIdentifiers error", e);
-    }
+      // match ident: none or equal
+      if (names.length < 1 || filterPartitionRow.equals(ident)) {
+        InternalRow internalRow = constructPartitionRow(row);
+        set.add(internalRow);
+      }
+    });
+
     return set.toArray(new InternalRow[0]);
   }
 
