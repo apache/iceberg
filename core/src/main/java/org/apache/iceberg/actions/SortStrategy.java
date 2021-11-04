@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BinPacking;
@@ -94,8 +95,10 @@ public abstract class SortStrategy extends BinPackStrategy {
   public RewriteStrategy options(Map<String, String> options) {
     super.options(options); // Also checks validity of BinPack options
 
-    rewriteAll = PropertyUtil.propertyAsBoolean(options,
-        REWRITE_ALL,
+    rewriteAll = PropertyUtil.resolveBooleanProperty(
+        options, REWRITE_ALL,
+        table().properties(), TableProperties.actionStrategyTableProperty(
+            RewriteDataFiles.NAME, name(), REWRITE_ALL),
         REWRITE_ALL_DEFAULT);
 
     if (sortOrder == null) {

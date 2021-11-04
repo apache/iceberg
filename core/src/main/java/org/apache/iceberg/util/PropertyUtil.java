@@ -70,4 +70,45 @@ public class PropertyUtil {
     }
     return defaultValue;
   }
+
+  @FunctionalInterface
+  private interface PropertyResolver<A, B, C, R> {
+    R apply(A argA, B argB, C argC);
+  }
+
+  private static <T> T resolveProperty(PropertyResolver<Map<String, String>, String, T, T> resolver,
+                                    Map<String, String> options, String optionKey,
+                                    Map<String, String> properties, String propertyKey, T defaultVal) {
+    return resolver.apply(options, optionKey, resolver.apply(properties, propertyKey, defaultVal));
+  }
+
+  private static <T> T resolveProperty(PropertyResolver<Map<String, String>, String, T, T> resolver,
+                                      Map<String, String> options, String optionKey,
+                                      Map<String, String> properties1, String propertyKey1,
+                                      Map<String, String> properties2, String propertyKey2, T defaultVal) {
+    return resolver.apply(options, optionKey, resolver.apply(properties1, propertyKey1,
+            resolver.apply(properties2, propertyKey2, defaultVal)));
+  }
+
+  public static long resolveLongProperty(Map<String, String> options, String optionKey,
+                                         Map<String, String> properties, String propertyKey, long defaultVal) {
+    return resolveProperty(PropertyUtil::propertyAsLong, options, optionKey, properties, propertyKey, defaultVal);
+  }
+
+  public static long resolveLongProperty(Map<String, String> options, String optionKey,
+                                         Map<String, String> properties1, String propertyKey1,
+                                         Map<String, String> properties2, String propertyKey2, long defaultVal) {
+    return resolveProperty(PropertyUtil::propertyAsLong, options, optionKey, properties1, propertyKey1,
+            properties2, propertyKey2, defaultVal);
+  }
+
+  public static int resolveIntProperty(Map<String, String> options, String optionKey,
+                                       Map<String, String> properties, String propertyKey, int defaultVal) {
+    return resolveProperty(PropertyUtil::propertyAsInt, options, optionKey, properties, propertyKey, defaultVal);
+  }
+
+  public static boolean resolveBooleanProperty(Map<String, String> options, String optionKey,
+                                               Map<String, String> properties, String propertyKey, boolean defaultVal) {
+    return resolveProperty(PropertyUtil::propertyAsBoolean, options, optionKey, properties, propertyKey, defaultVal);
+  }
 }

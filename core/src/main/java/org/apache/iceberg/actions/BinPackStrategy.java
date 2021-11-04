@@ -97,27 +97,37 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   @Override
   public RewriteStrategy options(Map<String, String> options) {
-    targetFileSize = PropertyUtil.propertyAsLong(options,
-        RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
-        PropertyUtil.propertyAsLong(
-            table().properties(),
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT));
+    Map<String, String> tableProperties = table().properties();
 
-    minFileSize = PropertyUtil.propertyAsLong(options,
-        MIN_FILE_SIZE_BYTES,
+    targetFileSize = PropertyUtil.resolveLongProperty(
+        options, RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+        tableProperties, TableProperties.actionTableProperty(
+            RewriteDataFiles.NAME, RewriteDataFiles.TARGET_FILE_SIZE_BYTES),
+        tableProperties, TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+
+    minFileSize = PropertyUtil.resolveLongProperty(
+        options, MIN_FILE_SIZE_BYTES,
+        tableProperties, TableProperties.actionStrategyTableProperty(
+            RewriteDataFiles.NAME, name(), MIN_FILE_SIZE_BYTES),
         (long) (targetFileSize * MIN_FILE_SIZE_DEFAULT_RATIO));
 
-    maxFileSize = PropertyUtil.propertyAsLong(options,
-        MAX_FILE_SIZE_BYTES,
+    maxFileSize = PropertyUtil.resolveLongProperty(
+        options, MAX_FILE_SIZE_BYTES,
+        tableProperties, TableProperties.actionStrategyTableProperty(
+            RewriteDataFiles.NAME, name(), MAX_FILE_SIZE_BYTES),
         (long) (targetFileSize * MAX_FILE_SIZE_DEFAULT_RATIO));
 
-    maxGroupSize = PropertyUtil.propertyAsLong(options,
-        RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES,
+    maxGroupSize = PropertyUtil.resolveLongProperty(
+        options, RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES,
+        tableProperties, TableProperties.actionTableProperty(
+            RewriteDataFiles.NAME, RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES),
         RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES_DEFAULT);
 
-    minInputFiles = PropertyUtil.propertyAsInt(options,
-        MIN_INPUT_FILES,
+    minInputFiles = PropertyUtil.resolveIntProperty(
+        options, MIN_INPUT_FILES,
+        tableProperties, TableProperties.actionStrategyTableProperty(
+            RewriteDataFiles.NAME, name(), MIN_INPUT_FILES),
         MIN_INPUT_FILES_DEFAULT);
 
     validateOptions();
