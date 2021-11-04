@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -32,7 +33,10 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -46,15 +50,24 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SortStrategy;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
@@ -142,6 +155,28 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackUnPartitionedTableWithDeleteFiles() throws IOException {
+    Table table = createTable(4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    shouldHaveFiles(table, 4);
+
+    createPositionDeleteFiles(table);
+    shouldHaveDeleteFile(table, 1);
+    List<Object[]> expected = currentData();
+    Assert.assertEquals("Should delete 4 records", 39996, expected.size());
+
+    Result result = basicRewrite(table).execute();
+    Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
+
+    shouldHaveFiles(table, 1);
+    shouldHaveDeleteFile(table, 0);
+    List<Object[]> actual = currentData();
+
+    assertEquals("Rows must match", expected, actual);
+  }
+
+  @Test
   public void testBinPackPartitionedTable() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
@@ -155,6 +190,29 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<Object[]> actualRecords = currentData();
 
     assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackPartitionedTableWithDeleteFiles() throws IOException {
+    Table table = createTablePartitioned(4, 2);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    shouldHaveFiles(table, 8);
+
+    createPositionDeleteFiles(table);
+    shouldHaveDeleteFile(table, 1);
+    List<Object[]> expected = currentData();
+    // math.ceil(math.sqrt(2000)) * math.ceil(math.sqrt(2000)) - 2 = 2023
+    Assert.assertEquals("Should delete 2 records", 2023, expected.size());
+
+    Result result = basicRewrite(table).execute();
+    Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
+
+    shouldHaveFiles(table, 4);
+    shouldHaveDeleteFile(table, 0);
+    List<Object[]> actual = currentData();
+
+    assertEquals("Rows must match", expected, actual);
   }
 
   @Test
@@ -821,6 +879,56 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     AssertHelpers.assertThrows("Should be unable to set Strategy more than once", IllegalArgumentException.class,
         "Cannot set strategy", () -> actions().rewriteDataFiles(table).sort(SortOrder.unsorted()).binPack());
+  }
+
+  private void createPositionDeleteFiles(Table table) throws IOException {
+    table.refresh();
+    PartitionKey partitionKey = null;
+    if (!table.spec().isUnpartitioned()) {
+      Record partitionRecord = GenericRecord.create(table.schema())
+          .copy(ImmutableMap.of("c1", 0, "c2", "foo0", "c3", "bar0"));
+      partitionKey = new PartitionKey(table.spec(), table.schema());
+      partitionKey.partition(partitionRecord);
+    }
+
+    OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
+    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(
+        table.schema(), table.spec(), null, null, null);
+    EncryptedOutputFile out = createEncryptedOutputFile(partitionKey, fileFactory);
+    PositionDeleteWriter<Record> deleteWriter = appenderFactory.newPosDeleteWriter(
+        out, FileFormat.PARQUET, partitionKey);
+    CloseableIterable<DataFile> dataFiles;
+    if (table.spec().isUnpartitioned()) {
+      dataFiles = CloseableIterable.transform(table.newScan().planFiles(), FileScanTask::file);
+    } else {
+      dataFiles = CloseableIterable.transform(
+          table.newScan().filter(Expressions.equal("c1", 0)).planFiles(), FileScanTask::file);
+    }
+    // delete each file first position record
+    PositionDelete<Record> positionDelete = PositionDelete.create();
+    for (DataFile dataFile : dataFiles) {
+      positionDelete.set(dataFile.path(), 0, null);
+      deleteWriter.write(positionDelete);
+    }
+    deleteWriter.close();
+    table.newRowDelta().addDeletes(deleteWriter.toDeleteFile()).commit();
+  }
+
+  private void shouldHaveDeleteFile(Table table, int numExpected) {
+    table.refresh();
+    CloseableIterable<Iterable<DeleteFile>> allDeleteFiles = CloseableIterable.transform(
+        table.newScan().planFiles(), FileScanTask::deletes);
+
+    int numDeleteFiles = Sets.newHashSet(Iterables.concat(allDeleteFiles)).size();
+    Assert.assertEquals("Did not have the expected number of delete files", numExpected, numDeleteFiles);
+  }
+
+  private EncryptedOutputFile createEncryptedOutputFile(PartitionKey partition, OutputFileFactory fileFactory) {
+    if (partition == null) {
+      return fileFactory.newOutputFile();
+    } else {
+      return fileFactory.newOutputFile(partition);
+    }
   }
 
   protected List<Object[]> currentData() {
