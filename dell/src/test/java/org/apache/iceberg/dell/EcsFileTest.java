@@ -20,11 +20,12 @@
 package org.apache.iceberg.dell;
 
 import java.io.IOException;
-import org.apache.commons.io.IOUtils;
+import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.EcsS3MockRule;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -58,7 +59,7 @@ public class EcsFileTest {
     assertEquals("file length is 10", 10, inputFile.getLength());
     try (SeekableInputStream input = inputFile.newStream()) {
       assertEquals("file content", "1234567890",
-          IOUtils.toString(input));
+          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
 
     // rewrite file
@@ -69,7 +70,7 @@ public class EcsFileTest {
     assertEquals("new file length is 9", 9, inputFile.getLength());
     try (SeekableInputStream input = inputFile.newStream()) {
       assertEquals("new file content", "987654321",
-          IOUtils.toString(input));
+          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
 
     // write checker
