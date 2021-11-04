@@ -275,11 +275,10 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
           int rowIndex = 0;
           for (Map.Entry<String, String> keyValue : properties.entrySet()) {
-            sql.setString(rowIndex + 1, catalogName);
-            sql.setString(rowIndex + 2, namespaceName);
-            sql.setString(rowIndex + 3, keyValue.getKey());
-            sql.setString(rowIndex + 4, keyValue.getValue());
-            rowIndex += 4;
+            sql.setString(++rowIndex, catalogName);
+            sql.setString(++rowIndex, namespaceName);
+            sql.setString(++rowIndex, keyValue.getKey());
+            sql.setString(++rowIndex, keyValue.getValue());
           }
           return sql.executeUpdate();
         }
