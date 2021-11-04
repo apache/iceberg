@@ -65,7 +65,4 @@ public class SparkReadOptions {
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "locality";
-
-  // Controls whether to ignore the weight of delete file when plan tasks
-  public static final String PLAN_TASKS_IGNORE_DELETE_FILES_WEIGHT = "plan-tasks-ignore-delete-files-weight";
 }
