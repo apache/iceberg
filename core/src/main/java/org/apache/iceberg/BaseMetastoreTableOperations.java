@@ -19,11 +19,21 @@
 
 package org.apache.iceberg;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import org.apache.iceberg.encryption.EncryptionAlgorithm;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EnvelopeConfig;
+import org.apache.iceberg.encryption.EnvelopeEncryptionManager;
+import org.apache.iceberg.encryption.EnvelopeEncryptionSpec;
+import org.apache.iceberg.encryption.EnvelopeKeyManager;
+import org.apache.iceberg.encryption.KmsClient;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.TableEnvelopeKeyManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
@@ -313,6 +323,98 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
         TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static EncryptionManager createEncryptionManager(TableMetadata tableMetadata,
+                                                          Map<String, String> extraKmsProperties) {
+    Map<String, String> tableProperties = tableMetadata.properties();
+
+    String keyManagerType = PropertyUtil.propertyAsString(tableProperties,
+            TableProperties.ENCRYPTION_MANAGER_TYPE, null);
+    String tableKeyId = PropertyUtil.propertyAsString(tableProperties,
+            TableProperties.ENCRYPTION_TABLE_KEY, null);
+
+    boolean encryptedTable = false;
+
+    if (null == keyManagerType) {
+      if (null != tableKeyId) {
+        encryptedTable = true;
+        // Default: standard envelope encryption
+        keyManagerType = TableProperties.ENCRYPTION_MANAGER_TYPE_SINGLE_ENVELOPE;
+      }
+    } else {
+      if (keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_PLAINTEXT)) {
+        Preconditions.checkArgument(tableKeyId == null,
+                "Table encryption key set for unencrypted table");
+      } else if (keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_LEGACY)) {
+        Preconditions.checkArgument(tableKeyId == null,
+                "Table encryption key set for table encrypted with legacy encryption manager");
+        encryptedTable = true;
+      } else {
+        Preconditions.checkArgument(tableKeyId != null,
+                "Table encryption key is not set for encrypted table. " +
+                        "Key manager type: " + keyManagerType);
+        encryptedTable = true;
+      }
+    }
+
+    if (!encryptedTable) {
+      return new PlaintextEncryptionManager();
+    }
+
+    if (keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_LEGACY)) {
+      // TODO load custom EncryptionManager. Needed?
+    } else if (keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_SINGLE_ENVELOPE)) {
+      Schema tableSchema = tableMetadata.schema();
+
+      boolean pushdown = PropertyUtil.propertyAsBoolean(tableProperties,
+              TableProperties.ENCRYPTION_PUSHDOWN_ENABLED, TableProperties.ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT);
+
+      String dataEncryptionAlgorithm = PropertyUtil.propertyAsString(tableProperties,
+              TableProperties.ENCRYPTION_DATA_ALGORITHM, TableProperties.ENCRYPTION_DATA_ALGORITHM_DEFAULT);
+
+      EnvelopeConfig dataFileConfig = EnvelopeConfig.builderFor(tableSchema)
+              .singleWrap(tableKeyId)
+              .useAlgorithm(EncryptionAlgorithm.valueOf(dataEncryptionAlgorithm))
+              .build();
+
+      String kmsClientImpl = PropertyUtil.propertyAsString(tableProperties,
+              TableProperties.ENCRYPTION_KMS_CLIENT_IMPL, null);
+
+      // Pass custom kms configuration from table and additional properties
+      Map<String, String> kmsProperties = new HashMap<>();
+      for (Map.Entry<String, String> property : tableProperties.entrySet()) {
+        if (property.getKey().contains("kms.client")) { // TODO
+          kmsProperties.put(property.getKey(), property.getValue());
+        }
+      }
+
+      for (Map.Entry<String, String> property : extraKmsProperties.entrySet()) {
+        if (property.getKey().contains("kms.client")) { // TODO
+          kmsProperties.put(property.getKey(), property.getValue());
+        }
+      }
+
+      KmsClient kmsClient = TableEnvelopeKeyManager.loadKmsClient(kmsClientImpl, kmsProperties);
+
+      int dataKeyLength = -1;
+      if (!kmsClient.supportsKeyGeneration()) {
+        dataKeyLength = PropertyUtil.propertyAsInt(tableProperties,
+                TableProperties.ENCRYPTION_DEK_LENGTH, TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+      }
+
+      EnvelopeKeyManager keyManager = new TableEnvelopeKeyManager(kmsClient, dataFileConfig, pushdown,
+              tableSchema, dataKeyLength);
+
+      // TODO add manifest/list encr specs. Post-MVP(?)
+      EnvelopeEncryptionSpec spec = EnvelopeEncryptionSpec.builderFor(tableSchema)
+              .addDataFileConfig(dataFileConfig).build();
+
+      return new EnvelopeEncryptionManager(pushdown, spec, keyManager);
+    }
+
+    throw new UnsupportedOperationException("Unsupported encryption manager type " + keyManagerType);
   }
 
   private static int parseVersion(String metadataLocation) {

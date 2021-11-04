@@ -34,7 +34,7 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.NativeFileEncryptParams;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
@@ -91,7 +91,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   @Override
   public FileAppender<Record> newAppender(EncryptedOutputFile outputFile, FileFormat fileFormat) {
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (outputFile.useNativeEncryption()) {
       nativeEncryption = outputFile.nativeEncryptionParameters();
     }
@@ -100,7 +100,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   }
 
   private FileAppender<Record> newAppender(OutputFile outputFile,
-                                           NativeFileEncryptParams nativeEncryption,
+                                           NativeFileCryptoParameters nativeEncryption,
                                            FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
     try {
@@ -157,7 +157,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     Preconditions.checkNotNull(eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (file.useNativeEncryption()) {
       nativeEncryption = file.nativeEncryptionParameters();
     }
@@ -204,7 +204,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   public PositionDeleteWriter<Record> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                                          StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (file.useNativeEncryption()) {
       nativeEncryption = file.nativeEncryptionParameters();
     }

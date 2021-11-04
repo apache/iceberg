@@ -23,6 +23,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -32,6 +34,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
@@ -67,6 +70,7 @@ public class HadoopTableOperations implements TableOperations {
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
+  private volatile EncryptionManager encryptionManager = null;
 
   protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
     this.conf = conf;
@@ -80,6 +84,23 @@ public class HadoopTableOperations implements TableOperations {
       return refresh();
     }
     return currentMetadata;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    // TODO run by single thread? or synchronize?
+    if (null == encryptionManager) {
+      // get KMS client properties from Hadoop config
+      Map<String, String> extraKmsProperties = new HashMap<>();
+      for (Map.Entry<String, String> property : conf) {
+        if (property.getKey().contains("kms.client")) { // TODO
+          extraKmsProperties.put(property.getKey(), property.getValue());
+        }
+      }
+      encryptionManager = BaseMetastoreTableOperations.createEncryptionManager(current(), extraKmsProperties);
+    }
+
+    return encryptionManager;
   }
 
   private synchronized Pair<Integer, TableMetadata> versionAndMetadata() {

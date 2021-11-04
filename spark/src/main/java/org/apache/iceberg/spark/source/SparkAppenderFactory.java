@@ -32,7 +32,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.NativeFileEncryptParams;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -155,7 +155,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   @Override
   public FileAppender<InternalRow> newAppender(EncryptedOutputFile file, FileFormat fileFormat) {
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (file.useNativeEncryption()) {
       nativeEncryption = file.nativeEncryptionParameters();
     }
@@ -164,7 +164,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   }
 
   private FileAppender<InternalRow> newAppender(OutputFile file,
-                                                NativeFileEncryptParams nativeEncryption,
+                                                NativeFileCryptoParameters nativeEncryption,
                                                 FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
     try {
@@ -217,7 +217,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
         "Equality field ids shouldn't be null or empty when creating equality-delete writer");
     Preconditions.checkNotNull(eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
-    NativeFileEncryptParams nativeEncryption = null;
+
+    NativeFileCryptoParameters nativeEncryption = null;
     if (file.useNativeEncryption()) {
       nativeEncryption = file.nativeEncryptionParameters();
     }
@@ -259,10 +260,11 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   @Override
   public PositionDeleteWriter<InternalRow> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                                               StructLike partition) {
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (file.useNativeEncryption()) {
       nativeEncryption = file.nativeEncryptionParameters();
     }
+
     try {
       switch (format) {
         case PARQUET:

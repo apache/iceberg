@@ -35,7 +35,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.NativeFileEncryptParams;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkOrcWriter;
@@ -100,7 +100,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(EncryptedOutputFile outputFile, FileFormat format) {
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (outputFile.useNativeEncryption()) {
       nativeEncryption = outputFile.nativeEncryptionParameters();
     }
@@ -109,7 +109,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   }
 
   private FileAppender<RowData> newAppender(OutputFile outputFile,
-                                            NativeFileEncryptParams nativeEncryption,
+                                            NativeFileCryptoParameters nativeEncryption,
                                             FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
@@ -166,7 +166,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (outputFile.useNativeEncryption()) {
       nativeEncryption = outputFile.nativeEncryptionParameters();
     }
@@ -211,7 +211,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public PositionDeleteWriter<RowData> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                           StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
-    NativeFileEncryptParams nativeEncryption = null;
+    NativeFileCryptoParameters nativeEncryption = null;
     if (outputFile.useNativeEncryption()) {
       nativeEncryption = outputFile.nativeEncryptionParameters();
     }
