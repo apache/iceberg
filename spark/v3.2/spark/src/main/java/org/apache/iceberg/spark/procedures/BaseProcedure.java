@@ -20,8 +20,8 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.function.Function;
-import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
