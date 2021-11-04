@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -46,7 +45,6 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
    */
   private Map<String, String> properties;
   private S3Client client;
-  private final AtomicBoolean closed = new AtomicBoolean(true);
 
   /**
    * Blank constructor
@@ -56,29 +54,22 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
 
   @Override
   public void initialize(Map<String, String> inputProperties) {
-    if (closed.compareAndSet(true, false)) {
-      this.properties = ImmutableMap.copyOf(inputProperties);
-      this.client = EcsClientFactory.create(inputProperties);
-    } else {
-      log.error("Try to re-initialized the properties");
-    }
+    this.properties = ImmutableMap.copyOf(inputProperties);
+    this.client = EcsClientFactory.create(inputProperties);
   }
 
   @Override
   public InputFile newInputFile(String path) {
-    checkOpen();
     return new EcsInputFile(client, path);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    checkOpen();
     return new EcsOutputFile(client, path);
   }
 
   @Override
   public void deleteFile(String path) {
-    checkOpen();
     EcsURI uri = EcsURI.create(path);
     client.deleteObject(uri.getBucket(), uri.getName());
   }
@@ -97,22 +88,8 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
 
   @Override
   public void close() {
-    if (closed.compareAndSet(false, true)) {
-      client.destroy();
-      log.info("FileIO closed");
-    }
-  }
-
-  @VisibleForTesting
-  void checkOpen() {
-    if (closed.get()) {
-      throw new IllegalStateException("Closed FileIO");
-    }
-  }
-
-  @VisibleForTesting
-  boolean isOpen() {
-    return !closed.get();
+    client.destroy();
+    log.info("FileIO closed");
   }
 
   @VisibleForTesting

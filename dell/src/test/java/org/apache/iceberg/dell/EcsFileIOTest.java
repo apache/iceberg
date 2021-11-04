@@ -28,31 +28,11 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class EcsFileIOTest {
 
   @Rule
   public EcsS3MockRule rule = EcsS3MockRule.manualCreateBucket();
-
-  @Test
-  public void checkOpen() {
-    try (EcsFileIO fileIO = new EcsFileIO()) {
-      fileIO.initialize(rule.getClientProperties());
-      assertTrue("open flag", fileIO.isOpen());
-      fileIO.checkOpen();
-    }
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void checkOpenWhenClosed() {
-    EcsFileIO fileIO = new EcsFileIO();
-    fileIO.initialize(rule.getClientProperties());
-    fileIO.close();
-    fileIO.checkOpen();
-    fail("check open should throw exception");
-  }
 
   @Test
   public void externalizable() {
@@ -66,17 +46,6 @@ public class EcsFileIOTest {
         assertEquals("equal properties", instance1.getProperties(), instance2.getProperties());
         assertNotSame("different client instance", instance1.getClient(), instance2.getClient());
       }
-    }
-  }
-
-  @Test
-  public void externalizableClosed() {
-    EcsFileIO instance1 = new EcsFileIO();
-    instance1.initialize(rule.getClientProperties());
-    instance1.close();
-    try (EcsFileIO instance2 = SerializationUtil.deserializeFromBytes(
-        SerializationUtil.serializeToBytes(instance1))) {
-      assertTrue("is open", instance2.isOpen());
     }
   }
 }
