@@ -34,6 +34,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -55,6 +56,8 @@ class IcebergToGlueConverter {
 
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
+  public static final String GLUE_DB_LOCATION_KEY = "location";
+  public static final String GLUE_DB_DESCRIPTION_KEY = "comment";
   public static final String ICEBERG_FIELD_USAGE = "iceberg.field.usage";
   public static final String ICEBERG_FIELD_TYPE_TYPE_ID = "iceberg.field.type.typeid";
   public static final String ICEBERG_FIELD_TYPE_STRING = "iceberg.field.type.string";
@@ -118,10 +121,19 @@ class IcebergToGlueConverter {
    * @return Glue DatabaseInput
    */
   static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata) {
-    return DatabaseInput.builder()
-        .name(toDatabaseName(namespace))
-        .parameters(metadata)
-        .build();
+    DatabaseInput.Builder builder = DatabaseInput.builder().name(toDatabaseName(namespace));
+    Map<String, String> parameters = Maps.newHashMap();
+    metadata.forEach((k, v) -> {
+      if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
+        builder.description(v);
+      } else if (GLUE_DB_LOCATION_KEY.equals(k)) {
+        builder.locationUri(v);
+      } else {
+        parameters.put(k, v);
+      }
+    });
+
+    return builder.parameters(parameters).build();
   }
 
   /**

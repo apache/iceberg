@@ -27,6 +27,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -48,9 +49,19 @@ public class GlueCatalogNamespaceTest extends GlueTestBase {
         EntityNotFoundException.class,
         "not found",
         () -> glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()));
-    glueCatalog.createNamespace(Namespace.of(namespace));
+    Map<String, String> properties = ImmutableMap.of(
+        IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
+        IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
+        "key", "val");
+    Namespace ns = Namespace.of(namespace);
+    glueCatalog.createNamespace(ns, properties);
     Database database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     Assert.assertEquals("namespace must equal database name", namespace, database.name());
+    Assert.assertEquals("namespace description should be set", "description", database.description());
+    Assert.assertEquals("namespace location should be set", "s3://location", database.locationUri());
+    Assert.assertEquals("namespace parameters should be set",
+        ImmutableMap.of("key", "val"), database.parameters());
+    Assert.assertEquals(properties, glueCatalog.loadNamespaceMetadata(ns));
   }
 
   @Test
@@ -100,27 +111,38 @@ public class GlueCatalogNamespaceTest extends GlueTestBase {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("key", "val");
     properties.put("key2", "val2");
+    properties.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://test");
+    properties.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
     Database database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     Assert.assertTrue(database.parameters().containsKey("key"));
     Assert.assertEquals("val", database.parameters().get("key"));
     Assert.assertTrue(database.parameters().containsKey("key2"));
     Assert.assertEquals("val2", database.parameters().get("key2"));
+    Assert.assertEquals("s3://test", database.locationUri());
+    Assert.assertEquals("description", database.description());
     // remove properties
-    glueCatalog.removeProperties(Namespace.of(namespace), Sets.newHashSet("key"));
+    glueCatalog.removeProperties(Namespace.of(namespace), Sets.newHashSet(
+        "key", IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY));
     database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     Assert.assertFalse(database.parameters().containsKey("key"));
     Assert.assertTrue(database.parameters().containsKey("key2"));
     Assert.assertEquals("val2", database.parameters().get("key2"));
+    Assert.assertNull(database.locationUri());
+    Assert.assertNull(database.description());
     // add back
     properties = Maps.newHashMap();
     properties.put("key", "val");
+    properties.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://test2");
+    properties.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description2");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
     database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     Assert.assertTrue(database.parameters().containsKey("key"));
     Assert.assertEquals("val", database.parameters().get("key"));
     Assert.assertTrue(database.parameters().containsKey("key2"));
     Assert.assertEquals("val2", database.parameters().get("key2"));
+    Assert.assertEquals("s3://test2", database.locationUri());
+    Assert.assertEquals("description2", database.description());
   }
 
   @Test
