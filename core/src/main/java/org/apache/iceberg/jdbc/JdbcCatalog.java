@@ -273,8 +273,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       int insertedRecords = connections.run(conn -> {
         StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
 
-        for (int i = 0; i < properties.size() - 1; i++) {
-          sqlStatement.append(", ").append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
+        for (int i = 0; i < properties.size(); i++) {
+          if (i != 0) {
+            sqlStatement.append(", ");
+          }
+          sqlStatement.append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
         }
 
         try (PreparedStatement sql = conn.prepareStatement(sqlStatement.toString())) {

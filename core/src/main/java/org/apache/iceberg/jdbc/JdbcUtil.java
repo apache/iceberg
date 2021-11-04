@@ -92,7 +92,7 @@ final class JdbcUtil {
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ? LIMIT 1";
   protected static final String INSERT_NAMESPACE_PROPERTIES_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
-      ", " + NAMESPACE_PROPERTY_VALUE + ") VALUES (?,?,?,?)";
+      ", " + NAMESPACE_PROPERTY_VALUE + ") VALUES ";
   protected static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
   protected static final String UPDATE_NAMESPACE_PROPERTIES_SQL = "UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE {} END WHERE " +  CATALOG_NAME + " = ? AND " +
