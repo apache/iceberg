@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.jdbc;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -133,5 +135,41 @@ final class JdbcUtil {
     });
 
     return result;
+  }
+
+  public static String updatePropertiesStatement(Map<String, String> properties) {
+    StringBuilder valueCase = new StringBuilder();
+    for (int i = 0; i < properties.size(); i++) {
+      valueCase.append(" \n " + JdbcUtil.UPDATE_PROPERTIES_VALUES_BASE);
+    }
+
+    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.UPDATE_NAMESPACE_PROPERTIES_SQL.replace("{}",
+            valueCase.toString()));
+
+    String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
+    sqlStatement.append("(").append(values).append(")");
+
+    return sqlStatement.toString();
+  }
+
+  public static String insertPropertiesStatement(Map<String, String> properties) {
+    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
+
+    for (int i = 0; i < properties.size(); i++) {
+      if (i != 0) {
+        sqlStatement.append(", ");
+      }
+      sqlStatement.append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
+    }
+
+    return sqlStatement.toString();
+  }
+
+  public static String deletePropertiesStatement(Set<String> properties) {
+    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.DELETE_NAMESPACE_PROPERTIES_SQL);
+    String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
+    sqlStatement.append("(").append(values).append(")");
+
+    return sqlStatement.toString();
   }
 }

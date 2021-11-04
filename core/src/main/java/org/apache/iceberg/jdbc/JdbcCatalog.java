@@ -29,8 +29,6 @@ import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -271,16 +270,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       int insertedRecords = connections.run(conn -> {
-        StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
+        String sqlStatement = JdbcUtil.insertPropertiesStatement(properties);
 
-        for (int i = 0; i < properties.size(); i++) {
-          if (i != 0) {
-            sqlStatement.append(", ");
-          }
-          sqlStatement.append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
-        }
-
-        try (PreparedStatement sql = conn.prepareStatement(sqlStatement.toString())) {
+        try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
           int rowIndex = 0;
           for (Map.Entry<String, String> keyValue : properties.entrySet()) {
             sql.setString(rowIndex + 1, catalogName);
@@ -315,31 +307,18 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       int updatedRecords = connections.run(conn -> {
-        StringBuilder valueCases = new StringBuilder();
-        for (int i = 0; i < properties.size(); i++) {
-          valueCases.append(" \n " + JdbcUtil.UPDATE_PROPERTIES_VALUES_BASE);
-        }
+        String sqlStatement = JdbcUtil.updatePropertiesStatement(properties);
 
-        StringBuilder sqlStatement = new StringBuilder(JdbcUtil.UPDATE_NAMESPACE_PROPERTIES_SQL.replace("{}",
-            valueCases.toString()));
-
-        String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
-        sqlStatement.append("(").append(values).append(")");
-
-        try (PreparedStatement sql = conn.prepareStatement(sqlStatement.toString())) {
+        try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
           int rowIndex = 0;
           for (Map.Entry<String, String> keyValue : properties.entrySet()) {
-            sql.setString(rowIndex + 1, keyValue.getKey());
-            sql.setString(rowIndex + 2, keyValue.getValue());
-            rowIndex += 2;
+            sql.setString(++rowIndex, keyValue.getKey());
+            sql.setString(++rowIndex, keyValue.getValue());
           }
-          sql.setString(rowIndex + 1, catalogName);
-          sql.setString(rowIndex + 2, namespaceName);
-
-          rowIndex += 2;
+          sql.setString(++rowIndex, catalogName);
+          sql.setString(++rowIndex, namespaceName);
           for (String key : properties.keySet()) {
-            sql.setString(rowIndex + 1, key);
-            rowIndex += 1;
+            sql.setString(++rowIndex, key);
           }
 
           return sql.executeUpdate();
@@ -469,8 +448,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     }
 
     Map<String, String> namespaceProperties = getProperties(namespace);
-    Map<String, String> propertiesToInsert = new HashMap<>();
-    Map<String, String> propertiesToUpdate = new HashMap<>();
+    Map<String, String> propertiesToInsert = Maps.newHashMap();
+    Map<String, String> propertiesToUpdate = Maps.newHashMap();
 
     for (String key : properties.keySet()) {
       String value = properties.get(key);
@@ -510,17 +489,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       int deletedRecords = connections.run(conn -> {
-        StringBuilder sqlStatement = new StringBuilder(JdbcUtil.DELETE_NAMESPACE_PROPERTIES_SQL);
-        String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
-        sqlStatement.append("(").append(values).append(")");
+        String sqlStatement = JdbcUtil.deletePropertiesStatement(properties);
 
-        try (PreparedStatement sql = conn.prepareStatement(sqlStatement.toString())) {
+        try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
           sql.setString(1, catalogName);
           sql.setString(2, namespaceName);
           int valueIndex = 2;
           for (String property : properties) {
-            sql.setString(valueIndex + 1, property);
-            valueIndex += 1;
+            sql.setString(++valueIndex, property);
           }
           return sql.executeUpdate();
         }
@@ -550,7 +526,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       return connections.run(conn -> {
-        Map<String, String> properties = new HashMap<>();
+        Map<String, String> properties = Maps.newHashMap();
         String namespaceName = JdbcUtil.namespaceToString(namespace);
 
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_ALL_NAMESPACE_PROPERTIES_SQL)) {

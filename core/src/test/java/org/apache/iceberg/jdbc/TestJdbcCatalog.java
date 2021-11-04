@@ -578,7 +578,7 @@ public class TestJdbcCatalog {
     catalog.createNamespace(testNamespace, testMetadata);
 
     // Add more properties to set to test insert and update
-    Map<String, String> propertiesToSet = ImmutableMap.of("key_1", "new_value_1", "key_2", "value_2", "key_3",
+    Map<String, String> propertiesToSet = ImmutableMap.of("key_1", "new_value_1", "key_2", "new_value_2", "key_3",
             "new_value_3", "key_4", "value_4", "key_5", "value_5");
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
     Assert.assertTrue(catalog.setProperties(testNamespace, propertiesToSet));
@@ -609,11 +609,11 @@ public class TestJdbcCatalog {
     Assert.assertTrue(remainderProperties.containsKey("key_3"));
 
     // Remove remaining properties to test if it deletes the namespace
-    Set<String> removeAllProperties = ImmutableSet.of("key_1", "key_3");
-    catalog.removeProperties(testNamespace, removeAllProperties);
+    Set<String> allProperties = ImmutableSet.of("key_1", "key_3");
+    catalog.removeProperties(testNamespace, allProperties);
     Assert.assertFalse(catalog.namespaceExists(testNamespace));
     AssertHelpers.assertThrows("Namespace does not exist", NoSuchNamespaceException.class,
-            () -> catalog.removeProperties(testNamespace, removeAllProperties));
+            () -> catalog.removeProperties(testNamespace, allProperties));
   }
 
   @Test
