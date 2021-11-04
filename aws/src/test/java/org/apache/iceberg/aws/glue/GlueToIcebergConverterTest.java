@@ -26,9 +26,11 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Database;
+import software.amazon.awssdk.services.glue.model.DatabaseInput;
 import software.amazon.awssdk.services.glue.model.Table;
 
 public class GlueToIcebergConverterTest {
@@ -88,5 +90,42 @@ public class GlueToIcebergConverterTest {
         "Input Glue table is not an iceberg table",
         () -> GlueToIcebergConverter.validateTable(table, "name")
     );
+  }
+
+  @Test
+  public void testToDatabaseInput() {
+    Map<String, String> properties = ImmutableMap.of(
+        IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
+        IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
+        "key", "val");
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties);
+    Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
+    Assert.assertEquals("Description should be set", "description", databaseInput.description());
+    Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
+    Assert.assertEquals("Database name should be set", "ns", databaseInput.name());
+  }
+
+  @Test
+  public void testToDatabaseInputEmptyLocation() {
+    Map<String, String> properties = ImmutableMap.of(
+        IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
+        "key", "val");
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties);
+    Assert.assertNull("Location should not be set", databaseInput.locationUri());
+    Assert.assertEquals("Description should be set", "description", databaseInput.description());
+    Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
+    Assert.assertEquals("Database name should be set", "ns", databaseInput.name());
+  }
+
+  @Test
+  public void testToDatabaseInputEmptyDescription() {
+    Map<String, String> properties = ImmutableMap.of(
+        IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
+        "key", "val");
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties);
+    Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
+    Assert.assertNull("Description should not be set", databaseInput.description());
+    Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
+    Assert.assertEquals("Database name should be set", "ns", databaseInput.name());
   }
 }
