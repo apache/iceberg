@@ -32,7 +32,6 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper.createAlias
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf.StoreAssignmentPolicy
 import org.apache.spark.sql.types.DataType
@@ -100,7 +99,7 @@ trait AssignmentAlignmentSupport {
             case StructType(fields) =>
               // build field expressions
               val fieldExprs = fields.zipWithIndex.map { case (field, ordinal) =>
-                createAlias(GetStructField(col, ordinal, Some(field.name)), field.name)
+                Alias(GetStructField(col, ordinal, Some(field.name)), field.name)()
               }
 
               // recursively apply this method on nested fields

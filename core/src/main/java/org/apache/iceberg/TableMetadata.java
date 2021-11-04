@@ -747,6 +747,7 @@ public class TableMetadata implements Serializable {
       for (PartitionField newField : partitionSpec.fields()) {
         newFields.put(Pair.of(newField.sourceId(), newField.transform().toString()), newField);
       }
+      List<String> newFieldNames = newFields.values().stream().map(PartitionField::name).collect(Collectors.toList());
 
       for (PartitionField field : spec().fields()) {
         // ensure each field is either carried forward or replaced with void
@@ -755,7 +756,9 @@ public class TableMetadata implements Serializable {
           // copy the new field with the existing field ID
           specBuilder.add(newField.sourceId(), field.fieldId(), newField.name(), newField.transform());
         } else {
-          specBuilder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
+          // Rename old void transforms that would otherwise conflict
+          String voidName = newFieldNames.contains(field.name()) ? field.name() + "_" + field.fieldId() : field.name();
+          specBuilder.add(field.sourceId(), field.fieldId(), voidName, Transforms.alwaysNull());
         }
       }
 
