@@ -260,7 +260,8 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     TableInput.Builder tableInputBuilder = TableInput.builder()
         .owner(fromTable.owner())
         .tableType(fromTable.tableType())
-        .parameters(fromTable.parameters());
+        .parameters(fromTable.parameters())
+        .storageDescriptor(fromTable.storageDescriptor());
 
     glue.createTable(CreateTableRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
