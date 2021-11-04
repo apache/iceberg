@@ -38,7 +38,7 @@ public class EcsAppendOutputStreamTest {
   @Test
   public void generalTest() throws IOException {
     String objectName = "test";
-    try (EcsAppendOutputStream output = EcsAppendOutputStream.create(
+    try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName),
         10)) {
@@ -62,7 +62,7 @@ public class EcsAppendOutputStreamTest {
   @Test
   public void rewrite() throws IOException {
     String objectName = "test";
-    try (EcsAppendOutputStream output = EcsAppendOutputStream.create(
+    try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName),
         10)) {
@@ -70,7 +70,7 @@ public class EcsAppendOutputStreamTest {
       output.write("7654321".getBytes());
     }
 
-    try (EcsAppendOutputStream output = EcsAppendOutputStream.create(
+    try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName),
         10)) {

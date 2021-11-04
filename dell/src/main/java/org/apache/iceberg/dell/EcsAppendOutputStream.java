@@ -58,9 +58,16 @@ class EcsAppendOutputStream extends PositionOutputStream {
   }
 
   /**
+   * Use built-in 1 KiB byte buffer
+   */
+  static EcsAppendOutputStream create(S3Client client, EcsURI uri) {
+    return createWithBufferSize(client, uri, 1024);
+  }
+
+  /**
    * Create {@link PositionOutputStream} with specific buffer size.
    */
-  static EcsAppendOutputStream create(S3Client client, EcsURI uri, int size) {
+  static EcsAppendOutputStream createWithBufferSize(S3Client client, EcsURI uri, int size) {
     return new EcsAppendOutputStream(client, uri, new byte[size]);
   }
 

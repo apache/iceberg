@@ -53,8 +53,7 @@ public class EcsOutputFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    // use built-in 1 KiB byte buffer
-    return EcsAppendOutputStream.create(client, uri, 1024);
+    return EcsAppendOutputStream.create(client, uri);
   }
 
   @Override
