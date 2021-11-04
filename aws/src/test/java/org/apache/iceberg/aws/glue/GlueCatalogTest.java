@@ -43,6 +43,8 @@ import org.mockito.stubbing.Answer;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseResponse;
+import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.CreateTableResponse;
 import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.DeleteDatabaseResponse;
@@ -56,6 +58,7 @@ import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
 import software.amazon.awssdk.services.glue.model.GetTablesResponse;
+import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseResponse;
@@ -232,6 +235,47 @@ public class GlueCatalogTest {
       }
     }).when(glue).deleteTable(Mockito.any(DeleteTableRequest.class));
     glueCatalog.dropTable(TableIdentifier.of("db1", "t1"));
+    Assert.assertEquals(0, counter.get());
+  }
+
+  @Test
+  public void renameTableWithStorageDescriptor() {
+    AtomicInteger counter = new AtomicInteger(1);
+
+    Map<String, String> parameters = new HashMap<>();
+    parameters.put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+
+    Map<String, String> storageDescriptorParameters = new HashMap<>();
+    storageDescriptorParameters.put("key_0", "value_0");
+
+    StorageDescriptor storageDescriptor = StorageDescriptor.builder().parameters(storageDescriptorParameters).build();
+
+    Mockito.doReturn(GetTableResponse.builder().table(
+            Table.builder()
+                    .databaseName("db")
+                    .name("t_renamed")
+                    .parameters(parameters)
+                    .storageDescriptor(storageDescriptor).build()).build()
+    ).when(glue).getTable(Mockito.any(GetTableRequest.class));
+    Mockito.doReturn(GetTablesResponse.builder().build())
+            .when(glue).getTables(Mockito.any(GetTablesRequest.class));
+    Mockito.doReturn(GetDatabaseResponse.builder()
+                    .database(Database.builder().name("db").build()).build())
+            .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
+
+    Mockito.doAnswer(new Answer() {
+      @Override
+      public Object answer(InvocationOnMock invocation) throws Throwable {
+        CreateTableRequest createTableRequest = (CreateTableRequest) invocation.getArguments()[0];
+        if (createTableRequest.tableInput().storageDescriptor().hasParameters()) {
+          counter.decrementAndGet();
+        }
+        return CreateTableResponse.builder().build();
+      }
+    }).when(glue).createTable(Mockito.any(CreateTableRequest.class));
+
+    glueCatalog.renameTable(TableIdentifier.of("db", "t"), TableIdentifier.of("db", "x_renamed"));
     Assert.assertEquals(0, counter.get());
   }
 
