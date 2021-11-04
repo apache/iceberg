@@ -118,6 +118,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     if (deletedRowPositions == null) {
       return null;
     }
+
     int[] rowIdMapping = new int[numRows];
     int originalRowId = 0;
     int currentRowId = 0;
@@ -130,6 +131,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     }
 
     if (currentRowId == numRows) {
+      // there is no delete in this batch
       return null;
     } else {
       return Pair.of(rowIdMapping, currentRowId);

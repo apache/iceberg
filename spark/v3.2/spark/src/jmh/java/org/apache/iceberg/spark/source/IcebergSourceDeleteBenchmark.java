@@ -156,7 +156,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
 
     int partitionSize = (int) (numRows * percentage) / numDeleteFile;
     Iterable<List<Long>> sets = Iterables.partition(deletedPos, partitionSize);
-    for (List item : sets) {
+    for (List<Long> item : sets) {
       writePosDeletes(path, item, numNoise);
     }
   }
@@ -164,15 +164,14 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   protected void writePosDeletes(CharSequence path, List<Long> deletedPos, int numNoise) throws IOException {
     OutputFileFactory fileFactory = newFileFactory();
     SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table())
-            .dataFileFormat(fileFormat())
-            .build();
+        .dataFileFormat(fileFormat())
+        .build();
 
     ClusteredPositionDeleteWriter<InternalRow> writer = new ClusteredPositionDeleteWriter<>(
-            writerFactory, fileFactory, table().io(),
-            fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        writerFactory, fileFactory, table().io(),
+        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionSpec unpartitionedSpec = table().specs().get(0);
-
 
     PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {
@@ -193,8 +192,8 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
 
   private OutputFileFactory newFileFactory() {
     return OutputFileFactory.builderFor(table(), 1, 1)
-            .format(fileFormat())
-            .build();
+        .format(fileFormat())
+        .build();
   }
 
   private CharSequence noisePath(CharSequence path) {

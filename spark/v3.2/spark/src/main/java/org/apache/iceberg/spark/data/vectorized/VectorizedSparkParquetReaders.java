@@ -55,12 +55,11 @@ public class VectorizedSparkParquetReaders {
                 idToConstant, ColumnarBatchReader::new));
   }
 
-  public static ColumnarBatchReader buildReader(
-          Schema expectedSchema,
-          MessageType fileSchema,
-          boolean setArrowValidityVector,
-          Map<Integer, ?> idToConstant,
-          DeleteFilter<InternalRow> deleteFilter) {
+  public static ColumnarBatchReader buildReader(Schema expectedSchema,
+                                                MessageType fileSchema,
+                                                boolean setArrowValidityVector,
+                                                Map<Integer, ?> idToConstant,
+                                                DeleteFilter<InternalRow> deleteFilter) {
     return (ColumnarBatchReader)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
             new ReaderBuilder(
@@ -71,28 +70,23 @@ public class VectorizedSparkParquetReaders {
   private static class ReaderBuilder extends VectorizedReaderBuilder {
     private final DeleteFilter<InternalRow> deleteFilter;
 
-    ReaderBuilder(
-        Schema expectedSchema,
-        MessageType parquetSchema,
-        boolean setArrowValidityVector,
-        Map<Integer, ?> idToConstant,
-        Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-        DeleteFilter<InternalRow> deleteFilter) {
+    ReaderBuilder(Schema expectedSchema,
+                  MessageType parquetSchema,
+                  boolean setArrowValidityVector,
+                  Map<Integer, ?> idToConstant,
+                  Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
+                  DeleteFilter<InternalRow> deleteFilter) {
       super(expectedSchema, parquetSchema, setArrowValidityVector, idToConstant, readerFactory);
       this.deleteFilter = deleteFilter;
     }
 
     @Override
     protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
-      if (deleteFilter == null) {
-        return super.vectorizedReader(reorderedFields);
-      } else {
-        VectorizedReader vecReader = readerFactory().apply(reorderedFields);
-        if (vecReader instanceof ColumnarBatchReader) {
-          ((ColumnarBatchReader) vecReader).setDeleteFilter(deleteFilter);
-        }
-        return vecReader;
+      VectorizedReader<?> reader = super.vectorizedReader(reorderedFields);
+      if (deleteFilter != null) {
+        ((ColumnarBatchReader) reader).setDeleteFilter(deleteFilter);
       }
+      return reader;
     }
   }
 }

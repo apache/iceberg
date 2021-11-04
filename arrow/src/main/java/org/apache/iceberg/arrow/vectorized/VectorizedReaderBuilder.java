@@ -61,10 +61,6 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     this.readerFactory = readerFactory;
   }
 
-  public Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory() {
-    return readerFactory;
-  }
-
   @Override
   public VectorizedReader<?> message(
       Types.StructType expected, MessageType message,
