@@ -27,9 +27,9 @@ import java.nio.file.Paths;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -98,7 +98,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
         ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), data.length);
 
     byte[] actual = new byte[data.length];
-    IOUtils.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
+    ByteStreams.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
     Assert.assertArrayEquals("Object content", data, actual);
 
     // Verify all staging files are cleaned up.

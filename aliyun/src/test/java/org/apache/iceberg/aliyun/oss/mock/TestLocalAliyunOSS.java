@@ -30,9 +30,9 @@ import java.io.InputStream;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestUtility;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -140,7 +140,7 @@ public class TestLocalAliyunOSS {
     oss.putObject(bucketName, "key", new ByteArrayInputStream(bytes));
 
     byte[] actual = new byte[2000];
-    IOUtils.readFully(oss.getObject(bucketName, "key").getObjectContent(), actual);
+    ByteStreams.readFully(oss.getObject(bucketName, "key").getObjectContent(), actual);
 
     Assert.assertArrayEquals(bytes, actual);
     oss.deleteObject(bucketName, "key");
@@ -215,7 +215,7 @@ public class TestLocalAliyunOSS {
     GetObjectRequest getObjectRequest;
     getObjectRequest = new GetObjectRequest(bucketName, "key");
     getObjectRequest.setRange(start, end);
-    IOUtils.readFully(oss.getObject(getObjectRequest).getObjectContent(), actual);
+    ByteStreams.readFully(oss.getObject(getObjectRequest).getObjectContent(), actual);
     Assert.assertArrayEquals(testBytes, actual);
   }
 
