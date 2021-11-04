@@ -23,8 +23,8 @@ import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.dell.mock.EcsS3MockRule;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -38,10 +38,10 @@ public class EcsAppendOutputStreamTest {
   @Test
   public void generalTest() throws IOException {
     String objectName = "test";
-    try (EcsAppendOutputStream output = new EcsAppendOutputStream(
+    try (EcsAppendOutputStream output = EcsAppendOutputStream.create(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName),
-        new byte[10])) {
+        10)) {
       // write 1 byte
       output.write('1');
       // write 3 bytes
@@ -55,25 +55,25 @@ public class EcsAppendOutputStreamTest {
     try (InputStream input = rule.getClient().readObjectStream(rule.getBucket(), objectName,
         Range.fromOffset(0))) {
       assertEquals("object content", "1" + "123" + "1234567" + "12345678901",
-          IOUtils.toString(input, StandardCharsets.US_ASCII));
+          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
   }
 
   @Test
   public void rewrite() throws IOException {
     String objectName = "test";
-    try (EcsAppendOutputStream output = new EcsAppendOutputStream(
+    try (EcsAppendOutputStream output = EcsAppendOutputStream.create(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName),
-        new byte[10])) {
+        10)) {
       // write 7 bytes
       output.write("7654321".getBytes());
     }
 
-    try (EcsAppendOutputStream output = new EcsAppendOutputStream(
+    try (EcsAppendOutputStream output = EcsAppendOutputStream.create(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName),
-        new byte[10])) {
+        10)) {
       // write 14 bytes
       output.write("1234567".getBytes());
       output.write("1234567".getBytes());
@@ -82,7 +82,7 @@ public class EcsAppendOutputStreamTest {
     try (InputStream input = rule.getClient().readObjectStream(rule.getBucket(), objectName,
         Range.fromOffset(0))) {
       assertEquals("object content", "1234567" + "1234567",
-          IOUtils.toString(input, StandardCharsets.US_ASCII));
+          new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
   }
 }

@@ -34,7 +34,7 @@ public class EcsInputFile implements InputFile {
   public EcsInputFile(S3Client client, String location) {
     this.client = client;
     this.location = location;
-    this.uri = LocationUtils.checkAndParseLocation(location);
+    this.uri = EcsURI.create(location);
   }
 
   /**

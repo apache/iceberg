@@ -24,14 +24,13 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,7 +57,7 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
   @Override
   public void initialize(Map<String, String> inputProperties) {
     if (closed.compareAndSet(true, false)) {
-      this.properties = Collections.unmodifiableMap(new LinkedHashMap<>(inputProperties));
+      this.properties = ImmutableMap.copyOf(inputProperties);
       this.client = EcsClientFactory.create(inputProperties);
     } else {
       log.error("Try to re-initialized the properties");
@@ -80,7 +79,7 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
   @Override
   public void deleteFile(String path) {
     checkOpen();
-    EcsURI uri = LocationUtils.checkAndParseLocation(path);
+    EcsURI uri = EcsURI.create(path);
     client.deleteObject(uri.getBucket(), uri.getName());
   }
 

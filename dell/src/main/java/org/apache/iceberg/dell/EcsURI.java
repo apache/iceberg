@@ -19,20 +19,36 @@
 
 package org.apache.iceberg.dell;
 
+import java.net.URI;
 import java.util.Objects;
+import java.util.Set;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /**
  * An immutable record class of ECS location
  */
 public class EcsURI {
 
+  private static final Set<String> VALID_SCHEME = ImmutableSet.of("ecs", "s3", "s3a", "s3n");
+
+  public static EcsURI create(String location) {
+    URI uri = URI.create(location);
+    if (!VALID_SCHEME.contains(uri.getScheme().toLowerCase())) {
+      throw new ValidationException("Invalid ecs location: %s", location);
+    }
+    String bucket = uri.getHost();
+    String name = uri.getPath().replaceAll("^/*", "");
+    return new EcsURI(bucket, name);
+  }
+
   private final String bucket;
   private final String name;
 
   public EcsURI(String bucket, String name) {
-    if (bucket == null || name == null) {
-      throw new IllegalArgumentException(String.format("bucket %s and key %s must be not null", bucket, name));
-    }
+    Preconditions.checkNotNull(bucket == null, "Bucket %s can not be null", bucket);
+    Preconditions.checkNotNull(name == null, "Object name %s can not be null", name);
 
     this.bucket = bucket;
     this.name = name;
@@ -48,7 +64,7 @@ public class EcsURI {
 
   @Override
   public String toString() {
-    return LocationUtils.toString(bucket, name);
+    return String.format("ecs://%s/%s", bucket, name);
   }
 
   @Override

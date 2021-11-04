@@ -51,10 +51,17 @@ class EcsAppendOutputStream extends PositionOutputStream {
    */
   private long pos;
 
-  EcsAppendOutputStream(S3Client client, EcsURI key, byte[] localCache) {
+  private EcsAppendOutputStream(S3Client client, EcsURI key, byte[] localCache) {
     this.client = client;
     this.key = key;
     this.localCache = ByteBuffer.wrap(localCache);
+  }
+
+  /**
+   * Create {@link PositionOutputStream} with specific buffer size.
+   */
+  static EcsAppendOutputStream create(S3Client client, EcsURI uri, int size) {
+    return new EcsAppendOutputStream(client, uri, new byte[size]);
   }
 
   /**

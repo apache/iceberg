@@ -27,12 +27,11 @@ import org.apache.iceberg.io.SeekableInputStream;
 
 /**
  * A {@link SeekableInputStream} impl that warp {@link S3Client#readObjectStream(String, String, Range)}
- * <p>
- * 1. The stream is only be loaded when start reading.
- * <p>
- * 2. This class won't cache any bytes of content. It only maintains pos of {@link SeekableInputStream}
- * <p>
- * 3. This class is not thread-safe.
+ * <ol>
+ *   <li>The stream is only be loaded when start reading.</li>
+ *   <li>This class won't cache any bytes of content. It only maintains pos of {@link SeekableInputStream}</li>
+ *   <li>This class is not thread-safe.</li>
+ * </ol>
  */
 class EcsSeekableInputStream extends SeekableInputStream {
 
@@ -47,7 +46,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
    * Current pos of object content
    */
   private long pos = -1;
-  private InputStream internal;
+  private InputStream internalStream;
 
   EcsSeekableInputStream(S3Client client, EcsURI uri) {
     this.client = client;
@@ -72,13 +71,13 @@ class EcsSeekableInputStream extends SeekableInputStream {
   public int read() throws IOException {
     checkAndUseNewPos();
     pos += 1;
-    return internal.read();
+    return internalStream.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     checkAndUseNewPos();
-    int delta = internal.read(b, off, len);
+    int delta = internalStream.read(b, off, len);
     pos += delta;
     return delta;
   }
@@ -93,19 +92,19 @@ class EcsSeekableInputStream extends SeekableInputStream {
       return;
     }
 
-    if (internal != null) {
-      internal.close();
+    if (internalStream != null) {
+      internalStream.close();
     }
 
     pos = newPos;
-    internal = client.readObjectStream(uri.getBucket(), uri.getName(), Range.fromOffset(pos));
+    internalStream = client.readObjectStream(uri.getBucket(), uri.getName(), Range.fromOffset(pos));
     newPos = -1;
   }
 
   @Override
   public void close() throws IOException {
-    if (internal != null) {
-      internal.close();
+    if (internalStream != null) {
+      internalStream.close();
     }
   }
 }

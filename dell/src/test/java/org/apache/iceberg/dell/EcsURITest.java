@@ -25,37 +25,37 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
-public class LocationUtilsTest {
+public class EcsURITest {
 
   @Test
   public void parseLocation() {
     assertEquals(
         new EcsURI("bucket", ""),
-        LocationUtils.checkAndParseLocation("ecs://bucket"));
+        EcsURI.create("ecs://bucket"));
     assertEquals(
         new EcsURI("bucket", ""),
-        LocationUtils.checkAndParseLocation("ecs://bucket/"));
+        EcsURI.create("ecs://bucket/"));
     assertEquals(
         new EcsURI("bucket", ""),
-        LocationUtils.checkAndParseLocation("ecs://bucket//"));
+        EcsURI.create("ecs://bucket//"));
     assertEquals(
         new EcsURI("bucket", "a"),
-        LocationUtils.checkAndParseLocation("ecs://bucket//a"));
+        EcsURI.create("ecs://bucket//a"));
     assertEquals(
         new EcsURI("bucket", "a/b"),
-        LocationUtils.checkAndParseLocation("ecs://bucket/a/b"));
+        EcsURI.create("ecs://bucket/a/b"));
     assertEquals(
         new EcsURI("bucket", "a//b"),
-        LocationUtils.checkAndParseLocation("ecs://bucket/a//b"));
+        EcsURI.create("ecs://bucket/a//b"));
     assertEquals(
         new EcsURI("bucket", "a//b"),
-        LocationUtils.checkAndParseLocation("ecs://bucket//a//b"));
+        EcsURI.create("ecs://bucket//a//b"));
   }
 
   @Test
   public void invalidLocation() {
     assertThrows(
         ValidationException.class,
-        () -> LocationUtils.checkAndParseLocation("http://bucket/a"));
+        () -> EcsURI.create("http://bucket/a"));
   }
 }

@@ -34,7 +34,7 @@ public class EcsOutputFile implements OutputFile {
   public EcsOutputFile(S3Client client, String location) {
     this.client = client;
     this.location = location;
-    this.uri = LocationUtils.checkAndParseLocation(location);
+    this.uri = EcsURI.create(location);
   }
 
   /**
@@ -47,14 +47,14 @@ public class EcsOutputFile implements OutputFile {
     if (!toInputFile().exists()) {
       return createOrOverwrite();
     } else {
-      throw new AlreadyExistsException("The object is existed, %s", uri);
+      throw new AlreadyExistsException("ECS object already exists: %s", uri);
     }
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
     // use built-in 1 KiB byte buffer
-    return new EcsAppendOutputStream(client, uri, new byte[1_000]);
+    return EcsAppendOutputStream.create(client, uri, 1024);
   }
 
   @Override
