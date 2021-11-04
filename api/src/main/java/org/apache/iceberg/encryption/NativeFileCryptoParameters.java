@@ -32,14 +32,16 @@ public class NativeFileCryptoParameters {
   private ByteBuffer fileAadPrefix;
   private Map<String, ByteBuffer> columnKeys;
   private ByteBuffer fileKey;
+  private String fileEncryptionAlgorithm;
 
   private NativeFileCryptoParameters(Map<String, ByteBuffer> columnKeys, ByteBuffer fileKey,
-                                     ByteBuffer fileAadPrefix) {
+                                     ByteBuffer fileAadPrefix, String fileEncryptionAlgorithm) {
     Preconditions.checkState((columnKeys != null && columnKeys.size() > 0) || fileKey != null,
             "No file or column keys are supplied");
     this.columnKeys = columnKeys;
     this.fileKey = fileKey;
     this.fileAadPrefix = fileAadPrefix;
+    this.fileEncryptionAlgorithm = fileEncryptionAlgorithm;
   }
 
   /**
@@ -54,6 +56,7 @@ public class NativeFileCryptoParameters {
     private ByteBuffer fileAadPrefix;
     private Map<String, ByteBuffer> columnKeys;
     private ByteBuffer fileKey;
+    private String fileEncryptionAlgorithm;
 
     private Builder(ByteBuffer fileKey) {
       this.fileKey = fileKey;
@@ -75,8 +78,13 @@ public class NativeFileCryptoParameters {
       return this;
     }
 
+    public Builder encryptionAlgorithm(String encryptionAlgorithm) {
+      this.fileEncryptionAlgorithm = encryptionAlgorithm;
+      return this;
+    }
+
     public NativeFileCryptoParameters build() {
-      return new NativeFileCryptoParameters(columnKeys, fileKey, fileAadPrefix);
+      return new NativeFileCryptoParameters(columnKeys, fileKey, fileAadPrefix, fileEncryptionAlgorithm);
     }
   }
 
@@ -90,5 +98,9 @@ public class NativeFileCryptoParameters {
 
   public Map<String, ByteBuffer> columnKeys() {
     return columnKeys;
+  }
+
+  public String encryptionAlgorithm() {
+    return fileEncryptionAlgorithm;
   }
 }
