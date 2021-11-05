@@ -569,6 +569,7 @@ project(':iceberg-nessie') {
 project(':iceberg-dell') {
   dependencies {
     implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation 'com.emc.ecs:object-client-bundle'
 

@@ -29,7 +29,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 
-public class EcsFileIOTest {
+public class TestEcsFileIO {
 
   @Rule
   public EcsS3MockRule rule = EcsS3MockRule.manualCreateBucket();
@@ -43,8 +43,8 @@ public class EcsFileIOTest {
       instance1.initialize(input);
       try (EcsFileIO instance2 = SerializationUtil.deserializeFromBytes(
           SerializationUtil.serializeToBytes(instance1))) {
-        assertEquals("equal properties", instance1.getProperties(), instance2.getProperties());
-        assertNotSame("different client instance", instance1.getClient(), instance2.getClient());
+        assertEquals("The properties should be equels", instance1.properties(), instance2.properties());
+        assertNotSame("Client instance is different", instance1.client(), instance2.client());
       }
     }
   }

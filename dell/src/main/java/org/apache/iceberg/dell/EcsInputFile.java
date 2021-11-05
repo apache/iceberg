@@ -25,16 +25,10 @@ import com.emc.object.s3.S3ObjectMetadata;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
-public class EcsInputFile implements InputFile {
-
-  private final S3Client client;
-  private final String location;
-  private final EcsURI uri;
+public class EcsInputFile extends BaseEcsFile implements InputFile {
 
   public EcsInputFile(S3Client client, String location) {
-    this.client = client;
-    this.location = location;
-    this.uri = EcsURI.create(location);
+    super(client, location);
   }
 
   /**
@@ -59,27 +53,5 @@ public class EcsInputFile implements InputFile {
   @Override
   public SeekableInputStream newStream() {
     return new EcsSeekableInputStream(client, uri);
-  }
-
-  @Override
-  public String location() {
-    return location;
-  }
-
-  /**
-   * Check whether data file exists.
-   */
-  @Override
-  public boolean exists() {
-    try {
-      client.getObjectMetadata(uri.getBucket(), uri.getName());
-      return true;
-    } catch (S3Exception e) {
-      if (e.getHttpCode() == 404) {
-        return false;
-      } else {
-        throw e;
-      }
-    }
   }
 }

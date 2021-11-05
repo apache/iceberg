@@ -22,11 +22,11 @@ package org.apache.iceberg.dell;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public interface EcsClientFactory {
 
@@ -46,36 +46,28 @@ public interface EcsClientFactory {
       return Optional.empty();
     }
 
-    String[] classAndMethod = factory.split("#", 2);
-    if (classAndMethod.length != 2) {
-      throw new IllegalArgumentException(String.format("invalid property %s=%s",
-          EcsClientProperties.ECS_CLIENT_FACTORY, factory));
+    DynConstructors.Ctor<EcsClientFactory> ctor;
+    try {
+      ctor = DynConstructors.builder(EcsClientFactory.class).impl(factory).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot find EcsClientFactory implementation %s: %s", factory, e.getMessage()), e);
     }
 
-    Class<?> clazz;
+    EcsClientFactory clientFactory;
     try {
-      clazz = Class.forName(classAndMethod[0], true, Thread.currentThread().getContextClassLoader());
-    } catch (ClassNotFoundException e) {
+      clientFactory = ctor.newInstance();
+    } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("invalid property %s=%s", EcsClientProperties.ECS_CLIENT_FACTORY, factory),
-          e);
+          String.format("Cannot initialize Catalog, %s does not implement EcsClientFactory.", factory), e);
     }
 
-    S3Client client;
-    try {
-      client = (S3Client) MethodHandles.lookup()
-          .findStatic(clazz, classAndMethod[1], MethodType.methodType(S3Client.class, Map.class))
-          .invoke(properties);
-    } catch (Throwable e) {
-      throw new IllegalArgumentException(
-          String.format("invalid property %s=%s that throw exception", EcsClientProperties.ECS_CLIENT_FACTORY, factory),
-          e);
-    }
+    S3Client client = clientFactory.createS3Client(properties);
 
     if (client == null) {
       throw new IllegalArgumentException(String.format(
-          "invalid property %s=%s that return null client",
-          EcsClientProperties.ECS_CLIENT_FACTORY, factory));
+          "Invalid EcsClientFactory %s that return null client",
+          factory));
     }
 
     return Optional.of(client);
@@ -85,6 +77,13 @@ public interface EcsClientFactory {
    * Get built-in ECS S3 client.
    */
   static S3Client createDefault(Map<String, String> properties) {
+    Preconditions.checkNotNull(properties.get(EcsClientProperties.ENDPOINT),
+        "Endpoint(%s) cannot be null", EcsClientProperties.ENDPOINT);
+    Preconditions.checkNotNull(properties.get(EcsClientProperties.ACCESS_KEY_ID),
+        "Access key(%s) cannot be null", EcsClientProperties.ACCESS_KEY_ID);
+    Preconditions.checkNotNull(properties.get(EcsClientProperties.SECRET_ACCESS_KEY),
+        "Secret key(%s) cannot be null", EcsClientProperties.SECRET_ACCESS_KEY);
+
     S3Config config = new S3Config(URI.create(properties.get(EcsClientProperties.ENDPOINT)));
 
     config.withIdentity(properties.get(EcsClientProperties.ACCESS_KEY_ID))
@@ -92,4 +91,6 @@ public interface EcsClientFactory {
 
     return new S3JerseyClient(config);
   }
+
+  S3Client createS3Client(Map<String, String> properties);
 }

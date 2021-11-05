@@ -25,10 +25,10 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
-public class EcsURITest {
+public class TestEcsURI {
 
   @Test
-  public void parseLocation() {
+  public void testCreate() {
     assertEquals(
         new EcsURI("bucket", ""),
         EcsURI.create("ecs://bucket"));
@@ -53,7 +53,7 @@ public class EcsURITest {
   }
 
   @Test
-  public void invalidLocation() {
+  public void testInvalidLocation() {
     assertThrows(
         ValidationException.class,
         () -> EcsURI.create("http://bucket/a"));

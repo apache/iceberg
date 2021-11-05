@@ -30,15 +30,11 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A {@link java.io.Externalizable} FileIO of ECS S3 object client.
  */
 public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
-
-  private static final Logger log = LoggerFactory.getLogger(EcsFileIO.class);
 
   /**
    * Saved properties for {@link java.io.Serializable}
@@ -89,16 +85,15 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
   @Override
   public void close() {
     client.destroy();
-    log.info("FileIO closed");
   }
 
   @VisibleForTesting
-  Map<String, String> getProperties() {
+  Map<String, String> properties() {
     return properties;
   }
 
   @VisibleForTesting
-  S3Client getClient() {
+  S3Client client() {
     return client;
   }
 }

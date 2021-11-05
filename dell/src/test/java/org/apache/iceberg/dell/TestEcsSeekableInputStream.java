@@ -28,35 +28,35 @@ import org.junit.Test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-public class EcsSeekableInputStreamTest {
+public class TestEcsSeekableInputStream {
 
   @Rule
   public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
-  public void generalTest() throws IOException {
+  public void testSeekPosRead() throws IOException {
     String objectName = "test";
-    rule.getClient().putObject(new PutObjectRequest(rule.getBucket(), objectName, "1234567890".getBytes()));
+    rule.getClient().putObject(new PutObjectRequest(rule.getBucket(), objectName, "0123456789".getBytes()));
 
     try (EcsSeekableInputStream input = new EcsSeekableInputStream(
         rule.getClient(),
         new EcsURI(rule.getBucket(), objectName))) {
       // read one byte
-      assertEquals("1 at 0", '1', input.read());
+      assertEquals("Read 0 without additional pos", '0', input.read());
 
       // read bytes
       byte[] bytes = new byte[3];
-      assertEquals("read 3 bytes", 3, input.read(bytes));
-      assertArrayEquals("234 at 1-3", new byte[] {'2', '3', '4'}, bytes);
+      assertEquals("Read 3 bytes", 3, input.read(bytes));
+      assertArrayEquals("Read next 123 after 0", new byte[] {'1', '2', '3'}, bytes);
 
       // jump
       input.seek(2);
-      assertEquals("3 at 2", '3', input.read());
+      assertEquals("Read 2 when seek to 2", '2', input.read());
 
       // jump to invalid pos won't cause exception
       input.seek(100);
       input.seek(9);
-      assertEquals("0 at 9", '0', input.read());
+      assertEquals("Read 9 that is the final pos", '9', input.read());
     }
   }
 }

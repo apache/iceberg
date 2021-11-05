@@ -86,7 +86,6 @@ import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.io.IOUtils;
-import org.apache.iceberg.dell.EcsURI;
 
 /**
  * Memorized s3 client used in tests.
@@ -98,27 +97,31 @@ public class MockS3Client implements S3Client {
    * <p>
    * Current {@link S3ObjectMetadata} only store the user metadata.
    */
-  private final Map<EcsURI, ObjectData> objectData = new ConcurrentHashMap<>();
+  private final Map<String, ObjectData> objectData = new ConcurrentHashMap<>();
+
+  private String createId(String bucket, String key) {
+    return bucket + "/" + key;
+  }
 
   @Override
   public PutObjectResult putObject(PutObjectRequest request) {
     S3ObjectMetadata metadata = request.getObjectMetadata();
     objectData.put(
-        new EcsURI(request.getBucketName(), request.getKey()),
+        createId(request.getBucketName(), request.getKey()),
         ObjectData.create(convertContent(request.getEntity()), metadata));
     return new PutObjectResult();
   }
 
   @Override
   public long appendObject(String bucketName, String key, Object content) {
-    EcsURI uri = new EcsURI(bucketName, key);
-    ObjectData old = objectData.get(uri);
+    String id = createId(bucketName, key);
+    ObjectData old = objectData.get(id);
     if (old == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
 
     byte[] appendedData = convertContent(content);
-    if (objectData.replace(uri, old, old.appendContent(appendedData))) {
+    if (objectData.replace(id, old, old.appendContent(appendedData))) {
       return old.getLength();
     } else {
       return wontImplement();
@@ -141,7 +144,7 @@ public class MockS3Client implements S3Client {
 
   @Override
   public InputStream readObjectStream(String bucketName, String key, Range range) {
-    ObjectData data = objectData.get(new EcsURI(bucketName, key));
+    ObjectData data = objectData.get(createId(bucketName, key));
     if (data == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
@@ -151,7 +154,7 @@ public class MockS3Client implements S3Client {
 
   @Override
   public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
-    ObjectData data = objectData.get(new EcsURI(bucketName, key));
+    ObjectData data = objectData.get(createId(bucketName, key));
     if (data == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
@@ -161,7 +164,7 @@ public class MockS3Client implements S3Client {
 
   @Override
   public void deleteObject(String bucketName, String key) {
-    objectData.remove(new EcsURI(bucketName, key));
+    objectData.remove(createId(bucketName, key));
   }
 
   @Override

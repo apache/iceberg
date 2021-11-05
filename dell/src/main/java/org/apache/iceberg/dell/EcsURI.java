@@ -29,11 +29,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 /**
  * An immutable record class of ECS location
  */
-public class EcsURI {
+class EcsURI {
 
   private static final Set<String> VALID_SCHEME = ImmutableSet.of("ecs", "s3", "s3a", "s3n");
 
-  public static EcsURI create(String location) {
+  static EcsURI create(String location) {
     URI uri = URI.create(location);
     if (!VALID_SCHEME.contains(uri.getScheme().toLowerCase())) {
       throw new ValidationException("Invalid ecs location: %s", location);
@@ -46,7 +46,7 @@ public class EcsURI {
   private final String bucket;
   private final String name;
 
-  public EcsURI(String bucket, String name) {
+  EcsURI(String bucket, String name) {
     Preconditions.checkNotNull(bucket == null, "Bucket %s can not be null", bucket);
     Preconditions.checkNotNull(name == null, "Object name %s can not be null", name);
 

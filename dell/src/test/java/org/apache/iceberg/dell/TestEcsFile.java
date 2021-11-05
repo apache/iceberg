@@ -34,31 +34,31 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-public class EcsFileTest {
+public class TestEcsFile {
 
   @Rule
   public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
-  public void generalTest() throws IOException {
+  public void testFileReadAndWrite() throws IOException {
     String objectName = "test";
     String location = new EcsURI(rule.getBucket(), objectName).toString();
     EcsInputFile inputFile = new EcsInputFile(rule.getClient(), location);
     EcsOutputFile outpufFile = new EcsOutputFile(rule.getClient(), location);
 
     // absent
-    assertFalse("file is absent", inputFile.exists());
-    assertEquals("file length is 0 if absent", 0, inputFile.getLength());
+    assertFalse("File is absent", inputFile.exists());
+    assertEquals("File length is 0 if absent", 0, inputFile.getLength());
 
     // write and read
     try (PositionOutputStream output = outpufFile.create()) {
       output.write("1234567890".getBytes());
     }
 
-    assertTrue("file is present", inputFile.exists());
-    assertEquals("file length is 10", 10, inputFile.getLength());
+    assertTrue("File is present", inputFile.exists());
+    assertEquals("File length is 10", 10, inputFile.getLength());
     try (SeekableInputStream input = inputFile.newStream()) {
-      assertEquals("file content", "1234567890",
+      assertEquals("File content is expected", "1234567890",
           new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
 
@@ -67,9 +67,9 @@ public class EcsFileTest {
       output.write("987654321".getBytes());
     }
 
-    assertEquals("new file length is 9", 9, inputFile.getLength());
+    assertEquals("New file length is 9", 9, inputFile.getLength());
     try (SeekableInputStream input = inputFile.newStream()) {
-      assertEquals("new file content", "987654321",
+      assertEquals("New file content is overwrite old content", "987654321",
           new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
 

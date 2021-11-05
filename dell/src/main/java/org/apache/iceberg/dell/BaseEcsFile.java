@@ -19,30 +19,38 @@
 
 package org.apache.iceberg.dell;
 
-/**
- * Property constants of catalog
- */
-public interface EcsClientProperties {
+import com.emc.object.s3.S3Client;
+import com.emc.object.s3.S3Exception;
+
+public class BaseEcsFile {
+
+  protected final S3Client client;
+  protected final String location;
+  protected final EcsURI uri;
+
+  public BaseEcsFile(S3Client client, String location) {
+    this.client = client;
+    this.location = location;
+    this.uri = EcsURI.create(location);
+  }
+
+  public String location() {
+    return location;
+  }
 
   /**
-   * Access key id
+   * Check whether data file exists.
    */
-  String ACCESS_KEY_ID = "ecs.s3.access.key.id";
-
-  /**
-   * Secret access key
-   */
-  String SECRET_ACCESS_KEY = "ecs.s3.secret.access.key";
-
-  /**
-   * S3 endpoint
-   */
-  String ENDPOINT = "ecs.s3.endpoint";
-
-  /**
-   * Factory class of {@link EcsClientFactory}.
-   * <p>
-   * The config is optional. If properties above aren't enough, use this.
-   */
-  String ECS_CLIENT_FACTORY = "ecs.client.factory";
+  public boolean exists() {
+    try {
+      client.getObjectMetadata(uri.getBucket(), uri.getName());
+      return true;
+    } catch (S3Exception e) {
+      if (e.getHttpCode() == 404) {
+        return false;
+      } else {
+        throw e;
+      }
+    }
+  }
 }

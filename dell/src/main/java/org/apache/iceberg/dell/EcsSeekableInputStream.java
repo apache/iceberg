@@ -26,7 +26,7 @@ import java.io.InputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 
 /**
- * A {@link SeekableInputStream} impl that warp {@link S3Client#readObjectStream(String, String, Range)}
+ * A {@link SeekableInputStream} implementation that warp {@link S3Client#readObjectStream(String, String, Range)}
  * <ol>
  *   <li>The stream is only be loaded when start reading.</li>
  *   <li>This class won't cache any bytes of content. It only maintains pos of {@link SeekableInputStream}</li>

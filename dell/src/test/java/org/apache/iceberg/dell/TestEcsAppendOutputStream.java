@@ -30,13 +30,13 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class EcsAppendOutputStreamTest {
+public class TestEcsAppendOutputStream {
 
   @Rule
   public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
-  public void generalTest() throws IOException {
+  public void testBaseObjectWrite() throws IOException {
     String objectName = "test";
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.getClient(),
@@ -54,13 +54,13 @@ public class EcsAppendOutputStreamTest {
 
     try (InputStream input = rule.getClient().readObjectStream(rule.getBucket(), objectName,
         Range.fromOffset(0))) {
-      assertEquals("object content", "1" + "123" + "1234567" + "12345678901",
+      assertEquals("Must write all the object content", "1" + "123" + "1234567" + "12345678901",
           new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
   }
 
   @Test
-  public void rewrite() throws IOException {
+  public void testRewrite() throws IOException {
     String objectName = "test";
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.getClient(),

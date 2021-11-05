@@ -30,13 +30,13 @@ import static org.junit.Assert.fail;
 /**
  * Verify the error codes between real client and mock client.
  */
-public class ExceptionCodeTest {
+public class TestExceptionCode {
 
   @Rule
   public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
-  public void checkExceptionCode() {
+  public void testExceptionCode() {
     String object = "test";
     assertS3Exception("Append absent object", 404, "NoSuchKey",
         () -> rule.getClient().appendObject(rule.getBucket(), object, "abc".getBytes()));
