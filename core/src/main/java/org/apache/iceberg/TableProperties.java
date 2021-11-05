@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
@@ -244,4 +245,41 @@ public class TableProperties {
 
   public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
   public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+
+  /**
+   * Get a table property for a specific Iceberg action's config option.
+   * <p>
+   * For example, {@link org.apache.iceberg.actions.RewriteDataFiles#TARGET_FILE_SIZE_BYTES} corresponds to
+   * table property actions.rewrite-data-files.target-file-size-bytes
+   *
+   * @param action name of the iceberg action, retrieved from the NAME variable of the specific action if exists.
+   *               The name is assumed to be in lower-case-kebab-style.
+   * @param option config option name, typically defined as public static variables in the specific action.
+   *               The name is assumed to be in lower-case-kebab-style.
+   * @return table property name
+   */
+  public static String actionTableProperty(String action, String option) {
+    return String.format("actions.%s.%s", action, option);
+  }
+
+  /**
+   * Get a table property for a specific Iceberg action and strategy's config option.
+   * <p>
+   * For example, {@link org.apache.iceberg.actions.BinPackStrategy#MIN_INPUT_FILES} corresponds to
+   * table property actions.rewrite-data-files.strategies.binpack.min-input-files
+   *
+   * @param action name of the iceberg action, retrieved from the NAME variable of the specific action if exists.
+   *               The name is assumed to be in lower-case-kebab-style.
+   * @param strategy name of the strategy, retrieved from the name method of the specific strategy,
+   *                 such as {@link org.apache.iceberg.actions.RewriteStrategy#name()}.
+   *                 The name is assumed to be in CAPITALIZED_CASE_SNAKE_STYLE, and is converted to
+   *                 lower-case-kebab-style in the config key.
+   * @param option config option name, typically defined as public static variables in the specific strategy.
+   *               The name is assumed to be in lower-case-kebab-style.
+   * @return table property name
+   */
+  public static String actionStrategyTableProperty(String action, String strategy, String option) {
+    return String.format("actions.%s.strategies.%s.%s", action,
+            strategy.toLowerCase(Locale.ENGLISH).replace("_", "-"), option);
+  }
 }

@@ -78,6 +78,13 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
+   * Name of the action.
+   * User can define table properties in the form actions.rewrite-data-files.[config-option-key]
+   * to provide default values for a table when executing this action.
+   */
+  String NAME = "rewrite-data-files";
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    * @return this for method chaining
    */

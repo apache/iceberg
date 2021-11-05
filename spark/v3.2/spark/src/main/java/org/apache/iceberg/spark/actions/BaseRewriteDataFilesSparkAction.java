@@ -37,6 +37,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
 import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.actions.BinPackStrategy;
@@ -363,16 +364,24 @@ abstract class BaseRewriteDataFilesSparkAction
         "Cannot use options %s, they are not supported by the action or the strategy %s",
         invalidKeys, strategy.name());
 
-    maxConcurrentFileGroupRewrites = PropertyUtil.propertyAsInt(options(),
-        MAX_CONCURRENT_FILE_GROUP_REWRITES,
+    Map<String, String> tableProperties = table().properties();
+
+    maxConcurrentFileGroupRewrites = PropertyUtil.resolveIntProperty(
+        options(), MAX_CONCURRENT_FILE_GROUP_REWRITES,
+        tableProperties, TableProperties.actionTableProperty(
+            RewriteDataFiles.NAME, MAX_CONCURRENT_FILE_GROUP_REWRITES),
         MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT);
 
-    maxCommits = PropertyUtil.propertyAsInt(options(),
-        PARTIAL_PROGRESS_MAX_COMMITS,
+    maxCommits = PropertyUtil.resolveIntProperty(
+        options(), PARTIAL_PROGRESS_MAX_COMMITS,
+        tableProperties, TableProperties.actionTableProperty(
+            RewriteDataFiles.NAME, PARTIAL_PROGRESS_MAX_COMMITS),
         PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT);
 
-    partialProgressEnabled = PropertyUtil.propertyAsBoolean(options(),
-        PARTIAL_PROGRESS_ENABLED,
+    partialProgressEnabled = PropertyUtil.resolveBooleanProperty(
+        options(), PARTIAL_PROGRESS_ENABLED,
+        tableProperties, TableProperties.actionTableProperty(
+            RewriteDataFiles.NAME, PARTIAL_PROGRESS_ENABLED),
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
 
     Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
