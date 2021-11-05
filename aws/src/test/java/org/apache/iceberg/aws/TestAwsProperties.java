@@ -26,7 +26,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 
-public class AwsPropertiesTest {
+public class TestAwsProperties {
 
   @Test
   public void testS3FileIoSseCustom_mustHaveCustomKey() {

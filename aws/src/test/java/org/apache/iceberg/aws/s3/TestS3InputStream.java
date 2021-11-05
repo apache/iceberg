@@ -37,7 +37,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
-public class S3InputStreamTest {
+public class TestS3InputStream {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
 

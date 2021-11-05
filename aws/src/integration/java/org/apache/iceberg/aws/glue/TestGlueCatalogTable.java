@@ -57,7 +57,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 import static org.apache.iceberg.expressions.Expressions.truncate;
 
-public class GlueCatalogTableTest extends GlueTestBase {
+public class TestGlueCatalogTable extends GlueTestBase {
 
   @Test
   public void testCreateTable() {
@@ -169,7 +169,7 @@ public class GlueCatalogTableTest extends GlueTestBase {
   }
 
   @Test
-  public void testRenameTable_failToCreateNewTable() {
+  public void testRenameTableFailsToCreateNewTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     TableIdentifier id = TableIdentifier.of(namespace, tableName);
@@ -194,7 +194,7 @@ public class GlueCatalogTableTest extends GlueTestBase {
   }
 
   @Test
-  public void testRenameTable_failToDeleteOldTable() {
+  public void testRenameTableFailsToDeleteOldTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     TableIdentifier id = TableIdentifier.of(namespace, tableName);

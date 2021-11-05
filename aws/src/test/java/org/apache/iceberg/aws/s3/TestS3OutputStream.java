@@ -63,8 +63,8 @@ import static org.mockito.Mockito.verify;
 
 
 @RunWith(MockitoJUnitRunner.class)
-public class S3OutputStreamTest {
-  private static final Logger LOG = LoggerFactory.getLogger(S3OutputStreamTest.class);
+public class TestS3OutputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
 
   @ClassRule
@@ -80,7 +80,7 @@ public class S3OutputStreamTest {
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
       AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
 
-  public S3OutputStreamTest() throws IOException {
+  public TestS3OutputStream() throws IOException {
   }
 
   @Before

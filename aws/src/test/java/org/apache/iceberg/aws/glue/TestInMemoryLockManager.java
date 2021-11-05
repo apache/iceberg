@@ -36,7 +36,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-public class InMemoryLockManagerTest {
+public class TestInMemoryLockManager {
 
   private LockManagers.InMemoryLockManager lockManager;
   private String lockEntityId;
@@ -58,7 +58,7 @@ public class InMemoryLockManagerTest {
   }
 
   @Test
-  public void testAcquireOnce_singleProcess() {
+  public void testAcquireOnceSingleProcess() {
     lockManager.acquireOnce(lockEntityId, ownerId);
     AssertHelpers.assertThrows("should fail when acquire again",
         IllegalStateException.class,
@@ -67,7 +67,7 @@ public class InMemoryLockManagerTest {
   }
 
   @Test
-  public void testAcquireOnce_multiProcess() {
+  public void testAcquireOnceMultiProcesses() {
     List<Boolean> results = IntStream.range(0, 10).parallel()
         .mapToObj(i -> {
           try {
@@ -98,7 +98,7 @@ public class InMemoryLockManagerTest {
   }
 
   @Test
-  public void testAcquire_singleProcess() throws Exception {
+  public void testAcquireSingleProcess() throws Exception {
     lockManager.initialize(ImmutableMap.of(
         CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
         CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
@@ -124,7 +124,7 @@ public class InMemoryLockManagerTest {
   }
 
   @Test
-  public void testAcquire_multiProcess_allSucceed() {
+  public void testAcquireMultiProcessAllSucceed() {
     lockManager.initialize(ImmutableMap.of(
         CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"
     ));
@@ -150,7 +150,7 @@ public class InMemoryLockManagerTest {
   }
 
   @Test
-  public void testAcquire_multiProcess_onlyOneSucceed() {
+  public void testAcquireMultiProcessOnlyOneSucceed() {
     lockManager.initialize(ImmutableMap.of(
         CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
         CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",

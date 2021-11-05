@@ -39,7 +39,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 /**
  * Long-running tests to ensure multipart upload logic is resilient
  */
-public class S3MultipartUploadTest {
+public class TestS3MultipartUpload {
 
   private final Random random = new Random(1);
   private static S3Client s3;
@@ -71,7 +71,7 @@ public class S3MultipartUploadTest {
   }
 
   @Test
-  public void testManyParts_writeWithInt() throws IOException {
+  public void testManyPartsWriteWithInt() throws IOException {
     int parts = 200;
     writeInts(objectUri, parts, random::nextInt);
     Assert.assertEquals(parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
@@ -79,7 +79,7 @@ public class S3MultipartUploadTest {
   }
 
   @Test
-  public void testManyParts_writeWithBytes() throws IOException {
+  public void testManyPartsWriteWithBytes() throws IOException {
     int parts = 200;
     byte[] bytes = new byte[AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN];
     writeBytes(objectUri, parts, () -> {
@@ -91,13 +91,13 @@ public class S3MultipartUploadTest {
   }
 
   @Test
-  public void testContents_writeWithInt() throws IOException {
+  public void testContentsWriteWithInt() throws IOException {
     writeInts(objectUri, 10, () -> 6);
     verifyInts(objectUri, () -> 6);
   }
 
   @Test
-  public void testContents_writeWithBytes() throws IOException {
+  public void testContentsWriteWithBytes() throws IOException {
     byte[] bytes = new byte[AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN];
     for (int i = 0; i < AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN; i++) {
       bytes[i] = 6;

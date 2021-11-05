@@ -25,7 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-public class LockManagersTest {
+public class TestLockManagers {
 
   @Test
   public void testLoadDefaultLockManager() {

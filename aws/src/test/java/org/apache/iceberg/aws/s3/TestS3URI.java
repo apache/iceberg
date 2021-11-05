@@ -26,7 +26,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
-public class S3URITest {
+public class TestS3URI {
 
   @Test
   public void testLocationParsing() {
@@ -49,17 +49,17 @@ public class S3URITest {
   }
 
   @Test
-  public void missingKey() {
+  public void testMissingKey() {
     assertThrows(ValidationException.class, () -> new S3URI("https://bucket/"));
   }
 
   @Test
-  public void relativePathing() {
+  public void testRelativePathing() {
     assertThrows(ValidationException.class, () -> new S3URI("/path/to/file"));
   }
 
   @Test
-  public void invalidScheme() {
+  public void testInvalidScheme() {
     assertThrows(ValidationException.class, () -> new S3URI("http://bucket/"));
   }
 

@@ -44,7 +44,7 @@ import org.junit.Test;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
 
-public class GlueCatalogLockTest extends GlueTestBase {
+public class TestGlueCatalogLock extends GlueTestBase {
 
   private static String lockTableName;
   private static DynamoDbClient dynamo;
@@ -69,7 +69,7 @@ public class GlueCatalogLockTest extends GlueTestBase {
   }
 
   @Test
-  public void testParallelCommit_multiThreadSingleCommit() {
+  public void testParallelCommitMultiThreadSingleCommit() {
     int nThreads = 20;
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -100,7 +100,7 @@ public class GlueCatalogLockTest extends GlueTestBase {
   }
 
   @Test
-  public void testParallelCommit_multiThreadMultiCommit() {
+  public void testParallelCommitMultiThreadMultiCommit() {
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
