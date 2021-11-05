@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.dell;
 
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -52,8 +53,10 @@ public class TestEcsURI {
 
   @Test
   public void testInvalidLocation() {
-    Assert.assertThrows(
+    AssertHelpers.assertThrows(
+        "Invalid location should cause exception",
         ValidationException.class,
+        "http://bucket/a",
         () -> EcsURI.create("http://bucket/a"));
   }
 }
