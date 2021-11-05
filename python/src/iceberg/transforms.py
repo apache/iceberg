@@ -22,7 +22,7 @@ import struct
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-import mmh3
+import mmh3  # type: ignore
 import pytz
 
 from .types import (
@@ -132,8 +132,12 @@ class Bucket(Transform):
             lambda t: t == BinaryType or isinstance(t, FixedType),
         ),
         UUIDType: (
-            lambda v: struct.pack(
-                ">QQ", (v.int >> 64) & 0xFFFFFFFFFFFFFFFF, v.int & 0xFFFFFFFFFFFFFFFF
+            lambda v: Bucket._MURMUR3.hash(
+                struct.pack(
+                    ">QQ",
+                    (v.int >> 64) & 0xFFFFFFFFFFFFFFFF,
+                    v.int & 0xFFFFFFFFFFFFFFFF,
+                )
             ),
             lambda t: t == UUIDType,
         ),
@@ -157,14 +161,14 @@ class Bucket(Transform):
     def __init__(self, transform_type: Type, num_buckets: int):
         if (
             transform_type not in Bucket._FUNCTIONS_MAP
-            and isinstance(transform_type, FixedType)
-            and isinstance(transform_type, DecimalType)
+            and not isinstance(transform_type, FixedType)
+            and not isinstance(transform_type, DecimalType)
         ):
             raise ValueError(f"Cannot bucket by type: {transform_type}")
 
         super().__init__(
-            f"bucket[{bucket}",
-            f"Bucket(transform_type={repr(transform_type)}, num_buckets={bucket})",
+            f"bucket[{num_buckets}",
+            f"transforms.bucket(transform_type={repr(transform_type)}, num_buckets={num_buckets})",
         )
         self._type = transform_type
         self._num_buckets = num_buckets
@@ -236,7 +240,7 @@ class Time(Transform):
             raise ValueError(f"Cannot transform type: {transform_type} by {name}")
 
         super().__init__(
-            name, f"Time(transform_type={repr(transform_type)}, name={name})"
+            name, f"transforms.{name}(transform_type={repr(transform_type)})"
         )
         self._type = transform_type
         self._name = name
@@ -310,11 +314,13 @@ class Identity(Transform):
         TimestamptzType: lambda v: pytz.timezone("UTC")
         .localize(Transform._EPOCH + timedelta(microseconds=v))
         .strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-        BinaryType: lambda v: str(base64.b64encode(v)),
+        BinaryType: lambda v: base64.b64encode(v).decode("ISO-8859-1"),
     }
 
     def __init__(self, transform_type: Type):
-        super().__init__("identity", f"Identity(transform_type={repr(transform_type)})")
+        super().__init__(
+            "identity", f"transforms.identity(transform_type={repr(transform_type)})"
+        )
         self._type = transform_type
 
     def apply(self, value):
@@ -334,7 +340,7 @@ class Identity(Transform):
             return "null"
 
         if isinstance(self._type, FixedType):
-            return str(base64.b64encode(value))
+            return base64.b64encode(value).decode("ISO-8859-1")
 
         return Identity._HUMAN_STRING_MAP.get(self._type, str)(value)
 
@@ -350,7 +356,7 @@ class Truncate(Transform):
 
         super().__init__(
             f"truncate[{width}]",
-            f"Truncate(transform_type={repr(transform_type)}, width={width})",
+            f"transforms.truncate(transform_type={repr(transform_type)}, width={width})",
         )
         self._type = transform_type
         self._width = width
@@ -380,7 +386,7 @@ class Truncate(Transform):
         return True
 
     def satisfy_order(self, other: Transform) -> bool:
-        if self._type == other:
+        if self == other:
             return True
         elif (
             StringType == self._type
@@ -395,14 +401,18 @@ class Truncate(Transform):
         if value is None:
             return "null"
 
-        return str(base64.b64encode(value)) if self._type == BinaryType else str(value)
+        return (
+            (base64.b64encode(value)).decode("ISO-8859-1")
+            if self._type == BinaryType
+            else str(value)
+        )
 
 
 class UnknownTransform(Transform):
     def __init__(self, transform_type: Type, transform: str):
         super().__init__(
             transform,
-            f"UnknownTransform(transform_type={repr(transform_type)}, transform={transform})",
+            f"UnknownTransform(transform_type={repr(transform_type)}, transform='{transform}')",
         )
         self._type = transform_type
         self._transform = transform
@@ -411,13 +421,13 @@ class UnknownTransform(Transform):
         raise AttributeError(f"Cannot apply unsupported transform: {self.__str__()}")
 
     def can_transform(self, target: Type) -> bool:
-        return self._type == target
+        return repr(self._type) == repr(target)
 
     def get_result_type(self, source: Type) -> Type:
         return StringType
 
 
-VoidTransform = Transform("void", "VoidTransform")
+VoidTransform = Transform("void", "transforms.always_null()")
 
 _HAS_WIDTH = re.compile("(\\w+)\\[(\\d+)\\]")
 _TIME_TRANSFORMS = {
@@ -466,43 +476,43 @@ def from_string(transform_type: Type, transform: str) -> Transform:
     return UnknownTransform(transform_type, transform)
 
 
-def identity(transform_type: Type) -> Transform:
+def identity(transform_type: Type) -> Identity:
     return Identity(transform_type)
 
 
-def year(transform_type: Type) -> Transform:
+def year(transform_type: Type) -> Time:
     try:
         return _TIME_TRANSFORMS[transform_type]["year"]
     except KeyError:
         raise ValueError(f"Cannot partition type {transform_type} by year")
 
 
-def month(transform_type: Type) -> Transform:
+def month(transform_type: Type) -> Time:
     try:
         return _TIME_TRANSFORMS[transform_type]["month"]
     except KeyError:
         raise ValueError(f"Cannot partition type {transform_type} by month")
 
 
-def day(transform_type: Type) -> Transform:
+def day(transform_type: Type) -> Time:
     try:
         return _TIME_TRANSFORMS[transform_type]["day"]
     except KeyError:
         raise ValueError(f"Cannot partition type {transform_type} by day")
 
 
-def hour(transform_type: Type) -> Transform:
+def hour(transform_type: Type) -> Time:
     try:
         return _TIME_TRANSFORMS[transform_type]["hour"]
     except KeyError:
         raise ValueError(f"Cannot partition type {transform_type} by hour")
 
 
-def bucket(transform_type: Type, num_buckets: int) -> Transform:
+def bucket(transform_type: Type, num_buckets: int) -> Bucket:
     return Bucket(transform_type, num_buckets)
 
 
-def truncate(transform_type: Type, width: int) -> Transform:
+def truncate(transform_type: Type, width: int) -> Truncate:
     return Truncate(transform_type, width)
 
 
