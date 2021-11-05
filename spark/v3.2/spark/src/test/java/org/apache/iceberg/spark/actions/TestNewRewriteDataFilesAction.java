@@ -26,14 +26,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -46,6 +50,12 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SortStrategy;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -175,6 +185,59 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackWithDeletes() throws Exception {
+    Table table = createTablePartitioned(4, 2);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    shouldHaveFiles(table, 8);
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
+        null, null, null);
+    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
+
+    RowDelta rowDelta = table.newRowDelta();
+    // remove 2 rows for odd files, 1 row for even files
+    for (int i = 0; i < dataFiles.size(); i++) {
+      DataFile dataFile = dataFiles.get(i);
+      EncryptedOutputFile outputFile = EncryptedFiles.encryptedOutput(
+          table.io().newOutputFile(table.locationProvider().newDataLocation(UUID.randomUUID().toString())),
+          EncryptionKeyMetadata.EMPTY);
+      PositionDeleteWriter<Record> posDeleteWriter = appenderFactory.newPosDeleteWriter(
+          outputFile, FileFormat.PARQUET, dataFile.partition());
+      posDeleteWriter.delete(dataFile.path(), 0);
+      posDeleteWriter.close();
+      rowDelta.addDeletes(posDeleteWriter.toDeleteFile());
+
+      if (i % 2 != 0) {
+        outputFile = EncryptedFiles.encryptedOutput(
+            table.io().newOutputFile(table.locationProvider().newDataLocation(UUID.randomUUID().toString())),
+            EncryptionKeyMetadata.EMPTY);
+        posDeleteWriter = appenderFactory.newPosDeleteWriter(outputFile, FileFormat.PARQUET, dataFile.partition());
+        posDeleteWriter.delete(dataFile.path(), 1);
+        posDeleteWriter.close();
+        rowDelta.addDeletes(posDeleteWriter.toDeleteFile());
+      }
+    }
+
+    rowDelta.commit();
+    table.refresh();
+    List<Object[]> expectedRecords = currentData();
+    Result result = actions().rewriteDataFiles(table)
+        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+        .option(BinPackStrategy.MIN_DELETES_PER_FILE, "4")
+        .execute();
+    Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals("12 rows are removed", total - 12, actualRecords.size());
   }
 
   @Test
