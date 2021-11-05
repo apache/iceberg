@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.ArrayData;
@@ -73,19 +74,23 @@ public class TestHelpers {
     return RowDataUtil.clone(from, null, rowType, fieldSerializers);
   }
 
-  public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
-    FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
-    List<RowData> results = Lists.newArrayList();
-
-    for (FlinkInputSplit s : splits) {
-      inputFormat.open(s);
-      while (!inputFormat.reachedEnd()) {
-        RowData row = inputFormat.nextRecord(null);
-        results.add(copyRowData(row, rowType));
+  public static void readRowData(FlinkInputFormat input, Consumer<RowData> visitor) throws IOException {
+    for (FlinkInputSplit s : input.createInputSplits(0)) {
+      input.open(s);
+      try {
+        while (!input.reachedEnd()) {
+          RowData row = input.nextRecord(null);
+          visitor.accept(row);
+        }
+      } finally {
+        input.close();
       }
     }
-    inputFormat.close();
+  }
 
+  public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
+    List<RowData> results = Lists.newArrayList();
+    readRowData(inputFormat, row -> results.add(copyRowData(row, rowType)));
     return results;
   }
 
@@ -109,6 +114,10 @@ public class TestHelpers {
         TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
     expectedRecords.forEach(r -> expected.add(converter.toExternal(RowDataConverter.convert(schema, r))));
     assertRows(results, expected);
+  }
+
+  public static void assertRows(List<RowData> results, List<RowData> expected, RowType rowType) {
+    assertRows(convertRowDataToRow(results, rowType), convertRowDataToRow(expected, rowType));
   }
 
   public static void assertRows(List<Row> results, List<Row> expected) {
