@@ -80,6 +80,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   SparkBatchScan(SparkSession spark, Table table, SparkReadConf readConf, boolean caseSensitive,
                  Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
