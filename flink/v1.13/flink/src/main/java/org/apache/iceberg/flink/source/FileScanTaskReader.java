@@ -17,12 +17,20 @@
  * under the License.
  */
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
+package org.apache.iceberg.flink.source;
 
-if (flinkVersions.contains("1.12")) {
-  apply from: file("$projectDir/v1.12/build.gradle")
-}
+import java.io.Serializable;
+import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
+import org.apache.iceberg.io.CloseableIterator;
 
-if (flinkVersions.contains("1.13")) {
-  apply from: file("$projectDir/v1.13/build.gradle")
+/**
+ * Read a {@link FileScanTask} into a {@link CloseableIterator}
+ *
+ * @param <T> is the output data type returned by this iterator.
+ */
+@Internal
+public interface FileScanTaskReader<T> extends Serializable {
+  CloseableIterator<T> open(FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor);
 }

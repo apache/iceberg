@@ -30,19 +30,6 @@ configure(flinkProjects) {
 
 project(':iceberg-flink:iceberg-flink-1.13') {
 
-  sourceSets {
-    main {
-      java.srcDirs = [
-          "${project(':iceberg-flink').projectDir}/src/main/java",
-          "src/main/java"
-      ]
-      resources.srcDirs = [
-          "${project(':iceberg-flink').projectDir}/src/main/resources",
-          "src/main/resources"
-      ]
-    }
-  }
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')

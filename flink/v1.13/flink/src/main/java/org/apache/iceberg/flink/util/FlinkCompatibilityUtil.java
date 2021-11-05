@@ -17,12 +17,29 @@
  * under the License.
  */
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
+package org.apache.iceberg.flink.util;
 
-if (flinkVersions.contains("1.12")) {
-  apply from: file("$projectDir/v1.12/build.gradle")
-}
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.table.api.TableColumn;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
+import org.apache.flink.table.types.logical.RowType;
 
-if (flinkVersions.contains("1.13")) {
-  apply from: file("$projectDir/v1.13/build.gradle")
+/**
+ * This is a small util class that try to hide calls to Flink
+ * Internal or PublicEvolve interfaces as Flink can change
+ * those APIs during minor version release.
+ */
+public class FlinkCompatibilityUtil {
+
+  private FlinkCompatibilityUtil() {
+  }
+
+  public static TypeInformation<RowData> toTypeInfo(RowType rowType) {
+    return InternalTypeInfo.of(rowType);
+  }
+
+  public static boolean isPhysicalColumn(TableColumn column) {
+    return column.isPhysical();
+  }
 }

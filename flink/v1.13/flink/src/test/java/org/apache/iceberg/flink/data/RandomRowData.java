@@ -17,12 +17,24 @@
  * under the License.
  */
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
+package org.apache.iceberg.flink.data;
 
-if (flinkVersions.contains("1.12")) {
-  apply from: file("$projectDir/v1.12/build.gradle")
-}
+import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.RowDataConverter;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-if (flinkVersions.contains("1.13")) {
-  apply from: file("$projectDir/v1.13/build.gradle")
+public class RandomRowData {
+  private RandomRowData() {
+  }
+
+  public static Iterable<RowData> generate(Schema schema, int numRecords, long seed) {
+    return convert(schema, RandomGenericData.generate(schema, numRecords, seed));
+  }
+
+  public static Iterable<RowData> convert(Schema schema, Iterable<Record> records) {
+    return Iterables.transform(records, record -> RowDataConverter.convert(schema, record));
+  }
 }
