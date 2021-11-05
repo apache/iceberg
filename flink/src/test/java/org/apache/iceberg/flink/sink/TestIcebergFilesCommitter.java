@@ -95,6 +95,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         new Object[] {"parquet", 2, true},
         new Object[] {"orc", 1, false},
         new Object[] {"orc", 1, true},
+        new Object[] {"orc", 2, false},
+        new Object[] {"orc", 2, true},
     };
   }
 

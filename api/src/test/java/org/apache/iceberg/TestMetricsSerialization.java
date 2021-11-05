@@ -88,7 +88,7 @@ public class TestMetricsSerialization {
     Map<Integer, ByteBuffer> byteMap2 = new HashMap<>();
     byteMap1.put(3, ByteBuffer.wrap(new byte[] {1, 2}));
 
-    return new Metrics(0L, longMap1, longMap2, longMap3, byteMap1, byteMap2);
+    return new Metrics(0L, longMap1, longMap2, longMap3, null, byteMap1, byteMap2);
   }
 
   private static Metrics generateMetricsWithNulls() {
@@ -100,7 +100,7 @@ public class TestMetricsSerialization {
     byteMap.put(null, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     byteMap.put(4, null);
 
-    return new Metrics(null, null, longMap, longMap, null, byteMap);
+    return new Metrics(null, null, longMap, longMap, null, null, byteMap);
   }
 
   private static void assertEquals(Metrics expected, Metrics actual) {

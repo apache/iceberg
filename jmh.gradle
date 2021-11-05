@@ -32,8 +32,12 @@ if (sparkVersions.contains("3.0")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark3"))
 }
 
+if (sparkVersions.contains("3.2")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2"))
+}
+
 configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
+  apply plugin: 'me.champeau.jmh'
 
   jmh {
     jmhVersion = '1.32'
@@ -41,8 +45,8 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-    zip64 true
+    includes = [jmhIncludeRegex]
+    zip64 = true
   }
 
   jmhCompileGeneratedClasses {

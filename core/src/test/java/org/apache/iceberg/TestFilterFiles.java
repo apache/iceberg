@@ -105,7 +105,7 @@ public class TestFilterFiles {
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-        Maps.newHashMap(), lowerBounds, upperBounds);
+        Maps.newHashMap(), null, lowerBounds, upperBounds);
 
     DataFile file = DataFiles.builder(table.spec())
         .withPath("/path/to/file.parquet")
@@ -131,7 +131,7 @@ public class TestFilterFiles {
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
     Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-        Maps.newHashMap(), lowerBounds, upperBounds);
+        Maps.newHashMap(), null, lowerBounds, upperBounds);
 
     DataFile file = DataFiles.builder(table.spec())
         .withPath("/path/to/file.parquet")

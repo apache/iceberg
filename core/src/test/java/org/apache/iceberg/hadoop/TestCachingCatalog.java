@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.util.Locale;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
@@ -36,11 +35,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   @Test
   public void testInvalidateMetadataTablesIfBaseTableIsModified() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-
-    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
@@ -73,11 +68,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   @Test
   public void testInvalidateMetadataTablesIfBaseTableIsDropped() throws IOException {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-
-    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
 
     // create the original table
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
@@ -121,11 +112,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   @Test
   public void testTableName() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-
-    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
-    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
