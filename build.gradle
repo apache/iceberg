@@ -253,7 +253,6 @@ project(':iceberg-data') {
       exclude group: 'it.unimi.dsi'
       exclude group: 'org.codehaus.jackson'
     }
-    implementation "org.roaringbitmap:RoaringBitmap"
 
     compileOnly "org.apache.avro:avro"
 
