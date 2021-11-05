@@ -22,20 +22,16 @@ package org.apache.iceberg.exceptions;
 /**
  * Exception raised when an attempt to perform an operation fails due to invalid permissions.
  */
-public class AuthorizationDeniedException extends RuntimeException {
-  public AuthorizationDeniedException(String message) {
+public class NotAuthorizedException extends RuntimeException {
+  public NotAuthorizedException(String message) {
     super(message);
   }
 
-  public AuthorizationDeniedException(String message, Object... args) {
+  public NotAuthorizedException(String message, Object... args) {
     super(String.format(message, args));
   }
 
-  public AuthorizationDeniedException(String message, Throwable cause) {
+  public NotAuthorizedException(String message, Throwable cause) {
     super(message, cause);
-  }
-
-  public AuthorizationDeniedException(Throwable cause) {
-    super(cause);
   }
 }

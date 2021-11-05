@@ -26,7 +26,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.AuthorizationDeniedException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.rest.RestException;
@@ -63,7 +63,7 @@ public class ErrorHandlers {
           throw new AlreadyExistsException("Already exists: %s", responseBody);
         case HttpStatus.SC_FORBIDDEN:
         case HttpStatus.SC_UNAUTHORIZED:
-          throw new AuthorizationDeniedException("Not Authorized: %s", responseBody);
+          throw new NotAuthorizedException("Not Authorized: %s", responseBody);
         default:
           throw new RestException("Unknown error: %s", errorResponse);
       }
@@ -84,7 +84,7 @@ public class ErrorHandlers {
           throw new AlreadyExistsException("Already exists: %s", responseBody);
         case HttpStatus.SC_FORBIDDEN:
         case HttpStatus.SC_UNAUTHORIZED:
-          throw new AuthorizationDeniedException("Not Authorized: %s", responseBody);
+          throw new NotAuthorizedException("Not Authorized: %s", responseBody);
         default:
           throw new RestException("Unknown error: %s", errorResponse);
       }

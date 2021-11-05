@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -65,7 +66,7 @@ public class RequestResponseSerializers {
 
   public static class NamespaceDeserializer extends JsonDeserializer<Namespace> {
     @Override
-    public Namespace deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public Namespace deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return Namespace.of(jsonNode.asText().split("\\."));
     }
@@ -80,7 +81,7 @@ public class RequestResponseSerializers {
 
   public static class TableIdentifierDeserializer extends JsonDeserializer<TableIdentifier> {
     @Override
-    public TableIdentifier deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public TableIdentifier deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return TableIdentifier.parse(jsonNode.asText());
     }
@@ -147,16 +148,20 @@ public class RequestResponseSerializers {
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       Schema schema = (Schema) context.getAttribute("schema");
-
       return SortOrderParser.fromJson(schema, jsonNode);
     }
   }
 
   public static class TableMetadataSerializer extends JsonSerializer<TableMetadata> {
     @Override
-    public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
-      gen.writeRaw(TableMetadataParser.toJson(metadata));
+    public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers) {
+      try {
+        gen.writeRaw(TableMetadataParser.toJson(metadata));
+      } catch (IOException e) {
+        // TODO: Wrap serializers with a delegate that rethrows checked IOException as UncheckeddIOException
+        //       to avoid code repetition.
+        throw new UncheckedIOException("Failed to serialize TableMetadata", e);
+      }
     }
   }
 }
