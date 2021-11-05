@@ -97,7 +97,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     return vectorizedReader(reorderedFields);
   }
 
-  protected VectorizedReader vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
+  protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
     return readerFactory.apply(reorderedFields);
   }
 
