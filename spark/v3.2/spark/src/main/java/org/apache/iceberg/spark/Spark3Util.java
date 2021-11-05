@@ -483,6 +483,11 @@ public class Spark3Util {
     return null;
   }
 
+  public static boolean extensionsEnabled(SparkSession spark) {
+    String extensions = spark.conf().get("spark.sql.extensions", "");
+    return extensions.contains("IcebergSparkSessionExtensions");
+  }
+
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
     private static final Joiner COMMA = Joiner.on(',');
     private static final DescribeSchemaVisitor INSTANCE = new DescribeSchemaVisitor();

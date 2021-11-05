@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -47,8 +48,11 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkWriteBuilder.class);
   private static final SortOrder[] NO_ORDERING = new SortOrder[0];
 
   private final SparkSession spark;
@@ -77,7 +81,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.overwriteMode = writeConf.overwriteMode();
     this.rewrittenFileSetId = writeConf.rewrittenFileSetId();
     this.handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
-    this.requestDistributionAndOrdering = allIdentityTransforms(table.spec());
+    this.requestDistributionAndOrdering = Spark3Util.extensionsEnabled(spark) || allIdentityTransforms(table.spec());
     this.ignoreSortOrder = writeConf.ignoreSortOrder();
   }
 
@@ -132,8 +136,17 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     // Get application id
     String appId = spark.sparkContext().applicationId();
 
-    Distribution distribution = buildRequiredDistribution();
-    SortOrder[] ordering = buildRequiredOrdering(distribution);
+    Distribution distribution;
+    SortOrder[] ordering;
+
+    if (requestDistributionAndOrdering) {
+      distribution = buildRequiredDistribution();
+      ordering = buildRequiredOrdering(distribution);
+    } else {
+      LOG.warn("Can't request distribution/ordering as extensions are disabled and spec has non-identity transforms");
+      distribution = Distributions.unspecified();
+      ordering = NO_ORDERING;
+    }
 
     return new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
 
@@ -171,9 +184,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   private Distribution buildRequiredDistribution() {
-    if (!requestDistributionAndOrdering) {
-      return Distributions.unspecified();
-    } else if (overwriteFiles) {
+    if (overwriteFiles) {
       throw new UnsupportedOperationException("Copy-on-write operations are temporarily not supported");
     } else {
       DistributionMode distributionMode = writeConf.distributionMode();
@@ -182,7 +193,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   private SortOrder[] buildRequiredOrdering(Distribution requiredDistribution) {
-    if (!requestDistributionAndOrdering || ignoreSortOrder) {
+    if (ignoreSortOrder) {
+      LOG.warn("Ignoring the table sort order per job configuration");
       return NO_ORDERING;
     } else if (overwriteFiles) {
       throw new UnsupportedOperationException("Copy-on-write operations are temporarily not supported");
