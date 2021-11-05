@@ -22,9 +22,6 @@ package org.apache.iceberg.rest;
 import com.google.errorprone.annotations.FormatMethod;
 
 public class RestException extends RuntimeException {
-  public RestException(String message) {
-    super(message);
-  }
 
   @FormatMethod
   public RestException(String message, Object... args) {
