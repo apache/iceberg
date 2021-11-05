@@ -37,10 +37,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.directory.api.util.Hex;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -93,7 +93,7 @@ public class AliyunOSSMockLocalStore {
 
   private static void inputStreamToFile(InputStream inputStream, File targetFile) throws IOException {
     try (OutputStream outputStream = new FileOutputStream(targetFile)) {
-      IOUtils.copy(inputStream, outputStream);
+      ByteStreams.copy(inputStream, outputStream);
     }
   }
 

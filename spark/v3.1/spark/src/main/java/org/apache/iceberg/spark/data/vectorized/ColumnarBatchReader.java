@@ -23,7 +23,7 @@ import java.util.List;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.parquet.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
