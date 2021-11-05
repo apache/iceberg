@@ -22,18 +22,28 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,6 +53,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Fork(1)
 @State(Scope.Benchmark)
@@ -50,6 +62,9 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 public abstract class IcebergSourceBenchmark {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceBenchmark.class);
+  private static final long TARGET_FILE_SIZE_IN_BYTES = 50L * 1024 * 1024;
 
   private final Configuration hadoopConf = initHadoopConf();
   private final Table table = initTable();
@@ -186,5 +201,46 @@ public abstract class IcebergSourceBenchmark {
       });
       restoreProperties.commit();
     }
+  }
+
+  protected void writePosDeletes(CharSequence path, long numRows, double percentage) throws IOException {
+    OutputFileFactory fileFactory = newFileFactory();
+    SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table())
+            .dataFileFormat(fileFormat())
+            .build();
+
+    ClusteredPositionDeleteWriter<InternalRow> writer = new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table().io(),
+            fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+
+    PartitionSpec unpartitionedSpec = table().specs().get(0);
+    Set<Long> deletedPos = Sets.newHashSet();
+    while (deletedPos.size() < numRows * percentage) {
+      deletedPos.add(ThreadLocalRandom.current().nextLong(numRows));
+    }
+
+    LOG.info("pos delete row count: {}", deletedPos.size());
+
+    PositionDelete<InternalRow> positionDelete = PositionDelete.create();
+    try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {
+      for (Long pos : deletedPos) {
+        positionDelete.set(path, pos, null);
+        closeableWriter.write(positionDelete, unpartitionedSpec, null);
+      }
+    }
+
+    RowDelta rowDelta = table().newRowDelta();
+    writer.result().deleteFiles().forEach(deleteFile -> rowDelta.addDeletes(deleteFile));
+    rowDelta.validateDeletedFiles().commit();
+  }
+
+  private OutputFileFactory newFileFactory() {
+    return OutputFileFactory.builderFor(table(), 1, 1)
+            .format(fileFormat())
+            .build();
+  }
+
+  protected FileFormat fileFormat() {
+    throw new UnsupportedOperationException("Unsupported file format");
   }
 }

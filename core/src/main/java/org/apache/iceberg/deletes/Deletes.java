@@ -42,6 +42,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA = new Schema(
@@ -102,6 +103,24 @@ public class Deletes {
   public static Set<Long> toPositionSet(CloseableIterable<Long> posDeletes) {
     try (CloseableIterable<Long> deletes = posDeletes) {
       return Sets.newHashSet(deletes);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+  }
+
+  public static <T extends StructLike> Roaring64Bitmap toPositionBitmap(CharSequence dataLocation,
+                                                                        List<CloseableIterable<T>> deleteFiles) {
+    DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
+    List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
+        CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
+    return toPositionBitmap(CloseableIterable.concat(positions));
+  }
+
+  public static Roaring64Bitmap toPositionBitmap(CloseableIterable<Long> posDeletes) {
+    try (CloseableIterable<Long> deletes = posDeletes) {
+      Roaring64Bitmap bitmap = new Roaring64Bitmap();
+      deletes.forEach(bitmap::add);
+      return bitmap;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
     }

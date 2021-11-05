@@ -61,6 +61,10 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     this.readerFactory = readerFactory;
   }
 
+  public Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory() {
+    return readerFactory;
+  }
+
   @Override
   public VectorizedReader<?> message(
       Types.StructType expected, MessageType message,
@@ -94,6 +98,10 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         reorderedFields.add(VectorizedArrowReader.nulls());
       }
     }
+    return vectorizedReader(reorderedFields);
+  }
+
+  protected VectorizedReader vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
     return readerFactory.apply(reorderedFields);
   }
 
