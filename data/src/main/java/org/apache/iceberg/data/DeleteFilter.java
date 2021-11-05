@@ -56,7 +56,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 public abstract class DeleteFilter<T> {
   private static final long DEFAULT_SET_FILTER_THRESHOLD = 100_000L;
