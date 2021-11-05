@@ -31,6 +31,8 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.deletes.BitmapPositionDeleteIndex;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -60,7 +62,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.Mockito.mock;
@@ -183,8 +184,8 @@ public class TestSparkParquetReadMetadataColumns {
 
       DeleteFilter deleteFilter = mock(DeleteFilter.class);
       when(deleteFilter.hasPosDeletes()).thenReturn(true);
-      Roaring64Bitmap deletedRowPos = new Roaring64Bitmap();
-      deletedRowPos.add(98, 103);
+      PositionDeleteIndex deletedRowPos = new BitmapPositionDeleteIndex();
+      deletedRowPos.delete(98, 103);
       when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
 
       builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,

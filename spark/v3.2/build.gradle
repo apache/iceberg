@@ -66,6 +66,7 @@ project(':iceberg-spark:iceberg-spark-3.2') {
       exclude group: 'org.apache.arrow'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'org.roaringbitmap'
     }
 
     implementation("org.apache.orc:orc-core::nohive") {
@@ -81,8 +82,6 @@ project(':iceberg-spark:iceberg-spark-3.2') {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-
-    implementation "org.roaringbitmap:RoaringBitmap"
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -140,6 +139,7 @@ project(":iceberg-spark:iceberg-spark-3.2-extensions") {
       exclude group: 'org.apache.arrow'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'org.roaringbitmap'
     }
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')

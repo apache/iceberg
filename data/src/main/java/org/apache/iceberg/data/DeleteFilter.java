@@ -37,6 +37,7 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -70,7 +71,7 @@ public abstract class DeleteFilter<T> {
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
 
-  private Roaring64Bitmap deleteRowPositions = null;
+  private PositionDeleteIndex deleteRowPositions = null;
 
   protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
@@ -192,7 +193,7 @@ public abstract class DeleteFilter<T> {
     return remainingRowsFilter.filter(records);
   }
 
-  public Roaring64Bitmap deletedRowPositions() {
+  public PositionDeleteIndex deletedRowPositions() {
     if (posDeletes.isEmpty()) {
       return null;
     }

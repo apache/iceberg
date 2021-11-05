@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Pair;
@@ -33,7 +34,6 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 /**
  * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized read path. The
@@ -114,7 +114,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
    * @param numRows the num of rows
    * @return the mapping array and the new num of rows in a batch, null if no row is deleted
    */
-  private Pair<int[], Integer> buildRowIdMapping(Roaring64Bitmap deletedRowPositions, int numRows) {
+  private Pair<int[], Integer> buildRowIdMapping(PositionDeleteIndex deletedRowPositions, int numRows) {
     if (deletedRowPositions == null) {
       return null;
     }
@@ -123,7 +123,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     int originalRowId = 0;
     int currentRowId = 0;
     while (originalRowId < numRows) {
-      if (!deletedRowPositions.contains(originalRowId + rowStartPosInBatch)) {
+      if (!deletedRowPositions.deleted(originalRowId + rowStartPosInBatch)) {
         rowIdMapping[currentRowId] = originalRowId;
         currentRowId++;
       }
