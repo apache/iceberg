@@ -49,16 +49,8 @@ public class ObjectData {
     this.userMetadata = userMetadata;
   }
 
-  public byte[] getContent() {
-    return content;
-  }
-
-  public int getLength() {
+  public int length() {
     return content.length;
-  }
-
-  public Map<String, String> getUserMetadata() {
-    return userMetadata;
   }
 
   public ObjectData appendContent(byte[] appendedData) {

@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.dell.EcsClientFactory;
 import org.apache.iceberg.dell.EcsClientProperties;
@@ -40,6 +41,11 @@ import org.junit.runners.model.Statement;
  * Use environment parameter to specify use mock client or real client.
  */
 public class EcsS3MockRule implements TestRule {
+
+  /**
+   * Object ID generator
+   */
+  private static final AtomicInteger ID = new AtomicInteger(0);
 
   // Config fields
   private final boolean autoCreateBucket;
@@ -110,7 +116,7 @@ public class EcsS3MockRule implements TestRule {
         client.destroy();
       }
     } else {
-      S3Client client = getClient();
+      S3Client client = client();
       if (bucketCreated) {
         deleteBucket();
       }
@@ -121,12 +127,12 @@ public class EcsS3MockRule implements TestRule {
 
   public void createBucket() {
     // create test bucket for this unit test
-    getClient().createBucket(bucket);
+    client().createBucket(bucket);
     bucketCreated = true;
   }
 
   private void deleteBucket() {
-    S3Client client = getClient();
+    S3Client client = client();
     if (!client.bucketExists(bucket)) {
       return;
     }
@@ -148,11 +154,11 @@ public class EcsS3MockRule implements TestRule {
     client.deleteBucket(bucket);
   }
 
-  public Map<String, String> getClientProperties() {
+  public Map<String, String> clientProperties() {
     return clientProperties;
   }
 
-  public S3Client getClient() {
+  public S3Client client() {
     if (lazyClient == null) {
       lazyClient = EcsClientFactory.create(clientProperties);
     }
@@ -160,7 +166,11 @@ public class EcsS3MockRule implements TestRule {
     return lazyClient;
   }
 
-  public String getBucket() {
+  public String bucket() {
     return bucket;
+  }
+
+  public String randomObjectName() {
+    return "test-" + ID.getAndIncrement() + "-" + UUID.randomUUID();
   }
 }

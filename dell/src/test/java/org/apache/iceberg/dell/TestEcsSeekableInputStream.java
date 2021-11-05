@@ -21,42 +21,68 @@ package org.apache.iceberg.dell;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.EcsS3MockRule;
-import org.junit.Rule;
+import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Test;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 
 public class TestEcsSeekableInputStream {
 
-  @Rule
-  public EcsS3MockRule rule = EcsS3MockRule.create();
+  @ClassRule
+  public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testSeekPosRead() throws IOException {
-    String objectName = "test";
-    rule.getClient().putObject(new PutObjectRequest(rule.getBucket(), objectName, "0123456789".getBytes()));
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
 
     try (EcsSeekableInputStream input = new EcsSeekableInputStream(
-        rule.getClient(),
-        new EcsURI(rule.getBucket(), objectName))) {
-      // read one byte
-      assertEquals("Read 0 without additional pos", '0', input.read());
-
-      // read bytes
-      byte[] bytes = new byte[3];
-      assertEquals("Read 3 bytes", 3, input.read(bytes));
-      assertArrayEquals("Read next 123 after 0", new byte[] {'1', '2', '3'}, bytes);
-
-      // jump
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName))) {
       input.seek(2);
-      assertEquals("Read 2 when seek to 2", '2', input.read());
+      Assert.assertEquals("Expect 2 when seek to 2", '2', input.read());
+    }
+  }
 
-      // jump to invalid pos won't cause exception
-      input.seek(100);
-      input.seek(9);
-      assertEquals("Read 9 that is the final pos", '9', input.read());
+  @Test
+  public void testMultipleSeekPosRead() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+
+    try (EcsSeekableInputStream input = new EcsSeekableInputStream(
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName))) {
+      input.seek(999);
+      input.seek(3);
+      Assert.assertEquals("Expect 3 when seek to 3 finally", '3', input.read());
+    }
+  }
+
+  @Test
+  public void testReadOneByte() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+
+    try (EcsSeekableInputStream input = new EcsSeekableInputStream(
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName))) {
+      Assert.assertEquals("The first byte should be 0 ", '0', input.read());
+    }
+  }
+
+  @Test
+  public void testReadBytes() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+
+    try (EcsSeekableInputStream input = new EcsSeekableInputStream(
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName))) {
+      byte[] buffer = new byte[3];
+      Assert.assertEquals("The first read should be 3 bytes", 3, input.read(buffer));
+      Assert.assertEquals("The first 3 bytes should be 012", "012",
+          new String(buffer, StandardCharsets.UTF_8));
     }
   }
 }

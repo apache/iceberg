@@ -111,11 +111,11 @@ class EcsAppendOutputStream extends PositionOutputStream {
 
   private void flushBuffer(byte[] buffer, int offset, int length) {
     if (firstPart) {
-      client.putObject(new PutObjectRequest(key.getBucket(), key.getName(),
+      client.putObject(new PutObjectRequest(key.bucket(), key.name(),
           new ByteArrayInputStream(buffer, offset, length)));
       firstPart = false;
     } else {
-      client.appendObject(key.getBucket(), key.getName(), new ByteArrayInputStream(buffer, offset, length));
+      client.appendObject(key.bucket(), key.name(), new ByteArrayInputStream(buffer, offset, length));
     }
   }
 

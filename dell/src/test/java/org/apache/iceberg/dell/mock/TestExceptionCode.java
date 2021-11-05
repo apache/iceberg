@@ -21,11 +21,9 @@ package org.apache.iceberg.dell.mock;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Exception;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 /**
  * Verify the error codes between real client and mock client.
@@ -39,18 +37,18 @@ public class TestExceptionCode {
   public void testExceptionCode() {
     String object = "test";
     assertS3Exception("Append absent object", 404, "NoSuchKey",
-        () -> rule.getClient().appendObject(rule.getBucket(), object, "abc".getBytes()));
+        () -> rule.client().appendObject(rule.bucket(), object, "abc".getBytes()));
     assertS3Exception("Get object", 404, "NoSuchKey",
-        () -> rule.getClient().readObjectStream(rule.getBucket(), object, Range.fromOffset(0)));
+        () -> rule.client().readObjectStream(rule.bucket(), object, Range.fromOffset(0)));
   }
 
   public void assertS3Exception(String message, int httpCode, String errorCode, Runnable task) {
     try {
       task.run();
-      fail(message + ", expect s3 exception");
+      Assert.fail("Expect s3 exception for " + message);
     } catch (S3Exception e) {
-      assertEquals(message + ", http code", httpCode, e.getHttpCode());
-      assertEquals(message + ", error code", errorCode, e.getErrorCode());
+      Assert.assertEquals(message + ", http code", httpCode, e.getHttpCode());
+      Assert.assertEquals(message + ", error code", errorCode, e.getErrorCode());
     }
   }
 }

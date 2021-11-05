@@ -25,22 +25,21 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.EcsS3MockRule;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.junit.Rule;
+import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class TestEcsAppendOutputStream {
 
-  @Rule
-  public EcsS3MockRule rule = EcsS3MockRule.create();
+  @ClassRule
+  public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testBaseObjectWrite() throws IOException {
-    String objectName = "test";
+    String objectName = rule.randomObjectName();
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
-        rule.getClient(),
-        new EcsURI(rule.getBucket(), objectName),
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName),
         10)) {
       // write 1 byte
       output.write('1');
@@ -52,36 +51,36 @@ public class TestEcsAppendOutputStream {
       output.write("12345678901".getBytes());
     }
 
-    try (InputStream input = rule.getClient().readObjectStream(rule.getBucket(), objectName,
+    try (InputStream input = rule.client().readObjectStream(rule.bucket(), objectName,
         Range.fromOffset(0))) {
-      assertEquals("Must write all the object content", "1" + "123" + "1234567" + "12345678901",
+      Assert.assertEquals("Must write all the object content", "1" + "123" + "1234567" + "12345678901",
           new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
   }
 
   @Test
   public void testRewrite() throws IOException {
-    String objectName = "test";
+    String objectName = rule.randomObjectName();
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
-        rule.getClient(),
-        new EcsURI(rule.getBucket(), objectName),
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName),
         10)) {
       // write 7 bytes
       output.write("7654321".getBytes());
     }
 
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
-        rule.getClient(),
-        new EcsURI(rule.getBucket(), objectName),
+        rule.client(),
+        new EcsURI(rule.bucket(), objectName),
         10)) {
       // write 14 bytes
       output.write("1234567".getBytes());
       output.write("1234567".getBytes());
     }
 
-    try (InputStream input = rule.getClient().readObjectStream(rule.getBucket(), objectName,
+    try (InputStream input = rule.client().readObjectStream(rule.bucket(), objectName,
         Range.fromOffset(0))) {
-      assertEquals("object content", "1234567" + "1234567",
+      Assert.assertEquals("Must replace the object content", "1234567" + "1234567",
           new String(ByteStreams.toByteArray(input), StandardCharsets.UTF_8));
     }
   }

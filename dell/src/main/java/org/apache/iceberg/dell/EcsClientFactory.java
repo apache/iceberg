@@ -59,7 +59,7 @@ public interface EcsClientFactory {
       clientFactory = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize Catalog, %s does not implement EcsClientFactory.", factory), e);
+          String.format("Cannot initialize EcsClientFactory, %s does not implement EcsClientFactory.", factory), e);
     }
 
     S3Client client = clientFactory.createS3Client(properties);
@@ -78,11 +78,11 @@ public interface EcsClientFactory {
    */
   static S3Client createDefault(Map<String, String> properties) {
     Preconditions.checkNotNull(properties.get(EcsClientProperties.ENDPOINT),
-        "Endpoint(%s) cannot be null", EcsClientProperties.ENDPOINT);
+        "Endpoint (%s) cannot be null", EcsClientProperties.ENDPOINT);
     Preconditions.checkNotNull(properties.get(EcsClientProperties.ACCESS_KEY_ID),
-        "Access key(%s) cannot be null", EcsClientProperties.ACCESS_KEY_ID);
+        "Access key (%s) cannot be null", EcsClientProperties.ACCESS_KEY_ID);
     Preconditions.checkNotNull(properties.get(EcsClientProperties.SECRET_ACCESS_KEY),
-        "Secret key(%s) cannot be null", EcsClientProperties.SECRET_ACCESS_KEY);
+        "Secret key (%s) cannot be null", EcsClientProperties.SECRET_ACCESS_KEY);
 
     S3Config config = new S3Config(URI.create(properties.get(EcsClientProperties.ENDPOINT)));
 

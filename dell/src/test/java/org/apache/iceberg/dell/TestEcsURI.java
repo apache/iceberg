@@ -20,41 +20,39 @@
 package org.apache.iceberg.dell;
 
 import org.apache.iceberg.exceptions.ValidationException;
+import org.junit.Assert;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 
 public class TestEcsURI {
 
   @Test
   public void testCreate() {
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", ""),
         EcsURI.create("ecs://bucket"));
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", ""),
         EcsURI.create("ecs://bucket/"));
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", ""),
         EcsURI.create("ecs://bucket//"));
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", "a"),
         EcsURI.create("ecs://bucket//a"));
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", "a/b"),
         EcsURI.create("ecs://bucket/a/b"));
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", "a//b"),
         EcsURI.create("ecs://bucket/a//b"));
-    assertEquals(
+    Assert.assertEquals(
         new EcsURI("bucket", "a//b"),
         EcsURI.create("ecs://bucket//a//b"));
   }
 
   @Test
   public void testInvalidLocation() {
-    assertThrows(
+    Assert.assertThrows(
         ValidationException.class,
         () -> EcsURI.create("http://bucket/a"));
   }

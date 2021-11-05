@@ -122,7 +122,7 @@ public class MockS3Client implements S3Client {
 
     byte[] appendedData = convertContent(content);
     if (objectData.replace(id, old, old.appendContent(appendedData))) {
-      return old.getLength();
+      return old.length();
     } else {
       return wontImplement();
     }

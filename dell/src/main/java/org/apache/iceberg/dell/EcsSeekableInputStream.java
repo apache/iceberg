@@ -97,7 +97,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
     }
 
     pos = newPos;
-    internalStream = client.readObjectStream(uri.getBucket(), uri.getName(), Range.fromOffset(pos));
+    internalStream = client.readObjectStream(uri.bucket(), uri.name(), Range.fromOffset(pos));
     newPos = -1;
   }
 

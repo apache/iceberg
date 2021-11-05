@@ -19,15 +19,13 @@
 
 package org.apache.iceberg.dell;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.iceberg.dell.mock.EcsS3MockRule;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializationUtil;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
 
 public class TestEcsFileIO {
 
@@ -35,16 +33,18 @@ public class TestEcsFileIO {
   public EcsS3MockRule rule = EcsS3MockRule.manualCreateBucket();
 
   @Test
-  public void externalizable() {
+  public void testEcsFileIOSerializationRoundTrip() {
     try (EcsFileIO instance1 = new EcsFileIO()) {
-      Map<String, String> input = new LinkedHashMap<>(rule.getClientProperties());
-      input.put("key1", "value1");
-      input.put("key2", "value2");
+      Map<String, String> input = ImmutableMap.<String, String>builder()
+          .putAll(rule.clientProperties())
+          .put("key1", "value1")
+          .put("key2", "value2")
+          .build();
       instance1.initialize(input);
       try (EcsFileIO instance2 = SerializationUtil.deserializeFromBytes(
           SerializationUtil.serializeToBytes(instance1))) {
-        assertEquals("The properties should be equels", instance1.properties(), instance2.properties());
-        assertNotSame("Client instance is different", instance1.client(), instance2.client());
+        Assert.assertEquals("The properties should be equals", instance1.properties(), instance2.properties());
+        Assert.assertNotSame("Client instance is different", instance1.client(), instance2.client());
       }
     }
   }

@@ -67,7 +67,7 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
   @Override
   public void deleteFile(String path) {
     EcsURI uri = EcsURI.create(path);
-    client.deleteObject(uri.getBucket(), uri.getName());
+    client.deleteObject(uri.bucket(), uri.name());
   }
 
   @Override

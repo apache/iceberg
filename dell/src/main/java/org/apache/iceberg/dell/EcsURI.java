@@ -35,9 +35,10 @@ class EcsURI {
 
   static EcsURI create(String location) {
     URI uri = URI.create(location);
-    if (!VALID_SCHEME.contains(uri.getScheme().toLowerCase())) {
-      throw new ValidationException("Invalid ecs location: %s", location);
-    }
+    ValidationException.check(
+        VALID_SCHEME.contains(uri.getScheme().toLowerCase()),
+        "Invalid ecs location: %s",
+        location);
     String bucket = uri.getHost();
     String name = uri.getPath().replaceAll("^/*", "");
     return new EcsURI(bucket, name);
@@ -54,11 +55,11 @@ class EcsURI {
     this.name = name;
   }
 
-  public String getBucket() {
+  public String bucket() {
     return bucket;
   }
 
-  public String getName() {
+  public String name() {
     return name;
   }
 

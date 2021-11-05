@@ -25,9 +25,9 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
-public class EcsOutputFile extends BaseEcsFile implements OutputFile {
+class EcsOutputFile extends BaseEcsFile implements OutputFile {
 
-  public EcsOutputFile(S3Client client, String location) {
+  EcsOutputFile(S3Client client, String location) {
     super(client, location);
   }
 
@@ -41,17 +41,17 @@ public class EcsOutputFile extends BaseEcsFile implements OutputFile {
     if (!exists()) {
       return createOrOverwrite();
     } else {
-      throw new AlreadyExistsException("ECS object already exists: %s", uri);
+      throw new AlreadyExistsException("ECS object already exists: %s", uri());
     }
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return EcsAppendOutputStream.create(client, uri);
+    return EcsAppendOutputStream.create(client(), uri());
   }
 
   @Override
   public InputFile toInputFile() {
-    return new EcsInputFile(client, location);
+    return new EcsInputFile(client(), location());
   }
 }

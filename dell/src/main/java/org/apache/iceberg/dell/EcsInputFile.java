@@ -25,9 +25,9 @@ import com.emc.object.s3.S3ObjectMetadata;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
-public class EcsInputFile extends BaseEcsFile implements InputFile {
+class EcsInputFile extends BaseEcsFile implements InputFile {
 
-  public EcsInputFile(S3Client client, String location) {
+  EcsInputFile(S3Client client, String location) {
     super(client, location);
   }
 
@@ -39,7 +39,7 @@ public class EcsInputFile extends BaseEcsFile implements InputFile {
   @Override
   public long getLength() {
     try {
-      S3ObjectMetadata metadata = client.getObjectMetadata(uri.getBucket(), uri.getName());
+      S3ObjectMetadata metadata = client().getObjectMetadata(uri().bucket(), uri().name());
       return metadata.getContentLength();
     } catch (S3Exception e) {
       if (e.getHttpCode() == 404) {
@@ -52,6 +52,6 @@ public class EcsInputFile extends BaseEcsFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new EcsSeekableInputStream(client, uri);
+    return new EcsSeekableInputStream(client(), uri());
   }
 }

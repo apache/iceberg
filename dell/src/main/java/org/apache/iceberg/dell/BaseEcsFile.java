@@ -22,13 +22,13 @@ package org.apache.iceberg.dell;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Exception;
 
-public class BaseEcsFile {
+class BaseEcsFile {
 
-  protected final S3Client client;
-  protected final String location;
-  protected final EcsURI uri;
+  private final S3Client client;
+  private final String location;
+  private final EcsURI uri;
 
-  public BaseEcsFile(S3Client client, String location) {
+  protected BaseEcsFile(S3Client client, String location) {
     this.client = client;
     this.location = location;
     this.uri = EcsURI.create(location);
@@ -38,12 +38,20 @@ public class BaseEcsFile {
     return location;
   }
 
+  protected S3Client client() {
+    return client;
+  }
+
+  protected EcsURI uri() {
+    return uri;
+  }
+
   /**
    * Check whether data file exists.
    */
   public boolean exists() {
     try {
-      client.getObjectMetadata(uri.getBucket(), uri.getName());
+      client.getObjectMetadata(uri.bucket(), uri.name());
       return true;
     } catch (S3Exception e) {
       if (e.getHttpCode() == 404) {
