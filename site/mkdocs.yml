@@ -106,6 +106,7 @@ nav:
     - Spec: spec.md
   - Project:
     - How To Release: how-to-release.md
+    - How To Vote: how-to-vote.md
     - Trademarks: trademarks.md
     - Security: security.md
   - ASF:
