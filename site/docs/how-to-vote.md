@@ -18,7 +18,7 @@
 # Voting on an Iceberg Release
 
 Before a new version of Apache Iceberg is released, a release candidate will be prepared and a vote
-will occur. Announcements will be made on the Iceberg [developer's mailing list](http://127.0.0.1:8000/#community/#mailing-lists)
+will occur. Announcements will be made on the Iceberg [developer's mailing list](https://iceberg.apache.org/#community/#mailing-lists)
 and will include links to the following:
 
 - A source tarball
@@ -44,6 +44,7 @@ Verify the checksum.
 ```bash
 sha512sum -c apache-iceberg-${VERSION}.tar.gz.sha512
 ```
+**note**: If you're on a mac that does not have coreutils installed, you can use `shasum -a 512` instead.
 
 Untar the archive and change into the source directory.
 ```bash
