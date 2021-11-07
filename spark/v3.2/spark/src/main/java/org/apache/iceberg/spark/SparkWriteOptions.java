@@ -33,6 +33,8 @@ public class SparkWriteOptions {
   // Overrides this table's write.target-file-size-bytes
   public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
+  public static final String TARGET_FILE_ROWS_DIVISOR = "target-file-rows-divisor";
+
   //  Sets the nullable check on fields(default: true)
   public static final String CHECK_NULLABILITY = "check-nullability";
 

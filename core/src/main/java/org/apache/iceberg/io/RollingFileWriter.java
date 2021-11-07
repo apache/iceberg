@@ -31,13 +31,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * based on the target file size.
  */
 abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements FileWriter<T, R> {
-  private static final int ROWS_DIVISOR = 1000;
 
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSizeInBytes;
   private final PartitionSpec spec;
   private final StructLike partition;
+  private final int rowsDivisor;
 
   private EncryptedOutputFile currentFile = null;
   private long currentFileRows = 0;
@@ -46,12 +46,13 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
   private boolean closed = false;
 
   protected RollingFileWriter(OutputFileFactory fileFactory, FileIO io, long targetFileSizeInBytes,
-                              PartitionSpec spec, StructLike partition) {
+                              PartitionSpec spec, StructLike partition, int rowsDivisor) {
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.spec = spec;
     this.partition = partition;
+    this.rowsDivisor = rowsDivisor;
   }
 
   protected abstract W newWriter(EncryptedOutputFile file);
@@ -93,7 +94,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
   }
 
   private boolean shouldRollToNewFile() {
-    return currentFileRows % ROWS_DIVISOR == 0 && currentWriter.length() >= targetFileSizeInBytes;
+    return currentFileRows % rowsDivisor == 0 && currentWriter.length() >= targetFileSizeInBytes;
   }
 
   protected void openCurrentWriter() {

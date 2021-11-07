@@ -39,16 +39,18 @@ public class ClusteredEqualityDeleteWriter<T> extends ClusteredWriter<T, DeleteW
   private final FileIO io;
   private final FileFormat fileFormat;
   private final long targetFileSizeInBytes;
+  private final int rowsDivisor;
   private final List<DeleteFile> deleteFiles;
 
   public ClusteredEqualityDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                                       FileIO io, FileFormat fileFormat, long targetFileSizeInBytes) {
+                                       FileIO io, FileFormat fileFormat, long targetFileSizeInBytes, int rowsDivisor) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.fileFormat = fileFormat;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.deleteFiles = Lists.newArrayList();
+    this.rowsDivisor = rowsDivisor;
   }
 
   @Override
@@ -58,7 +60,8 @@ public class ClusteredEqualityDeleteWriter<T> extends ClusteredWriter<T, DeleteW
       EncryptedOutputFile outputFile = newOutputFile(fileFactory, spec, partition);
       return writerFactory.newEqualityDeleteWriter(outputFile, spec, partition);
     } else {
-      return new RollingEqualityDeleteWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
+      return new RollingEqualityDeleteWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition,
+              rowsDivisor);
     }
   }
 

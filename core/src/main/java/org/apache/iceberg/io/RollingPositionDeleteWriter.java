@@ -42,8 +42,8 @@ public class RollingPositionDeleteWriter<T>
 
   public RollingPositionDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
                                      FileIO io, long targetFileSizeInBytes,
-                                     PartitionSpec spec, StructLike partition) {
-    super(fileFactory, io, targetFileSizeInBytes, spec, partition);
+                                     PartitionSpec spec, StructLike partition, int rowsDivisor) {
+    super(fileFactory, io, targetFileSizeInBytes, spec, partition, rowsDivisor);
     this.writerFactory = writerFactory;
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();

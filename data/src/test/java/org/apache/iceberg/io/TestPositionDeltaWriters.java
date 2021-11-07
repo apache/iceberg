@@ -49,6 +49,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   }
   private static final int TABLE_FORMAT_VERSION = 2;
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;
+  private static final int ROWS_DIVISOR = 1000;
 
   private final FileFormat fileFormat;
   private OutputFileFactory fileFactory = null;
@@ -80,10 +81,10 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
     ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
     ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
     PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
 
     deltaWriter.insert(toRow(1, "aaa"), table.spec(), null);
@@ -145,10 +146,10 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
     ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
     ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
     PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
 
     deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
@@ -214,10 +215,10 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
     ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
     ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
     PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
 
     deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);

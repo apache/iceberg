@@ -54,6 +54,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   private static final int TABLE_FORMAT_VERSION = 2;
   private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 1000;
   private static final long DEFAULT_FILE_SIZE = 128L * 1024 * 1024;
+  private static final int DEFAULT_ROWS_DIVISOR = 1000;
   private static final long SMALL_FILE_SIZE = 2L;
   private static final String PARTITION_VALUE = "aaa";
 
@@ -95,7 +96,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingDataWriter<T> writer = new RollingDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        DEFAULT_FILE_SIZE, table.spec(), partition);
+        DEFAULT_FILE_SIZE, table.spec(), partition, DEFAULT_ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
@@ -109,7 +110,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingDataWriter<T> writer = new RollingDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        SMALL_FILE_SIZE, table.spec(), partition);
+        SMALL_FILE_SIZE, table.spec(), partition, DEFAULT_ROWS_DIVISOR);
 
     List<T> rows = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
@@ -135,7 +136,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
     RollingEqualityDeleteWriter<T> writer = new RollingEqualityDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        DEFAULT_FILE_SIZE, table.spec(), partition);
+        DEFAULT_FILE_SIZE, table.spec(), partition, DEFAULT_ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -155,7 +156,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
     RollingEqualityDeleteWriter<T> writer = new RollingEqualityDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        SMALL_FILE_SIZE, table.spec(), partition);
+        SMALL_FILE_SIZE, table.spec(), partition, DEFAULT_ROWS_DIVISOR);
 
     List<T> deletes = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
@@ -180,7 +181,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingPositionDeleteWriter<T> writer = new RollingPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        DEFAULT_FILE_SIZE, table.spec(), partition);
+        DEFAULT_FILE_SIZE, table.spec(), partition, DEFAULT_ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -198,7 +199,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     RollingPositionDeleteWriter<T> writer = new RollingPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        SMALL_FILE_SIZE, table.spec(), partition);
+        SMALL_FILE_SIZE, table.spec(), partition, FILE_SIZE_CHECK_ROWS_DIVISOR);
 
     List<PositionDelete<T>> deletes = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {

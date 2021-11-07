@@ -64,6 +64,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
   private static final int NUM_ROWS = 2500000;
   private static final long TARGET_FILE_SIZE_IN_BYTES = 50L * 1024 * 1024;
+  private static final int ROWS_DIVISOR = 1000;
 
   private static final Schema SCHEMA = new Schema(
       required(1, "longCol", Types.LongType.get()),
@@ -137,7 +138,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     ClusteredDataWriter<InternalRow> writer = new ClusteredDataWriter<>(
         writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        fileFormat(), TARGET_FILE_SIZE_IN_BYTES, ROWS_DIVISOR);
 
     try (ClusteredDataWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : rows) {
@@ -187,7 +188,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     ClusteredDataWriter<InternalRow> writer = new ClusteredDataWriter<>(
         writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        fileFormat(), TARGET_FILE_SIZE_IN_BYTES, ROWS_DIVISOR);
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType dataSparkType = SparkSchemaUtil.convert(table().schema());
@@ -243,7 +244,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     FanoutDataWriter<InternalRow> writer = new FanoutDataWriter<>(
         writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        fileFormat(), TARGET_FILE_SIZE_IN_BYTES, ROWS_DIVISOR);
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType dataSparkType = SparkSchemaUtil.convert(table().schema());
@@ -302,7 +303,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     ClusteredEqualityDeleteWriter<InternalRow> writer = new ClusteredEqualityDeleteWriter<>(
         writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        fileFormat(), TARGET_FILE_SIZE_IN_BYTES, ROWS_DIVISOR);
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType deleteSparkType = SparkSchemaUtil.convert(table().schema());
@@ -330,7 +331,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     ClusteredPositionDeleteWriter<InternalRow> writer = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        fileFormat(), TARGET_FILE_SIZE_IN_BYTES, ROWS_DIVISOR);
 
     PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {

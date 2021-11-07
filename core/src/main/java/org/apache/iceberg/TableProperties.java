@@ -196,6 +196,8 @@ public class TableProperties {
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
   public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 536870912; // 512 MB
+  public static final String WRITE_TARGET_FILE_ROWS_DIVISOR = "write.target-file-rows-divisor";
+  public static final int WRITE_TARGET_FILE_ROWS_DIVISOR_DEFAULT = 1000;
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;

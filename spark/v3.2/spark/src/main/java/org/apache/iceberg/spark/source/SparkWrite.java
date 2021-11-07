@@ -102,6 +102,7 @@ class SparkWrite {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
+  private final int rowsDivisor;
 
   SparkWrite(SparkSession spark, Table table, SparkWriteConf writeConf,
              LogicalWriteInfo writeInfo, String applicationId,
@@ -117,6 +118,7 @@ class SparkWrite {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
+    this.rowsDivisor = writeConf.rowsDivisor();
   }
 
   BatchWrite asBatchAppend() {
@@ -156,7 +158,8 @@ class SparkWrite {
   private WriterFactory createWriterFactory() {
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-    return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
+    return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled,
+            rowsDivisor);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -509,15 +512,18 @@ class SparkWrite {
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
+    private final int rowsDivisor;
 
     protected WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
-                            Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
+                            Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled,
+                            int rowsDivisor) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
       this.partitionedFanoutEnabled = partitionedFanoutEnabled;
+      this.rowsDivisor = rowsDivisor;
     }
 
     @Override
@@ -541,12 +547,12 @@ class SparkWrite {
           .build();
 
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, format, targetFileSize);
+        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, format, targetFileSize, rowsDivisor);
 
       } else {
         return new PartitionedDataWriter(
             writerFactory, fileFactory, io, spec, writeSchema, dsSchema,
-            format, targetFileSize, partitionedFanoutEnabled);
+            format, targetFileSize, rowsDivisor, partitionedFanoutEnabled);
       }
     }
   }
@@ -563,13 +569,14 @@ class SparkWrite {
     private final FileIO io;
 
     private UnpartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
-                                    FileIO io, PartitionSpec spec, FileFormat format, long targetFileSize) {
+                                    FileIO io, PartitionSpec spec, FileFormat format, long targetFileSize,
+                                    int rowsDivisor) {
       // TODO: support ORC rolling writers
       if (format == FileFormat.ORC) {
         EncryptedOutputFile outputFile = fileFactory.newOutputFile();
         delegate = writerFactory.newDataWriter(outputFile, spec, null);
       } else {
-        delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
+        delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null, rowsDivisor);
       }
       this.io = io;
     }
@@ -611,11 +618,11 @@ class SparkWrite {
     private PartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
                                   FileIO io, PartitionSpec spec, Schema dataSchema,
                                   StructType dataSparkType, FileFormat format,
-                                  long targetFileSize, boolean fanoutEnabled) {
+                                  long targetFileSize, int rowsDivisor, boolean fanoutEnabled) {
       if (fanoutEnabled) {
-        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize, rowsDivisor);
       } else {
-        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize, rowsDivisor);
       }
       this.io = io;
       this.spec = spec;

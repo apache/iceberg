@@ -38,15 +38,17 @@ public class FanoutDataWriter<T> extends FanoutWriter<T, DataWriteResult> {
   private final FileIO io;
   private final FileFormat fileFormat;
   private final long targetFileSizeInBytes;
+  private final int rowsDivisor;
   private final List<DataFile> dataFiles;
 
   public FanoutDataWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                          FileIO io, FileFormat fileFormat, long targetFileSizeInBytes) {
+                          FileIO io, FileFormat fileFormat, long targetFileSizeInBytes, int rowsDivisor) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.fileFormat = fileFormat;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
+    this.rowsDivisor = rowsDivisor;
     this.dataFiles = Lists.newArrayList();
   }
 
@@ -57,7 +59,8 @@ public class FanoutDataWriter<T> extends FanoutWriter<T, DataWriteResult> {
       EncryptedOutputFile outputFile = newOutputFile(fileFactory, spec, partition);
       return writerFactory.newDataWriter(outputFile, spec, partition);
     } else {
-      return new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
+      return new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition,
+              rowsDivisor);
     }
   }
 

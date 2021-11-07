@@ -53,6 +53,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   private static final int TABLE_FORMAT_VERSION = 2;
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;
+  private static final int ROWS_DIVISOR = 1000;
 
   private final FileFormat fileFormat;
   private OutputFileFactory fileFactory = null;
@@ -83,7 +84,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredDataWriter<T> writer = new ClusteredDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
@@ -101,7 +102,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredDataWriter<T> writer = new ClusteredDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec spec = table.spec();
 
@@ -139,7 +140,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredDataWriter<T> writer = new ClusteredDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec spec = table.spec();
 
@@ -165,7 +166,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
     ClusteredEqualityDeleteWriter<T> writer = new ClusteredEqualityDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -231,7 +232,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     ClusteredEqualityDeleteWriter<T> writer = new ClusteredEqualityDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -281,7 +282,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     ClusteredEqualityDeleteWriter<T> writer = new ClusteredEqualityDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -312,7 +313,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredPositionDeleteWriter<T> writer = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -376,7 +377,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     ClusteredPositionDeleteWriter<T> writer = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -424,7 +425,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     ClusteredPositionDeleteWriter<T> writer = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec bucketSpec = table.specs().get(1);
@@ -459,7 +460,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     FanoutDataWriter<T> writer = new FanoutDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     writer.close();
     Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
@@ -477,7 +478,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     FanoutDataWriter<T> writer = new FanoutDataWriter<>(
         writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+        fileFormat, TARGET_FILE_SIZE, ROWS_DIVISOR);
 
     PartitionSpec spec = table.spec();
 

@@ -118,6 +118,14 @@ public class SparkWriteConf {
         .parse();
   }
 
+  public int rowsDivisor() {
+    return confParser.intConf()
+            .option(SparkWriteOptions.TARGET_FILE_ROWS_DIVISOR)
+            .tableProperty(TableProperties.WRITE_TARGET_FILE_ROWS_DIVISOR)
+            .defaultValue(TableProperties.WRITE_TARGET_FILE_ROWS_DIVISOR_DEFAULT)
+            .parse();
+  }
+
   public boolean fanoutWriterEnabled() {
     return confParser.booleanConf()
         .option(SparkWriteOptions.FANOUT_ENABLED)
