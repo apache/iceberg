@@ -259,7 +259,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.vec = arrowField.createVector(rootAlloc);
         ((TimeMicroVector) vec).allocateNew(batchSize);
         this.readType = ReadType.LONG;
-        this.typeWidth = 8;
+        this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
         break;
       case DECIMAL:
         this.vec = arrowField.createVector(rootAlloc);
