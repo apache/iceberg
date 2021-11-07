@@ -17,12 +17,35 @@
  * under the License.
  */
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
+package org.apache.iceberg.flink;
 
-if (flinkVersions.contains("1.12")) {
-  apply from: file("$projectDir/v1.12/build.gradle")
-}
+import java.io.File;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TestTables;
 
-if (flinkVersions.contains("1.13")) {
-  apply from: file("$projectDir/v1.13/build.gradle")
+public class TestTableLoader implements TableLoader {
+  private File dir;
+
+  public static TableLoader of(String dir) {
+    return new TestTableLoader(dir);
+  }
+
+  public TestTableLoader(String dir) {
+    this.dir = new File(dir);
+  }
+
+  @Override
+  public void open() {
+
+  }
+
+  @Override
+  public Table loadTable() {
+    return TestTables.load(dir, "test");
+  }
+
+  @Override
+  public void close() {
+
+  }
 }
