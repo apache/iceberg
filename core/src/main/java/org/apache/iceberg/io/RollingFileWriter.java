@@ -52,6 +52,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.spec = spec;
     this.partition = partition;
+    openCurrentWriter();
   }
 
   protected abstract W newWriter(EncryptedOutputFile file);

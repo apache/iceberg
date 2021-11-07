@@ -41,7 +41,6 @@ public class RollingDataWriter<T> extends RollingFileWriter<T, DataWriter<T>, Da
     super(fileFactory, io, targetFileSizeInBytes, spec, partition);
     this.writerFactory = writerFactory;
     this.dataFiles = Lists.newArrayList();
-    openCurrentWriter();
   }
 
   @Override

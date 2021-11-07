@@ -43,7 +43,6 @@ public class RollingEqualityDeleteWriter<T> extends RollingFileWriter<T, Equalit
     super(fileFactory, io, targetFileSizeInBytes, spec, partition);
     this.writerFactory = writerFactory;
     this.deleteFiles = Lists.newArrayList();
-    openCurrentWriter();
   }
 
   @Override

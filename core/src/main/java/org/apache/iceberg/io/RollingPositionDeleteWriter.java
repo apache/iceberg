@@ -47,7 +47,6 @@ public class RollingPositionDeleteWriter<T>
     this.writerFactory = writerFactory;
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();
-    openCurrentWriter();
   }
 
   @Override
