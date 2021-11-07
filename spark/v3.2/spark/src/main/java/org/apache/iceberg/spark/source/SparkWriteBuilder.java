@@ -36,6 +36,7 @@ import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite;
 import org.apache.spark.sql.connector.write.SupportsOverwrite;
+import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
 import org.apache.spark.sql.sources.Filter;
@@ -100,54 +101,62 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   @Override
-  public BatchWrite buildForBatch() {
-    // Validate
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+  public Write build() {
+    return new Write() {
+      @Override
+      public BatchWrite toBatch() {
+        // Validate
+        Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+                SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
-    Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
-    SparkUtil.validatePartitionTransforms(table.spec());
+        Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
+        TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(),
+                writeConf.checkOrdering());
+        SparkUtil.validatePartitionTransforms(table.spec());
 
-    // Get application id
-    String appId = spark.sparkContext().applicationId();
+        // Get application id
+        String appId = spark.sparkContext().applicationId();
 
-    SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
-    if (overwriteByFilter) {
-      return write.asOverwriteByFilter(overwriteExpr);
-    } else if (overwriteDynamic) {
-      return write.asDynamicOverwrite();
-    } else if (overwriteFiles) {
-      return write.asCopyOnWriteMergeWrite(mergeScan, isolationLevel);
-    } else {
-      return write.asBatchAppend();
-    }
+        SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
+        if (overwriteByFilter) {
+          return write.asOverwriteByFilter(overwriteExpr);
+        } else if (overwriteDynamic) {
+          return write.asDynamicOverwrite();
+        } else if (overwriteFiles) {
+          return write.asCopyOnWriteMergeWrite(mergeScan, isolationLevel);
+        } else {
+          return write.asBatchAppend();
+        }
+      }
+
+      @Override
+      public StreamingWrite toStreaming() {
+        // Validate
+        Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+                SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+
+        Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
+        TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(),
+                writeConf.checkOrdering());
+        SparkUtil.validatePartitionTransforms(table.spec());
+
+        // Change to streaming write if it is just append
+        Preconditions.checkState(!overwriteDynamic,
+                "Unsupported streaming operation: dynamic partition overwrite");
+        Preconditions.checkState(!overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
+                "Unsupported streaming operation: overwrite by filter: %s", overwriteExpr);
+
+        // Get application id
+        String appId = spark.sparkContext().applicationId();
+
+        SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
+        if (overwriteByFilter) {
+          return write.asStreamingOverwrite();
+        } else {
+          return write.asStreamingAppend();
+        }
+      }
+    };
   }
 
-  @Override
-  public StreamingWrite buildForStreaming() {
-    // Validate
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
-
-    Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
-    SparkUtil.validatePartitionTransforms(table.spec());
-
-    // Change to streaming write if it is just append
-    Preconditions.checkState(!overwriteDynamic,
-        "Unsupported streaming operation: dynamic partition overwrite");
-    Preconditions.checkState(!overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
-        "Unsupported streaming operation: overwrite by filter: %s", overwriteExpr);
-
-    // Get application id
-    String appId = spark.sparkContext().applicationId();
-
-    SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
-    if (overwriteByFilter) {
-      return write.asStreamingOverwrite();
-    } else {
-      return write.asStreamingAppend();
-    }
-  }
 }
