@@ -71,7 +71,7 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
   private final Long splitOpenFileCost;
   private final List<Expression> runtimeFilterExpressions;
 
-  private TableScan scan = null; // lazy scan
+  private TableScan tableScan = null; // lazy scan
   private Set<Integer> specIds = null; // lazy cache of scanned spec IDs
   private List<FileScanTask> files = null; // lazy cache of files
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
@@ -108,52 +108,52 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
   }
 
   private TableScan scan() {
-    if (scan == null) {
-      this.scan = buildScan();
+    if (tableScan == null) {
+      this.tableScan = buildScan();
     }
 
-    return scan;
+    return tableScan;
   }
 
   private TableScan buildScan() {
-    TableScan tableScan = table()
+    TableScan scan = table()
         .newScan()
         .caseSensitive(caseSensitive())
         .project(expectedSchema());
 
     if (snapshotId != null) {
-      tableScan = tableScan.useSnapshot(snapshotId);
+      scan = scan.useSnapshot(snapshotId);
     }
 
     if (asOfTimestamp != null) {
-      tableScan = tableScan.asOfTime(asOfTimestamp);
+      scan = scan.asOfTime(asOfTimestamp);
     }
 
     if (startSnapshotId != null) {
       if (endSnapshotId != null) {
-        tableScan = tableScan.appendsBetween(startSnapshotId, endSnapshotId);
+        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
       } else {
-        tableScan = tableScan.appendsAfter(startSnapshotId);
+        scan = scan.appendsAfter(startSnapshotId);
       }
     }
 
     if (splitSize != null) {
-      tableScan = tableScan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
+      scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
     }
 
     if (splitLookback != null) {
-      tableScan = tableScan.option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback));
+      scan = scan.option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback));
     }
 
     if (splitOpenFileCost != null) {
-      tableScan = tableScan.option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
+      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
     }
 
     for (Expression filter : filterExpressions()) {
-      tableScan = tableScan.filter(filter);
+      scan = scan.filter(filter);
     }
 
-    return tableScan;
+    return scan;
   }
 
   private Set<Integer> specIds() {
@@ -173,7 +173,7 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
       try (CloseableIterable<FileScanTask> filesIterable = scan().planFiles()) {
         this.files = Lists.newArrayList(filesIterable);
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to close table scan: " + scan, e);
+        throw new UncheckedIOException("Failed to close table scan: " + scan(), e);
       }
     }
 
@@ -207,6 +207,10 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
     }
 
     Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(expectedSchema());
+
+    // the optimizer will look for an equality condition with filter attributes in a join
+    // as the scan has been already planned, filtering can only be done on projected attributes
+    // that's why only partition source fields that are part of the read schema can be reported
 
     return partitionFieldSourceIds.stream()
         .filter(fieldId -> expectedSchema().findField(fieldId) != null)

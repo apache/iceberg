@@ -182,7 +182,7 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
         "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND f.data = d.data AND d.date = DATE '1970-01-02'",
         tableName);
 
-    assertQueryContainsRuntimeFilters(query, 2);
+    assertQueryContainsRuntimeFilters(query, 2, "Query should have 2 runtime filters");
 
     deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
 
@@ -339,14 +339,14 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
   }
 
   private void assertQueryContainsRuntimeFilter(String query) {
-    assertQueryContainsRuntimeFilters(query, 1);
+    assertQueryContainsRuntimeFilters(query, 1, "Query should have 1 runtime filter");
   }
 
   private void assertQueryContainsNoRuntimeFilter(String query) {
-    assertQueryContainsRuntimeFilters(query, 0);
+    assertQueryContainsRuntimeFilters(query, 0, "Query should have no runtime filters");
   }
 
-  private void assertQueryContainsRuntimeFilters(String query, int expectedFilterCount) {
+  private void assertQueryContainsRuntimeFilters(String query, int expectedFilterCount, String errorMessage) {
     List<Row> output = spark.sql("EXPLAIN EXTENDED " + query).collectAsList();
     String plan = output.get(0).getString(0);
     int actualFilterCount = StringUtils.countMatches(plan, "dynamicpruningexpression");
