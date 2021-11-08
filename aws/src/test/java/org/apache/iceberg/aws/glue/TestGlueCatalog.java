@@ -63,7 +63,7 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseResponse;
 
-public class GlueCatalogTest {
+public class TestGlueCatalog {
 
   private static final String WAREHOUSE_PATH = "s3://bucket";
   private static final String CATALOG_NAME = "glue";
@@ -79,7 +79,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void constructor_emptyWarehousePath() {
+  public void testConstructorEmptyWarehousePath() {
     AssertHelpers.assertThrows("warehouse path cannot be null",
         IllegalArgumentException.class,
         "Cannot initialize GlueCatalog because warehousePath must not be null",
@@ -91,7 +91,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void constructor_warehousePathWithEndSlash() {
+  public void testConstructorWarehousePathWithEndSlash() {
     GlueCatalog catalogWithSlash = new GlueCatalog();
     catalogWithSlash.initialize(
         CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), glue, LockManagers.defaultLockManager(), null);
@@ -103,7 +103,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void defaultWarehouseLocation_noDbUri() {
+  public void testDefaultWarehouseLocationNoDbUri() {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
@@ -112,7 +112,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void defaultWarehouseLocation_dbUri() {
+  public void testDefaultWarehouseLocationDbUri() {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").locationUri("s3://bucket2/db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
@@ -121,7 +121,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void listTables() {
+  public void testListTables() {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db1").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
@@ -162,7 +162,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void listTables_pagination() {
+  public void testListTablesPagination() {
     AtomicInteger counter = new AtomicInteger(10);
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db1").build()).build())
@@ -198,7 +198,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void dropTable() {
+  public void testDropTable() {
     Map<String, String> properties = new HashMap<>();
     properties.put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
         BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
@@ -214,7 +214,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void renameTable() {
+  public void testRenameTable() {
     AtomicInteger counter = new AtomicInteger(1);
     Map<String, String> properties = new HashMap<>();
     properties.put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
@@ -239,7 +239,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void renameTableWithStorageDescriptor() {
+  public void testRenameTableWithStorageDescriptor() {
     AtomicInteger counter = new AtomicInteger(1);
 
     Map<String, String> parameters = new HashMap<>();
@@ -280,14 +280,14 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void createNamespace() {
+  public void testCreateNamespace() {
     Mockito.doReturn(CreateDatabaseResponse.builder().build())
         .when(glue).createDatabase(Mockito.any(CreateDatabaseRequest.class));
     glueCatalog.createNamespace(Namespace.of("db"));
   }
 
   @Test
-  public void createNamespace_badName() {
+  public void testCreateNamespaceBadName() {
     Mockito.doReturn(CreateDatabaseResponse.builder().build())
         .when(glue).createDatabase(Mockito.any(CreateDatabaseRequest.class));
     List<Namespace> invalidNamespaces = Lists.newArrayList(
@@ -304,7 +304,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void listNamespaces_all() {
+  public void testListAllNamespaces() {
     Mockito.doReturn(GetDatabasesResponse.builder()
         .databaseList(
             Database.builder().name("db1").build(),
@@ -321,7 +321,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void listNamespaces_pagination() {
+  public void testListNamespacesPagination() {
     AtomicInteger counter = new AtomicInteger(10);
     Mockito.doAnswer(new Answer() {
       @Override
@@ -344,7 +344,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void listNamespaces_self() {
+  public void testListNamespacesWithNameShouldReturnItself() {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db1").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
@@ -356,7 +356,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void listNamespaces_selfInvalid() {
+  public void testListNamespacesBadName() {
     AssertHelpers.assertThrows("table name invalid",
         ValidationException.class,
         "Cannot convert namespace",
@@ -364,7 +364,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void loadNamespaceMetadata() {
+  public void testLoadNamespaceMetadata() {
     Map<String, String> parameters = new HashMap<>();
     parameters.put("key", "val");
     Mockito.doReturn(GetDatabaseResponse.builder()
@@ -376,7 +376,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void dropNamespace() {
+  public void testDropNamespace() {
     Mockito.doReturn(GetTablesResponse.builder().build())
         .when(glue).getTables(Mockito.any(GetTablesRequest.class));
     Mockito.doReturn(GetDatabaseResponse.builder()
@@ -388,7 +388,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void dropNamespace_notEmpty_containsIcebergTable() {
+  public void testDropNamespaceThatContainsOnlyIcebergTable() {
     Mockito.doReturn(GetTablesResponse.builder()
         .tableList(
             Table.builder().databaseName("db1").name("t1").parameters(
@@ -410,7 +410,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void dropNamespace_notEmpty_containsNonIcebergTable() {
+  public void testDropNamespaceThatContainsNonIcebergTable() {
     Mockito.doReturn(GetTablesResponse.builder()
         .tableList(
             Table.builder().databaseName("db1").name("t1").build()
@@ -428,7 +428,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void setProperties() {
+  public void testSetProperties() {
     Map<String, String> parameters = new HashMap<>();
     parameters.put("key", "val");
     Mockito.doReturn(GetDatabaseResponse.builder()
@@ -442,7 +442,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void removeProperties() {
+  public void testRemoveProperties() {
     Map<String, String> parameters = new HashMap<>();
     parameters.put("key", "val");
     Mockito.doReturn(GetDatabaseResponse.builder()

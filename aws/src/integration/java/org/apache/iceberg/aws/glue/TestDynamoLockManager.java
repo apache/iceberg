@@ -46,7 +46,7 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
-public class DynamoLockManagerTest {
+public class TestDynamoLockManager {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
 
@@ -81,7 +81,7 @@ public class DynamoLockManagerTest {
   }
 
   @Test
-  public void testAcquireOnce_singleProcess() {
+  public void testAcquireOnceSingleProcess() {
     lockManager.acquireOnce(entityId, ownerId);
     Map<String, AttributeValue> key = Maps.newHashMap();
     key.put("entityId", AttributeValue.builder().s(entityId).build());
@@ -97,7 +97,7 @@ public class DynamoLockManagerTest {
   }
 
   @Test
-  public void testAcquireOnce_multiProcess() throws Exception {
+  public void testAcquireOnceMultiProcesses() throws Exception {
     List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
         .mapToObj(i -> {
           try {
@@ -128,7 +128,7 @@ public class DynamoLockManagerTest {
 
   @Test
   @SuppressWarnings({"DangerousCompletableFutureUsage", "FutureReturnValueIgnored"})
-  public void testAcquire_singleProcess() throws Exception {
+  public void testAcquireSingleProcess() throws Exception {
     Assert.assertTrue(lockManager.acquire(entityId, ownerId));
     String oldOwner = ownerId;
 
@@ -151,7 +151,7 @@ public class DynamoLockManagerTest {
 
 
   @Test
-  public void testAcquire_multiProcess_allSucceed() throws Exception {
+  public void testAcquireMultiProcessAllSucceed() throws Exception {
     lockManager.initialize(ImmutableMap.of(
         CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
         CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
@@ -180,7 +180,7 @@ public class DynamoLockManagerTest {
   }
 
   @Test
-  public void testAcquire_multiProcess_onlyOneSucceed() throws Exception {
+  public void testAcquireMultiProcessOnlyOneSucceed() throws Exception {
     lockManager.initialize(ImmutableMap.of(
         CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "10000",
         CatalogProperties.LOCK_TABLE, lockTableName

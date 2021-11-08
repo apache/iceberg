@@ -57,7 +57,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.utils.IoUtils;
 
-public class S3FileIOTest {
+public class TestS3FileIOIntegration {
 
   private static AwsClientFactory clientFactory;
   private static S3Client s3;
@@ -113,7 +113,7 @@ public class S3FileIOTest {
   }
 
   @Test
-  public void testSSE_S3() throws Exception {
+  public void testServerSideS3Encryption() throws Exception {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_S3);
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
@@ -125,7 +125,7 @@ public class S3FileIOTest {
   }
 
   @Test
-  public void testSSE_KMS() throws Exception {
+  public void testServerSideKmsEncryption() throws Exception {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     properties.setS3FileIoSseKey(kmsKeyArn);
@@ -139,7 +139,7 @@ public class S3FileIOTest {
   }
 
   @Test
-  public void testSSE_KMS_default() throws Exception {
+  public void testServerSideKmsEncryptionWithDefaultKey() throws Exception {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
@@ -156,7 +156,7 @@ public class S3FileIOTest {
   }
 
   @Test
-  public void testSSE_Custom() throws Exception {
+  public void testServerSideCustomEncryption() throws Exception {
     // generate key
     KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
     keyGenerator.init(256, new SecureRandom());

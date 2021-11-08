@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.aws.glue;
 
-import com.amazonaws.SdkBaseException;
-import com.amazonaws.services.s3.AmazonS3URI;
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
@@ -28,6 +26,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.aws.s3.S3TestUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -41,7 +40,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
-public class GlueCatalogCommitFailureTest extends GlueTestBase {
+public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   @Test
   public void testFailedCommit() {
@@ -215,7 +214,7 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
 
       table.refresh();
       table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
-      throw new SdkBaseException("Datacenter on fire");
+      throw new RuntimeException("Datacenter on fire");
     }).when(spyOperations).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
   }
 
@@ -244,12 +243,12 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
           i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
           i.getArgument(1, Map.class),
           i.getArgument(2, TableMetadata.class));
-      throw new SdkBaseException("Datacenter on fire");
+      throw new RuntimeException("Datacenter on fire");
     }).when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps) {
-    failCommitAndThrowException(spyOps, new SdkBaseException("Datacenter on fire"));
+    failCommitAndThrowException(spyOps, new RuntimeException("Datacenter on fire"));
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps, Exception exceptionToThrow) {
@@ -263,12 +262,10 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
   }
 
   private boolean metadataFileExists(TableMetadata metadata) {
-    AmazonS3URI amazonS3URI = new AmazonS3URI(metadata.metadataFileLocation());
-
     try {
       s3.headObject(HeadObjectRequest.builder()
-          .bucket(amazonS3URI.getBucket())
-          .key(amazonS3URI.getKey())
+          .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
+          .key(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
           .build());
       return true;
     } catch (NoSuchKeyException e) {
@@ -277,10 +274,9 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
   }
 
   private int metadataFileCount(TableMetadata metadata) {
-    AmazonS3URI amazonS3URI = new AmazonS3URI(metadata.metadataFileLocation());
     return (int) s3.listObjectsV2(ListObjectsV2Request.builder()
-        .bucket(amazonS3URI.getBucket())
-        .prefix(new File(amazonS3URI.getKey()).getParent())
+        .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
+        .prefix(new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation())).getParent())
         .build())
         .contents().stream().filter(s3Object -> s3Object.key().endsWith("metadata.json")).count();
   }

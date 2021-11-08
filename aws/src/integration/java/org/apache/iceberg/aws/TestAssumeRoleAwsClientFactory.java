@@ -44,9 +44,9 @@ import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-public class AssumeRoleAwsClientFactoryTest {
+public class TestAssumeRoleAwsClientFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(AssumeRoleAwsClientFactoryTest.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestAssumeRoleAwsClientFactory.class);
 
   private IamClient iam;
   private String roleName;
@@ -85,7 +85,7 @@ public class AssumeRoleAwsClientFactoryTest {
   }
 
   @Test
-  public void testAssumeRole_glueCatalog() throws Exception {
+  public void testAssumeRoleGlueCatalog() throws Exception {
     String glueArnPrefix = "arn:aws:glue:*:" + AwsIntegTestUtil.testAccountId();
     iam.putRolePolicy(PutRolePolicyRequest.builder()
         .roleName(roleName)
@@ -125,7 +125,7 @@ public class AssumeRoleAwsClientFactoryTest {
   }
 
   @Test
-  public void testAssumeRole_s3FileIO() throws Exception {
+  public void testAssumeRoleS3FileIO() throws Exception {
     String bucketArn = "arn:aws:s3:::" + AwsIntegTestUtil.testBucketName();
     iam.putRolePolicy(PutRolePolicyRequest.builder()
         .roleName(roleName)

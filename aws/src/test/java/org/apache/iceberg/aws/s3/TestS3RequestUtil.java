@@ -25,7 +25,7 @@ import org.junit.Test;
 import software.amazon.awssdk.services.s3.model.S3Request;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
-public class S3RequestUtilTest {
+public class TestS3RequestUtil {
 
   private ServerSideEncryption serverSideEncryption = null;
   private String kmsKeyId = null;
@@ -34,7 +34,7 @@ public class S3RequestUtilTest {
   private String customMd5 = null;
 
   @Test
-  public void testConfigureEncryption_custom() {
+  public void testConfigureServerSideCustomEncryption() {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
     awsProperties.setS3FileIoSseKey("key");
@@ -49,7 +49,7 @@ public class S3RequestUtilTest {
   }
 
   @Test
-  public void testConfigureEncryption_s3() {
+  public void testConfigureServerSideS3Encryption() {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_S3);
     S3RequestUtil.configureEncryption(awsProperties, this::setServerSideEncryption, this::setKmsKeyId,
@@ -62,7 +62,7 @@ public class S3RequestUtilTest {
   }
 
   @Test
-  public void testConfigureEncryption_kms() {
+  public void testConfigureServerSideKmsEncryption() {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     awsProperties.setS3FileIoSseKey("key");
@@ -76,7 +76,7 @@ public class S3RequestUtilTest {
   }
 
   @Test
-  public void testConfigureEncryption_skipNullSetter() {
+  public void testConfigureEncryptionSkipNullSetters() {
     AwsProperties awsProperties = new AwsProperties();
     awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     awsProperties.setS3FileIoSseKey("key");

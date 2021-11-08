@@ -29,7 +29,7 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 
-public class AwsClientFactoriesTest {
+public class TestAwsClientFactories {
 
   @Test
   public void testLoadDefault() {

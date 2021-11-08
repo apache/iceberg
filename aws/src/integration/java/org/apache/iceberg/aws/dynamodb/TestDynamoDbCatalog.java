@@ -54,7 +54,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
-public class DynamoDbCatalogTest {
+public class TestDynamoDbCatalog {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
   private static final Schema SCHEMA = new Schema(Types.NestedField.required(1, "id", Types.StringType.get()));
