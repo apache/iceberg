@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.flink.source;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.data.GenericRowData;
@@ -40,6 +38,7 @@ import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
