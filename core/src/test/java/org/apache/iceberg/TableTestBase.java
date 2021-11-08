@@ -218,7 +218,9 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId,
+        this.table.locationPrefix(), this.table.location(),
+        MetadataPathUtils.useRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -248,10 +250,13 @@ public class TableTestBase {
     ManifestWriter<F> writer;
     if (entries[0].file() instanceof DataFile) {
       writer = (ManifestWriter<F>) ManifestFiles.write(
-          formatVersion, table.spec(), outputFile, snapshotId);
+              formatVersion, table.spec(), outputFile, snapshotId, this.table.ops().current().locationPrefix(),
+          this.table.location(),
+              this.table.ops().current().useRelativePaths());
     } else {
       writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
-          formatVersion, table.spec(), outputFile, snapshotId);
+              formatVersion, table.spec(), outputFile, snapshotId, this.table.ops().current().locationPrefix(),
+              this.table.location(), this.table.ops().current().useRelativePaths());
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -285,7 +290,9 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null,
+            this.table.locationPrefix(), this.table.location(),
+        MetadataPathUtils.useRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -431,7 +438,8 @@ public class TableTestBase {
                               Iterator<Long> ids,
                               Iterator<DeleteFile> expectedFiles,
                               Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DeleteFile> entry : ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+    for (ManifestEntry<DeleteFile> entry :
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
       if (seqs != null) {

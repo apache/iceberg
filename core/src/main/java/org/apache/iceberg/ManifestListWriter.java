@@ -31,9 +31,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
+  private final String locationPrefix;
+  private final String tableLocation;
+  private final boolean useRelativePaths;
 
   private ManifestListWriter(OutputFile file, Map<String, String> meta) {
     this.writer = newAppender(file, meta);
+    this.locationPrefix = null;
+    this.tableLocation = null;
+    this.useRelativePaths = false;
+  }
+
+  private ManifestListWriter(OutputFile file, Map<String, String> meta, String locationPrefix, String tableLocation,
+      boolean useRelativePaths) {
+    this.writer = newAppender(file, meta);
+    this.locationPrefix = locationPrefix;
+    this.tableLocation = tableLocation;
+    this.useRelativePaths = useRelativePaths;
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
@@ -42,7 +56,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
   @Override
   public void add(ManifestFile manifest) {
-    writer.add(prepare(manifest));
+    // Update the manifest file location to relative path if necessary.
+    writer.add(prepare(GenericManifestFile.copyOf(manifest).withManifestPath(MetadataPathUtils.toRelativePath(
+            manifest.path(), locationPrefix, tableLocation, useRelativePaths)).build()));
   }
 
   @Override
@@ -73,12 +89,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.IndexedManifestFile wrapper;
 
-    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber,
+        String locationPrefix, String tableLocation,
+        boolean shouldUseRelativePaths) {
       super(snapshotFile, ImmutableMap.of(
           "snapshot-id", String.valueOf(snapshotId),
           "parent-snapshot-id", String.valueOf(parentSnapshotId),
           "sequence-number", String.valueOf(sequenceNumber),
-          "format-version", "2"));
+          "format-version", "2"), locationPrefix, tableLocation, shouldUseRelativePaths);
       this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
     }
 

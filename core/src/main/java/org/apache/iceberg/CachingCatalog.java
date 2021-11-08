@@ -159,6 +159,12 @@ public class CachingCatalog implements Catalog {
     }
 
     @Override
+    public TableBuilder withLocationPrefix(String prefix) {
+      innerBuilder.withLocationPrefix(prefix);
+      return this;
+    }
+
+    @Override
     public TableBuilder withProperties(Map<String, String> properties) {
       innerBuilder.withProperties(properties);
       return this;

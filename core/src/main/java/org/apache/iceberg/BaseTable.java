@@ -105,6 +105,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public String locationPrefix() {
+    return ops.current().locationPrefix();
+  }
+
+  @Override
   public Snapshot currentSnapshot() {
     return ops.current().currentSnapshot();
   }

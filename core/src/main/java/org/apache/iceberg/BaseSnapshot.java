@@ -44,6 +44,9 @@ class BaseSnapshot implements Snapshot {
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
+  private final String tableLocationPrefix;
+  private final String tableLocation;
+  private final Boolean useRelativePaths;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -56,23 +59,40 @@ class BaseSnapshot implements Snapshot {
    * For testing only.
    */
   BaseSnapshot(FileIO io,
-               long snapshotId,
-               Integer schemaId,
-               String... manifestFiles) {
+      long snapshotId,
+      Integer schemaId,
+      String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
-        schemaId, Lists.transform(Arrays.asList(manifestFiles),
+        schemaId, Lists.transform(
+            Arrays.asList(manifestFiles),
             path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
   BaseSnapshot(FileIO io,
-               long sequenceNumber,
-               long snapshotId,
-               Long parentId,
-               long timestampMillis,
-               String operation,
-               Map<String, String> summary,
-               Integer schemaId,
-               String manifestList) {
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String manifestList) {
+    this(io, sequenceNumber, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null, null, false,
+        manifestList);
+  }
+
+  BaseSnapshot(FileIO io,
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String tableLocationPrefix,
+      String tableLocation,
+      boolean useRelativePaths,
+      String manifestList) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -81,18 +101,38 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
+    this.tableLocationPrefix = tableLocationPrefix;
+    this.tableLocation = tableLocation;
+    this.useRelativePaths = useRelativePaths;
     this.manifestListLocation = manifestList;
   }
 
   BaseSnapshot(FileIO io,
-               long snapshotId,
-               Long parentId,
-               long timestampMillis,
-               String operation,
-               Map<String, String> summary,
-               Integer schemaId,
-               List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null);
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      List<ManifestFile> dataManifests) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null,
+        null, false, null);
+    this.allManifests = dataManifests;
+  }
+
+  BaseSnapshot(FileIO io,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String tableLocationPrefix,
+      String tableLocation,
+      Boolean useRelativePaths,
+      List<ManifestFile> dataManifests) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId,
+        tableLocationPrefix, tableLocation, useRelativePaths, null);
     this.allManifests = dataManifests;
   }
 
@@ -134,7 +174,8 @@ class BaseSnapshot implements Snapshot {
   private void cacheManifests() {
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation));
+      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation), tableLocationPrefix,
+          useRelativePaths);
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -190,6 +231,11 @@ class BaseSnapshot implements Snapshot {
     return manifestListLocation;
   }
 
+  @Override
+  public FileIO io() {
+    return this.io;
+  }
+
   private void cacheChanges() {
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
@@ -197,7 +243,9 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests,
+        tableLocationPrefix, tableLocation,
+        useRelativePaths)
         .ignoreExisting()
         .entries()) {
       for (ManifestEntry<DataFile> entry : entries) {

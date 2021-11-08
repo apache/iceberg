@@ -219,7 +219,9 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests)
+      try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests,
+          ops.current().location(),
+          ops.current().locationPrefix(), ops.current().useRelativePaths())
           .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()

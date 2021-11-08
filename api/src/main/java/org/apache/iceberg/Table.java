@@ -110,6 +110,13 @@ public interface Table {
   String location();
 
   /**
+   * Return the table's location prefix
+   *
+   * @return this tables location prefix
+   */
+  String locationPrefix();
+
+  /**
    * Get the current {@link Snapshot snapshot} for this table, or null if there are no snapshots.
    *
    * @return the current table Snapshot.

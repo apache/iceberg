@@ -38,13 +38,31 @@ public interface Tables {
   }
 
   default Table create(Schema schema, PartitionSpec spec, Map<String, String> properties, String tableIdentifier) {
-    return create(schema, spec, SortOrder.unsorted(), properties, tableIdentifier);
+    return create(schema, spec, SortOrder.unsorted(), properties, null, tableIdentifier);
+  }
+
+  default Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
+      String locationPrefix, String tableIdentifier) {
+    return create(schema, spec, SortOrder.unsorted(), properties, locationPrefix, tableIdentifier);
+  }
+
+  default Table create(Schema schema,
+      PartitionSpec spec,
+      SortOrder order,
+      Map<String, String> properties,
+      String tableIdentifier) {
+    return create(schema, spec, order, properties, null, tableIdentifier);
+  }
+
+  default Table create(Schema schema, PartitionSpec spec, String locationPrefix, String tableIdentifier) {
+    return create(schema, spec, ImmutableMap.of(), locationPrefix, tableIdentifier);
   }
 
   default Table create(Schema schema,
                        PartitionSpec spec,
                        SortOrder order,
                        Map<String, String> properties,
+                       String locationPrefix,
                        String tableIdentifier) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement create with a sort order");
   }

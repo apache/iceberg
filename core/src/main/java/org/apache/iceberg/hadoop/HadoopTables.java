@@ -132,14 +132,16 @@ public class HadoopTables implements Tables, Configurable {
    *
    * @param schema iceberg schema used to create the table
    * @param spec partitioning spec, if null the table will be unpartitioned
+   * @param order the sort order
    * @param properties a string map of table properties, initialized to empty if null
+   * @param locationPrefix the prefix for this table location
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
   @Override
   public Table create(Schema schema, PartitionSpec spec, SortOrder order,
-                      Map<String, String> properties, String location) {
-    return buildTable(location, schema).withPartitionSpec(spec)
+                      Map<String, String> properties, String locationPrefix, String location) {
+    return buildTable(locationPrefix, location, schema).withPartitionSpec(spec)
         .withSortOrder(order)
         .withProperties(properties)
         .create();
@@ -199,13 +201,19 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
-                                      Map<String, String> properties, String location) {
+      Map<String, String> properties, String location) {
+    return tableMetadata(schema, spec, order, properties, null, location);
+  }
+
+
+  private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
+                                      Map<String, String> properties, String locationPrefix, String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
     SortOrder sortOrder = order == null ? SortOrder.unsorted() : order;
-    return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
+    return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, locationPrefix, location, tableProps);
   }
 
   /**
@@ -249,19 +257,24 @@ public class HadoopTables implements Tables, Configurable {
     return orCreate ? builder.createOrReplaceTransaction() : builder.replaceTransaction();
   }
 
+  public Catalog.TableBuilder buildTable(String locationPrefix, String location, Schema schema) {
+    return new HadoopTableBuilder(locationPrefix, location, schema);
+  }
+
   public Catalog.TableBuilder buildTable(String location, Schema schema) {
-    return new HadoopTableBuilder(location, schema);
+    return new HadoopTableBuilder(null, location, schema);
   }
 
   private class HadoopTableBuilder implements Catalog.TableBuilder {
     private final String location;
+    private String locationPrefix;
     private final Schema schema;
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
 
-
-    HadoopTableBuilder(String location, Schema schema) {
+    HadoopTableBuilder(String locationPrefix, String location, Schema schema) {
+      this.locationPrefix = locationPrefix;
       this.location = location;
       this.schema = schema;
     }
@@ -301,6 +314,12 @@ public class HadoopTables implements Tables, Configurable {
     }
 
     @Override
+    public Catalog.TableBuilder withLocationPrefix(String newPrefix) {
+      this.locationPrefix = newPrefix;
+      return this;
+    }
+
+    @Override
     public Table create() {
       TableOperations ops = newTableOps(location);
       if (ops.current() != null) {
@@ -308,7 +327,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, location);
+      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, locationPrefix, location);
       ops.commit(null, metadata);
       return new BaseTable(ops, location);
     }
