@@ -75,6 +75,7 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.iceberg.distributions.Distribution;
 import org.apache.spark.sql.connector.iceberg.distributions.Distributions;
@@ -345,6 +346,10 @@ public class Spark3Util {
   public static SortOrder[] convert(org.apache.iceberg.SortOrder sortOrder) {
     List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark());
     return converted.toArray(new OrderField[0]);
+  }
+
+  public static NamedReference toNamedReference(String name) {
+    return Expressions.column(name);
   }
 
   public static Term toIcebergTerm(Transform transform) {
