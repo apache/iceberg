@@ -39,7 +39,7 @@ import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
-public class GlueCatalogNamespaceTest extends GlueTestBase {
+public class TestGlueCatalogNamespace extends GlueTestBase {
 
   @Test
   public void testCreateNamespace() {
@@ -156,7 +156,7 @@ public class GlueCatalogNamespaceTest extends GlueTestBase {
   }
 
   @Test
-  public void testDropNamespaceNonEmpty_containsIcebergTable() {
+  public void testDropNamespaceThatContainsOnlyIcebergTable() {
     String namespace = createNamespace();
     createTable(namespace);
     AssertHelpers.assertThrows("namespace should not be dropped when still has Iceberg table",
@@ -166,7 +166,7 @@ public class GlueCatalogNamespaceTest extends GlueTestBase {
   }
 
   @Test
-  public void testDropNamespaceNonEmpty_containsNonIcebergTable() {
+  public void testDropNamespaceThatContainsNonIcebergTable() {
     String namespace = createNamespace();
     glue.createTable(CreateTableRequest.builder()
         .databaseName(namespace)

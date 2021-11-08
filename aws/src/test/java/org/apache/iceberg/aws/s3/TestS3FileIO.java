@@ -42,7 +42,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class S3FileIOTest {
+public class TestS3FileIO {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
   public SerializableSupplier<S3Client> s3 = S3_MOCK_RULE::createS3ClientV2;
@@ -57,7 +57,7 @@ public class S3FileIOTest {
   }
 
   @Test
-  public void newInputFile() throws IOException {
+  public void testNewInputFile() throws IOException {
     String location = "s3://bucket/path/to/file.txt";
     byte [] expected = new byte[1024 * 1024];
     random.nextBytes(expected);
@@ -85,7 +85,7 @@ public class S3FileIOTest {
   }
 
   @Test
-  public void serializeClient() {
+  public void testSerializeClient() {
     SerializableSupplier<S3Client> pre =
         () -> S3Client.builder().httpClient(UrlConnectionHttpClient.builder().build()).region(Region.US_EAST_1).build();
 
