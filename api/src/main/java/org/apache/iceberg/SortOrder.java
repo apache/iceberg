@@ -79,6 +79,13 @@ public class SortOrder implements Serializable {
   }
 
   /**
+   * Returns true if the sort order is sorted
+   */
+  public boolean isSorted() {
+    return fields.length >= 1;
+  }
+
+  /**
    * Returns true if the sort order is unsorted
    */
   public boolean isUnsorted() {

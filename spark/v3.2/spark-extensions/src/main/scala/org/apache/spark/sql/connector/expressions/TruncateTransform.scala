@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.iceberg.distributions;
+package org.apache.spark.sql.connector.expressions
 
-import org.apache.spark.annotation.Experimental;
-import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
+import org.apache.spark.sql.types.IntegerType
 
-/**
- * A distribution where tuples have been ordered across partitions according
- * to ordering expressions, but not necessarily within a given partition.
- *
- * @since 3.2.0
- */
-@Experimental
-public interface OrderedDistribution extends Distribution {
-  /**
-   * Returns ordering expressions.
-   */
-  SortOrder[] ordering();
+private[sql] object TruncateTransform {
+  def unapply(expr: Expression): Option[(Int, FieldReference)] = expr match {
+    case transform: Transform =>
+      transform match {
+        case NamedTransform("truncate", Seq(Ref(seq: Seq[String]), Lit(value: Int, IntegerType))) =>
+          Some((value, FieldReference(seq)))
+        case NamedTransform("truncate", Seq(Lit(value: Int, IntegerType), Ref(seq: Seq[String]))) =>
+          Some((value, FieldReference(seq)))
+        case _ =>
+          None
+      }
+    case _ =>
+      None
+  }
 }

@@ -45,7 +45,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
@@ -207,12 +206,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
-    if (info.options().containsKey(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)) {
-      // replace data files in the given file scan task set with new files
-      return new SparkRewriteBuilder(sparkSession(), icebergTable, info);
-    } else {
-      return new SparkWriteBuilder(sparkSession(), icebergTable, info);
-    }
+    return new SparkWriteBuilder(sparkSession(), icebergTable, info);
   }
 
   @Override
