@@ -163,10 +163,10 @@ public class SparkWriteConf {
     return DistributionMode.fromName(modeName);
   }
 
-  public boolean ignoreSortOrder() {
+  public boolean useTableDistributionAndOrdering() {
     return confParser.booleanConf()
-        .option(SparkWriteOptions.IGNORE_SORT_ORDER)
-        .defaultValue(SparkWriteOptions.IGNORE_SORT_ORDER_DEFAULT)
+        .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
+        .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .parse();
   }
 }

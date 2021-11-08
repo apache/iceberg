@@ -45,7 +45,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
   }
 
   @Test
-  public void testGlobalSortOnBucketTransforms() throws NoSuchTableException {
+  public void testDefaultLocalSortWithBucketTransforms() throws NoSuchTableException {
     sql("CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) " +
         "USING iceberg " +
         "PARTITIONED BY (bucket(2, c1))", tableName);
@@ -62,12 +62,31 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
-    // should succeed by default
+    // should insert a local sort by partition columns by default
     inputDF.writeTo(tableName).append();
 
     assertEquals("Row count must match",
         ImmutableList.of(row(7L)),
         sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testPartitionColumnsArePrependedForRangeDistribution() throws NoSuchTableException {
+    sql("CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (bucket(2, c1))", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should automatically prepend partition columns to the ordering
     sql("ALTER TABLE %s WRITE ORDERED BY c1, c2", tableName);
@@ -75,8 +94,27 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     inputDF.writeTo(tableName).append();
 
     assertEquals("Row count must match",
-        ImmutableList.of(row(14L)),
+        ImmutableList.of(row(7L)),
         sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testSortOrderIncludesPartitionColumns() throws NoSuchTableException {
+    sql("CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (bucket(2, c1))", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should succeed with a correct sort order
     sql("ALTER TABLE %s WRITE ORDERED BY bucket(2, c3), c1, c2", tableName);
@@ -84,8 +122,55 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     inputDF.writeTo(tableName).append();
 
     assertEquals("Row count must match",
-        ImmutableList.of(row(21L)),
+        ImmutableList.of(row(7L)),
         sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testHashDistributionOnBucketedColumn() throws NoSuchTableException {
+    sql("CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (bucket(2, c1))", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
+
+    // should automatically prepend partition columns to the local ordering after hash distribution
+    sql("ALTER TABLE %s WRITE DISTRIBUTED BY PARTITION ORDERED BY c1, c2", tableName);
+
+    inputDF.writeTo(tableName).append();
+
+    assertEquals("Row count must match",
+        ImmutableList.of(row(7L)),
+        sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testDisabledDistributionAndOrdering() {
+    sql("CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (bucket(2, c1))", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
     AssertHelpers.assertThrows("Should reject writes without ordering",
@@ -93,8 +178,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         () -> {
           try {
             inputDF.writeTo(tableName)
-                .option(SparkWriteOptions.DISTRIBUTION_MODE, "none")
-                .option(SparkWriteOptions.IGNORE_SORT_ORDER, "true")
+                .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
                 .append();
           } catch (NoSuchTableException e) {
             throw new RuntimeException(e);
@@ -133,64 +217,6 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     );
 
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
-  }
-
-  @Test
-  public void testGlobalSortOnTruncatedColumn() throws NoSuchTableException {
-    sql("CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) " +
-        "USING iceberg " +
-        "PARTITIONED BY (truncate(4, c2))", tableName);
-
-    List<ThreeColumnRecord> data = ImmutableList.of(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(2, "BBBBBBBBBB", "BBBB"),
-        new ThreeColumnRecord(3, "AAAAAAAAAA", "BBBB"),
-        new ThreeColumnRecord(4, "BBBBBBBBBB", "BBBB"),
-        new ThreeColumnRecord(5, "AAAAAAAAAA", "BBBB"),
-        new ThreeColumnRecord(6, "BBBBBBBBBB", "BBBB"),
-        new ThreeColumnRecord(7, "AAAAAAAAAA", "BBBB")
-    );
-    Dataset<Row> df = spark.createDataFrame(data, ThreeColumnRecord.class);
-    Dataset<Row> inputDF = df.coalesce(1).sortWithinPartitions("c1");
-
-    // should succeed by default
-    inputDF.writeTo(tableName).append();
-
-    assertEquals("Row count must match",
-        ImmutableList.of(row(7L)),
-        sql("SELECT count(*) FROM %s", tableName));
-
-    // should automatically correct the ordering
-    sql("ALTER TABLE %s WRITE ORDERED BY (c1, c2, c3)", tableName);
-
-    inputDF.writeTo(tableName).append();
-
-    assertEquals("Row count must match",
-        ImmutableList.of(row(14L)),
-        sql("SELECT count(*) FROM %s", tableName));
-
-    // should succeed with global sort
-    sql("ALTER TABLE %s WRITE ORDERED BY (truncate(4, c2), c2, c3)", tableName);
-
-    inputDF.writeTo(tableName).append();
-
-    assertEquals("Row count must match",
-        ImmutableList.of(row(21L)),
-        sql("SELECT count(*) FROM %s", tableName));
-
-    // should fail if ordering is disabled
-    AssertHelpers.assertThrows("Should reject writes without ordering",
-        SparkException.class, "Writing job aborted",
-        () -> {
-          try {
-            inputDF.writeTo(tableName)
-                .option(SparkWriteOptions.DISTRIBUTION_MODE, "none")
-                .option(SparkWriteOptions.IGNORE_SORT_ORDER, "true")
-                .append();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
   }
 
   @Test

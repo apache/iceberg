@@ -59,7 +59,7 @@ public class SparkWriteOptions {
   // Overrides the default distribution mode for a write operation
   public static final String DISTRIBUTION_MODE = "distribution-mode";
 
-  // Controls whether to ignore the table sort order during a write operation
-  public static final String IGNORE_SORT_ORDER = "ignore-sort-order";
-  public static final boolean IGNORE_SORT_ORDER_DEFAULT = false;
+  // Controls whether to take into account the table distribution and sort order during a write operation
+  public static final String USE_TABLE_DISTRIBUTION_AND_ORDERING = "use-table-distribution-and-ordering";
+  public static final boolean USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = true;
 }
