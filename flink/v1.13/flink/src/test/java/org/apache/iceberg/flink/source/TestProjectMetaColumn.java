@@ -45,14 +45,31 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestProjectMetaColumn {
 
   @Rule
   public final TemporaryFolder folder = new TemporaryFolder();
+  private final FileFormat format;
+
+  @Parameterized.Parameters(name = "fileFormat={0}")
+  public static Iterable<Object[]> parameters() {
+    return Lists.newArrayList(
+        new Object[] {FileFormat.PARQUET},
+        new Object[] {FileFormat.ORC},
+        new Object[] {FileFormat.AVRO}
+    );
+  }
+
+  public TestProjectMetaColumn(FileFormat format) {
+    this.format = format;
+  }
 
   private void testSkipToRemoveMetaColumn(int formatVersion) throws IOException {
-    // Create the v1 table.
+    // Create the table with given format version.
     String location = folder.getRoot().getAbsolutePath();
     Table table = SimpleDataUtil.createTable(location,
         ImmutableMap.of("format-version", String.valueOf(formatVersion)),
@@ -93,7 +110,7 @@ public class TestProjectMetaColumn {
 
   @Test
   public void testV2RemoveMetaColumn() throws Exception {
-    // Create the v1 table.
+    // Create the v2 table.
     String location = folder.getRoot().getAbsolutePath();
     Table table = SimpleDataUtil.createTable(location, ImmutableMap.of("format-version", "2"), false);
 
@@ -153,7 +170,7 @@ public class TestProjectMetaColumn {
         SerializableTable.copyOf(table),
         SimpleDataUtil.ROW_TYPE,
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT,
-        FileFormat.AVRO,
+        format,
         equalityFieldIds,
         upsert);
 
