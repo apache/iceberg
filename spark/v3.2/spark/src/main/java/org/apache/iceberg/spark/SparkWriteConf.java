@@ -93,7 +93,7 @@ public class SparkWriteConf {
   }
 
   public String overwriteMode() {
-    String overwriteMode = writeOptions.get("overwrite-mode");
+    String overwriteMode = writeOptions.get(SparkWriteOptions.OVERWRITE_MODE);
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;
   }
 
