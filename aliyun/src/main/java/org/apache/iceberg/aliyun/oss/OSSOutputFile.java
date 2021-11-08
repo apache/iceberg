@@ -21,34 +21,37 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import org.apache.iceberg.aliyun.AliyunProperties;
-import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 
-public class OSSInputFile extends BaseOSSFile implements InputFile {
+class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
-  private Long length = null;
-
-  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+  OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     super(client, uri, aliyunProperties);
   }
 
-  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, long length) {
-    super(client, uri, aliyunProperties);
-    ValidationException.check(length >= 0, "Invalid file length: %s", length);
-    this.length = length;
+  public static OSSOutputFile fromLocation(OSS client, String location, AliyunProperties aliyunProperties) {
+    return new OSSOutputFile(client, new OSSURI(location), aliyunProperties);
   }
 
   @Override
-  public long getLength() {
-    if (length == null) {
-      length = objectMetadata().getSize();
+  public PositionOutputStream create() {
+    if (!exists()) {
+      return createOrOverwrite();
+    } else {
+      throw new AlreadyExistsException("Location already exists: %s", uri());
     }
-    return length;
   }
 
   @Override
-  public SeekableInputStream newStream() {
-    return new OSSInputStream(client(), uri());
+  public PositionOutputStream createOrOverwrite() {
+    return new OSSOutputStream(client(), uri(), aliyunProperties());
+  }
+
+  @Override
+  public InputFile toInputFile() {
+    return new OSSInputFile(client(), uri(), aliyunProperties());
   }
 }

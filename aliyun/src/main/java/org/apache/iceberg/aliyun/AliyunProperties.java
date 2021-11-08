@@ -21,6 +21,7 @@ package org.apache.iceberg.aliyun;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AliyunProperties implements Serializable {
@@ -29,6 +30,10 @@ public class AliyunProperties implements Serializable {
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
   private final String ossStagingDirectory;
+
+  public AliyunProperties() {
+    this(ImmutableMap.of());
+  }
 
   public AliyunProperties(Map<String, String> properties) {
     this.ossStagingDirectory = PropertyUtil.propertyAsString(properties, OSS_STAGING_DIRECTORY,
