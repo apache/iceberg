@@ -33,6 +33,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
+    compileOnly "org.apache.flink:flink-connector-base"
     compileOnly "org.apache.flink:flink-streaming-java_${scalaVersion}:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java_${scalaVersion}:${flinkVersion}:tests"
     compileOnly "org.apache.flink:flink-table-api-java-bridge_${scalaVersion}:${flinkVersion}"
@@ -61,6 +62,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
+    testImplementation "org.apache.flink:flink-connector-test-utils"
     testImplementation "org.apache.flink:flink-core:${flinkVersion}"
     testImplementation "org.apache.flink:flink-runtime_${scalaVersion}:${flinkVersion}"
     testImplementation "org.apache.flink:flink-table-planner-blink_${scalaVersion}:${flinkVersion}"
@@ -141,6 +143,10 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+
+    // flink-connector-base is not part of Flink runtime. Hence,
+    // iceberg-flink-runtime should include it as a transitive dependency.
+    implementation "org.apache.flink:flink-connector-base"
   }
 
   shadowJar {

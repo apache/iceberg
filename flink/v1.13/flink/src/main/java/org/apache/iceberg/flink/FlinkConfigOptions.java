@@ -22,7 +22,30 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.iceberg.util.ThreadPools;
 
+/**
+ * When constructing Flink Iceberg source via Java API,
+ * configs can be set in {@link Configuration} passed to source builder. E.g.
+ * <pre>
+ *   configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+ *   FlinkSource.forRowData()
+ *       .flinkConf(configuration)
+ *       ...
+ * </pre>
+ *
+ * <p></p>
+ *
+ * When using Flink SQL/table API, connector options can be set in Flink's {@link TableEnvironment}.
+ * <pre>
+ *   TableEnvironment tEnv = createTableEnv();
+ *   tEnv.getConfig()
+ *        .getConfiguration()
+ *        .setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+ * </pre>
+ */
 public class FlinkConfigOptions {
 
   private FlinkConfigOptions() {
@@ -46,4 +69,16 @@ public class FlinkConfigOptions {
           .booleanType()
           .noDefaultValue()
           .withDescription("Expose split host information to use Flink's locality aware split assigner.");
+
+  public static final ConfigOption<Integer> SOURCE_READER_FETCH_BATCH_RECORD_COUNT = ConfigOptions
+      .key("table.exec.iceberg.fetch-batch-record-count")
+      .intType()
+      .defaultValue(2048)
+      .withDescription("The target number of records for Iceberg reader fetch batch.");
+
+  public static final ConfigOption<Integer> TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE =
+      ConfigOptions.key("table.exec.iceberg.worker-pool-size")
+          .intType()
+          .defaultValue(ThreadPools.WORKER_THREAD_POOL_SIZE)
+          .withDescription("The size of workers pool used to plan or scan manifests.");
 }
