@@ -350,7 +350,7 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
     List<Row> output = spark.sql("EXPLAIN EXTENDED " + query).collectAsList();
     String plan = output.get(0).getString(0);
     int actualFilterCount = StringUtils.countMatches(plan, "dynamicpruningexpression");
-    Assert.assertEquals("Invalid number of runtime filters", expectedFilterCount, actualFilterCount);
+    Assert.assertEquals(errorMessage, expectedFilterCount, actualFilterCount);
   }
 
   // delete files that don't match the filter to ensure dynamic filtering works and only required files are read
