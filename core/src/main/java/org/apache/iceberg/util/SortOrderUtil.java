@@ -44,6 +44,11 @@ public class SortOrderUtil {
     return buildSortOrder(table.schema(), table.spec(), table.sortOrder());
   }
 
+  // builds a sort order using both the table partition spec and the user supplied sort order
+  public static SortOrder buildSortOrder(Table table, SortOrder sortOrder) {
+    return buildSortOrder(table.schema(), table.spec(), sortOrder);
+  }
+
   public static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
     if (sortOrder.isUnsorted() && spec.isUnpartitioned()) {
       return SortOrder.unsorted();
