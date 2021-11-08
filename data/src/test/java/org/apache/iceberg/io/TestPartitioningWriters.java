@@ -33,7 +33,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -158,8 +157,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testClusteredEqualityDeleteWriterNoRecords() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
@@ -180,8 +177,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testClusteredEqualityDeleteWriterMultipleSpecs() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
@@ -264,8 +259,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testClusteredEqualityDeleteWriterOutOfOrderSpecsAndPartitions() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
@@ -307,8 +300,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testClusteredPositionDeleteWriterNoRecords() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
     ClusteredPositionDeleteWriter<T> writer = new ClusteredPositionDeleteWriter<>(
         writerFactory, fileFactory, table.io(),
@@ -327,8 +318,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testClusteredPositionDeleteWriterMultipleSpecs() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // add an unpartitioned data file
@@ -409,8 +398,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testClusteredPositionDeleteWriterOutOfOrderSpecsAndPartitions() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     table.updateSpec()
