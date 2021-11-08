@@ -22,7 +22,9 @@ package org.apache.iceberg.spark;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
@@ -314,5 +316,10 @@ public class SparkSchemaUtil {
         "Table column names conflict with names reserved for Iceberg metadata columns: %s.\n" +
         "Please, use ALTER TABLE statements to rename the conflicting table columns.",
         conflictingColumnNames);
+  }
+
+  public static Map<Integer, String> indexQuotedNameById(Schema schema) {
+    Function<String, String> quotingFunc = name -> String.format("`%s`", name.replace("`", "``"));
+    return TypeUtil.indexQuotedNameById(schema.asStruct(), quotingFunc);
   }
 }
