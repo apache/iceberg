@@ -163,6 +163,27 @@ public class SparkWriteConf {
     return DistributionMode.fromName(modeName);
   }
 
+  public DistributionMode deleteDistributionMode() {
+    return rowLevelCommandDistributionMode(TableProperties.DELETE_DISTRIBUTION_MODE);
+  }
+
+  public DistributionMode updateDistributionMode() {
+    return rowLevelCommandDistributionMode(TableProperties.UPDATE_DISTRIBUTION_MODE);
+  }
+
+  public DistributionMode mergeDistributionMode() {
+    return rowLevelCommandDistributionMode(TableProperties.MERGE_DISTRIBUTION_MODE);
+  }
+
+  private DistributionMode rowLevelCommandDistributionMode(String tableProperty) {
+    String modeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(tableProperty)
+        .parseOptional();
+
+    return modeName != null ? DistributionMode.fromName(modeName) : distributionMode();
+  }
+
   public boolean useTableDistributionAndOrdering() {
     return confParser.booleanConf()
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
