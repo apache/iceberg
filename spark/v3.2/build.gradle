@@ -66,6 +66,7 @@ project(':iceberg-spark:iceberg-spark-3.2') {
       exclude group: 'org.apache.arrow'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'org.roaringbitmap'
     }
 
     implementation("org.apache.orc:orc-core::nohive") {
@@ -138,6 +139,7 @@ project(":iceberg-spark:iceberg-spark-3.2-extensions") {
       exclude group: 'org.apache.arrow'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'org.roaringbitmap'
     }
 
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
@@ -244,6 +246,7 @@ project(':iceberg-spark:iceberg-spark-3.2-runtime') {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     // relocate Antlr runtime and related deps to shade Iceberg specific version
     relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
+    relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
     classifier null
   }
