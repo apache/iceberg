@@ -27,6 +27,7 @@ on:
 
 jobs:
   publish-snapshot:
+    if: github.repository_owner == 'apache'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
