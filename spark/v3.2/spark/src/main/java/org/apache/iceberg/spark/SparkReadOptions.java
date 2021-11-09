@@ -59,6 +59,7 @@ public class SparkReadOptions {
 
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
+  public static final boolean STREAMING_SKIP_DELETE_SNAPSHOTS_DEFAULT = false;
 
   // Controls whether to allow reading timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
