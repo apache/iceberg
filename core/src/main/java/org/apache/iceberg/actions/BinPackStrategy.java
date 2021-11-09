@@ -84,8 +84,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
    * <p>
    * Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
    */
-  public static final String MIN_DELETES_PER_FILE = "min-deletes-per-file";
-  public static final int MIN_DELETES_PER_FILE_DEFAULT = Integer.MAX_VALUE;
+  public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
+  public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
   private int minInputFiles;
   private int minDeletesPerFile;
@@ -103,7 +103,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   public Set<String> validOptions() {
     return ImmutableSet.of(
         MIN_INPUT_FILES,
-        MIN_DELETES_PER_FILE,
+        DELETE_FILE_THRESHOLD,
         MIN_FILE_SIZE_BYTES,
         MAX_FILE_SIZE_BYTES
     );
@@ -135,8 +135,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES_DEFAULT);
 
     minDeletesPerFile = PropertyUtil.propertyAsInt(options,
-        MIN_DELETES_PER_FILE,
-        MIN_DELETES_PER_FILE_DEFAULT);
+        DELETE_FILE_THRESHOLD,
+        DELETE_FILE_THRESHOLD_DEFAULT);
 
     validateOptions();
     return this;
@@ -265,6 +265,6 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
     Preconditions.checkArgument(minDeletesPerFile > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
-        MIN_DELETES_PER_FILE, minDeletesPerFile);
+        DELETE_FILE_THRESHOLD, minDeletesPerFile);
   }
 }

@@ -113,7 +113,7 @@ public class TestBinPackStrategy extends TableTestBase {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
             BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(550 * MB),
             BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(490 * MB),
-            BinPackStrategy.MIN_DELETES_PER_FILE, Integer.toString(2)
+            BinPackStrategy.DELETE_FILE_THRESHOLD, Integer.toString(2)
     ));
 
     List<FileScanTask> testFiles = filesOfSize(500, 500, 480, 480, 560, 520);
@@ -173,7 +173,7 @@ public class TestBinPackStrategy extends TableTestBase {
             BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5),
             BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(550 * MB),
             BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(490 * MB),
-            BinPackStrategy.MIN_DELETES_PER_FILE, Integer.toString(2)
+            BinPackStrategy.DELETE_FILE_THRESHOLD, Integer.toString(2)
     ));
 
     List<FileScanTask> testFiles = Lists.newArrayList();
@@ -239,7 +239,7 @@ public class TestBinPackStrategy extends TableTestBase {
     AssertHelpers.assertThrows("Should not allow min deletes per file smaller than 1",
             IllegalArgumentException.class, () -> {
               defaultBinPack().options(ImmutableMap.of(
-                      BinPackStrategy.MIN_DELETES_PER_FILE, Long.toString(-5)));
+                      BinPackStrategy.DELETE_FILE_THRESHOLD, Long.toString(-5)));
             });
 
     AssertHelpers.assertThrows("Should not allow negative target size",

@@ -231,7 +231,7 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
         .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
         .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-        .option(BinPackStrategy.MIN_DELETES_PER_FILE, "4")
+        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "4")
         .execute();
     Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
 
