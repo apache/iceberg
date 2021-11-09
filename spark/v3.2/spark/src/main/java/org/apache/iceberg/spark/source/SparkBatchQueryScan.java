@@ -54,7 +54,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
 import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,10 +75,10 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
   private List<FileScanTask> files = null; // lazy cache of files
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkBatchQueryScan(SparkSession spark, Table table, SparkReadConf readConf, boolean caseSensitive,
-                      Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkBatchQueryScan(SparkSession spark, Table table, SparkReadConf readConf,
+                      Schema expectedSchema, List<Expression> filters) {
 
-    super(spark, table, readConf, caseSensitive, expectedSchema, filters, options);
+    super(spark, table, readConf, expectedSchema, filters);
 
     this.snapshotId = readConf.snapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
