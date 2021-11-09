@@ -21,10 +21,10 @@ package org.apache.iceberg.deletes;
 
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
-public class BitmapPositionDeleteIndex implements PositionDeleteIndex {
+class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   private final Roaring64Bitmap roaring64Bitmap;
 
-  public BitmapPositionDeleteIndex() {
+  BitmapPositionDeleteIndex() {
     roaring64Bitmap = new Roaring64Bitmap();
   }
 

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -31,7 +32,6 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.deletes.BitmapPositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -42,6 +42,7 @@ import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
@@ -184,7 +185,7 @@ public class TestSparkParquetReadMetadataColumns {
 
       DeleteFilter deleteFilter = mock(DeleteFilter.class);
       when(deleteFilter.hasPosDeletes()).thenReturn(true);
-      PositionDeleteIndex deletedRowPos = new BitmapPositionDeleteIndex();
+      PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
       deletedRowPos.delete(98, 103);
       when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
 
@@ -193,6 +194,31 @@ public class TestSparkParquetReadMetadataColumns {
       builder.recordsPerBatch(RECORDS_PER_BATCH);
 
       validate(expectedRowsAfterDelete, builder);
+    }
+  }
+
+  private class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
+    private final Set<Long> deleteIndex;
+
+    private CustomizedPositionDeleteIndex() {
+      deleteIndex = Sets.newHashSet();
+    }
+
+    @Override
+    public void delete(long position) {
+      deleteIndex.add(position);
+    }
+
+    @Override
+    public void delete(long posStart, long posEnd) {
+      for (long l = posStart; l < posEnd; l++) {
+        delete(l);
+      }
+    }
+
+    @Override
+    public boolean deleted(long position) {
+      return deleteIndex.contains(position);
     }
   }
 
