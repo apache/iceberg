@@ -52,7 +52,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private final SparkSession spark;
   private final Table table;
   private final SparkReadConf readConf;
-  private final CaseInsensitiveStringMap options;
   private final List<String> metaColumns = Lists.newArrayList();
 
   private Schema schema = null;
@@ -66,8 +65,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.spark = spark;
     this.table = table;
     this.readConf = new SparkReadConf(spark, table, options);
-    this.options = options;
-    this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    this.caseSensitive = readConf.caseSensitive();
   }
 
   private Schema lazySchema() {
@@ -163,12 +161,12 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   @Override
   public Scan build() {
     return new SparkBatchQueryScan(
-        spark, table, readConf, caseSensitive, schemaWithMetadataColumns(), filterExpressions, options);
+        spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
   }
 
   public Scan buildMergeScan() {
     return new SparkMergeScan(
-        spark, table, readConf, caseSensitive, ignoreResiduals,
-        schemaWithMetadataColumns(), filterExpressions, options);
+        spark, table, readConf, ignoreResiduals,
+        schemaWithMetadataColumns(), filterExpressions);
   }
 }
