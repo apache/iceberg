@@ -321,7 +321,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       if (partition != null) {
         this.lazyPartitionSchema = (StructType) SparkSchemaUtil.convert(partition.type());
       } else {
-        lazyPartitionSchema = new StructType();
+        this.lazyPartitionSchema = new StructType();
       }
     }
 
