@@ -94,6 +94,10 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         reorderedFields.add(VectorizedArrowReader.nulls());
       }
     }
+    return vectorizedReader(reorderedFields);
+  }
+
+  protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
     return readerFactory.apply(reorderedFields);
   }
 
