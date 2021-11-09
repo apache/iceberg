@@ -26,7 +26,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
-class OSSOutputFile extends BaseOSSFile implements OutputFile {
+public class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
   OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     super(client, uri, aliyunProperties);
@@ -52,6 +52,6 @@ class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new OSSInputFile(client(), uri(), aliyunProperties());
+    return new OSSInputFile(client(), uri());
   }
 }

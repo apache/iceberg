@@ -22,11 +22,11 @@ package org.apache.iceberg.aliyun.oss;
 import com.aliyun.oss.OSS;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -45,19 +45,20 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   @Test
   public void testWriteFile() throws IOException {
     OSSURI uri = randomURI();
-
-    int dataSize = 1024 * 1024 * 10;
+    int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
 
+    InputStream is = new ByteArrayInputStream(data);
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    try (OutputStream os = out.createOrOverwrite()) {
-      IOUtils.write(data, os);
+    try (OutputStream os = out.create()) {
+      ByteStreams.copy(is, os);
     }
-    InputFile in = out.toInputFile();
-    Assert.assertTrue("OSS file should exist", in.exists());
+
+    Assert.assertTrue("OSS file should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
+    Assert.assertEquals("Object length should match", ossDataLength(uri), dataSize);
 
     byte[] actual = new byte[dataSize];
-    ByteStreams.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
+    ByteStreams.readFully(ossDataContent(uri), actual);
     Assert.assertArrayEquals("Object content should match", data, actual);
   }
 
@@ -73,37 +74,37 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   @Test
   public void testCreate() {
     OSSURI uri = randomURI();
-
     int dataSize = 8;
     byte[] data = randomData(dataSize);
+
     writeOSSData(uri, data);
 
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    AssertHelpers.assertThrows("Should complain about location already exists", AlreadyExistsException.class,
-        "Location already exists",
-        () -> out.create());
+    AssertHelpers.assertThrows("Should complain about location already exists",
+        AlreadyExistsException.class, "Location already exists", out::create);
   }
 
   @Test
   public void testCreateOrOverwrite() throws Exception {
     OSSURI uri = randomURI();
-
     int dataSize = 8;
     byte[] data = randomData(dataSize);
+
     writeOSSData(uri, data);
 
     int actualSize = 1024;
     byte[] actual = randomData(actualSize);
+    InputStream is = new ByteArrayInputStream(actual);
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
     try (OutputStream os = out.createOrOverwrite()) {
-      IOUtils.write(actual, os);
+      ByteStreams.copy(is, os);
     }
 
     Assert.assertEquals(String.format("Should overwrite object length from %d to %d", dataSize, actualSize),
-        ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), actualSize);
+        ossDataLength(uri), actualSize);
 
     byte[] expect = new byte[actualSize];
-    ByteStreams.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), expect);
+    ByteStreams.readFully(ossDataContent(uri), expect);
     Assert.assertArrayEquals("Should overwrite object content", actual, expect);
   }
 
@@ -115,10 +116,27 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   }
 
   @Test
-  public void testToInputFile() {
+  public void testToInputFile() throws IOException {
+    int dataSize = 1024 * 10;
+    byte[] data = randomData(dataSize);
+
+    InputStream is = new ByteArrayInputStream(data);
     OutputFile out = new OSSOutputFile(ossClient, randomURI(), aliyunProperties);
+    try (OutputStream os = out.create()) {
+      ByteStreams.copy(is, os);
+    }
+
     InputFile in = out.toInputFile();
     Assert.assertTrue("Should be an instance of OSSInputFile", in instanceof OSSInputFile);
+    Assert.assertTrue("OSS file should exist", in.exists());
+    Assert.assertEquals("Should have expected location", out.location(), in.location());
+    Assert.assertEquals("Should have expected length", dataSize, in.getLength());
+
+    byte[] actual = new byte[dataSize];
+    try (InputStream as = in.newStream()) {
+      ByteStreams.readFully(as, actual);
+    }
+    Assert.assertArrayEquals("Should have expected content", data, actual);
   }
 
   private OSSURI randomURI() {
@@ -133,5 +151,13 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
 
   private void writeOSSData(OSSURI uri, byte[] data) {
     ossClient.putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
+  }
+
+  private long ossDataLength(OSSURI uri) {
+    return ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength();
+  }
+
+  private InputStream ossDataContent(OSSURI uri) {
+    return ossClient.getObject(uri.bucket(), uri.key()).getObjectContent();
   }
 }
