@@ -19,10 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.clearspring.analytics.util.Lists;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
@@ -59,8 +56,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.analysis.NoSuchPartitionException;
-import org.apache.spark.sql.catalyst.analysis.PartitionAlreadyExistsException;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
@@ -78,7 +73,6 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -112,6 +106,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   private final StructType requestedSchema;
   private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
+  private StructType lazyPartitionSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
@@ -291,7 +286,6 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
             specId -> new Evaluator(spec.partitionType(), Projections.strict(spec).project(deleteExpr)));
         return evaluator.eval(file.partition()) || metricsEvaluator.eval(file);
       });
-
     } catch (IOException ioe) {
       LOG.warn("Failed to close task iterable", ioe);
       return false;
@@ -319,48 +313,54 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public StructType partitionSchema() {
-    List<Types.NestedField> fields = icebergTable.spec().partitionType().fields();
-    StructField[] structFields = new StructField[fields.size()];
-    int index = 0;
-    for (Types.NestedField field : fields) {
-      StructField structField = new StructField(field.name(), SparkSchemaUtil.convert(field.type()), true,
-          Metadata.empty());
-      structFields[index] = structField;
-      ++index;
+    if (lazyPartitionSchema == null) {
+      Table table = table();
+      PartitionsTable partitionsTable =
+          (PartitionsTable) MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.PARTITIONS);
+      Types.NestedField partition = partitionsTable.schema().findField("partition");
+      if (partition != null) {
+        this.lazyPartitionSchema = (StructType) SparkSchemaUtil.convert(partition.type());
+      } else {
+        lazyPartitionSchema = new StructType();
+      }
     }
-    return new StructType(structFields);
+
+    return lazyPartitionSchema;
   }
 
   @Override
   public void createPartition(InternalRow ident, Map<String, String> properties)
-      throws PartitionAlreadyExistsException, UnsupportedOperationException {
-    throw new UnsupportedOperationException("not support create partition, use addFile procedure to refresh");
+      throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Cannot create partition: partitions exist only when there are rows");
   }
 
   @Override
   public boolean dropPartition(InternalRow ident) {
-    throw new UnsupportedOperationException("not support drop partition, use delete sql instead of it");
+    throw new UnsupportedOperationException("Cannot drop partition: not implemented");
   }
 
   @Override
   public void replacePartitionMetadata(InternalRow ident, Map<String, String> properties)
-      throws NoSuchPartitionException, UnsupportedOperationException {
-    throw new UnsupportedOperationException("not support replace partition metadata");
+      throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Cannot replace partition metadata: partition metadata is only related to" +
+        " data files");
   }
 
   @Override
   public Map<String, String> loadPartitionMetadata(InternalRow ident) throws UnsupportedOperationException {
-    throw new UnsupportedOperationException("not support load partition metadata");
+    throw new UnsupportedOperationException("Cannot load partition metadata: not implemented");
   }
 
   @Override
   public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
-    Table table = this.table();
-
-    // get possition by partition name
-    StructType partitionSchema = this.partitionSchema();
+    StructType partitionSchema = partitionSchema();
+    if (partitionSchema.isEmpty()) {
+      return new InternalRow[0];
+    }
+    // get position by partition name
+    Table table = table();
     StructField[] partitionFileds = partitionSchema.fields();
-    Map<String, Integer> fieldToPosition = new HashMap<>(8);
+    Map<String, Integer> fieldToPosition = Maps.newHashMapWithExpectedSize(partitionSchema.size());
     for (int i = 0; i < partitionFileds.length; i++) {
       fieldToPosition.put(partitionFileds[i].name(), i);
     }
