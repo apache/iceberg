@@ -18,7 +18,6 @@
 import pytest
 
 from iceberg import expressions
-from iceberg.expressions import Operation  # noqa: F401
 
 
 @pytest.mark.parametrize(
@@ -41,7 +40,7 @@ from iceberg.expressions import Operation  # noqa: F401
     ],
 )
 def test_negation_of_operations(operation, opposite_operation):
-    assert -operation == opposite_operation
+    assert operation.negate() == opposite_operation
 
 
 @pytest.mark.parametrize(
@@ -54,41 +53,6 @@ def test_negation_of_operations(operation, opposite_operation):
 )
 def test_raise_on_no_negation_for_operation(operation):
     with pytest.raises(ValueError) as exc_info:
-        -operation
+        operation.negate()
 
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
-
-
-@pytest.mark.parametrize(
-    "operation,reversed_operation",
-    [
-        (expressions.Operation.LT, expressions.Operation.GT),
-        (expressions.Operation.LT_EQ, expressions.Operation.GT_EQ),
-        (expressions.Operation.GT, expressions.Operation.LT),
-        (expressions.Operation.GT_EQ, expressions.Operation.LT_EQ),
-        (expressions.Operation.EQ, expressions.Operation.EQ),
-        (expressions.Operation.NOT_EQ, expressions.Operation.NOT_EQ),
-        (expressions.Operation.AND, expressions.Operation.AND),
-        (expressions.Operation.OR, expressions.Operation.OR),
-    ],
-)
-def test_reversing_operations(operation, reversed_operation):
-    assert reversed(operation) == reversed_operation
-
-
-@pytest.mark.parametrize(
-    "operation",
-    [
-        expressions.Operation.TRUE,
-        expressions.Operation.FALSE,
-        expressions.Operation.IS_NULL,
-        expressions.Operation.NOT_NULL,
-        expressions.Operation.IS_NAN,
-        expressions.Operation.NOT_NAN,
-    ],
-)
-def test_raise_on_no_reverse_of_operation(operation):
-    with pytest.raises(ValueError) as exc_info:
-        reversed(operation)
-
-    assert str(exc_info.value) == f"No left-right flip for operation {operation}"

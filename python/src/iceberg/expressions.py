@@ -21,26 +21,18 @@ from enum import Enum, auto
 class Operation(Enum):
     """Operations to be used as components in expressions
 
-    Various operations can be negated or reversed. Negating an
-    operation is as simple as using the built-in subtraction operator:
-
-    >>> print(-Operation.TRUE)
+    Operations can be negated by calling the negate method.
+    >>> print(Operation.TRUE.negate())
     Operation.FALSE
-    >>> print(-Operation.IS_NULL)
+    >>> print(Operation.IS_NULL.negate())
     Operation.NOT_NULL
 
-    Reversing an operation can be done using the built-in reversed() method:
-    >>> print(reversed(Operation.LT))
-    Operation.GT
-    >>> print(reversed(Operation.EQ))
-    Operation.NOT_EQ
-
-    The above examples use the OPERATION_NEGATIONS and OPERATION_REVERSALS maps
-    which map each enum to it's negated enum or reversed enum, respectively.
+    The above example uses the OPERATION_NEGATIONS map which maps each enum
+    to it's opposite enum.
 
     Raises:
-        ValueError: This is raised when attempting to negate or reverse
-            an operation that cannot be negated or reversed.
+        ValueError: This is raised when attempting to negate an operation
+            that cannot be negated.
     """
 
     TRUE = auto()
@@ -61,21 +53,13 @@ class Operation(Enum):
     AND = auto()
     OR = auto()
 
-    def __neg__(self):
+    def negate(self):
         """Returns the operation used when this is negated."""
 
         try:
             return OPERATION_NEGATIONS[self]
         except KeyError:
             raise ValueError(f"No negation defined for operation {self}")
-
-    def __reversed__(self):
-        """Returns the equivalent operation when the left and right operands are exchanged."""
-
-        try:
-            return OPERATION_REVERSALS[self]
-        except KeyError:
-            raise ValueError(f"No left-right flip for operation {self}")
 
 
 OPERATION_NEGATIONS = {
@@ -93,15 +77,4 @@ OPERATION_NEGATIONS = {
     Operation.NOT_EQ: Operation.EQ,
     Operation.IN: Operation.NOT_IN,
     Operation.NOT_IN: Operation.IN,
-}
-
-OPERATION_REVERSALS = {
-    Operation.LT: Operation.GT,
-    Operation.LT_EQ: Operation.GT_EQ,
-    Operation.GT: Operation.LT,
-    Operation.GT_EQ: Operation.LT_EQ,
-    Operation.EQ: Operation.EQ,
-    Operation.NOT_EQ: Operation.NOT_EQ,
-    Operation.AND: Operation.AND,
-    Operation.OR: Operation.OR,
 }
