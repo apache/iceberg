@@ -24,6 +24,7 @@ setup(
         "dev": [
             "tox-travis==0.12",
             "pytest",
+            "black"
         ],
     },
 )

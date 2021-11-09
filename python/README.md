@@ -27,7 +27,15 @@ py-iceberg is currently in development, for development and testing purposes the
 ```
 git clone https://github.com/apache/iceberg.git
 cd iceberg/python
-pip install -e .
+
+# create a virtualenv
+python -m venv .iceberg-env
+
+# activate the virutalenv
+./.iceberg-env/bin/activate
+
+# install dependencies
+pip install -e ".[dev]"
 ```
 
 ## Testing
@@ -37,6 +45,9 @@ Testing is done using tox. The config can be found in `tox.ini` within the pytho
 ```
 # simply run tox within the python dir
 tox
+
+# run tox for a specific python version
+tox -e py38
 ```
 
 ## Get in Touch
