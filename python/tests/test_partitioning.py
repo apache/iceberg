@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-class ValidationException(Exception):
-    def __init__(self, message, *args):
-        super.__str__(message, *args)
 
-    def check(self, test: bool, message: str, *args):
-        if not test:
-            raise ValidationException(message, args)
+from iceberg.partitioning import PartitionField, PartitionSpec
 
 
+def test_partition_field_equality():
+    assert PartitionField(1, 2, "test_1") == PartitionField(1, 2, "test_1")
+
+
+def test_partition_field():
+    assert str(PartitionField(1, 2, "test_1")) == "2: test_1 (1)"
+    assert (
+        repr(PartitionField(1, 2, "test_1"))
+        == "PartitionField(field_id=2, name=test_1, source_id=1)"
+    )

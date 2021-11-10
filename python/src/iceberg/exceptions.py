@@ -15,15 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from iceberg.partition_field import PartitionField
 
-
-def test_partition_field_equality():
-    part_field_1 = PartitionField(1, 2, "test_1")
-    part_field_2 = PartitionField(1, 2, "test_1")
-    assert part_field_1 == part_field_2
-
-
-def test_partition_field_str():
-    part_field_1 = PartitionField(1, 2, "test_1")
-    assert str(part_field_1) == "2: test_1 (1)"
+class ValidationException(Exception):
+    pass

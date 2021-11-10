@@ -14,19 +14,70 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from __future__ import annotations
 from urllib import parse
 from collections import defaultdict
-from typing import List, Optional
+from typing import List, Tuple
 
-from iceberg.partition_field import PartitionField
-from iceberg.schema import Schema
-from iceberg.types import Type, NestedField
-from iceberg.validation_exception import ValidationException
+from iceberg.types import Type, NestedField, Schema
+from iceberg.exceptions import ValidationException
+
+
+class PartitionField:
+    def __init__(self, source_id: int, field_id: int, name: str):
+        self._source_id = source_id
+        self._field_id = field_id
+        self._name = name
+        # TODO: add transform field
+
+    @property
+    def source_id(self) -> int:
+        return self._source_id
+
+    @property
+    def field_id(self) -> int:
+        return self._field_id
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def __eq__(self, other):
+        if isinstance(other, PartitionField):
+            return (
+                self.source_id == other.source_id
+                and self.field_id == other.field_id
+                and self.name == other.name
+            )
+        return False
+
+    def __str__(self):
+        # TODO: add transform to str representation
+        return f"{self.field_id}: {self.name} ({self._source_id})"
+
+    def __repr__(self):
+        return f"PartitionField(field_id={self.field_id}, name={self.name}, source_id={self._source_id})"
+
+
+def check_compatibility(spec, schema: Schema):
+    for field in spec.fields:
+        source_type = schema.find_type(field.source_id)
+        if source_type is None:
+            raise ValidationException(
+                f"Cannot find source column for partition field: {field}"
+            )
+        if not source_type.is_primitive:
+            raise ValidationException(
+                f"Cannot partition by non-primitive source field: {source_type}"
+            )
+        # TODO: Add transform check
+
 
 PARTITION_DATA_ID_START = 1000
 
 
-class PartitionSpec(object):
+class PartitionSpec:
     fields_by_source_id: defaultdict[list] = None
     field_list: List[PartitionField] = None
 
@@ -39,7 +90,7 @@ class PartitionSpec(object):
     ):
         self._schema = schema
         self._spec_id = spec_id
-        self._fields = [part_field for part_field in part_fields]
+        self._fields = tuple(part_fields)
         self._last_assigned_field_id = last_assigned_field_id
 
     @property
@@ -51,7 +102,7 @@ class PartitionSpec(object):
         return self._spec_id
 
     @property
-    def fields(self) -> List[PartitionField]:
+    def fields(self) -> Tuple[PartitionField]:
         return self._fields
 
     @property
@@ -62,12 +113,11 @@ class PartitionSpec(object):
         return len(self.fields) < 1
 
     def _generate_fields_by_source_id(self):
-        if self.fields_by_source_id is None:
+        if not self.fields_by_source_id:
             fields_source_to_field_dict = defaultdict(list)
             for field in self.fields:
                 fields_source_to_field_dict[field.source_id] = [field]
             return fields_source_to_field_dict
-        return None
 
     def get_fields_by_source_id(self, field_id: int) -> List[PartitionField]:
         return self._generate_fields_by_source_id().get(field_id, None)
@@ -83,11 +133,12 @@ class PartitionSpec(object):
         partition_spec_str = "["
         for field in self.fields:
             partition_spec_str += "\n"
-            partition_spec_str += " " + field
-        if len(self.fields) > 0:
-            partition_spec_str += "\n"
-        partition_spec_str += "]"
+            partition_spec_str += " " + str(field)
+        partition_spec_str += "]" if len(self.fields) > 0 else "\n"
         return partition_spec_str
+
+    def __repr__(self):
+        return "PartitionSpec" + self.__str__()
 
     def compatible_with(self, other):
         if self.__eq__(other):
@@ -97,6 +148,7 @@ class PartitionSpec(object):
             return False
 
         index = 0
+        # TODO: Need to fix with transforms
         for field in self.fields:
             other_field: PartitionField = other.fields[index]
             if (
@@ -113,41 +165,19 @@ class PartitionSpec(object):
         # TODO: Needs transform
         pass
 
-    def escape(self, input_str):
-        try:
-            return parse.urlencode(input_str, encoding="utf-8")
-        except TypeError as e:
-            raise e
-
     def partition_to_path(self):
         # TODO: Needs transform
         pass
 
-    def _generate_unpartitioned_spec(self):
+    def unpartitioned(self):
         return PartitionSpec(
-            schema=Schema(),
+            schema=Schema(columns=[]),
             spec_id=0,
             part_fields=[],
             last_assigned_field_id=PARTITION_DATA_ID_START - 1,
         )
 
-    def unpartitioned(self) -> PartitionSpec:
-        return self._generate_unpartitioned_spec()
-
-    def check_compatibility(self, spec: PartitionSpec, schema: Schema):
-        for field in spec.fields:
-            source_type = schema.find_type(field.source_id)
-            ValidationException().check(
-                source_type != None,
-                f"Cannot find source column for partition field: {field}",
-            )
-            ValidationException().check(
-                source_type.is_primitive,
-                f"Cannot partition by non-primitive source field: {source_type}",
-            )
-            # TODO: Add transform check
-
-    def has_sequential_ids(self, spec: PartitionSpec):
+    def has_sequential_ids(self, spec):
         index = 0
         for field in spec.fields:
             if field.field_id != PARTITION_DATA_ID_START + index:
@@ -156,39 +186,13 @@ class PartitionSpec(object):
         return True
 
 
-class AtomicInteger:
-    # TODO: Move to utils
-    def __init__(self, value=0):
-        self._value = int(value)
-        self._lock = threading.Lock()
-
-    def inc(self, d=1):
-        with self._lock:
-            self._value += int(d)
-            return self._value
-
-    def dec(self, d=1):
-        return self.inc(-d)
-
-    @property
-    def value(self):
-        with self._lock:
-            return self._value
-
-    @value.setter
-    def value(self, v):
-        with self._lock:
-            self._value = int(v)
-            return self._value
-
-
-class Builder(object):
+class Builder:
     schema: Schema = None
     fields: List[PartitionField] = []
     partition_names = set()
     dedup_fields = dict()
     spec_id = 0
-    last_assigned_field_id = AtomicInteger(value=PARTITION_DATA_ID_START - 1)
+    last_assigned_field_id = PARTITION_DATA_ID_START - 1
 
     def __init__(self, schema: Schema):
         self._schema = schema
@@ -212,7 +216,7 @@ class Builder(object):
         # TODO: needs transforms
         pass
 
-    def with_spec_id(self, new_spec_id: int) -> Builder:
+    def with_spec_id(self, new_spec_id: int):
         self.spec_id = new_spec_id
         return self
 
@@ -227,7 +231,7 @@ class Builder(object):
     def identity(self, source_name: str) -> Builder:
         return self.identity(source_name, source_name)
 
-    def year(self, source_name: str, target_name: str) -> Builder:
+    def year(self, source_name: str, target_name: str):
         # TODO: needs check_for_redundant_partitions
         pass
 
@@ -273,7 +277,7 @@ class Builder(object):
         # TODO: needs check_and_add_partition_name and transforms
         pass
 
-    def always_null(self, source_name: str) -> Builder:
+    def always_null(self, source_name: str):
         return self.always_null(source_name, source_name + "_null")
 
     def add(self, source_id: int, field_id: int):
@@ -285,5 +289,5 @@ class Builder(object):
         spec = PartitionSpec(
             self.schema, self.spec_id, self.fields, self.last_assigned_field_id
         )
-        PartitionSpec().check_compatibility(spec, self.schema)
+        check_compatibility(spec, self.schema)
         return spec

@@ -16,7 +16,7 @@
 # under the License.
 
 
-from typing import TypeVar, Generic, List, Dict
+from typing import TypeVar, Generic, List, Dict, Optional
 
 
 class Type(object):
@@ -119,7 +119,10 @@ class NestedField(object):
 
 class StructType(Type):
     def __init__(self, fields: List[NestedField]):
-        super().__init__(f"struct<{', '.join(map(str, fields))}>", f"StructType(fields={repr(fields)})")
+        super().__init__(
+            f"struct<{', '.join(map(str, fields))}>",
+            f"StructType(fields={repr(fields)})",
+        )
         self._fields = fields
 
     @property
@@ -170,20 +173,67 @@ BinaryType = Type("binary", "BinaryType", is_primitive=True)
 
 
 class Schema(object):
-    """A table Schema
     """
-    def __init__(self, columns: List[NestedField]):
+    Schema of a data table
+    """
+
+    def __init__(
+        self,
+        columns: List[NestedField],
+        schema_id: int,
+        identifier_field_ids: [int],
+        id_to_field: Dict[int, NestedField],
+        alias_to_id: Dict[str, int],
+        name_to_id: Dict[str, int],
+        lowercase_name_to_id: Dict[str, int],
+    ):
         self._struct = StructType(columns)
+        self._schema_id = schema_id
+        self._identifier_field_ids = identifier_field_ids
+        self._id_to_field = id_to_field
+        self._alias_to_id = alias_to_id
+        self._name_to_id = name_to_id
+        self._lowercase_name_to_id = lowercase_name_to_id
 
     @property
     def columns(self):
         return self._struct.fields
 
+    @property
+    def schema_id(self):
+        return self._schema_id
+
+    @property
+    def identifier_field_ids(self):
+        return self._identifier_field_ids
+
     def as_struct(self):
         return self._struct
 
+    def _id_to_field(self) -> Dict[int, NestedField]:
+        if not self._id_to_field:
+            return index_by_id(self._struct)
 
-T = TypeVar('T')
+    def find_type(self, field_id):
+        field = self._id_to_field.get(field_id)
+        if field:
+            return field.type
+        return None
+
+    def _name_to_id(self) -> Dict[str, int]:
+        if not self._name_to_id:
+            return index_by_name(self._struct)
+
+    def _id_to_name(self) -> Dict[int, str]:
+        if not self._id_to_name():
+            return index_name_by_id(self._struct)
+
+    def find_field(self, name: str) -> NestedField:
+        # TODO: needs TypeUtil Methods
+        pass
+
+
+T = TypeVar("T")
 
 
 class SchemaVisitor(Generic[T]):
@@ -306,3 +356,63 @@ def index_by_id(schema_or_type) -> Dict[int, NestedField]:
             return self._index
 
     return visit(schema_or_type, IndexById())
+
+
+def index_by_name(schema_or_type) -> Dict[str, int]:
+    class IndexByName(SchemaVisitor[Dict[str, int]]):
+        def __init__(self):
+            self._index: Dict[str, int] = {}
+
+        def schema(self, schema, result):
+            return self._index
+
+        def struct(self, struct, results):
+            return self._index
+
+        def field(self, field, result):
+            self._index[field.name] = field.field_id
+            return self._index
+
+        def list(self, list_type, result):
+            self._index[list_type.element.name] = list_type.element.field_id
+            return self._index
+
+        def map(self, map_type, key_result, value_result):
+            self._index[map_type.key.name] = map_type.key.field_id
+            self._index[map_type.value.name] = map_type.value.field_id
+            return self._index
+
+        def primitive(self, primitive):
+            return self._index
+
+    return visit(schema_or_type, IndexByName())
+
+
+def index_name_by_id(schema_or_type) -> Dict[int, str]:
+    class IndexByNameById(SchemaVisitor[Dict[int, str]]):
+        def __init__(self):
+            self._index: Dict[int, str] = {}
+
+        def schema(self, schema, result):
+            return self._index
+
+        def struct(self, struct, results):
+            return self._index
+
+        def field(self, field, result):
+            self._index[field.field_id] = field.name
+            return self._index
+
+        def list(self, list_type, result):
+            self._index[list_type.element.field_id] = list_type.element.name
+            return self._index
+
+        def map(self, map_type, key_result, value_result):
+            self._index[map_type.key.field_id] = map_type.key.name
+            self._index[map_type.value.field_id] = map_type.value.name
+            return self._index
+
+        def primitive(self, primitive):
+            return self._index
+
+    return visit(schema_or_type, IndexByNameById())
