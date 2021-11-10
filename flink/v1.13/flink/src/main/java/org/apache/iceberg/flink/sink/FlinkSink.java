@@ -59,8 +59,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLE;
-import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLE_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPSERT_ENABLED;
+import static org.apache.iceberg.TableProperties.UPSERT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
@@ -222,11 +222,11 @@ public class FlinkSink {
      * a subset of equality fields, otherwise the old row that located in partition-A could not be deleted by the
      * new row that located in partition-B.
      *
-     * @param enable indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
+     * @param enabled indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
      * @return {@link Builder} to connect the iceberg table.
      */
-    public Builder upsert(boolean enable) {
-      this.upsert = enable;
+    public Builder upsert(boolean enabled) {
+      this.upsert = enabled;
       return this;
     }
 
@@ -364,7 +364,7 @@ public class FlinkSink {
 
       // Fallback to use upsert mode parsed from table properties if don't specify in job level.
       boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(table.properties(),
-          UPSERT_MODE_ENABLE, UPSERT_MODE_ENABLE_DEFAULT);
+          UPSERT_ENABLED, UPSERT_ENABLED_DEFAULT);
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
       if (upsertMode) {
