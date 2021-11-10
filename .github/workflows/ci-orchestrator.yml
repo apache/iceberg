@@ -46,11 +46,7 @@ jobs:
         flink: ["1.12", "1.13"]
         spark: ["2.4", "3.0", "3.1"]
     steps:
-      - uses: apache/iceberg/.github/workflows/flink-ci-workflow.yml@master
-        if: ${{ matrix.workflow == 'flink' }}
-        with:
-          # TODO - Are these needed?
-          jvm: jvm
-          flink: flink
+      - if: ${{ matrix.workflow == 'flink' }}
+        uses: apache/iceberg/.github/workflows/flink-ci-workflow.yml@master
       - if: ${{ matrix.workflox == 'spark' }}
         uses: apache/iceberg/.github/workflows/spark-ci-workflow.yml@master
