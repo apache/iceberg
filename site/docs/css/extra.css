@@ -224,8 +224,9 @@ pre {
 
 .markdown-table-container {
   width: 780px;
-  overflow-x: scroll;
+  overflow-x: auto;
 }
+
 .spark-orange {
   color: #E25A1D;
 }
