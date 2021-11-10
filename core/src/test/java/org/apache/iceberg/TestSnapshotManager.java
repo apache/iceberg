@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -249,5 +250,46 @@ public class TestSnapshotManager extends TableTestBase {
     Assert.assertEquals("Failed cherry-pick should not change the table state",
         lastSnapshotId, table.currentSnapshot().snapshotId());
     validateTableFiles(table, FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testSchemaAfterAddColumnAndRollbackToCurrentSnapshot() {
+    table.newAppend()
+            .appendFile(FILE_A)
+            .commit();
+
+    table.updateSchema()
+            .addColumn("n", Types.IntegerType.get())
+            .commit();
+
+    Assert.assertTrue(table.schema().findField("n") != null);
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().rollbackTo(snapshotId).commit();
+
+    Assert.assertTrue(table.schema().findField("n") == null);
+  }
+
+  @Test
+  public void testSchemaAfterAddColumnAndRollbackToPreviousSnapshot() {
+    table.newAppend()
+            .appendFile(FILE_A)
+            .commit();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.newAppend()
+            .appendFile(FILE_B)
+            .commit();
+
+    table.updateSchema()
+            .addColumn("n", Types.IntegerType.get())
+            .commit();
+
+    Assert.assertTrue(table.schema().findField("n") != null);
+
+    table.manageSnapshots().rollbackTo(snapshotId).commit();
+
+    Assert.assertTrue(table.schema().findField("n") == null);
   }
 }
