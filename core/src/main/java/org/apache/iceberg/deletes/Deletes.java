@@ -21,7 +21,6 @@ package org.apache.iceberg.deletes;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -37,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
@@ -252,7 +250,6 @@ public class Deletes {
   }
 
   private static class DataFileFilter<T extends StructLike> extends Filter<T> {
-    private static final Comparator<CharSequence> CHARSEQ_COMPARATOR = Comparators.charSequences();
     private final CharSequence dataLocation;
 
     DataFileFilter(CharSequence dataLocation) {
@@ -261,7 +258,28 @@ public class Deletes {
 
     @Override
     protected boolean shouldKeep(T posDelete) {
-      return CHARSEQ_COMPARATOR.compare(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete)) == 0;
+      return charSeqEquals(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete));
+    }
+
+    private boolean charSeqEquals(CharSequence s1, CharSequence s2) {
+      if (s1 == s2) {
+        return true;
+      }
+
+      int count = s1.length();
+      if (count != s2.length()) {
+        return false;
+      }
+
+      // file paths inside a delete file are most likely the same at the beginning. For example, a typical data file
+      // name would be like s3:/bucket/db/table/data/partition/00000-0-uuid-00001.parquet.
+      // The uuid is where the difference starts. It's faster to find the first diff backward.
+      for (int i = count - 1; i >= 0; i--) {
+        if (s1.charAt(i) != s2.charAt(i)) {
+          return false;
+        }
+      }
+      return true;
     }
   }
 }
