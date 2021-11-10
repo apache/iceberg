@@ -154,10 +154,11 @@ public class TestNessieTable extends BaseTestIceberg {
     // check that the author is properly set
     List<CommitMeta> log = tree.getCommitLog(BRANCH, CommitLogParams.empty()).getOperations();
     Assertions.assertThat(log).isNotNull().isNotEmpty();
-    log.forEach(x -> {
-      Assertions.assertThat(x.getAuthor()).isNotNull().isNotEmpty();
-      Assertions.assertThat(System.getProperty("user.name")).isEqualTo(x.getAuthor());
-      Assertions.assertThat("iceberg").isEqualTo(x.getProperties().get(NessieUtil.APPLICATION_TYPE));
+    log.forEach(commit -> {
+      Assertions.assertThat(commit.getAuthor()).isNotNull().isNotEmpty();
+      Assertions.assertThat(commit.getAuthor()).isEqualTo(System.getProperty("user.name"));
+      Assertions.assertThat(commit.getProperties().get(NessieUtil.APPLICATION_TYPE)).isEqualTo("iceberg");
+      Assertions.assertThat(commit.getMessage()).startsWith("iceberg");
     });
   }
 
