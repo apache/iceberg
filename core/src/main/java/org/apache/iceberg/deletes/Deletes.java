@@ -271,15 +271,7 @@ public class Deletes {
         return false;
       }
 
-      // file paths inside a delete file are most likely the same at the beginning. For example, a typical data file
-      // name would be like s3:/bucket/db/table/data/partition/00000-0-uuid-00001.parquet.
-      // The uuid is where the difference starts. It's faster to find the first diff backward.
-      for (int i = count - 1; i >= 0; i--) {
-        if (s1.charAt(i) != s2.charAt(i)) {
-          return false;
-        }
-      }
-      return true;
+      return s1.toString().equals(s2.toString());
     }
   }
 }
