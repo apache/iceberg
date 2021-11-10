@@ -42,11 +42,11 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public byte[] serialize(IcebergSourceSplit split) throws IOException {
-    if (split.serializedFormCache() == null) {
+    if (split.serializedBytesCache() == null) {
       final byte[] result = serializeV1(split);
-      split.serializedFormCache(result);
+      split.serializedBytesCache(result);
     }
-    return split.serializedFormCache();
+    return split.serializedBytesCache();
   }
 
   @Override
@@ -55,7 +55,8 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
       case 1:
         return deserializeV1(serialized);
       default:
-        throw new IOException("Unknown version: " + version);
+        throw new IOException(String.format("Failed to deserialize IcebergSourceSplit. " +
+            "Encountered unsupported version: %d. Supported version are [1]", version));
     }
   }
 

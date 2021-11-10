@@ -34,6 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 @Internal
 public class IcebergSourceSplit implements SourceSplit, Serializable {
+  private static final long serialVersionUID = 1L;
+
   private final CombinedScanTask task;
   /**
    * Position field is mutable
@@ -46,7 +48,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
    * Caching the byte representation makes repeated serialization cheap.
    */
   @Nullable
-  private transient byte[] serializedFormCache;
+  private transient byte[] serializedBytesCache;
 
   public IcebergSourceSplit(CombinedScanTask task, Position position) {
     this.task = task;
@@ -70,12 +72,12 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     return position;
   }
 
-  byte[] serializedFormCache() {
-    return serializedFormCache;
+  byte[] serializedBytesCache() {
+    return serializedBytesCache;
   }
 
-  void serializedFormCache(byte[] cachedBytes) {
-    this.serializedFormCache = cachedBytes;
+  void serializedBytesCache(byte[] cachedBytes) {
+    this.serializedBytesCache = cachedBytes;
   }
 
   @Override
