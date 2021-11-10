@@ -26,13 +26,13 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
-public class OSSOutputFile extends BaseOSSFile implements OutputFile {
+class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
   OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     super(client, uri, aliyunProperties);
   }
 
-  public static OSSOutputFile fromLocation(OSS client, String location, AliyunProperties aliyunProperties) {
+  static OSSOutputFile fromLocation(OSS client, String location, AliyunProperties aliyunProperties) {
     return new OSSOutputFile(client, new OSSURI(location), aliyunProperties);
   }
 

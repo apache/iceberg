@@ -60,8 +60,7 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
   public void testOSSInputFile() {
     OSSURI uri = randomURI();
     AssertHelpers.assertThrows("File length should not be negative", ValidationException.class,
-        "Invalid file length",
-        () -> new OSSInputFile(ossClient().get(), uri, -1));
+        "Invalid file length", () -> new OSSInputFile(ossClient().get(), uri, -1));
   }
 
   @Test

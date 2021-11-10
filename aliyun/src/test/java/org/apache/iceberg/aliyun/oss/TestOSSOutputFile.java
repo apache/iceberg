@@ -48,17 +48,15 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
 
-    InputStream is = new ByteArrayInputStream(data);
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    try (OutputStream os = out.create()) {
+    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
       ByteStreams.copy(is, os);
     }
 
     Assert.assertTrue("OSS file should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
     Assert.assertEquals("Object length should match", ossDataLength(uri), dataSize);
 
-    byte[] actual = new byte[dataSize];
-    ByteStreams.readFully(ossDataContent(uri), actual);
+    byte[] actual = ossDataContent(uri, dataSize);
     Assert.assertArrayEquals("Object content should match", data, actual);
   }
 
@@ -85,27 +83,26 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   }
 
   @Test
-  public void testCreateOrOverwrite() throws Exception {
+  public void testCreateOrOverwrite() throws IOException {
     OSSURI uri = randomURI();
     int dataSize = 8;
     byte[] data = randomData(dataSize);
 
     writeOSSData(uri, data);
 
-    int actualSize = 1024;
-    byte[] actual = randomData(actualSize);
-    InputStream is = new ByteArrayInputStream(actual);
+    int expectSize = 1024;
+    byte[] expect = randomData(expectSize);
+
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    try (OutputStream os = out.createOrOverwrite()) {
+    try (OutputStream os = out.createOrOverwrite(); InputStream is = new ByteArrayInputStream(expect)) {
       ByteStreams.copy(is, os);
     }
 
-    Assert.assertEquals(String.format("Should overwrite object length from %d to %d", dataSize, actualSize),
-        ossDataLength(uri), actualSize);
+    Assert.assertEquals(String.format("Should overwrite object length from %d to %d", dataSize, expectSize),
+        expectSize, ossDataLength(uri));
 
-    byte[] expect = new byte[actualSize];
-    ByteStreams.readFully(ossDataContent(uri), expect);
-    Assert.assertArrayEquals("Should overwrite object content", actual, expect);
+    byte[] actual = ossDataContent(uri, expectSize);
+    Assert.assertArrayEquals("Should overwrite object content", expect, actual);
   }
 
   @Test
@@ -120,9 +117,8 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
 
-    InputStream is = new ByteArrayInputStream(data);
     OutputFile out = new OSSOutputFile(ossClient, randomURI(), aliyunProperties);
-    try (OutputStream os = out.create()) {
+    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
       ByteStreams.copy(is, os);
     }
 
@@ -157,7 +153,11 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     return ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength();
   }
 
-  private InputStream ossDataContent(OSSURI uri) {
-    return ossClient.getObject(uri.bucket(), uri.key()).getObjectContent();
+  private byte[] ossDataContent(OSSURI uri, int dataSize) throws IOException {
+    try (InputStream is = ossClient.getObject(uri.bucket(), uri.key()).getObjectContent()) {
+      byte[] actual = new byte[dataSize];
+      ByteStreams.readFully(is, actual);
+      return actual;
+    }
   }
 }
