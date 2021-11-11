@@ -61,6 +61,13 @@ public interface Table {
   Schema schema();
 
   /**
+   * Return a map of {@link Schema schema} for this table.
+   *
+   * @return this table's schema map
+   */
+  Map<Integer, Schema> schemas();
+
+  /**
    * Return the {@link PartitionSpec partition spec} for this table.
    *
    * @return this table's partition spec

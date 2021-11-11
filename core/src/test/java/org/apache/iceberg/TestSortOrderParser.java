@@ -47,7 +47,7 @@ public class TestSortOrderParser extends TableTestBase {
 
     Assert.assertEquals(10, order.orderId());
     Assert.assertEquals(1, order.fields().size());
-    Assert.assertTrue(order.fields().get(0).transform() instanceof UnknownTransform);
+    org.assertj.core.api.Assertions.assertThat(order.fields().get(0).transform()).isInstanceOf(UnknownTransform.class);
     Assert.assertEquals("custom_transform", order.fields().get(0).transform().toString());
     Assert.assertEquals(2, order.fields().get(0).sourceId());
     Assert.assertEquals(DESC, order.fields().get(0).direction());

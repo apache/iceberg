@@ -53,14 +53,14 @@ Iceberg supports `append` and `complete` output modes:
 * `append`: appends the rows of every micro-batch to the table
 * `complete`: replaces the table contents every micro-batch
 
-The table should be created in prior to start the streaming query. Refer [SQL create table](/spark/#create-table)
+The table should be created in prior to start the streaming query. Refer [SQL create table](/spark-ddl/#create-table)
 on Spark page to see how to create the Iceberg table.
 
 ### Writing against partitioned table
 
 Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
 against partitioned table. For batch queries you're encouraged to do explicit sort to fulfill the requirement
-(see [here](/spark/#writing-against-partitioned-table)), but the approach would bring additional latency as
+(see [here](/spark-writes/#writing-to-partitioned-tables)), but the approach would bring additional latency as
 repartition and sort are considered as heavy operations for streaming workload. To avoid additional latency, you can
 enable fanout writer to eliminate the requirement.
 

@@ -64,12 +64,19 @@ public interface Catalog {
    * @return a Table instance
    * @throws AlreadyExistsException if the table already exists
    */
-  Table createTable(
+  default Table createTable(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
-      Map<String, String> properties);
+      Map<String, String> properties) {
+
+    return buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties)
+        .create();
+  }
 
   /**
    * Create a table.
@@ -130,12 +137,19 @@ public interface Catalog {
    * @return a {@link Transaction} to create the table
    * @throws AlreadyExistsException if the table already exists
    */
-  Transaction newCreateTableTransaction(
+  default Transaction newCreateTableTransaction(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
-      Map<String, String> properties);
+      Map<String, String> properties) {
+
+    return buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties)
+        .createTransaction();
+  }
 
   /**
    * Start a transaction to create a table.
@@ -197,13 +211,25 @@ public interface Catalog {
    * @return a {@link Transaction} to replace the table
    * @throws NoSuchTableException if the table doesn't exist and orCreate is false
    */
-  Transaction newReplaceTableTransaction(
+  default Transaction newReplaceTableTransaction(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
       Map<String, String> properties,
-      boolean orCreate);
+      boolean orCreate) {
+
+    TableBuilder tableBuilder = buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties);
+
+    if (orCreate) {
+      return tableBuilder.createOrReplaceTransaction();
+    } else {
+      return tableBuilder.replaceTransaction();
+    }
+  }
 
   /**
    * Start a transaction to replace a table.

@@ -57,161 +57,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return dictionary;
   }
 
-  public void nextBatchIntegers(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchIntegers(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, typeWidth, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchDictionaryIds(IntVector vector, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchDictionaryIds(vector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      vector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchLongs(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchLongs(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, typeWidth, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchTimestampMillis(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchTimestampMillis(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, typeWidth, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchFloats(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchFloats(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, typeWidth, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchDoubles(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchDoubles(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, typeWidth, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchIntBackedDecimal(
-      FieldVector fieldVector,
-      NullabilityHolder nullabilityHolder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch =
-          vectorizedPageIterator.nextBatchIntBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, nullabilityHolder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchLongBackedDecimal(
-          FieldVector fieldVector,
-          NullabilityHolder nullabilityHolder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch =
-              vectorizedPageIterator.nextBatchLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
-                      rowsReadSoFar, nullabilityHolder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchFixedLengthDecimal(
-      FieldVector fieldVector,
-      int typeWidth,
-      NullabilityHolder nullabilityHolder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch =
-          vectorizedPageIterator.nextBatchFixedLengthDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth, nullabilityHolder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchVarWidthType(FieldVector fieldVector, NullabilityHolder nullabilityHolder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchVarWidthType(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, nullabilityHolder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchFixedWidthBinary(FieldVector fieldVector, int typeWidth, NullabilityHolder nullabilityHolder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch =
-          vectorizedPageIterator.nextBatchFixedWidthBinary(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth, nullabilityHolder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchBoolean(FieldVector fieldVector, NullabilityHolder nullabilityHolder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchBoolean(fieldVector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, nullabilityHolder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
   @Override
   protected BasePageIterator pageIterator() {
     return vectorizedPageIterator;
@@ -221,4 +66,202 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return vectorizedPageIterator.producesDictionaryEncodedVector();
   }
 
+  public abstract class BatchReader {
+    public void nextBatch(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+      int rowsReadSoFar = 0;
+      while (rowsReadSoFar < batchSize && hasNext()) {
+        advance();
+        int rowsInThisBatch = nextBatchOf(fieldVector, batchSize - rowsReadSoFar,
+            rowsReadSoFar, typeWidth, holder);
+        rowsReadSoFar += rowsInThisBatch;
+        triplesRead += rowsInThisBatch;
+        fieldVector.setValueCount(rowsReadSoFar);
+      }
+    }
+
+    protected abstract int nextBatchOf(
+        FieldVector vector, int expectedBatchSize, int numValsInVector, int typeWidth, NullabilityHolder holder);
+  }
+
+  public class IntegerBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.intPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
+  public class DictionaryBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.nextBatchDictionaryIds((IntVector) vector, expectedBatchSize, numValsInVector,
+          holder);
+    }
+  }
+
+  public class LongBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.longPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
+  public class TimestampMillisBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.timestampMillisPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public class FloatBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.floatPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
+  public class DoubleBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.doublePageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
+  public class IntBackedDecimalBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.intBackedDecimalPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
+  public class LongBackedDecimalBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.longBackedDecimalPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public class FixedLengthDecimalBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.fixedLengthDecimalPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public class FixedSizeBinaryBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.fixedSizeBinaryPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public class VarWidthTypeBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.varWidthTypePageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public class FixedWidthTypeBinaryBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.fixedWidthBinaryPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public class BooleanBatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator.booleanPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
+    }
+  }
+
+  public IntegerBatchReader integerBatchReader() {
+    return new IntegerBatchReader();
+  }
+
+  public DictionaryBatchReader dictionaryBatchReader() {
+    return new DictionaryBatchReader();
+  }
+
+  public LongBatchReader longBatchReader() {
+    return new LongBatchReader();
+  }
+
+  public TimestampMillisBatchReader timestampMillisBatchReader() {
+    return new TimestampMillisBatchReader();
+  }
+
+  public FloatBatchReader floatBatchReader() {
+    return new FloatBatchReader();
+  }
+
+  public DoubleBatchReader doubleBatchReader() {
+    return new DoubleBatchReader();
+  }
+
+  public IntBackedDecimalBatchReader intBackedDecimalBatchReader() {
+    return new IntBackedDecimalBatchReader();
+  }
+
+  public LongBackedDecimalBatchReader longBackedDecimalBatchReader() {
+    return new LongBackedDecimalBatchReader();
+  }
+
+  public FixedLengthDecimalBatchReader fixedLengthDecimalBatchReader() {
+    return new FixedLengthDecimalBatchReader();
+  }
+
+  public FixedSizeBinaryBatchReader fixedSizeBinaryBatchReader() {
+    return new FixedSizeBinaryBatchReader();
+  }
+
+  public VarWidthTypeBatchReader varWidthTypeBatchReader() {
+    return new VarWidthTypeBatchReader();
+  }
+
+  public FixedWidthTypeBinaryBatchReader fixedWidthTypeBinaryBatchReader() {
+    return new FixedWidthTypeBinaryBatchReader();
+  }
+
+  public BooleanBatchReader booleanBatchReader() {
+    return new BooleanBatchReader();
+  }
 }

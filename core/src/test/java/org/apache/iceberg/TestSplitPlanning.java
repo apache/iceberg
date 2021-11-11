@@ -173,6 +173,39 @@ public class TestSplitPlanning extends TableTestBase {
     Assert.assertEquals(4, Iterables.size(scan.planTasks()));
   }
 
+  @Test
+  public void testSplitPlanningWithNegativeValues() {
+    AssertHelpers.assertThrows(
+        "User provided split size should be validated",
+        IllegalArgumentException.class,
+        "Invalid split size (negative or 0): -10",
+        () -> {
+          table.newScan()
+              .option(TableProperties.SPLIT_SIZE, String.valueOf(-10))
+              .planTasks();
+        });
+
+    AssertHelpers.assertThrows(
+        "User provided split planning lookback should be validated",
+        IllegalArgumentException.class,
+        "Invalid split planning lookback (negative or 0): -10",
+        () -> {
+          table.newScan()
+              .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(-10))
+              .planTasks();
+        });
+
+    AssertHelpers.assertThrows(
+        "User provided split open file cost should be validated",
+        IllegalArgumentException.class,
+        "Invalid file open cost (negative): -10",
+        () -> {
+          table.newScan()
+              .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(-10))
+              .planTasks();
+        });
+  }
+
   private void appendFiles(Iterable<DataFile> files) {
     AppendFiles appendFiles = table.newAppend();
     files.forEach(appendFiles::appendFile);

@@ -136,9 +136,9 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    Assert.assertNull("Content", generic.get(ManifestFile.MANIFEST_CONTENT.name()));
-    Assert.assertNull("Sequence number", generic.get(ManifestFile.SEQUENCE_NUMBER.name()));
-    Assert.assertNull("Min sequence number", generic.get(ManifestFile.MIN_SEQUENCE_NUMBER.name()));
+    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
+    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
+    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
   }
 
   @Test
@@ -158,9 +158,9 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
-    Assert.assertNull("Content", generic.get(ManifestFile.MANIFEST_CONTENT.name()));
-    Assert.assertNull("Sequence number", generic.get(ManifestFile.SEQUENCE_NUMBER.name()));
-    Assert.assertNull("Min sequence number", generic.get(ManifestFile.MIN_SEQUENCE_NUMBER.name()));
+    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
+    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
+    AssertHelpers.assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
   }
 
   @Test

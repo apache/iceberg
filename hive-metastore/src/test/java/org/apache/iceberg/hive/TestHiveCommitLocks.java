@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
@@ -59,8 +60,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   private static HiveClientPool spyClientPool = null;
   private static CachedClientPool spyCachedClientPool = null;
   private static Configuration overriddenHiveConf = new Configuration(hiveConf);
-  private static AtomicReference<HiveMetaStoreClient> spyClientRef = new AtomicReference<>();
-  private static HiveMetaStoreClient spyClient = null;
+  private static AtomicReference<IMetaStoreClient> spyClientRef = new AtomicReference<>();
+  private static IMetaStoreClient spyClient = null;
   HiveTableOperations ops = null;
   TableMetadata metadataV1 = null;
   TableMetadata metadataV2 = null;
@@ -80,12 +81,13 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     // The spy clients are reused between methods and closed at the end of all tests in this class.
     spyClientPool = spy(new HiveClientPool(1, overriddenHiveConf));
     when(spyClientPool.newClient()).thenAnswer(invocation -> {
-      HiveMetaStoreClient client = (HiveMetaStoreClient) invocation.callRealMethod();
-      spyClientRef.set(spy(client));
+      // cannot spy on RetryingHiveMetastoreClient as it is a proxy
+      IMetaStoreClient client = spy(new HiveMetaStoreClient(hiveConf));
+      spyClientRef.set(client);
       return spyClientRef.get();
     });
 
-    spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
+    spyClientPool.run(IMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
 
     spyCachedClientPool = spy(new CachedClientPool(hiveConf, Collections.emptyMap()));
     when(spyCachedClientPool.clientPool()).thenAnswer(invocation -> spyClientPool);

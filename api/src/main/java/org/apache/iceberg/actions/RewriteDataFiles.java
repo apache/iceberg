@@ -19,7 +19,8 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.Map;
+import java.util.List;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
@@ -49,10 +50,10 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   /**
    * The entire rewrite operation is broken down into pieces based on partitioning and within partitions based
    * on size into groups. These sub-units of the rewrite are referred to as file groups. The largest amount of data that
-   * should be compacted in a single group is controlled by MAX_FILE_GROUP_SIZE_BYTES. This helps with breaking down the
-   * rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the
-   * cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those partitions need to be
-   * worked on in small subsections to avoid exhaustion of resources.
+   * should be compacted in a single group is controlled by {@link #MAX_FILE_GROUP_SIZE_BYTES}. This helps with
+   * breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource
+   * constraints of the cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those
+   * partitions need to be worked on in small subsections to avoid exhaustion of resources.
    * <p>
    * When grouping files, the underlying rewrite strategy will use this value as to limit the files which
    * will be included in a single file group. A group will be processed by a single framework "action". For example,
@@ -68,7 +69,7 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    * independently and asynchronously.
    **/
   String MAX_CONCURRENT_FILE_GROUP_REWRITES = "max-concurrent-file-group-rewrites";
-  int MAX_CONCURRENT_FILE_GROUP_ACTIONS_DEFAULT = 1;
+  int MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT = 1;
 
   /**
    * The output file size that this rewrite strategy will attempt to generate when rewriting files. By default this
@@ -77,17 +78,28 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
-   * The partition spec to use when writing the output data from this operation. By default uses the
-   * current table partition spec.
-   */
-  String OUTPUT_PARTITION_SPEC_ID = "output-partition-spec-id";
-
-  /**
    * Choose BINPACK as a strategy for this rewrite operation
    * @return this for method chaining
    */
   default RewriteDataFiles binPack() {
     return this;
+  }
+
+  /**
+   * Choose SORT as a strategy for this rewrite operation using the table's sortOrder
+   * @return this for method chaining
+   */
+  default RewriteDataFiles sort() {
+    throw new UnsupportedOperationException("SORT Rewrite Strategy not implemented for this framework");
+  }
+
+  /**
+   * Choose SORT as a strategy for this rewrite operation and manually specify the sortOrder to use
+   * @param sortOrder user defined sortOrder
+   * @return this for method chaining
+   */
+  default RewriteDataFiles sort(SortOrder sortOrder) {
+    throw new UnsupportedOperationException("SORT Rewrite Strategy not implemented for this framework");
   }
 
   /**
@@ -106,7 +118,15 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    * will report a total failure for the job.
    */
   interface Result {
-    Map<FileGroupInfo, FileGroupRewriteResult> resultMap();
+    List<FileGroupRewriteResult> rewriteResults();
+
+    default int addedDataFilesCount() {
+      return rewriteResults().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
+    }
+
+    default int rewrittenDataFilesCount() {
+      return rewriteResults().stream().mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount).sum();
+    }
   }
 
   /**
@@ -114,6 +134,8 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    *  which were formerly part of the table but have been rewritten.
    */
   interface FileGroupRewriteResult {
+    FileGroupInfo info();
+
     int addedDataFilesCount();
 
     int rewrittenDataFilesCount();

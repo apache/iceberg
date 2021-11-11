@@ -57,7 +57,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   @Override
   public boolean containsKey(Object key) {
-    if (key instanceof StructLike) {
+    if (key instanceof StructLike || key == null) {
       StructLikeWrapper wrapper = wrappers.get();
       boolean result = wrapperMap.containsKey(wrapper.set((StructLike) key));
       wrapper.set(null); // don't hold a reference to the key.
@@ -73,7 +73,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   @Override
   public T get(Object key) {
-    if (key instanceof StructLike) {
+    if (key instanceof StructLike || key == null) {
       StructLikeWrapper wrapper = wrappers.get();
       T value = wrapperMap.get(wrapper.set((StructLike) key));
       wrapper.set(null); // don't hold a reference to the key.
@@ -89,7 +89,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   @Override
   public T remove(Object key) {
-    if (key instanceof StructLike) {
+    if (key instanceof StructLike || key == null) {
       StructLikeWrapper wrapper = wrappers.get();
       T value = wrapperMap.remove(wrapper.set((StructLike) key));
       wrapper.set(null); // don't hold a reference to the key.

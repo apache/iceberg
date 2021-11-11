@@ -79,6 +79,13 @@ public class SortOrder implements Serializable {
   }
 
   /**
+   * Returns true if the sort order is sorted
+   */
+  public boolean isSorted() {
+    return fields.length >= 1;
+  }
+
+  /**
    * Returns true if the sort order is unsorted
    */
   public boolean isUnsorted() {
@@ -286,7 +293,7 @@ public class SortOrder implements Serializable {
     }
   }
 
-  static void checkCompatibility(SortOrder sortOrder, Schema schema) {
+  public static void checkCompatibility(SortOrder sortOrder, Schema schema) {
     for (SortField field : sortOrder.fields) {
       Type sourceType = schema.findType(field.sourceId());
       ValidationException.check(

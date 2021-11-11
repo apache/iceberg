@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
@@ -28,11 +29,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+
 /**
  * Factory responsible for generating unique but recognizable data file names.
  */
 public class OutputFileFactory {
-  private final PartitionSpec spec;
+  private final PartitionSpec defaultSpec;
   private final FileFormat format;
   private final LocationProvider locations;
   private final FileIO io;
@@ -44,32 +48,6 @@ public class OutputFileFactory {
   // with a recursive listing and grep.
   private final String operationId;
   private final AtomicInteger fileCount = new AtomicInteger(0);
-
-  // TODO: expose a builder like OutputFileFactory.forTable()
-  public OutputFileFactory(Table table, FileFormat format, int partitionId, long taskId) {
-    this(table.spec(), format, table.locationProvider(), table.io(), table.encryption(),
-        partitionId, taskId, UUID.randomUUID().toString());
-  }
-
-  public OutputFileFactory(Table table, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
-    this(spec, format, table.locationProvider(), table.io(), table.encryption(),
-        partitionId, taskId, UUID.randomUUID().toString());
-  }
-
-  /**
-   * Constructor where a generated UUID is used as the operationId to ensure uniqueness.
-   * @param spec Partition specification used by the location provider
-   * @param format File format used for the extension
-   * @param locations Location provider used for generating locations
-   * @param io FileIO to store the files
-   * @param encryptionManager Encryption manager used for encrypting the files
-   * @param partitionId First part of the file name
-   * @param taskId Second part of the file name
-   */
-  public OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
-                           EncryptionManager encryptionManager, int partitionId, long taskId) {
-    this(spec, format, locations, io, encryptionManager, partitionId, taskId, UUID.randomUUID().toString());
-  }
 
   /**
    * Constructor with specific operationId. The [partitionId, taskId, operationId] triplet has to be unique across JVM
@@ -83,9 +61,9 @@ public class OutputFileFactory {
    * @param taskId Second part of the file name
    * @param operationId Third part of the file name
    */
-  public OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
-                           EncryptionManager encryptionManager, int partitionId, long taskId, String operationId) {
-    this.spec = spec;
+  private OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
+                            EncryptionManager encryptionManager, int partitionId, long taskId, String operationId) {
+    this.defaultSpec = spec;
     this.format = format;
     this.locations = locations;
     this.io = io;
@@ -95,13 +73,17 @@ public class OutputFileFactory {
     this.operationId = operationId;
   }
 
+  public static Builder builderFor(Table table, int partitionId, long taskId) {
+    return new Builder(table, partitionId, taskId);
+  }
+
   private String generateFilename() {
     return format.addExtension(
         String.format("%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
   }
 
   /**
-   * Generates EncryptedOutputFile for UnpartitionedWriter.
+   * Generates an {@link EncryptedOutputFile} for unpartitioned writes.
    */
   public EncryptedOutputFile newOutputFile() {
     OutputFile file = io.newOutputFile(locations.newDataLocation(generateFilename()));
@@ -109,11 +91,60 @@ public class OutputFileFactory {
   }
 
   /**
-   * Generates EncryptedOutputFile for PartitionedWriter.
+   * Generates an {@link EncryptedOutputFile} for partitioned writes in the default spec.
    */
   public EncryptedOutputFile newOutputFile(StructLike partition) {
+    return newOutputFile(defaultSpec, partition);
+  }
+
+  /**
+   * Generates an {@link EncryptedOutputFile} for partitioned writes in a given spec.
+   */
+  public EncryptedOutputFile newOutputFile(PartitionSpec spec, StructLike partition) {
     String newDataLocation = locations.newDataLocation(spec, partition, generateFilename());
     OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
     return encryptionManager.encrypt(rawOutputFile);
+  }
+
+  public static class Builder {
+    private final Table table;
+    private final int partitionId;
+    private final long taskId;
+    private PartitionSpec defaultSpec;
+    private String operationId;
+    private FileFormat format;
+
+    private Builder(Table table, int partitionId, long taskId) {
+      this.table = table;
+      this.partitionId = partitionId;
+      this.taskId = taskId;
+      this.defaultSpec = table.spec();
+      this.operationId = UUID.randomUUID().toString();
+
+      String formatAsString = table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+      this.format = FileFormat.valueOf(formatAsString.toUpperCase(Locale.ROOT));
+    }
+
+    public Builder defaultSpec(PartitionSpec newDefaultSpec) {
+      this.defaultSpec = newDefaultSpec;
+      return this;
+    }
+
+    public Builder operationId(String newOperationId) {
+      this.operationId = newOperationId;
+      return this;
+    }
+
+    public Builder format(FileFormat newFormat) {
+      this.format = newFormat;
+      return this;
+    }
+
+    public OutputFileFactory build() {
+      LocationProvider locations = table.locationProvider();
+      FileIO io = table.io();
+      EncryptionManager encryption = table.encryption();
+      return new OutputFileFactory(defaultSpec, format, locations, io, encryption, partitionId, taskId, operationId);
+    }
   }
 }

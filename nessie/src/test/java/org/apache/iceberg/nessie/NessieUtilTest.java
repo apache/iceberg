@@ -22,9 +22,8 @@ package org.apache.iceberg.nessie;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.projectnessie.model.CommitMeta;
-
 
 public class NessieUtilTest {
 

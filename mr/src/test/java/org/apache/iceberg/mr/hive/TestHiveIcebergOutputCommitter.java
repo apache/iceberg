@@ -41,10 +41,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -266,18 +264,20 @@ public class TestHiveIcebergOutputCommitter {
 
     Table table = HiveIcebergStorageHandler.table(conf, name);
     FileIO io = table.io();
-    LocationProvider location = table.locationProvider();
-    EncryptionManager encryption = table.encryption();
     Schema schema = HiveIcebergStorageHandler.schema(conf);
     PartitionSpec spec = table.spec();
 
     for (int i = 0; i < taskNum; ++i) {
       List<Record> records = TestHelper.generateRandomRecords(schema, RECORD_NUM, i + attemptNum);
       TaskAttemptID taskId = new TaskAttemptID(JOB_ID.getJtIdentifier(), JOB_ID.getId(), TaskType.MAP, i, attemptNum);
-      OutputFileFactory outputFileFactory =
-          new OutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskId.getTaskID().getId(),
-              attemptNum, QUERY_ID + "-" + JOB_ID);
-      HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
+      int partitionId = taskId.getTaskID().getId();
+      String operationId = QUERY_ID + "-" + JOB_ID;
+      FileFormat fileFormat = FileFormat.PARQUET;
+      OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, attemptNum)
+          .format(fileFormat)
+          .operationId(operationId)
+          .build();
+      HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, fileFormat,
           new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE,
           TezUtil.taskAttemptWrapper(taskId), conf.get(Catalogs.NAME));
 

@@ -19,15 +19,25 @@
 
 This is a specification for the Iceberg table format that is designed to manage a large, slow-changing collection of files in a distributed file system or key-value store as a table.
 
+## Format Versioning
+
+Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
+
+The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
+
 #### Version 1: Analytic Data Tables
 
-**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats, like Parquet, Avro, and ORC.
+Version 1 of the Iceberg spec defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
+
+All version 1 data and metadata files are valid after upgrading a table to version 2. [Appendix E](#version-2) documents how to default version 2 fields when reading version 1 metadata.
 
 #### Version 2: Row-level Deletes
 
-The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
+Version 2 of the Iceberg spec adds row-level updates and deletes for analytic tables with immutable files.
 
-The primary goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
+
+In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
 
 ## Goals
@@ -42,7 +52,7 @@ The primary goal of version 2 is to provide a way to encode row-level deletes. T
 
 ## Overview
 
-![Iceberg snapshot structure](img/iceberg-metadata.png){.floating}
+![Iceberg snapshot structure](img/iceberg-metadata.png){.spec-img}
 
 This table format tracks individual data files in a table instead of directories. This allows writers to create data files in-place and only adds files to the table in an explicit commit.
 
@@ -109,6 +119,31 @@ Tables do not require rename, except for tables that use atomic rename to implem
 * **Manifest** -- A file that lists data or delete files; a subset of a snapshot.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
+
+#### Writer requirements
+
+Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files to a table with the given version.
+
+| Requirement | Write behavior |
+|-------------|----------------|
+| (blank)     | The field should be omitted |
+| _optional_  | The field can be written |
+| _required_  | The field must be written |
+
+Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
+
+| v1         | v2         | v2 read behavior |
+|------------|------------|------------------|
+|            | _optional_ | Read the field as _optional_ |
+|            | _required_ | Read the field as _optional_; it may be missing in v1 files |
+| _optional_ |            | Ignore the field |
+| _optional_ | _optional_ | Read the field as _optional_ |
+| _optional_ | _required_ | Read the field as _optional_; it may be missing in v1 files |
+| _required_ |            | Ignore the field |
+| _required_ | _optional_ | Read the field as _optional_ |
+| _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
+
+Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
 ### Schemas and Data Types
 
@@ -197,6 +232,9 @@ The set of metadata columns is:
 |-----------------------------|---------------|-------------|
 | **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
 | **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
+| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
+| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
+| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
 | **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
 | **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
@@ -228,7 +266,7 @@ Partition specs capture the transform from table data to partition values. This 
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `date`      |
-| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`                                                                                        | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
@@ -318,8 +356,9 @@ A manifest file must store the partition spec and other metadata as properties i
 | v1         | v2         | Key                 | Value                                                                        |
 |------------|------------|---------------------|------------------------------------------------------------------------------|
 | _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written |
+| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                      |
 | _required_ | _required_ | `partition-spec`    | JSON fields representation of the partition spec used to write the manifest  |
-| _optional_ | _required_ | `partition-spec-id` | Id of the partition spec used to write the manifest as a string              |
+| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string              |
 | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                      |
 |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"           |
 
@@ -349,7 +388,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`   | Map from column id to number of values in the column (including null and NaN values) |
 | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column |
 | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`   | Map from column id to number of NaN values in the column |
-| _optional_ |            | ~~**`111 distinct_counts`**~~     | `map<123: int, 124: long>`   | **Deprecated. Do not write.** |
+| _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`   | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
 | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
 | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
 | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                     | Implementation-specific key metadata for encryption |
@@ -464,7 +503,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | v1         | v2         | Field id, name          | Type          | Description |
 | ---------- | ---------- |-------------------------|---------------|-------------|
 | _required_ | _required_ | **`509 contains_null`** | `boolean`     | Whether the manifest contains at least one partition with a null value for the field |
-| _optional_ | _required_ | **`518 contains_nan`**  | `boolean`     | Whether the manifest contains at least one partition with a NaN value for the field |
+| _optional_ | _optional_ | **`518 contains_nan`**  | `boolean`     | Whether the manifest contains at least one partition with a NaN value for the field |
 | _optional_ | _optional_ | **`510 lower_bound`**   | `bytes`   [1] | Lower bound for the non-null, non-NaN values in the partition field, or null if all values are null or NaN [2] |
 | _optional_ | _optional_ | **`511 upper_bound`**   | `bytes`   [1] | Upper bound for the non-null, non-NaN values in the partition field, or null if all values are null or NaN [2] |
 
@@ -522,16 +561,16 @@ Table metadata consists of the following fields:
 
 | v1         | v2         | Field | Description |
 | ---------- | ---------- | ----- | ----------- |
-| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version. |
 | _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
 | _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
 | _required_ | _required_ | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
 | _required_ | _required_ | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
-| _required_ | _required_ | **`schema`**| The table’s current schema. In v2, this must be the schema identified by the `current-schema-id`. |
+| _required_ |            | **`schema`**| The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead) |
 | _optional_ | _required_ | **`schemas`**| A list of schemas, stored as objects with `schema-id`. |
 | _optional_ | _required_ | **`current-schema-id`**| ID of the table's current schema. |
-| _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
+| _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) |
 | _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
 | _optional_ | _required_ | **`default-spec-id`**| ID of the "current" spec that writers should use by default. |
 | _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
@@ -819,8 +858,8 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00`￫ `-2047944441` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
 | **`uuid`**         | `hashBytes(uuidBytes(v))`		[3]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
-| **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `188683207`                |
-| **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `188683207`                |
+| **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
+| **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 
 The types below are not currently valid for bucketing, and so are not hashed. However, if that changes and a hash value is needed, the following table shall apply:
 
@@ -935,14 +974,16 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`location`**|`JSON string`|`"s3://b/wh/data.db/table"`|
 |**`last-updated-ms`**|`JSON long`|`1515100955770`|
 |**`last-column-id`**|`JSON int`|`22`|
-|**`schema`**|`JSON schema (object)`|`See above`|
+|**`schema`**|`JSON schema (object)`|`See above, read schemas instead`|
+|**`schemas`**|`JSON schemas (list of objects)`|`See above`|
+|**`current-schema-id`**|`JSON int`|`0`|
 |**`partition-spec`**|`JSON partition fields (list)`|`See above, read partition-specs instead`|
 |**`partition-specs`**|`JSON partition specs (list of objects)`|`See above`|
 |**`default-spec-id`**|`JSON int`|`0`|
 |**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
-|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />`} ]`|
+|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
@@ -974,32 +1015,71 @@ This serialization scheme is for storing single values as individual binary valu
 | **`map`**                    | Not supported                                                                                                |
 
 
-## Format version changes
+## Appendix E: Format version changes
 
 ### Version 2
 
 Writing v1 metadata:
 
-* Table metadata field `last-sequence-number` should not be written.
-* Snapshot field `sequence-number` should not be written.
+* Table metadata field `last-sequence-number` should not be written
+* Snapshot field `sequence-number` should not be written
+* Manifest list field `sequence-number` should not be written
+* Manifest list field `min-sequence-number` should not be written
+* Manifest list field `content` must be 0 (data) or omitted
+* Manifest entry field `sequence_number` should not be written
+* Data file field `content` must be 0 (data) or omitted
 
-Reading v1 metadata:
+Reading v1 metadata for v2:
 
-* Table metadata field `last-sequence-number` must default to 0.
-* Snapshot field `sequence-number` must default to 0.
+* Table metadata field `last-sequence-number` must default to 0
+* Snapshot field `sequence-number` must default to 0
+* Manifest list field `sequence-number` must default to 0
+* Manifest list field `min-sequence-number` must default to 0
+* Manifest list field `content` must default to 0 (data)
+* Manifest entry field `sequence_number` must default to 0
+* Data file field `content` must default to 0 (data)
 
 Writing v2 metadata:
 
-* Table metadata added required field `last-sequence-number`.
-* Table metadata now requires field `table-uuid`.
-* Table metadata now requires field `partition-specs`.
-* Table metadata now requires field `default-spec-id`.
-* Table metadata now requires field `last-partition-id`.
-* Table metadata field `partition-spec` is no longer required and may be omitted.
-* Snapshot added required field `sequence-number`.
-* Snapshot now requires field `manifest-list`.
-* Snapshot field `manifests` is no longer allowed.
-* Table metadata now requires field `sort-orders`.
-* Table metadata now requires field `default-sort-order-id`.
+* Table metadata JSON:
+    * `last-sequence-number` was added and is required; default to 0 when reading v1 metadata
+    * `table-uuid` is now required
+    * `current-schema-id` is now required
+    * `schemas` is now required
+    * `partition-specs` is now required
+    * `default-spec-id` is now required
+    * `last-partition-id` is now required
+    * `sort-orders` is now required
+    * `default-sort-order-id` is now required
+    * `schema` is no longer required and should be omitted; use `schemas` and `current-schema-id` instead
+    * `partition-spec` is no longer required and should be omitted; use `partition-specs` and `default-spec-id` instead
+* Snapshot JSON:
+    * `sequence-number` was added and is required; default to 0 when reading v1 metadata
+    * `manifest-list` is now required
+    * `manifests` is no longer required and should be omitted; always use `manifest-list` instead
+* Manifest list `manifest_file`:
+    * `content` was added and is required; 0=data, 1=deletes; default to 0 when reading v1 manifest lists
+    * `sequence_number` was added and is required
+    * `min_sequence_number` was added and is required
+    * `added_files_count` is now required
+    * `existing_files_count` is now required
+    * `deleted_files_count` is now required
+    * `added_rows_count` is now required
+    * `existing_rows_count` is now required
+    * `deleted_rows_count` is now required
+* Manifest key-value metadata:
+    * `schema-id` is now required
+    * `partition-spec-id` is now required
+    * `format-version` is now required
+    * `content` was added and is required (must be "data" or "deletes")
+* Manifest `manifest_entry`:
+    * `snapshot_id` is now optional to support inheritance
+    * `sequence_number` was added and is optional, to support inheritance
+* Manifest `data_file`:
+    * `content` was added and is required; 0=data, 1=position deletes, 2=equality deletes; default to 0 when reading v1 manifests
+    * `equality_ids` was added, to be used for equality deletes only
+    * `block_size_in_bytes` was removed (breaks v1 reader compatibility)
+    * `file_ordinal` was removed
+    * `sort_columns` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.

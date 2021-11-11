@@ -23,6 +23,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 
 public class DataTableScan extends BaseTableScan {
@@ -63,6 +65,15 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
+  public TableScan useSnapshot(long scanSnapshotId) {
+    // call method in superclass just for the side effect of argument validation;
+    // we do not use its return value
+    super.useSnapshot(scanSnapshotId);
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
+    return newRefinedScan(tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
+  }
+
+  @Override
   protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     return new DataTableScan(ops, table, schema, context);
   }
@@ -91,7 +102,9 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public long targetSplitSize() {
-    return tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
+    long tableValue = tableOps().current().propertyAsLong(
+        TableProperties.SPLIT_SIZE,
+        TableProperties.SPLIT_SIZE_DEFAULT);
+    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

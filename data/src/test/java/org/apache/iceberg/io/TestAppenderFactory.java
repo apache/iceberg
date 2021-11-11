@@ -35,11 +35,13 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -67,6 +69,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     return new Object[][] {
         new Object[] {"avro", false},
         new Object[] {"avro", true},
+        new Object[] {"orc", false},
+        new Object[] {"orc", true},
         new Object[] {"parquet", false},
         new Object[] {"parquet", true}
     };
@@ -92,8 +96,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
       this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     }
     this.partition = createPartitionKey();
-    this.fileFactory = new OutputFileFactory(table.spec(), format, table.locationProvider(), table.io(),
-        table.encryption(), 1, 1);
+    this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
     table.updateProperties()
         .defaultFormat(format)
@@ -274,9 +277,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
 
     List<PositionDelete<T>> deletes = Lists.newArrayList(
-        new PositionDelete<T>().set(dataFile.path(), 0, rowSet.get(0)),
-        new PositionDelete<T>().set(dataFile.path(), 2, rowSet.get(2)),
-        new PositionDelete<T>().set(dataFile.path(), 4, rowSet.get(4))
+        positionDelete(dataFile.path(), 0, rowSet.get(0)),
+        positionDelete(dataFile.path(), 2, rowSet.get(2)),
+        positionDelete(dataFile.path(), 4, rowSet.get(4))
     );
 
     EncryptedOutputFile out = createEncryptedOutputFile();
@@ -325,6 +328,12 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
         return Avro.read(inputFile)
             .project(schema)
             .createReaderFunc(DataReader::create)
+            .build();
+
+      case ORC:
+        return ORC.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
             .build();
 
       default:

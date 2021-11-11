@@ -97,40 +97,6 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
-  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec, String location,
-                           Map<String, String> properties) {
-    return buildTable(ident, schema)
-        .withPartitionSpec(spec)
-        .withLocation(location)
-        .withProperties(properties)
-        .create();
-  }
-
-  @Override
-  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                               String location, Map<String, String> properties) {
-    return buildTable(ident, schema)
-        .withPartitionSpec(spec)
-        .withLocation(location)
-        .withProperties(properties)
-        .createTransaction();
-  }
-
-  @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
-                                                String location, Map<String, String> properties, boolean orCreate) {
-    TableBuilder builder = buildTable(ident, schema)
-        .withPartitionSpec(spec)
-        .withLocation(location)
-        .withProperties(properties);
-    if (orCreate) {
-      return builder.createOrReplaceTransaction();
-    } else {
-      return builder.replaceTransaction();
-    }
-  }
-
-  @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, purge);
     invalidate(canonicalizeIdentifier(ident));

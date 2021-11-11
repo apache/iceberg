@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * deserialization.
  */
 abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
+  protected static final String PARTITION_FIELD_PREFIX = "partition.";
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final TableOperations ops;
@@ -45,6 +46,25 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
     this.ops = ops;
     this.table = table;
     this.name = name;
+  }
+
+  /**
+   * This method transforms the table's partition spec to a spec that is used to rewrite the user-provided filter
+   * expression against the given metadata table.
+   * <p>
+   * The resulting partition spec maps $partitionPrefix.X fields to partition X using an identity partition transform.
+   * When this spec is used to project an expression for the given metadata table, the projection will remove
+   * predicates for non-partition fields (not in the spec) and will remove the "$partitionPrefix." prefix from fields.
+   *
+   * @param metadataTableSchena schema of the metadata table
+   * @param spec spec on which the metadata table schema is based
+   * @param partitionPrefix prefix to remove from each field in the partition spec
+   * @return a spec used to rewrite the metadata table filters to partition filters using an inclusive projection
+   */
+  static PartitionSpec transformSpec(Schema metadataTableSchena, PartitionSpec spec, String partitionPrefix) {
+    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchena);
+    spec.fields().forEach(pf -> identitySpecBuilder.identity(partitionPrefix + pf.name(), pf.name()));
+    return identitySpecBuilder.build();
   }
 
   abstract MetadataTableType metadataTableType();
@@ -86,6 +106,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   @Override
   public void refresh() {
     table().refresh();
+  }
+
+  @Override
+  public Map<Integer, Schema> schemas() {
+    return ImmutableMap.of(TableMetadata.INITIAL_SCHEMA_ID, schema());
   }
 
   @Override

@@ -107,6 +107,24 @@ public class Deletes {
     }
   }
 
+  public static <T extends StructLike> PositionDeleteIndex toPositionBitmap(CharSequence dataLocation,
+                                                                            List<CloseableIterable<T>> deleteFiles) {
+    DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
+    List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
+        CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
+    return toPositionBitmap(CloseableIterable.concat(positions));
+  }
+
+  public static PositionDeleteIndex toPositionBitmap(CloseableIterable<Long> posDeletes) {
+    try (CloseableIterable<Long> deletes = posDeletes) {
+      PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
+      deletes.forEach(positionDeleteIndex::delete);
+      return positionDeleteIndex;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+  }
+
   public static <T> CloseableIterable<T> streamingFilter(CloseableIterable<T> rows,
                                                          Function<T, Long> rowToPosition,
                                                          CloseableIterable<Long> posDeletes) {

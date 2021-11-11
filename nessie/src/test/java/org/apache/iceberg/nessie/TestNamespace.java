@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.nessie;
 
+import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestNamespace extends BaseTestIceberg {
   private static final String BRANCH = "test-namespace";
@@ -58,5 +59,27 @@ public class TestNamespace extends BaseTestIceberg {
     Assertions.assertThat(namespaces).isNotNull().hasSize(2);
     namespaces = catalog.listNamespaces(Namespace.of("b"));
     Assertions.assertThat(namespaces).isNotNull().hasSize(2);
+  }
+
+  @Test
+  public void testDroppingNamespace() {
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.of("test")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot drop namespace 'test': dropNamespace is not supported by the NessieCatalog");
+  }
+
+  @Test
+  public void testSettingProperties() {
+    Assertions.assertThatThrownBy(() -> catalog.setProperties(Namespace.of("test"), Collections.emptyMap()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot set properties for namespace 'test': setProperties is not supported by the NessieCatalog");
+  }
+
+  @Test
+  public void testRemovingProperties() {
+    Assertions.assertThatThrownBy(() -> catalog.removeProperties(Namespace.of("test"), Collections.emptySet()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Cannot remove properties for namespace 'test': removeProperties is not supported by the NessieCatalog");
   }
 }

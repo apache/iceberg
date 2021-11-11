@@ -44,8 +44,11 @@ To create iceberg table in flink, we recommend to use [Flink SQL Client](https:/
 Step.1 Downloading the flink 1.11.x binary package from the apache flink [download page](https://flink.apache.org/downloads.html). We now use scala 2.12 to archive the apache iceberg-flink-runtime jar, so it's recommended to use flink 1.11 bundled with scala 2.12.
 
 ```bash
-wget https://downloads.apache.org/flink/flink-1.11.1/flink-1.11.1-bin-scala_2.12.tgz
-tar xzvf flink-1.11.1-bin-scala_2.12.tgz
+FLINK_VERSION=1.11.1
+SCALA_VERSION=2.12
+APACHE_FLINK_URL=archive.apache.org/dist/flink/
+wget ${APACHE_FLINK_URL}/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz
+tar xzvf flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz
 ```
 
 Step.2 Start a standalone flink cluster within hadoop environment.
@@ -78,12 +81,25 @@ as the following:
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
-# wget the flink-sql-connector-hive-2.3.6_2.11-1.11.0.jar from the above bundled jar URL firstly.
+# download Iceberg dependency
+ICEBERG_VERSION=0.11.1
+MAVEN_URL=https://repo1.maven.org/maven2
+ICEBERG_MAVEN_URL=${MAVEN_URL}/org/apache/iceberg
+ICEBERG_PACKAGE=iceberg-flink-runtime
+wget ${ICEBERG_MAVEN_URL}/${ICEBERG_PACKAGE}/${ICEBERG_VERSION}/${ICEBERG_PACKAGE}-${ICEBERG_VERSION}.jar
+
+# download the flink-sql-connector-hive-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
+HIVE_VERSION=2.3.6
+SCALA_VERSION=2.11
+FLINK_VERSION=1.11.0
+FLINK_CONNECTOR_URL=${MAVEN_URL}/org/apache/flink
+FLINK_CONNECTOR_PACKAGE=flink-sql-connector-hive
+wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}/${FLINK_VERSION}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
 
 # open the SQL client.
-./bin/sql-client.sh embedded \
-    -j <flink-runtime-directory>/iceberg-flink-runtime-xxx.jar \
-    -j <hive-bundlded-jar-directory>/flink-sql-connector-hive-2.3.6_2.11-1.11.0.jar \
+/path/to/bin/sql-client.sh embedded \
+    -j ${ICEBERG_PACKAGE}-${ICEBERG_VERSION}.jar \
+    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
     shell
 ```
 ## Preparation when using Flink's Python API
@@ -152,7 +168,7 @@ import os
 from pyflink.datastream import StreamExecutionEnvironment
 
 env = StreamExecutionEnvironment.get_execution_environment()
-iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.11.1.jar")
+iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-{{ versions.iceberg }}.jar")
 
 env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
 ```
@@ -174,9 +190,29 @@ For more details, please refer to the [Python Table API](https://ci.apache.org/p
 
 Flink 1.11 support to create catalogs by using flink sql.
 
+### Catalog Configuration
+
+A catalog is created and named by executing the following query (replace `<catalog_name>` with your catalog name and
+`<config_key>`=`<config_value>` with catalog implementation config):   
+
+```sql
+CREATE CATALOG <catalog_name> WITH (
+  'type'='iceberg',
+  `<config_key>`=`<config_value>`
+); 
+```
+
+The following properties can be set globally and are not limited to a specific catalog implementation:
+
+* `type`: Must be `iceberg`. (required)
+* `catalog-type`: `hive` or `hadoop` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
+* `catalog-impl`: The fully-qualified class name custom catalog implementation, must be set if `catalog-type` is unset. (Optional)
+* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
+* `cache-enabled`: Whether to enable catalog cache, default value is `true`
+
 ### Hive catalog
 
-This creates an iceberg catalog named `hive_catalog` that loads tables from a hive metastore:
+This creates an iceberg catalog named `hive_catalog` that can be configured using `'catalog-type'='hive'`, which loads tables from a hive metastore:
 
 ```sql
 CREATE CATALOG hive_catalog WITH (
@@ -189,14 +225,12 @@ CREATE CATALOG hive_catalog WITH (
 );
 ```
 
-* `type`: Please just use `iceberg` for iceberg table format. (Required)
-* `catalog-type`: Iceberg currently support `hive` or `hadoop` catalog type. (Required)
+The following properties can be set if using the Hive catalog:
+
 * `uri`: The Hive metastore's thrift URI. (Required)
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
-* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwrote with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`
 
 ### Hadoop catalog
 
@@ -211,14 +245,15 @@ CREATE CATALOG hadoop_catalog WITH (
 );
 ```
 
+The following properties can be set if using the Hadoop catalog:
+
 * `warehouse`: The HDFS directory to store metadata files and data files. (Required)
 
 We could execute the sql command `USE CATALOG hive_catalog` to set the current catalog.
 
 ### Custom catalog
 
-Flink also supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.
-When `catalog-impl` is set, the value of `catalog-type` is ignored. Here is an example:
+Flink also supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property. Here is an example:
 
 ```sql
 CREATE CATALOG my_catalog WITH (
@@ -254,7 +289,7 @@ USE iceberg_db;
 ### `CREATE TABLE`
 
 ```sql
-CREATE TABLE hive_catalog.default.sample (
+CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING
 );
@@ -273,7 +308,7 @@ Currently, it does not support computed column, primary key and watermark defini
 To create a partition table, use `PARTITIONED BY`:
 
 ```sql
-CREATE TABLE hive_catalog.default.sample (
+CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING
 ) PARTITIONED BY (data);
@@ -286,12 +321,12 @@ Apache Iceberg support hidden partition but apache flink don't support partition
 To create a table with the same schema, partitioning, and table properties as another table, use `CREATE TABLE LIKE`.
 
 ```sql
-CREATE TABLE hive_catalog.default.sample (
+CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING
 );
 
-CREATE TABLE  hive_catalog.default.sample_like LIKE hive_catalog.default.sample;
+CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
 ```
 
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table).
@@ -302,13 +337,13 @@ For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.a
 Iceberg only support altering table properties in flink 1.11 now.
 
 ```sql
-ALTER TABLE hive_catalog.default.sample SET ('write.format.default'='avro')
+ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
 ```
 
 ### `ALTER TABLE .. RENAME TO`
 
 ```sql
-ALTER TABLE hive_catalog.default.sample RENAME TO hive_catalog.default.new_sample;
+ALTER TABLE `hive_catalog`.`default`.`sample` RENAME TO `hive_catalog`.`default`.`new_sample`;
 ```
 
 ### `DROP TABLE`
@@ -316,7 +351,7 @@ ALTER TABLE hive_catalog.default.sample RENAME TO hive_catalog.default.new_sampl
 To delete a table, run:
 
 ```sql
-DROP TABLE hive_catalog.default.sample;
+DROP TABLE `hive_catalog`.`default`.`sample`;
 ```
 
 ## Querying with SQL
@@ -373,8 +408,8 @@ Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
 To append new data to a table with a flink streaming job, use `INSERT INTO`:
 
 ```sql
-INSERT INTO hive_catalog.default.sample VALUES (1, 'a');
-INSERT INTO hive_catalog.default.sample SELECT id, data from other_kafka_table;
+INSERT INTO `hive_catalog`.`default`.`sample` VALUES (1, 'a');
+INSERT INTO `hive_catalog`.`default`.`sample` SELECT id, data from other_kafka_table;
 ```
 
 ### `INSERT OVERWRITE`
@@ -390,7 +425,7 @@ INSERT OVERWRITE sample VALUES (1, 'a');
 Iceberg also support overwriting given partitions by the `select` values:
 
 ```sql
-INSERT OVERWRITE hive_catalog.default.sample PARTITION(data='a') SELECT 6;
+INSERT OVERWRITE `hive_catalog`.`default`.`sample` PARTITION(data='a') SELECT 6;
 ```
 
 For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
@@ -406,7 +441,7 @@ This example will read all records from iceberg table and then print to the stdo
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
      .tableLoader(tableLoader)
@@ -441,7 +476,7 @@ stream.print();
 env.execute("Test Iceberg Batch Read");
 ```
 
-There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/master/org/apache/iceberg/flink/source/FlinkSource.html).
+There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/flink/source/FlinkSource.html).
 
 ## Writing with DataStream
 
@@ -505,7 +540,7 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
         .execute();
 ```
 
-For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](./javadoc/master/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
+For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
 
 ## Future improvement.
 

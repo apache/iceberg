@@ -43,6 +43,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -53,6 +54,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.DeleteTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -80,6 +82,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private LockManager lockManager;
+  private CloseableGroup closeableGroup;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -119,6 +122,12 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(glue);
+    closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   private String cleanWarehousePath(String path) {
@@ -252,7 +261,8 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     TableInput.Builder tableInputBuilder = TableInput.builder()
         .owner(fromTable.owner())
         .tableType(fromTable.tableType())
-        .parameters(fromTable.parameters());
+        .parameters(fromTable.parameters())
+        .storageDescriptor(fromTable.storageDescriptor());
 
     glue.createTable(CreateTableRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
@@ -325,11 +335,21 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
     String databaseName = IcebergToGlueConverter.toDatabaseName(namespace);
     try {
-      GetDatabaseResponse response = glue.getDatabase(GetDatabaseRequest.builder()
+      Database database = glue.getDatabase(GetDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .name(databaseName)
-          .build());
-      Map<String, String> result = response.database().parameters();
+          .build())
+          .database();
+      Map<String, String> result = Maps.newHashMap(database.parameters());
+
+      if (database.locationUri() != null) {
+        result.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, database.locationUri());
+      }
+
+      if (database.description() != null) {
+        result.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, database.description());
+      }
+
       LOG.debug("Loaded metadata for namespace {} found {}", namespace, result);
       return result;
     } catch (InvalidInputException e) {
@@ -415,7 +435,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public void close() throws IOException {
-    glue.close();
+    closeableGroup.close();
   }
 
   @Override

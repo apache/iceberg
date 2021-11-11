@@ -81,6 +81,7 @@ public class TestFindFiles extends TableTestBase {
                 null, // no column sizes
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
+                null,
                 ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
                 ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 5)))) // lower bounds
             .build())
@@ -188,6 +189,25 @@ public class TestFindFiles extends TableTestBase {
         .collect();
 
     Assert.assertEquals(pathSet(FILE_A), pathSet(files));
+  }
+
+  @Test
+  public void testIncludeColumnStats() {
+    table.newAppend()
+        .appendFile(FILE_WITH_STATS)
+        .commit();
+
+    Iterable<DataFile> files = FindFiles.in(table)
+        .includeColumnStats()
+        .collect();
+    final DataFile file = files.iterator().next();
+
+    Assert.assertEquals(FILE_WITH_STATS.columnSizes(), file.columnSizes());
+    Assert.assertEquals(FILE_WITH_STATS.valueCounts(), file.valueCounts());
+    Assert.assertEquals(FILE_WITH_STATS.nullValueCounts(), file.nullValueCounts());
+    Assert.assertEquals(FILE_WITH_STATS.nanValueCounts(), file.nanValueCounts());
+    Assert.assertEquals(FILE_WITH_STATS.lowerBounds(), file.lowerBounds());
+    Assert.assertEquals(FILE_WITH_STATS.upperBounds(), file.upperBounds());
   }
 
   @Test

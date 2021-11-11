@@ -17,33 +17,36 @@
  * under the License.
  */
 
-def jmhProjects = []
-if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  jmhProjects = [ project("iceberg-spark2"), project("iceberg-spark3") ]
-} else if (JavaVersion.current() == JavaVersion.VERSION_11) {
-  jmhProjects = [ project("iceberg-spark3") ]
-} else {
+if (jdkVersion != '8' && jdkVersion != '11') {
   throw new GradleException("The JMH benchamrks must be run with JDK 8 or JDK 11")
 }
 
+def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+def jmhProjects = []
+
+if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark2"))
+}
+
+if (sparkVersions.contains("3.0")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark3"))
+}
+
+if (sparkVersions.contains("3.2")) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2"))
+}
+
 configure(jmhProjects) {
-  apply plugin: 'me.champeau.gradle.jmh'
+  apply plugin: 'me.champeau.jmh'
 
   jmh {
-    jmhVersion = jmhVersion
+    jmhVersion = '1.32'
     failOnError = true
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    include = [jmhIncludeRegex]
-  }
-
-  // Path is relative to either spark2 or spark3 folder, depending on project being tested
-  sourceSets {
-    jmh {
-      java.srcDirs = ['src/jmh/java', '../spark/src/jmh/java']
-      compileClasspath += sourceSets.main.runtimeClasspath
-    }
+    includes = [jmhIncludeRegex]
+    zip64 = true
   }
 
   jmhCompileGeneratedClasses {

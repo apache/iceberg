@@ -95,9 +95,9 @@ Roll back a table to the snapshot that was current at some time.
 
 #### Example
 
-Roll back `db.sample` to a day ago
+Roll back `db.sample` to one day
 ```sql
-CALL catalog_name.system.rollback_to_timestamp('db.sample', date_sub(current_date(), 1))
+CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000')
 ```
 
 ### `set_current_snapshot`
@@ -197,10 +197,10 @@ the `expire_snapshots` procedure will never remove files which are still require
 
 #### Examples
 
-Remove snapshots older than 10 days ago, but retain the last 100 snapshots:
+Remove snapshots older than one day, but retain the last 100 snapshots:
 
 ```sql
-CALL hive_prod.system.expire_snapshots('db.sample', date_sub(current_date(), 10), 100)
+CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
 ```
 
 Erase all snapshots older than the current timestamp but retain the last 5 snapshots:
@@ -246,7 +246,7 @@ Rewrite manifests for a table to optimize scan planning.
 
 Data files in manifests are sorted by fields in the partition spec. This procedure runs in parallel using a Spark job.
 
-See the [`RewriteManifestsAction` Javadoc](./javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html)
+See the [`RewriteManifestsAction` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteManifestsAction.html)
 to see more configuration options.
 
 **Note** this procedure invalidates all cached Spark plans that reference the affected table.
@@ -365,3 +365,88 @@ Migrate `db.sample` in the current catalog to an Iceberg table without adding an
 CALL catalog_name.system.migrate('db.sample')
 ```
 
+### `add_files`
+
+Attempts to directly add files from a Hive or file based table into a given Iceberg table. Unlike migrate or
+snapshot, `add_files` can import files from a specific partition or partitions and does not create a new Iceberg table.
+This command will create metadata for the new files and will not move them. This procedure will not analyze the schema 
+of the files to determine if they actually match the schema of the Iceberg table. Upon completion, the Iceberg table 
+will then treat these files as if they are part of the set of files  owned by Iceberg. This means any subsequent 
+`expire_snapshot` calls will be able to physically delete the added files. This method should not be used if 
+`migrate` or `snapshot` are possible.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which will have files added to|
+| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
+| `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+
+Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
+
+Warning : Files added by this method can be physically deleted by Iceberg operations
+
+#### Examples
+
+Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table
+`db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
+```sql
+CALL spark_catalog.system.add_files(
+table => 'db.tbl',
+source_table => 'db.src_tbl',
+partition_filter => map('part_col_1', 'A')
+)
+```
+
+Add files from a `parquet` file based table at location `path/to/table` to the Iceberg table `db.tbl`. Add all
+files regardless of what partition they belong to.
+```sql
+CALL spark_catalog.system.add_files(
+  table => 'db.tbl',
+  source_table => '`parquet`.`path/to/table`'
+)
+```
+
+## `Metadata information`
+
+### `ancestors_of`
+
+Report the live snapshot IDs of parents of a specified snapshot
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to report live snapshot IDs |
+| `snapshot_id` |  ️  | long | Use a specified snapshot to get the live snapshot IDs of parents |
+
+> tip : Using snapshot_id
+> 
+> Given snapshots history with roll back to B and addition of C' -> D'
+> ```shell
+> A -> B - > C -> D
+>       \ -> C' -> (D')
+> ```
+> Not specifying the snapshot ID would return A -> B -> C' -> D', while providing the snapshot ID of
+> D as an argument would return A-> B -> C -> D
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `snapshot_id` | long | the ancestor snapshot id |
+| `timestamp` | long | snapshot creation time |
+
+#### Examples
+
+Get all the snapshot ancestors of current snapshots(default)
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl')
+```
+
+Get all the snapshot ancestors by a particular snapshot
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl', 1)
+CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
+```

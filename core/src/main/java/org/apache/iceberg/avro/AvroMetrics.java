@@ -32,6 +32,6 @@ public class AvroMetrics {
   static Metrics fromWriter(DatumWriter<?> datumWriter, Schema schema, long numRecords,
                             MetricsConfig inputMetricsConfig) {
     // TODO will populate in following PRs if datum writer is a MetricsAwareDatumWriter
-    return new Metrics(numRecords, null, null, null);
+    return new Metrics(numRecords, null, null, null, null);
   }
 }

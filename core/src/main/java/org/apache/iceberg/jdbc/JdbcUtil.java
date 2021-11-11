@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.jdbc;
 
+import java.util.Map;
+import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -27,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 final class JdbcUtil {
-  protected static final String CATALOG_TABLE_NAME = "ICEBERG_TABLES";
+  protected static final String CATALOG_TABLE_NAME = "iceberg_tables";
   protected static final String CATALOG_NAME = "catalog_name";
   protected static final String TABLE_NAMESPACE = "table_namespace";
   protected static final String TABLE_NAME = "table_name";
@@ -42,11 +44,11 @@ final class JdbcUtil {
   protected static final String CREATE_CATALOG_TABLE =
       "CREATE TABLE " + CATALOG_TABLE_NAME +
           "(" +
-          CATALOG_NAME + " VARCHAR(1255) NOT NULL," +
-          TABLE_NAMESPACE + " VARCHAR(1255) NOT NULL," +
-          TABLE_NAME + " VARCHAR(1255) NOT NULL," +
-          METADATA_LOCATION + " VARCHAR(32768)," +
-          PREVIOUS_METADATA_LOCATION + " VARCHAR(32768)," +
+          CATALOG_NAME + " VARCHAR(255) NOT NULL," +
+          TABLE_NAMESPACE + " VARCHAR(255) NOT NULL," +
+          TABLE_NAME + " VARCHAR(255) NOT NULL," +
+          METADATA_LOCATION + " VARCHAR(5500)," +
+          PREVIOUS_METADATA_LOCATION + " VARCHAR(5500)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME + ")" +
           ")";
   protected static final String GET_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
@@ -86,4 +88,15 @@ final class JdbcUtil {
     return TableIdentifier.of(JdbcUtil.stringToNamespace(tableNamespace), tableName);
   }
 
+  public static Properties filterAndRemovePrefix(Map<String, String> properties,
+                                                 String prefix) {
+    Properties result = new Properties();
+    properties.forEach((key, value) -> {
+      if (key.startsWith(prefix)) {
+        result.put(key.substring(prefix.length()), value);
+      }
+    });
+
+    return result;
+  }
 }

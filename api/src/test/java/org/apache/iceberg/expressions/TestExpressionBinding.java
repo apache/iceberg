@@ -23,6 +23,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -182,7 +183,7 @@ public class TestExpressionBinding {
     Expression bound = Binder.bind(STRUCT, equal(bucket("x", 16), 10));
     TestHelpers.assertAllReferencesBound("BoundTransform", bound);
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
-    Assert.assertTrue("Should use a BoundTransform child", pred.term() instanceof BoundTransform);
+    Assertions.assertThat(pred.term()).as("Should use a BoundTransform child").isInstanceOf(BoundTransform.class);
     BoundTransform<?, ?> transformExpr = (BoundTransform<?, ?>) pred.term();
     Assert.assertEquals("Should use a bucket[16] transform", "bucket[16]", transformExpr.transform().toString());
   }

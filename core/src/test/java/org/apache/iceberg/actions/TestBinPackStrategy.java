@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -32,6 +33,7 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -59,7 +61,7 @@ public class TestBinPackStrategy extends TableTestBase {
     }
 
     @Override
-    public List<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
+    public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
       throw new UnsupportedOperationException();
     }
   }
@@ -107,6 +109,22 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
+  public void testFilteringWithDeletes() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+            BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(550 * MB),
+            BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(490 * MB),
+            BinPackStrategy.DELETE_FILE_THRESHOLD, Integer.toString(2)
+    ));
+
+    List<FileScanTask> testFiles = filesOfSize(500, 500, 480, 480, 560, 520);
+    testFiles.add(MockFileScanTask.mockTaskWithDeletes(500 * MB, 2));
+    Iterable<FileScanTask> expectedFiles = filesOfSize(480, 480, 560, 500);
+    Iterable<FileScanTask> filtered = ImmutableList.copyOf(strategy.selectFilesToRewrite(testFiles));
+
+    Assert.assertEquals("Should include file with deletes", expectedFiles, filtered);
+  }
+
+  @Test
   public void testGroupingMinInputFilesInvalid() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
         BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
@@ -150,6 +168,23 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
+  public void testGroupingWithDeletes() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+            BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5),
+            BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(550 * MB),
+            BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(490 * MB),
+            BinPackStrategy.DELETE_FILE_THRESHOLD, Integer.toString(2)
+    ));
+
+    List<FileScanTask> testFiles = Lists.newArrayList();
+    testFiles.add(MockFileScanTask.mockTaskWithDeletes(500 * MB, 2));
+    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
+
+    Assert.assertEquals("Should plan 1 groups since there are enough input files",
+            ImmutableList.of(testFiles), grouped);
+  }
+
+  @Test
   public void testMaxGroupSize() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
         RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Long.toString(1000 * MB)
@@ -161,6 +196,24 @@ public class TestBinPackStrategy extends TableTestBase {
 
     Assert.assertEquals("Should plan 2 groups since there is enough data for two groups",
         2, Iterables.size(grouped));
+  }
+
+  @Test
+  public void testNumOuputFiles() {
+    BinPackStrategy strategy = (BinPackStrategy) defaultBinPack();
+    long targetFileSize = strategy.targetFileSize();
+    Assert.assertEquals("Should keep remainder if the remainder is a valid size",
+        2, strategy.numOutputFiles(targetFileSize + 450 * MB));
+    Assert.assertEquals("Should discard remainder file if the remainder is very small",
+        1, strategy.numOutputFiles(targetFileSize + 40 * MB));
+    Assert.assertEquals("Should keep remainder file if it would change average file size greatly",
+        2, strategy.numOutputFiles((long) (targetFileSize + 0.40 * targetFileSize)));
+    Assert.assertEquals("Should discard remainder if file is small and wouldn't change average that much",
+        200, strategy.numOutputFiles(200 * targetFileSize + 13 * MB));
+    Assert.assertEquals("Should keep remainder if it's a valid size",
+        201, strategy.numOutputFiles(200 * targetFileSize + 499 * MB));
+    Assert.assertEquals("Should not return 0 even for very small files",
+        1, strategy.numOutputFiles(1));
   }
 
   @Test
@@ -177,17 +230,22 @@ public class TestBinPackStrategy extends TableTestBase {
               BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(1000 * MB)));
         });
 
-    AssertHelpers.assertThrows("Should not allow min input size smaller tha 1",
+    AssertHelpers.assertThrows("Should not allow min input size smaller than 1",
         IllegalArgumentException.class, () -> {
           defaultBinPack().options(ImmutableMap.of(
               BinPackStrategy.MIN_INPUT_FILES, Long.toString(-5)));
         });
+
+    AssertHelpers.assertThrows("Should not allow min deletes per file smaller than 1",
+            IllegalArgumentException.class, () -> {
+              defaultBinPack().options(ImmutableMap.of(
+                      BinPackStrategy.DELETE_FILE_THRESHOLD, Long.toString(-5)));
+            });
 
     AssertHelpers.assertThrows("Should not allow negative target size",
         IllegalArgumentException.class, () -> {
           defaultBinPack().options(ImmutableMap.of(
               RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
         });
-
   }
 }

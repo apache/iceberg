@@ -37,8 +37,10 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -62,7 +64,8 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
   public static Object[] parameters() {
     return new Object[][] {
         new Object[] {"avro"},
-        new Object[] {"parquet"},
+        new Object[] {"orc"},
+        new Object[] {"parquet"}
     };
   }
 
@@ -80,8 +83,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     this.gRecord = GenericRecord.create(SCHEMA);
 
-    this.fileFactory = new OutputFileFactory(table.spec(), format, table.locationProvider(), table.io(),
-        table.encryption(), 1, 1);
+    this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
     table.updateProperties()
         .defaultFormat(format)
@@ -324,6 +326,13 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
         iterable = Avro.read(inputFile)
             .project(schema)
             .createReaderFunc(DataReader::create)
+            .build();
+        break;
+
+      case ORC:
+        iterable = ORC.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
             .build();
         break;
 

@@ -22,9 +22,12 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +38,7 @@ import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX
 public class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
+  private static final Joiner DOT = Joiner.on('.');
 
   private Map<String, MetricsMode> columnModes = Maps.newHashMap();
   private MetricsMode defaultMode;
@@ -76,7 +80,47 @@ public class MetricsConfig implements Serializable {
     }
   }
 
+  /**
+   * Creates a metrics config from table configuration.
+   * @param props table configuration
+   * @deprecated use {@link MetricsConfig#forTable(Table)}
+   **/
+  @Deprecated
   public static MetricsConfig fromProperties(Map<String, String> props) {
+    return from(props, null);
+  }
+
+  /**
+   * Creates a metrics config from a table.
+   * @param table iceberg table
+   */
+  public static MetricsConfig forTable(Table table) {
+    return from(table.properties(), table.sortOrder());
+  }
+
+  /**
+   * Creates a metrics config for a position delete file.
+   *
+   * @param table an Iceberg table
+   */
+  public static MetricsConfig forPositionDelete(Table table) {
+    MetricsConfig config = new MetricsConfig();
+
+    config.columnModes.put(MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get());
+    config.columnModes.put(MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get());
+
+    MetricsConfig tableConfig = forTable(table);
+
+    config.defaultMode = tableConfig.defaultMode;
+    tableConfig.columnModes.forEach((columnAlias, mode) -> {
+      String positionDeleteColumnAlias = DOT.join(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME, columnAlias);
+      config.columnModes.put(positionDeleteColumnAlias, mode);
+    });
+
+    return config;
+  }
+
+  private static MetricsConfig from(Map<String, String> props, SortOrder order) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     try {
@@ -86,6 +130,11 @@ public class MetricsConfig implements Serializable {
       LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
+
+    // First set sorted column with sorted column default (can be overridden by user)
+    MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(spec.defaultMode);
+    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
+    sortedCols.forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
 
     props.keySet().stream()
         .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
@@ -103,6 +152,19 @@ public class MetricsConfig implements Serializable {
         });
 
     return spec;
+  }
+
+  /**
+   * Auto promote sorted columns to truncate(16) if default is set at Counts or None.
+   * @param defaultMode default mode
+   * @return mode to use
+   */
+  private static MetricsMode sortedColumnDefaultMode(MetricsMode defaultMode) {
+    if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
+      return MetricsModes.Truncate.withLength(16);
+    } else {
+      return defaultMode;
+    }
   }
 
   public void validateReferencedColumns(Schema schema) {

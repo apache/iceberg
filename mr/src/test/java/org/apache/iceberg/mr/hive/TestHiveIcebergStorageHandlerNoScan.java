@@ -274,6 +274,26 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @Test
+  public void testCreateTableWithFormatV2ThroughTableProperty() {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    // We need the location for HadoopTable based tests only
+    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
+        SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
+        "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
+        PartitionSpecParser.toJson(PartitionSpec.unpartitioned()) + "', " +
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "', " +
+        "'" + TableProperties.FORMAT_VERSION + "'='" + 2 + "')");
+
+    // Check the Iceberg table partition data
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+    Assert.assertEquals("should create table using format v2",
+        2, ((BaseTable) icebergTable).operations().current().formatVersion());
+  }
+
+  @Test
   public void testDeleteBackingTable() throws TException, IOException, InterruptedException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 

@@ -32,6 +32,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -44,7 +45,7 @@ public class TestCatalogUtil {
     Configuration hadoopConf = new Configuration();
     String name = "custom";
     Catalog catalog = CatalogUtil.loadCatalog(TestCatalog.class.getName(), name, options, hadoopConf);
-    Assert.assertTrue(catalog instanceof TestCatalog);
+    Assertions.assertThat(catalog).isInstanceOf(TestCatalog.class);
     Assert.assertEquals(name, ((TestCatalog) catalog).catalogName);
     Assert.assertEquals(options, ((TestCatalog) catalog).flinkOptions);
   }
@@ -57,7 +58,7 @@ public class TestCatalogUtil {
     hadoopConf.set("key", "val");
     String name = "custom";
     Catalog catalog = CatalogUtil.loadCatalog(TestCatalogConfigurable.class.getName(), name, options, hadoopConf);
-    Assert.assertTrue(catalog instanceof TestCatalogConfigurable);
+    Assertions.assertThat(catalog).isInstanceOf(TestCatalogConfigurable.class);
     Assert.assertEquals(name, ((TestCatalogConfigurable) catalog).catalogName);
     Assert.assertEquals(options, ((TestCatalogConfigurable) catalog).flinkOptions);
     Assert.assertEquals(hadoopConf, ((TestCatalogConfigurable) catalog).configuration);
@@ -120,7 +121,7 @@ public class TestCatalogUtil {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("key", "val");
     FileIO fileIO = CatalogUtil.loadFileIO(TestFileIONoArg.class.getName(), properties, null);
-    Assert.assertTrue(fileIO instanceof TestFileIONoArg);
+    Assertions.assertThat(fileIO).isInstanceOf(TestFileIONoArg.class);
     Assert.assertEquals(properties, ((TestFileIONoArg) fileIO).map);
   }
 
@@ -129,7 +130,7 @@ public class TestCatalogUtil {
     Configuration configuration = new Configuration();
     configuration.set("key", "val");
     FileIO fileIO = CatalogUtil.loadFileIO(HadoopFileIO.class.getName(), Maps.newHashMap(), configuration);
-    Assert.assertTrue(fileIO instanceof HadoopFileIO);
+    Assertions.assertThat(fileIO).isInstanceOf(HadoopFileIO.class);
     Assert.assertEquals("val", ((HadoopFileIO) fileIO).conf().get("key"));
   }
 
@@ -138,7 +139,7 @@ public class TestCatalogUtil {
     Configuration configuration = new Configuration();
     configuration.set("key", "val");
     FileIO fileIO = CatalogUtil.loadFileIO(TestFileIOConfigurable.class.getName(), Maps.newHashMap(), configuration);
-    Assert.assertTrue(fileIO instanceof TestFileIOConfigurable);
+    Assertions.assertThat(fileIO).isInstanceOf(TestFileIOConfigurable.class);
     Assert.assertEquals(configuration, ((TestFileIOConfigurable) fileIO).configuration);
   }
 
@@ -156,6 +157,18 @@ public class TestCatalogUtil {
         IllegalArgumentException.class,
         "does not implement FileIO",
         () -> CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null));
+  }
+
+  @Test
+  public void buildCustomCatalog_withTypeSet() {
+    Map<String, String> options = new HashMap<>();
+    options.put(CatalogProperties.CATALOG_IMPL, "CustomCatalog");
+    options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, "hive");
+    Configuration hadoopConf = new Configuration();
+    String name = "custom";
+
+    AssertHelpers.assertThrows("Should complain about both configs being set", IllegalArgumentException.class,
+        "both type and catalog-impl are set", () -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf));
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {

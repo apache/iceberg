@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -40,7 +41,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
 /**
@@ -57,31 +60,30 @@ public class TableMetadata implements Serializable {
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
-  /**
-   * @deprecated will be removed in 0.9.0; use newTableMetadata(Schema, PartitionSpec, String, Map) instead.
-   */
-  @Deprecated
-  public static TableMetadata newTableMetadata(TableOperations ops,
-                                               Schema schema,
-                                               PartitionSpec spec,
-                                               String location,
-                                               Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
-  }
-
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
+        DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    SortOrder sortOrder = SortOrder.unsorted();
+    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
+        DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+  }
+
+  private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
+    return rawProperties.entrySet().stream()
+        .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   static TableMetadata newTableMetadata(Schema schema,
@@ -90,6 +92,9 @@ public class TableMetadata implements Serializable {
                                         String location,
                                         Map<String, String> properties,
                                         int formatVersion) {
+    Preconditions.checkArgument(properties.keySet().stream().noneMatch(TableProperties.RESERVED_PROPERTIES::contains),
+        "Table properties should not contain reserved properties, but got %s", properties);
+
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
@@ -677,12 +682,20 @@ public class TableMetadata implements Serializable {
         newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata replaceProperties(Map<String, String> newProperties) {
-    ValidationException.check(newProperties != null, "Cannot set properties to null");
-    return new TableMetadata(null, formatVersion, uuid, location,
+  public TableMetadata replaceProperties(Map<String, String> rawProperties) {
+    ValidationException.check(rawProperties != null, "Cannot set properties to null");
+    Map<String, String> newProperties = unreservedProperties(rawProperties);
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
         snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
+
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
+    if (formatVersion != newFormatVersion) {
+      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    }
+
+    return metadata;
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -704,6 +717,60 @@ public class TableMetadata implements Serializable {
         snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
+  private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
+        .withSpecId(partitionSpec.specId());
+
+    if (formatVersion > 1) {
+      // for v2 and later, reuse any existing field IDs, but reproduce the same spec
+      Map<Pair<Integer, String>, Integer> transformToFieldId = specs.stream()
+          .flatMap(spec -> spec.fields().stream())
+          .collect(Collectors.toMap(
+              field -> Pair.of(field.sourceId(), field.transform().toString()),
+              PartitionField::fieldId,
+              Math::max));
+
+      for (PartitionField field : partitionSpec.fields()) {
+        // reassign the partition field ids
+        int partitionFieldId = transformToFieldId.computeIfAbsent(
+            Pair.of(field.sourceId(), field.transform().toString()), k -> nextID.get());
+        specBuilder.add(
+            field.sourceId(),
+            partitionFieldId,
+            field.name(),
+            field.transform());
+      }
+
+    } else {
+      // for v1, preserve the existing spec and carry forward all fields, replacing missing fields with void
+      Map<Pair<Integer, String>, PartitionField> newFields = Maps.newLinkedHashMap();
+      for (PartitionField newField : partitionSpec.fields()) {
+        newFields.put(Pair.of(newField.sourceId(), newField.transform().toString()), newField);
+      }
+      List<String> newFieldNames = newFields.values().stream().map(PartitionField::name).collect(Collectors.toList());
+
+      for (PartitionField field : spec().fields()) {
+        // ensure each field is either carried forward or replaced with void
+        PartitionField newField = newFields.remove(Pair.of(field.sourceId(), field.transform().toString()));
+        if (newField != null) {
+          // copy the new field with the existing field ID
+          specBuilder.add(newField.sourceId(), field.fieldId(), newField.name(), newField.transform());
+        } else {
+          // Rename old void transforms that would otherwise conflict
+          String voidName = newFieldNames.contains(field.name()) ? field.name() + "_" + field.fieldId() : field.name();
+          specBuilder.add(field.sourceId(), field.fieldId(), voidName, Transforms.alwaysNull());
+        }
+      }
+
+      // add any remaining new fields at the end and assign new partition field IDs
+      for (PartitionField newField : newFields.values()) {
+        specBuilder.add(newField.sourceId(), nextID.get(), newField.name(), newField.transform());
+      }
+    }
+
+    return specBuilder.build();
+  }
+
   // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
                                         SortOrder updatedSortOrder, String newLocation,
@@ -721,16 +788,20 @@ public class TableMetadata implements Serializable {
     // rebuild the partition spec using the new column ids
     PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
 
+    // reassign partition field ids with existing partition specs in the table
+    AtomicInteger lastPartitionId = new AtomicInteger(lastAssignedPartitionId);
+    PartitionSpec newSpec = reassignPartitionIds(freshSpec, lastPartitionId::incrementAndGet);
+
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int specId = specs.stream()
-        .filter(freshSpec::compatibleWith)
+        .filter(newSpec::compatibleWith)
         .findFirst()
         .map(PartitionSpec::specId)
         .orElse(nextSpecId);
 
     ImmutableList.Builder<PartitionSpec> specListBuilder = ImmutableList.<PartitionSpec>builder().addAll(specs);
     if (!specsById.containsKey(specId)) {
-      specListBuilder.add(freshSpec);
+      specListBuilder.add(newSpec);
     }
 
     // determine the next order id
@@ -754,7 +825,10 @@ public class TableMetadata implements Serializable {
 
     Map<String, String> newProperties = Maps.newHashMap();
     newProperties.putAll(this.properties);
-    newProperties.putAll(updatedProperties);
+    newProperties.putAll(unreservedProperties(updatedProperties));
+
+    // check if there is format version override
+    int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
     // determine the next schema id
     int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);
@@ -764,11 +838,17 @@ public class TableMetadata implements Serializable {
       schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
-    return new TableMetadata(null, formatVersion, uuid, newLocation,
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
-        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, freshSpec.lastAssignedFieldId()),
+        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
+
+    if (formatVersion != newFormatVersion) {
+      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    }
+
+    return metadata;
   }
 
   public TableMetadata updateLocation(String newLocation) {
@@ -826,7 +906,7 @@ public class TableMetadata implements Serializable {
 
     // add all of the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
-      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform().toString());
+      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
     }
 
     return specBuilder.build();

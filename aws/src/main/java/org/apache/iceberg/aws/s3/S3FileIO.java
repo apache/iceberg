@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -42,6 +43,7 @@ public class S3FileIO implements FileIO {
   private AwsProperties awsProperties;
   private AwsClientFactory awsClientFactory;
   private transient S3Client client;
+  private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -104,5 +106,15 @@ public class S3FileIO implements FileIO {
     this.awsProperties = new AwsProperties(properties);
     this.awsClientFactory = AwsClientFactories.from(properties);
     this.s3 = awsClientFactory::s3;
+  }
+
+  @Override
+  public void close() {
+    // handles concurrent calls to close()
+    if (isResourceClosed.compareAndSet(false, true)) {
+      if (client != null) {
+        client.close();
+      }
+    }
   }
 }

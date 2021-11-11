@@ -23,12 +23,23 @@ Tables are created using either a [`Catalog`](./javadoc/master/index.html?org/ap
 
 ### Using a Hive catalog
 
-The Hive catalog connects to a Hive MetaStore to keep track of Iceberg tables. This example uses Spark's Hadoop configuration to get a Hive catalog:
+The Hive catalog connects to a Hive metastore to keep track of Iceberg tables.
+You can initialize a Hive catalog with a name and some properties.
+(see: [Catalog properties](https://iceberg.apache.org/configuration/#catalog-properties))
+
+**Note:** Currently, `setConf` is always required for hive catalogs, but this will change in the future.
 
 ```java
 import org.apache.iceberg.hive.HiveCatalog;
 
-Catalog catalog = new HiveCatalog(spark.sparkContext().hadoopConfiguration());
+Catalog catalog = new HiveCatalog();
+catalog.setConf(spark.sparkContext().hadoopConfiguration());  // Configure using Spark's Hadoop configuration
+
+Map <String, String> properties = new HashMap<String, String>();
+properties.put("warehouse", "...");
+properties.put("uri", "...");
+
+catalog.initialize("hive", properties);
 ```
 
 The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`.
@@ -108,9 +119,9 @@ Spark uses both `HiveCatalog` and `HadoopTables` to load tables. Hive is used wh
 
 To read and write to tables from Spark see:
 
-* [Reading a table in Spark](./spark.md#reading-an-iceberg-table)
-* [Appending to a table in Spark](./spark.md#appending-data)
-* [Overwriting data in a table in Spark](./spark.md#overwriting-data)
+* [SQL queries in Spark](spark-queries.md#querying-with-sql)
+* [`INSERT INTO` in Spark](spark-writes.md#insert-into)
+* [`MERGE INTO` in Spark](spark-writes.md#merge-into)
 
 
 ## Schemas

@@ -28,8 +28,8 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -56,8 +56,9 @@ public class AllEntriesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = ManifestEntry.getSchema(table().spec().partitionType());
-    if (table().spec().fields().size() < 1) {
+    StructType partitionType = Partitioning.partitionType(table());
+    Schema schema = ManifestEntry.getSchema(partitionType);
+    if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
       return TypeUtil.selectNot(schema, Sets.newHashSet(102));
     } else {
@@ -92,25 +93,17 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
 
     @Override
-    public long targetSplitSize() {
-      return tableOps().current().propertyAsLong(
-          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
-    }
-
-    @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter,
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       CloseableIterable<ManifestFile> manifests = allManifestFiles(ops.current().snapshots());
-      Type fileProjection = schema().findType("data_file");
-      Schema fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
-          ops.io(), manifest, fileSchema, schemaString, specString, residuals, ops.current().specsById()));
+          ops.io(), manifest, schema(), schemaString, specString, residuals, ops.current().specsById()));
     }
   }
 

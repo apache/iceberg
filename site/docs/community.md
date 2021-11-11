@@ -21,12 +21,12 @@
 
 Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
 
-Community discussions happen primarily on the dev mailing list or on specific issues.
+Community discussions happen primarily on the dev mailing list, on apache-iceberg Slack workspace, and on specific GitHub issues.
 
 
 ## Contributing
 
-Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/iceberg>
+The Iceberg Project is hosted on Github at <https://github.com/apache/iceberg>.
 
 The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
 
@@ -48,7 +48,10 @@ Issues are tracked in GitHub:
 [new-issue]: https://github.com/apache/iceberg/issues/new
 
 ## Slack
-[![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://the-asf.slack.com/archives/CF01LKV9S)
+
+We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-tlv0zjz6-jGJEkHfb1~heMCJA3Uycrg).
+
+Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
 
 ## Mailing Lists
 
@@ -68,3 +71,20 @@ Iceberg has four mailing lists:
     - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
 * **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
     - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
+
+
+## Setting up IDE and Code Style
+
+### Configuring Code Formatter for IntelliJ IDEA
+
+In the **Settings/Preferences** dialog go to **Editor > Code Style > Java**. Click on the gear wheel and select **Import Scheme** to import IntelliJ IDEA XML code style settings.
+Point to [intellij-java-palantir-style.xml](https://github.com/apache/iceberg/blob/master/.baseline/idea/intellij-java-palantir-style.xml) and hit **OK** (you might need to enable **Show Hidden Files and Directories** in the dialog). The code itself can then be formatted via **Code > Reformat Code**.
+
+See also the IntelliJ [Code Style docs](https://www.jetbrains.com/help/idea/copying-code-style-settings.html) and [Reformat Code docs](https://www.jetbrains.com/help/idea/reformat-and-rearrange-code.html) for additional details.
+
+## Running Benchmarks
+Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is 
+no "push a single button to get a performance comparison" solution available, therefore one has to run JMH performance tests on their local machine and
+post the results on the PR.
+
+See [Benchmarks](benchmarks.md) for a summary of available benchmarks and how to run them.

@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.types;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -40,6 +42,46 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class TypeUtil {
 
   private TypeUtil() {
+  }
+
+  /**
+   * Project extracts particular fields from a schema by ID.
+   * <p>
+   * Unlike {@link TypeUtil#select(Schema, Set)}, project will pick out only the fields enumerated. Structs that are
+   * explicitly projected are empty unless sub-fields are explicitly projected. Maps and lists cannot be explicitly
+   * selected in fieldIds.
+   * @param schema to project fields from
+   * @param fieldIds list of explicit fields to extract
+   * @return the schema with all fields fields not selected removed
+   */
+  public static Schema project(Schema schema, Set<Integer> fieldIds) {
+    Preconditions.checkNotNull(schema, "Schema cannot be null");
+
+    Types.StructType result = project(schema.asStruct(), fieldIds);
+    if (schema.asStruct().equals(result)) {
+      return schema;
+    } else if (result != null) {
+      if (schema.getAliases() != null) {
+        return new Schema(result.fields(), schema.getAliases());
+      } else {
+        return new Schema(result.fields());
+      }
+    }
+    return new Schema(Collections.emptyList(), schema.getAliases());
+  }
+
+  public static Types.StructType project(Types.StructType struct, Set<Integer> fieldIds) {
+    Preconditions.checkNotNull(struct, "Struct cannot be null");
+    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
+
+    Type result = visit(struct, new PruneColumns(fieldIds, false));
+    if (struct.equals(result)) {
+      return struct;
+    } else if (result != null) {
+      return result.asStructType();
+    }
+
+    return Types.StructType.of();
   }
 
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
@@ -63,8 +105,8 @@ public class TypeUtil {
     Preconditions.checkNotNull(struct, "Struct cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
 
-    Type result = visit(struct, new PruneColumns(fieldIds));
-    if (struct == result) {
+    Type result = visit(struct, new PruneColumns(fieldIds, true));
+    if (struct.equals(result)) {
       return struct;
     } else if (result != null) {
       return result.asStructType();
@@ -74,30 +116,30 @@ public class TypeUtil {
   }
 
   public static Set<Integer> getProjectedIds(Schema schema) {
-    return ImmutableSet.copyOf(getIdsInternal(schema.asStruct()));
+    return ImmutableSet.copyOf(getIdsInternal(schema.asStruct(), true));
   }
 
   public static Set<Integer> getProjectedIds(Type type) {
     if (type.isPrimitiveType()) {
       return ImmutableSet.of();
     }
-    return ImmutableSet.copyOf(getIdsInternal(type));
+    return ImmutableSet.copyOf(getIdsInternal(type, true));
   }
 
-  private static Set<Integer> getIdsInternal(Type type) {
-    return visit(type, new GetProjectedIds());
+  private static Set<Integer> getIdsInternal(Type type, boolean includeStructIds) {
+    return visit(type, new GetProjectedIds(includeStructIds));
   }
 
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getIdsInternal(struct);
+    Set<Integer> projectedIds = getIdsInternal(struct, false);
     projectedIds.removeAll(fieldIds);
-    return select(struct, projectedIds);
+    return project(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getIdsInternal(schema.asStruct());
+    Set<Integer> projectedIds = getIdsInternal(schema.asStruct(), false);
     projectedIds.removeAll(fieldIds);
-    return select(schema, projectedIds);
+    return project(schema, projectedIds);
   }
 
   public static Schema join(Schema left, Schema right) {
@@ -115,6 +157,13 @@ public class TypeUtil {
 
   public static Map<Integer, String> indexNameById(Types.StructType struct) {
     IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
+  public static Map<Integer, String> indexQuotedNameById(Types.StructType struct,
+                                                         Function<String, String> quotingFunc) {
+    IndexByName indexer = new IndexByName(quotingFunc);
     visit(struct, indexer);
     return indexer.byId();
   }

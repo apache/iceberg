@@ -35,6 +35,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,7 +80,6 @@ public class Tasks {
     private boolean stopAbortsOnFailure = false;
 
     // retry settings
-    @SuppressWarnings("unchecked")
     private List<Class<? extends Exception>> stopRetryExceptions = Lists.newArrayList(
         UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
@@ -144,7 +144,8 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> stopRetryOn(Class<? extends Exception>... exceptions) {
+    @SafeVarargs
+    public final Builder<I> stopRetryOn(Class<? extends Exception>... exceptions) {
       stopRetryExceptions.addAll(Arrays.asList(exceptions));
       return this;
     }
@@ -169,7 +170,8 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> onlyRetryOn(Class<? extends Exception>... exceptions) {
+    @SafeVarargs
+    public final Builder<I> onlyRetryOn(Class<? extends Exception>... exceptions) {
       this.onlyRetryExceptions = Lists.newArrayList(exceptions);
       return this;
     }
@@ -212,7 +214,6 @@ public class Tasks {
           try {
             runTaskWithRetry(task, item);
             succeeded.add(item);
-
           } catch (Exception e) {
             exceptions.add(e);
 
@@ -564,11 +565,15 @@ public class Tasks {
     return new Builder<>(items);
   }
 
+  @SafeVarargs
   public static <I> Builder<I> foreach(I... items) {
     return new Builder<>(Arrays.asList(items));
   }
 
-  @SuppressWarnings("unchecked")
+  public static <I> Builder<I> foreach(Stream<I> items) {
+    return new Builder<>(items::iterator);
+  }
+
   private static <E extends Exception> void throwOne(
       Collection<Throwable> exceptions, Class<E> allowedException) throws E {
     Iterator<Throwable> iter = exceptions.iterator();

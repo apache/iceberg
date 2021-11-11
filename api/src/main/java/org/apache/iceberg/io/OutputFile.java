@@ -48,6 +48,7 @@ public interface OutputFile {
    *
    * @return an output stream that can report its position
    * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   * @throws SecurityException If staging directory creation fails due to missing JVM level permission
    */
   PositionOutputStream createOrOverwrite();
 

@@ -71,396 +71,6 @@ public class VectorizedPageIterator extends BasePageIterator {
     this.vectorizedDefinitionLevelReader = null;
   }
 
-  /**
-   * Method for reading a batch of dictionary ids from the dicitonary encoded data pages. Like definition levels,
-   * dictionary ids in Parquet are RLE/bin-packed encoded as well.
-   */
-  public int nextBatchDictionaryIds(
-      final IntVector vector, final int expectedBatchSize,
-      final int numValsInVector,
-      NullabilityHolder holder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    vectorizedDefinitionLevelReader.readBatchOfDictionaryIds(
-        vector,
-        numValsInVector,
-        actualBatchSize,
-        holder,
-        dictionaryEncodedValuesReader);
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of values of INT32 data type
-   */
-  public int nextBatchIntegers(
-      final FieldVector vector, final int expectedBatchSize,
-      final int numValsInVector,
-      final int typeWidth, NullabilityHolder holder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedIntegers(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfIntegers(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of values of INT64 data type
-   */
-  public int nextBatchLongs(
-      final FieldVector vector, final int expectedBatchSize,
-      final int numValsInVector,
-      final int typeWidth, NullabilityHolder holder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedLongs(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfLongs(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of values of TIMESTAMP_MILLIS data type. In iceberg, TIMESTAMP
-   * is always represented in micro-seconds. So we multiply values stored in millis with 1000
-   * before writing them to the vector.
-   */
-  public int nextBatchTimestampMillis(
-      final FieldVector vector, final int expectedBatchSize,
-      final int numValsInVector,
-      final int typeWidth, NullabilityHolder holder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedTimestampMillis(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfTimestampMillis(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of values of FLOAT data type.
-   */
-  public int nextBatchFloats(
-      final FieldVector vector, final int expectedBatchSize,
-      final int numValsInVector,
-      final int typeWidth, NullabilityHolder holder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFloats(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfFloats(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of values of DOUBLE data type
-   */
-  public int nextBatchDoubles(
-      final FieldVector vector, final int expectedBatchSize,
-      final int numValsInVector,
-      final int typeWidth, NullabilityHolder holder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedDoubles(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfDoubles(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          holder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  private int getActualBatchSize(int expectedBatchSize) {
-    return Math.min(expectedBatchSize, triplesCount - triplesRead);
-  }
-
-  /**
-   * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types. Since Arrow stores all
-   * decimals in 16 bytes, byte arrays are appropriately padded before being written to Arrow data buffers.
-   */
-  public int nextBatchIntBackedDecimal(
-      final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-      NullabilityHolder nullabilityHolder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader
-          .readBatchOfDictionaryEncodedIntBackedDecimals(
-              vector,
-              numValsInVector,
-              actualBatchSize,
-              nullabilityHolder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfIntBackedDecimals(
-          vector,
-          numValsInVector,
-          actualBatchSize,
-          nullabilityHolder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  public int nextBatchLongBackedDecimal(
-          final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-          NullabilityHolder nullabilityHolder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader
-              .readBatchOfDictionaryEncodedLongBackedDecimals(
-                      vector,
-                      numValsInVector,
-                      actualBatchSize,
-                      nullabilityHolder,
-                      dictionaryEncodedValuesReader,
-                      dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfLongBackedDecimals(
-              vector,
-              numValsInVector,
-              actualBatchSize,
-              nullabilityHolder,
-              plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of decimals backed by fixed length byte array parquet data type. Arrow stores all
-   * decimals in 16 bytes. This method provides the necessary padding to the decimals read. Moreover, Arrow interprets
-   * the decimals in Arrow buffer as little endian. Parquet stores fixed length decimals as big endian. So, this method
-   * uses {@link DecimalVector#setBigEndian(int, byte[])} method so that the data in Arrow vector is indeed little
-   * endian.
-   */
-  public int nextBatchFixedLengthDecimal(
-      final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-      final int typeWidth, NullabilityHolder nullabilityHolder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedLengthDecimals(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          nullabilityHolder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfFixedLengthDecimals(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          nullabilityHolder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
-   */
-  public int nextBatchVarWidthType(
-      final FieldVector vector,
-      final int expectedBatchSize,
-      final int numValsInVector,
-      NullabilityHolder nullabilityHolder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedVarWidth(
-          vector,
-          numValsInVector,
-          actualBatchSize,
-          nullabilityHolder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchVarWidth(
-          vector,
-          numValsInVector,
-          actualBatchSize,
-          nullabilityHolder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  /**
-   * Method for reading batches of fixed width binary type (e.g. BYTE[7]). Spark does not support fixed width binary
-   * data type. To work around this limitation, the data is read as fixed width binary from parquet and stored in a
-   * {@link VarBinaryVector} in Arrow.
-   */
-  public int nextBatchFixedWidthBinary(
-      final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-      final int typeWidth, NullabilityHolder nullabilityHolder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
-      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedWidthBinary(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          nullabilityHolder,
-          dictionaryEncodedValuesReader,
-          dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfFixedWidthBinary(
-          vector,
-          numValsInVector,
-          typeWidth,
-          actualBatchSize,
-          nullabilityHolder,
-          plainValuesReader);
-    }
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
-  public boolean producesDictionaryEncodedVector() {
-    return dictionaryDecodeMode == DictionaryDecodeMode.LAZY;
-  }
-
-  /**
-   * Method for reading batches of booleans.
-   */
-  public int nextBatchBoolean(
-      final FieldVector vector,
-      final int expectedBatchSize,
-      final int numValsInVector,
-      NullabilityHolder nullabilityHolder) {
-    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
-    if (actualBatchSize <= 0) {
-      return 0;
-    }
-    vectorizedDefinitionLevelReader
-        .readBatchOfBooleans(vector, numValsInVector, actualBatchSize,
-            nullabilityHolder, plainValuesReader);
-    triplesRead += actualBatchSize;
-    this.hasNext = triplesRead < triplesCount;
-    return actualBatchSize;
-  }
-
   @Override
   protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
     ValuesReader previousReader = plainValuesReader;
@@ -482,32 +92,358 @@ public class VectorizedPageIterator extends BasePageIterator {
         throw new ParquetDecodingException("could not read page in col " + desc, e);
       }
     } else {
+      if (dataEncoding != Encoding.PLAIN) {
+        throw new UnsupportedOperationException("Cannot support vectorized reads for column " + desc + " with " +
+            "encoding " + dataEncoding + ". Disable vectorized reads to read this table/file");
+      }
       plainValuesReader = new ValuesAsBytesReader();
       plainValuesReader.initFromPage(valueCount, in);
       dictionaryDecodeMode = DictionaryDecodeMode.NONE;
     }
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding) &&
-        previousReader != null && previousReader instanceof RequiresPreviousReader) {
+        previousReader instanceof RequiresPreviousReader) {
       // previous reader can only be set if reading sequentially
       ((RequiresPreviousReader) plainValuesReader).setPreviousReader(previousReader);
     }
   }
 
+  public boolean producesDictionaryEncodedVector() {
+    return dictionaryDecodeMode == DictionaryDecodeMode.LAZY;
+  }
+
   @Override
-  protected void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
-                                            int triplesCount) throws IOException {
-    this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
+  protected void initDefinitionLevelsReader(
+      DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
+      int triplesCount) throws IOException {
+    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+    this.vectorizedDefinitionLevelReader = new VectorizedParquetDefinitionLevelReader(bitWidth,
+        desc.getMaxDefinitionLevel(), setArrowValidityVector);
     this.vectorizedDefinitionLevelReader.initFromPage(triplesCount, in);
   }
 
   @Override
-  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) {
-    this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
+  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) throws IOException {
+    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+    // do not read the length from the stream. v2 pages handle dividing the page bytes.
+    this.vectorizedDefinitionLevelReader = new VectorizedParquetDefinitionLevelReader(bitWidth,
+        desc.getMaxDefinitionLevel(), false, setArrowValidityVector);
+    this.vectorizedDefinitionLevelReader.initFromPage(
+        dataPageV2.getValueCount(), dataPageV2.getDefinitionLevels().toInputStream());
   }
 
-  private VectorizedParquetDefinitionLevelReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
-    int bitwidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-    return new VectorizedParquetDefinitionLevelReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
+  /**
+   * Method for reading a batch of dictionary ids from the dictionary encoded data pages. Like definition levels,
+   * dictionary ids in Parquet are RLE/bin-packed encoded as well.
+   */
+  public int nextBatchDictionaryIds(
+      final IntVector vector, final int expectedBatchSize, final int numValsInVector, NullabilityHolder holder) {
+    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
+    if (actualBatchSize <= 0) {
+      return 0;
+    }
+    vectorizedDefinitionLevelReader.dictionaryIdReader().nextDictEncodedBatch(vector, numValsInVector, -1,
+        actualBatchSize, holder,  dictionaryEncodedValuesReader, null);
+    triplesRead += actualBatchSize;
+    this.hasNext = triplesRead < triplesCount;
+    return actualBatchSize;
   }
 
+  abstract class BagePageReader {
+    public int nextBatch(
+        FieldVector vector, int expectedBatchSize, int numValsInVector, int typeWidth, NullabilityHolder holder) {
+      final int actualBatchSize = getActualBatchSize(expectedBatchSize);
+      if (actualBatchSize <= 0) {
+        return 0;
+      }
+      if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
+        nextDictEncodedVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
+      } else {
+        nextVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
+      }
+      triplesRead += actualBatchSize;
+      hasNext = triplesRead < triplesCount;
+      return actualBatchSize;
+    }
+
+    protected abstract void nextVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder);
+    protected abstract void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder);
+  }
+
+  /**
+   * Method for reading a batch of values of INT32 data type
+   */
+  class IntPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.integerReader().nextBatch(vector, numVals, typeWidth, batchSize,
+          holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.integerReader().nextDictEncodedBatch(vector, numVals, typeWidth, batchSize,
+          holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading a batch of values of INT64 data type
+   */
+  class LongPageReader extends BagePageReader {
+
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.longReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.longReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading a batch of values of TIMESTAMP_MILLIS data type. In iceberg, TIMESTAMP
+   * is always represented in micro-seconds. So we multiply values stored in millis with 1000
+   * before writing them to the vector.
+   */
+  class TimestampMillisPageReader extends BagePageReader {
+
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.timestampMillisReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.timestampMillisReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading a batch of values of FLOAT data type.
+   */
+  class FloatPageReader extends BagePageReader {
+
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.floatReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.floatReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading a batch of values of DOUBLE data type
+   */
+  class DoublePageReader extends BagePageReader {
+
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.doubleReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.doubleReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  private int getActualBatchSize(int expectedBatchSize) {
+    return Math.min(expectedBatchSize, triplesCount - triplesRead);
+  }
+
+  /**
+   * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types. Since Arrow stores all
+   * decimals in 16 bytes, byte arrays are appropriately padded before being written to Arrow data buffers.
+   */
+  class IntBackedDecimalPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.intBackedDecimalReader().nextBatch(vector, numVals, typeWidth, batchSize,
+          holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.intBackedDecimalReader()
+          .nextDictEncodedBatch(vector, numVals, typeWidth, batchSize,
+              holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  class LongBackedDecimalPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.longBackedDecimalReader().nextBatch(vector, numVals, typeWidth, batchSize,
+          holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.longBackedDecimalReader()
+          .nextDictEncodedBatch(vector, numVals, typeWidth, batchSize,
+              holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading a batch of decimals backed by fixed length byte array parquet data type. Arrow stores all
+   * decimals in 16 bytes. This method provides the necessary padding to the decimals read. Moreover, Arrow interprets
+   * the decimals in Arrow buffer as little endian. Parquet stores fixed length decimals as big endian. So, this method
+   * uses {@link DecimalVector#setBigEndian(int, byte[])} method so that the data in Arrow vector is indeed little
+   * endian.
+   */
+  class FixedLengthDecimalPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.fixedLengthDecimalReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.fixedLengthDecimalReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  class FixedSizeBinaryPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.fixedSizeBinaryReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.fixedSizeBinaryReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
+   */
+  class VarWidthTypePageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.varWidthReader().nextBatch(vector, numVals, typeWidth, batchSize,
+          holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.varWidthReader().nextDictEncodedBatch(vector, numVals, typeWidth, batchSize,
+          holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading batches of fixed width binary type (e.g. BYTE[7]). Spark does not support fixed width binary
+   * data type. To work around this limitation, the data is read as fixed width binary from parquet and stored in a
+   * {@link VarBinaryVector} in Arrow.
+   */
+  class FixedWidthBinaryPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.fixedWidthBinaryReader().nextBatch(vector, numVals, typeWidth,
+          batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.fixedWidthBinaryReader().nextDictEncodedBatch(vector, numVals, typeWidth,
+          batchSize, holder, dictionaryEncodedValuesReader, dictionary);
+    }
+  }
+
+  /**
+   * Method for reading batches of booleans.
+   */
+  class BooleanPageReader extends BagePageReader {
+    @Override
+    protected void nextVal(FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader.booleanReader().nextBatch(vector, numVals, typeWidth, batchSize, holder,
+          plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  IntPageReader intPageReader() {
+    return new IntPageReader();
+  }
+
+  LongPageReader longPageReader() {
+    return new LongPageReader();
+  }
+
+  TimestampMillisPageReader timestampMillisPageReader() {
+    return new TimestampMillisPageReader();
+  }
+
+  FloatPageReader floatPageReader() {
+    return new FloatPageReader();
+  }
+
+  DoublePageReader doublePageReader() {
+    return new DoublePageReader();
+  }
+
+  IntBackedDecimalPageReader intBackedDecimalPageReader() {
+    return new IntBackedDecimalPageReader();
+  }
+
+  LongBackedDecimalPageReader longBackedDecimalPageReader() {
+    return new LongBackedDecimalPageReader();
+  }
+
+  FixedLengthDecimalPageReader fixedLengthDecimalPageReader() {
+    return new FixedLengthDecimalPageReader();
+  }
+
+  FixedSizeBinaryPageReader fixedSizeBinaryPageReader() {
+    return new FixedSizeBinaryPageReader();
+  }
+
+  VarWidthTypePageReader varWidthTypePageReader() {
+    return new VarWidthTypePageReader();
+  }
+
+  FixedWidthBinaryPageReader fixedWidthBinaryPageReader() {
+    return new FixedWidthBinaryPageReader();
+  }
+
+  BooleanPageReader booleanPageReader() {
+    return new BooleanPageReader();
+  }
 }

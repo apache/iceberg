@@ -77,7 +77,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
-  private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
@@ -90,7 +89,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private FileIO fileIO;
   private boolean suppressPermissionError = false;
 
-  public HadoopCatalog(){
+  public HadoopCatalog() {
   }
 
   @Override
@@ -111,33 +110,12 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
-   *
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
    */
-  @Deprecated
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
     setConf(conf);
     initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
-  }
-
-  /**
-   * The constructor of the HadoopCatalog. It gets the value of <code>fs.defaultFS</code> property
-   * from the passed Hadoop configuration as its default file system, and use the default directory
-   * <code>iceberg/warehouse</code> as the warehouse directory.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
-   *
-   * @param conf The Hadoop configuration
-   */
-  @Deprecated
-  public HadoopCatalog(Configuration conf) {
-    setConf(conf);
-    String hadoopWarehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
-    initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, hadoopWarehouseLocation));
   }
 
   @Override
@@ -252,21 +230,19 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
-    }
-
+    TableMetadata lastMetadata = ops.current();
     try {
-      if (purge && lastMetadata != null) {
-        // Since the data files and the metadata files may store in different locations,
-        // so it has to call dropTableData to force delete the data file.
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+      if (lastMetadata == null) {
+        LOG.debug("Not an iceberg table: {}", identifier);
+        return false;
+      } else {
+        if (purge) {
+          // Since the data files and the metadata files may store in different locations,
+          // so it has to call dropTableData to force delete the data file.
+          CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        }
+        return fs.delete(tablePath, true /* recursive */);
       }
-      fs.delete(tablePath, true /* recursive */);
-      return true;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", tablePath);
     }

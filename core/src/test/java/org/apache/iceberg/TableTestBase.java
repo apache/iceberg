@@ -24,15 +24,19 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.LongStream;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -75,7 +79,7 @@ public class TableTestBase {
       .build();
   // Equality delete files.
   static final DeleteFile FILE_A2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofEqualityDeletes(3)
+      .ofEqualityDeletes(1)
       .withPath("/path/to/data-a2-deletes.parquet")
       .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=0")
@@ -129,6 +133,20 @@ public class TableTestBase {
       .withFileSizeInBytes(10)
       .withPartition(TestHelpers.Row.of(3))
       .withRecordCount(1)
+      .build();
+  static final DataFile FILE_WITH_STATS = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-with-stats.parquet")
+      .withMetrics(new Metrics(10L,
+          ImmutableMap.of(3, 100L, 4, 200L), // column sizes
+          ImmutableMap.of(3, 90L, 4, 180L), // value counts
+          ImmutableMap.of(3, 10L, 4, 20L), // null value counts
+          ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
+          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+             4, Conversions.toByteBuffer(Types.IntegerType.get(), 2)),  // lower bounds
+          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
+             4, Conversions.toByteBuffer(Types.IntegerType.get(), 10))  // upperbounds
+          ))
+      .withFileSizeInBytes(350)
       .build();
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
@@ -332,6 +350,8 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
+
+    Assert.assertEquals("Schema ID should match", table.schema().schemaId(), (int) snap.schemaId());
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
@@ -344,6 +364,20 @@ public class TableTestBase {
       actualFilePaths.add(task.file().path());
     }
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+  }
+
+  void validateTableDeleteFiles(Table tbl, DeleteFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DeleteFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().planFiles()) {
+      for (DeleteFile file : task.deletes()) {
+        actualFilePaths.add(file.path());
+      }
+    }
+    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
   }
 
   List<String> paths(DataFile... dataFiles) {
@@ -413,6 +447,31 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
+  }
+
+  protected DataFile newDataFile(String partitionPath) {
+    return DataFiles.builder(table.spec())
+        .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  protected DeleteFile newDeleteFile(int specId, String partitionPath) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {
+    PositionDelete<T> positionDelete = PositionDelete.create();
+    return positionDelete.set(path, pos, row);
   }
 
   static void validateManifestEntries(ManifestFile manifest,

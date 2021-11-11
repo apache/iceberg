@@ -454,6 +454,7 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    @SuppressWarnings("ConsistentOverrides")
     public void commit(TableMetadata underlyingBase, TableMetadata metadata) {
       if (underlyingBase != current) {
         // trigger a refresh and retry
@@ -524,6 +525,11 @@ class BaseTransaction implements Transaction {
     @Override
     public Schema schema() {
       return current.schema();
+    }
+
+    @Override
+    public Map<Integer, Schema> schemas() {
+      return current.schemasById();
     }
 
     @Override
