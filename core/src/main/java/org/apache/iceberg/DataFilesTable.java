@@ -67,7 +67,7 @@ public class DataFilesTable extends BaseMetadataTable {
     return MetadataTableType.FILES;
   }
 
-  public static class FilesTableScan extends BaseTableScan {
+  public static class FilesTableScan extends BaseMetadataTableScan {
     private final Schema fileSchema;
 
     FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
@@ -96,12 +96,6 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new FilesTableScan(ops, table, schema, fileSchema, context);
-    }
-
-    @Override
-    public long targetSplitSize() {
-      return tableOps().current().propertyAsLong(
-          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override

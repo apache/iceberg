@@ -568,7 +568,7 @@ public class Parquet {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
@@ -594,10 +594,11 @@ public class Parquet {
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
+      Preconditions.checkArgument(rowSchema == null || createWriterFunc != null,
+          "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
 
@@ -617,6 +618,7 @@ public class Parquet {
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not write row data itself
         appenderBuilder.createWriterFunc(parquetSchema ->
             new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
                 Function.identity()));

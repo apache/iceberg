@@ -227,11 +227,15 @@ public class TableProperties {
   public static final String DELETE_MODE = "write.delete.mode";
   public static final String DELETE_MODE_DEFAULT = "copy-on-write";
 
+  public static final String DELETE_DISTRIBUTION_MODE = "write.delete.distribution-mode";
+
   public static final String UPDATE_ISOLATION_LEVEL = "write.update.isolation-level";
   public static final String UPDATE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
   public static final String UPDATE_MODE = "write.update.mode";
   public static final String UPDATE_MODE_DEFAULT = "copy-on-write";
+
+  public static final String UPDATE_DISTRIBUTION_MODE = "write.update.distribution-mode";
 
   public static final String MERGE_ISOLATION_LEVEL = "write.merge.isolation-level";
   public static final String MERGE_ISOLATION_LEVEL_DEFAULT = "serializable";
@@ -242,6 +246,8 @@ public class TableProperties {
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
-  public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
-  public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+  public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
+
+  public static final String UPSERT_ENABLED = "write.upsert.enabled";
+  public static final boolean UPSERT_ENABLED_DEFAULT = false;
 }

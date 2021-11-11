@@ -39,12 +39,11 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
-  // TODO: add ORC once we support ORC delete files
-
   @Parameterized.Parameters(name = "FileFormat={0}")
   public static Object[] parameters() {
     return new Object[][] {
         new Object[]{FileFormat.AVRO},
+        new Object[]{FileFormat.ORC},
         new Object[]{FileFormat.PARQUET}
     };
   }

@@ -61,6 +61,7 @@ public class TestOverwrite extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
       ))
@@ -74,6 +75,7 @@ public class TestOverwrite extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
       ))
@@ -87,6 +89,7 @@ public class TestOverwrite extends TableTestBase {
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
           ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
       ))

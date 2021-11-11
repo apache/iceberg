@@ -127,7 +127,7 @@ Iceberg uses metadata in its manifest list and manifest files speed up query pla
 
 Manifests in the metadata tree are automatically compacted in the order they are added, which makes queries faster when the write pattern aligns with read filters. For example, writing hourly-partitioned data as it arrives is aligned with time range query filters.
 
-When a table's write pattern doesn't align with the query pattern, metadata and be rewritten to re-group data files into manifests using `rewriteManifests` or the `rewriteManifests` action (for parallel rewrites using Spark).
+When a table's write pattern doesn't align with the query pattern, metadata can be rewritten to re-group data files into manifests using `rewriteManifests` or the `rewriteManifests` action (for parallel rewrites using Spark).
 
 This example rewrites small manifests and groups data files by the first partition field.
 

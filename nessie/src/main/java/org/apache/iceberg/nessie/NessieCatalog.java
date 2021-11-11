@@ -37,7 +37,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
-import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -173,7 +172,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
     Operations contents = ImmutableOperations.builder()
         .addOperations(ImmutableDelete.builder().key(NessieUtil.toKey(identifier)).build())
-        .commitMeta(NessieUtil.buildCommitMetadata(String.format("delete table %s", identifier), catalogOptions))
+        .commitMeta(NessieUtil.buildCommitMetadata(String.format("iceberg delete table '%s'", identifier),
+            catalogOptions))
         .build();
 
     // We try to drop the table. Simple retry after ref update.
@@ -219,7 +219,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
         .addOperations(
             ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
             ImmutableDelete.builder().key(NessieUtil.toKey(from)).build())
-        .commitMeta(NessieUtil.buildCommitMetadata("iceberg rename table", catalogOptions))
+        .commitMeta(NessieUtil.buildCommitMetadata(String.format("iceberg rename table from '%s' to '%s'",
+                from, to),
+            catalogOptions))
         .build();
 
     try {
@@ -274,7 +276,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   /**
-   * namespace metadata is not supported in Nessie and we return an empty map.
+   * namespace metadata is not supported in Nessie, thus we return an empty map.
    *
    * @param namespace a namespace. {@link Namespace}
    * @return an empty map
@@ -285,26 +287,29 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   /**
-   * Namespaces in Nessie are implicit and deleting them results in a no-op.
+   * Namespaces in Nessie are implicit and therefore cannot be dropped
    *
-   * @param namespace a namespace. {@link Namespace}
-   * @return always false.
+   * @param namespace The {@link Namespace} to drop.
+   * @throws UnsupportedOperationException Namespaces in Nessie are implicit and thus cannot be dropped.
    */
   @Override
-  public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    return false;
+  public boolean dropNamespace(Namespace namespace) {
+    throw new UnsupportedOperationException(
+        "Cannot drop namespace '" + namespace + "': dropNamespace is not supported by the NessieCatalog");
   }
 
   @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     throw new UnsupportedOperationException(
-        "Cannot set namespace properties " + namespace + " : setProperties is not supported");
+        "Cannot set properties for namespace '" + namespace +
+            "': setProperties is not supported by the NessieCatalog");
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
+  public boolean removeProperties(Namespace namespace, Set<String> properties) {
     throw new UnsupportedOperationException(
-        "Cannot remove properties " + namespace + " : removeProperties is not supported");
+        "Cannot remove properties for namespace '" + namespace +
+            "': removeProperties is not supported by the NessieCatalog");
   }
 
   @Override

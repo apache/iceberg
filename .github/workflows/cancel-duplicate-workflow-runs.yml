@@ -21,8 +21,12 @@ name: "Cancel Duplicates"
 on:
   workflow_run:
     workflows: 
+      - 'Flink CI'
+      - 'Hive CI'
       - 'Java CI'
       - 'Python CI'
+      - 'Python Legacy CI'
+      - 'Spark CI'
     types: ['requested']
 
 jobs:

@@ -42,7 +42,9 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -71,6 +73,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
         {"avro"},
+        {"orc"},
         {"parquet"}
     };
   }
@@ -500,6 +503,13 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
         iterable = Avro.read(inputFile)
             .project(schema)
             .createReaderFunc(DataReader::create)
+            .build();
+        break;
+
+      case ORC:
+        iterable = ORC.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
             .build();
         break;
 

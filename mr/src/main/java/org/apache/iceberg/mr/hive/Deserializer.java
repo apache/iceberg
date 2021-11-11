@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.hive.serde.objectinspector.WriteObjectInspector;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types.ListType;
@@ -232,7 +233,7 @@ class Deserializer {
     FixNameMappingObjectInspectorPair(Schema schema, ObjectInspectorPair pair) {
       super(pair.writerInspector(), pair.sourceInspector());
 
-      this.sourceNameMap = new HashMap<>(schema.columns().size());
+      this.sourceNameMap = Maps.newHashMapWithExpectedSize(schema.columns().size());
 
       List<? extends StructField> fields = ((StructObjectInspector) sourceInspector()).getAllStructFieldRefs();
       for (int i = 0; i < schema.columns().size(); ++i) {

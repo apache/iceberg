@@ -65,7 +65,7 @@ public class GenericManifestFile
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
-  public GenericManifestFile(org.apache.avro.Schema avroSchema) {
+  public GenericManifestFile(Schema avroSchema) {
     this.avroSchema = avroSchema;
 
     List<Types.NestedField> fields = AvroSchemaUtil.convert(avroSchema).asStructType().fields();

@@ -41,7 +41,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -157,8 +156,6 @@ public abstract class TestWriterMetrics<T> {
 
   @Test
   public void testPositionDeleteMetrics() throws IOException {
-    Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
-
     FileWriterFactory<T> writerFactory = newWriterFactory(SCHEMA);
     EncryptedOutputFile outputFile = fileFactory.newOutputFile();
     PositionDeleteWriter<T> deleteWriter = writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
