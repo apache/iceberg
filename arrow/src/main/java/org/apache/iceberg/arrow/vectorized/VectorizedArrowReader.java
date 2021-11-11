@@ -20,6 +20,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Map;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
@@ -381,7 +382,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   public static VectorizedArrowReader positions() {
-    return new PositionVectorReader();
+    return new PositionVectorReader(false);
+  }
+
+  public static VectorizedArrowReader positionsWithSetArrowValidityVector() {
+    return new PositionVectorReader(true);
   }
 
   private static final class NullVectorReader extends VectorizedArrowReader {
@@ -407,33 +412,53 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private static final class PositionVectorReader extends VectorizedArrowReader {
+    private final Field arrowField = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
+    private final BufferAllocator bufferAllocator = ArrowAllocation.rootAllocator();
+    private final boolean setArrowValidityVector;
     private long rowStart;
+    private int batchSize;
+    private FieldVector vec;
     private NullabilityHolder nulls;
+
+    PositionVectorReader(boolean setArrowValidityVector) {
+      this.setArrowValidityVector = setArrowValidityVector;
+    }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      Field arrowField = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
-      FieldVector vec = arrowField.createVector(ArrowAllocation.rootAllocator());
-
-      if (reuse != null) {
-        vec.setValueCount(0);
-        nulls.reset();
+      if (reuse == null) {
+        this.vec = newVector();
+        this.nulls = newNullabilityHolder();
       } else {
-        ((BigIntVector) vec).allocateNew(numValsToRead);
-        for (int i = 0; i < numValsToRead; i += 1) {
-          vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
+        vec.setValueCount(0);
+      }
+
+      ArrowBuf dataBuffer = vec.getDataBuffer();
+      ArrowBuf validityBuffer = vec.getValidityBuffer();
+
+      for (int i = 0; i < numValsToRead; i += 1) {
+        dataBuffer.setLong((long) i * Long.BYTES, rowStart + i);
+        if (setArrowValidityVector) {
+          BitVectorHelper.setBit(validityBuffer, i);
         }
-        for (int i = 0; i < numValsToRead; i += 1) {
-          BitVectorHelper.setBit(vec.getValidityBuffer(), i);
-        }
-        nulls = new NullabilityHolder(numValsToRead);
       }
 
       rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
-      nulls.setNotNulls(0, numValsToRead);
 
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
+    }
+
+    private BigIntVector newVector() {
+      BigIntVector vector = (BigIntVector) arrowField.createVector(bufferAllocator);
+      vector.allocateNew(batchSize);
+      return vector;
+    }
+
+    private NullabilityHolder newNullabilityHolder() {
+      NullabilityHolder nullabilityHolder = new NullabilityHolder(batchSize);
+      nullabilityHolder.setNotNulls(0, batchSize);
+      return nullabilityHolder;
     }
 
     @Override
@@ -448,6 +473,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+    }
+
+    @Override
+    public void close() {
+      if (vec != null) {
+        vec.close();
+      }
     }
   }
 

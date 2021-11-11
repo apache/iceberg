@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -37,9 +38,15 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -52,14 +59,17 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BATCH_SIZE;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
+import static org.apache.spark.sql.functions.lit;
 
 @RunWith(Parameterized.class)
 public class TestSparkMetadataColumns extends SparkTestBase {
 
   private static final String TABLE_NAME = "test_table";
   private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.LongType.get()),
+      Types.NestedField.optional(1, "id", Types.LongType.get()),
       Types.NestedField.optional(2, "category", Types.StringType.get()),
       Types.NestedField.optional(3, "data", Types.StringType.get())
   );
@@ -156,6 +166,62 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     );
     assertEquals("Rows must match", expected,
         sql("SELECT _spec_id, _partition FROM %s ORDER BY _spec_id", TABLE_NAME));
+  }
+
+  @Test
+  public void testPositionMetadataColumnWithMultipleRowGroups() throws NoSuchTableException {
+    Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
+
+    table.updateProperties()
+        .set(PARQUET_ROW_GROUP_SIZE_BYTES, "100")
+        .commit();
+
+    List<Long> ids = Lists.newArrayList();
+    for (long id = 0L; id < 200L; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> df = spark.createDataset(ids, Encoders.LONG())
+        .withColumnRenamed("value", "id")
+        .withColumn("category", lit("hr"))
+        .withColumn("data", lit("ABCDEF"));
+    df.coalesce(1).writeTo(TABLE_NAME).append();
+
+    Assert.assertEquals(200, spark.table(TABLE_NAME).count());
+
+    List<Object[]> expectedRows = ids.stream()
+        .map(this::row)
+        .collect(Collectors.toList());
+    assertEquals("Rows must match",
+        expectedRows,
+        sql("SELECT _pos FROM %s", TABLE_NAME));
+  }
+
+  @Test
+  public void testPositionMetadataColumnWithMultipleBatches() throws NoSuchTableException {
+    Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
+
+    table.updateProperties()
+        .set(PARQUET_BATCH_SIZE, "1000")
+        .commit();
+
+    List<Long> ids = Lists.newArrayList();
+    for (long id = 0L; id < 7500L; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> df = spark.createDataset(ids, Encoders.LONG())
+        .withColumnRenamed("value", "id")
+        .withColumn("category", lit("hr"))
+        .withColumn("data", lit("ABCDEF"));
+    df.coalesce(1).writeTo(TABLE_NAME).append();
+
+    Assert.assertEquals(7500, spark.table(TABLE_NAME).count());
+
+    List<Object[]> expectedRows = ids.stream()
+        .map(this::row)
+        .collect(Collectors.toList());
+    assertEquals("Rows must match",
+        expectedRows,
+        sql("SELECT _pos FROM %s", TABLE_NAME));
   }
 
   @Test
