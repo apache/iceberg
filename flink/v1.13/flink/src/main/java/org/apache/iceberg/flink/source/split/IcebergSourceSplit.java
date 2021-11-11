@@ -120,7 +120,9 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   private String toString(Collection<FileScanTask> files) {
     return Iterables.toString(files.stream().map(fileScanTask ->
         MoreObjects.toStringHelper(fileScanTask)
-            .add("file", fileScanTask.file().path().toString())
+            .add("file", fileScanTask.file() != null ?
+                fileScanTask.file().path().toString() :
+                "NoDataFile")
             .add("start", fileScanTask.start())
             .add("length", fileScanTask.length())
             .toString()).collect(Collectors.toList()));
