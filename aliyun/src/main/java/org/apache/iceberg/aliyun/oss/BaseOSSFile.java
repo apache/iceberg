@@ -33,12 +33,12 @@ abstract class BaseOSSFile {
   private SimplifiedObjectMeta metadata;
 
   BaseOSSFile(OSS client, OSSURI uri) {
-    this.client = client;
-    this.uri = uri;
+    this(client, uri, new AliyunProperties());
   }
 
   BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
-    this(client, uri);
+    this.client = client;
+    this.uri = uri;
     this.aliyunProperties = aliyunProperties;
   }
 
