@@ -50,7 +50,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   @Nullable
   private transient byte[] serializedBytesCache;
 
-  public IcebergSourceSplit(CombinedScanTask task, Position position) {
+  private IcebergSourceSplit(CombinedScanTask task, Position position) {
     this.task = task;
     this.position = position;
   }
