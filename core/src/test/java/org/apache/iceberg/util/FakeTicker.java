@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import com.github.benmanes.caffeine.cache.Ticker;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -46,6 +47,11 @@ public class FakeTicker implements Ticker {
   /** Advances the ticker value by {@code nanoseconds}. */
   public FakeTicker advance(long nanoseconds) {
     nanos.addAndGet(nanoseconds);
+    return this;
+  }
+
+  public FakeTicker advance(Duration duration) {
+    nanos.addAndGet(duration.toNanos());
     return this;
   }
 

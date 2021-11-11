@@ -20,11 +20,13 @@
 package org.apache.iceberg.hadoop;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
@@ -35,10 +37,27 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.FakeTicker;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestCachingCatalog extends HadoopTableTestBase {
+
+  private static final Duration EXPIRATION_TTL = Duration.ofMinutes(5);
+  private static final Duration HALF_OF_EXPIRATION = EXPIRATION_TTL.dividedBy(2);
+
+  private FakeTicker ticker;
+
+  @Before
+  public void beforeEach() {
+    this.ticker = new FakeTicker();
+  }
+
+  @After
+  public void afterEach() {
+    this.ticker = null;
+  }
 
   @Test
   public void testInvalidateMetadataTablesIfBaseTableIsModified() throws Exception {
@@ -131,188 +150,185 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
   }
 
-  // TODO - Currently the "new" behavior is to restart the cache timer any time the table is touched at all.
-  //        This won't help users who continue to try to read a table somebody else wrote to.
-  //        Should we consider expiring on write instead or using a more fine-grained `Expiry`
   @Test
-  public void testTableExpirationAfterNotAccessed() throws IOException {
-    boolean caseSensitive = true;
+  public void testTableExpiresAfterInterval() throws IOException {
     boolean expirationEnabled = true;
-    long expirationMinutes = Duration.ofMinutes(5).toMillis();
-
-    // Create CachingCatalog with a controllable ticker for testing cache expiry.
-    FakeTicker ticker = new FakeTicker();
-    Cache<TableIdentifier, Table> tableCache = CachingCatalog.createTableCache(
-        expirationEnabled, expirationMinutes, ticker, true /* recordCacheStats */);
-    Catalog catalog = new CachingCatalog(hadoopCatalog(), caseSensitive, expirationEnabled,
-        expirationMinutes, tableCache);
+    CachingCatalog catalog = (CachingCatalog) CachingCatalog.wrap(hadoopCatalog(), expirationEnabled,
+        EXPIRATION_TTL.toMillis(), ticker);
+    Cache<TableIdentifier, Table> cache = catalog.cache();
 
     // Create the table and populate the catalog.
-    String tblName = "tbl";
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
-    TableIdentifier tableIdent = TableIdentifier.of(namespace, tblName);
-    Table tblAtCreate = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
 
-    // Ensure that the table is now in the cache
-    Assert.assertEquals("Table should remain in the cache after insertion before the expiration period",
-        1, tableCache.asMap().size());
-    checkStats(tableCache, 0L /* cache hits */, 1L /* cache misses */, 1 /* total cache load attempts */);
+    // Ensure table is in the cache.
+    assertTableIsCached("Upon creation, the table should be cached", catalog, tableIdent);
 
-    // Check that the table is still cached if the clock hasn't passed the expiration time since last access.
-    Duration fiveSecondsToTableTTL = Duration.ofMinutes(expirationMinutes).minusSeconds(5);
-    ticker.advance(fiveSecondsToTableTTL.toNanos());
-    Assert.assertEquals(
-        "Table should remain in the cache after insertion before the expiration period if it has not been refreshed",
-        1, tableCache.asMap().size());
-    // Stats should not have changed as we haven't interacted with the table cache
-    checkStats(tableCache, 0L /* cache hits */, 1L /* cache misses */, 1 /* total cache load attempts */);
+    // Ensure that the table has its full duration remaining
+    Assert.assertEquals("Table should not expire for the given Duration",
+        Optional.of(EXPIRATION_TTL),
+        catalog.getTimeToTTL(tableIdent)); // Get the time remaining until it would be evicted if
 
-    // Check that th table is still cached just until the expiration time (as we haven't accessed it in a way that
-    // would invalidate and re-cache.
-    ticker.advance(Duration.ofSeconds(4).toNanos());
-    Assert.assertEquals("CachingCatalog should keep tables in the cache until the expiration if not accessed",
-        1, tableCache.asMap().size());
+    // Alternate means of ensuring table is present.
+    Assertions.assertThat(catalog.getIfPresentQuietly(tableIdent)).isNotNull();
 
-    // Now ensure that the table is no longer in the cache
-    ticker.advance(1, TimeUnit.MILLISECONDS);
-    Assert.assertNull(
-        "Cache should expire tables at the expiration interval if they're not accessed",
-        tableCache.getIfPresent(tableIdent));
+    // Move time forward by half of the duration interval
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertTableIsCached("Before the table's expiration interval has passed, it shold remain cached",
+        catalog, tableIdent);
 
-    // Force clean-up. Cache won't return stale results per our spec but might still have data in it depending on impl.
-    tableCache.cleanUp();
-    Assert.assertEquals("Cache should be empty after all entries have expired", 0, tableCache.asMap().size());
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION);
 
-    // Get the table again, which should put a new entry representing the same table identifier back in the cache.
-    // Ensure that the returned Table's reference the same thing, but are not the same object.
+    // Move the ticker past the duration interval and then ensure that the catalog is serving a new object for tha
+    // table (even if the table that is loaded is functionally equivalent).
+    ticker.advance(HALF_OF_EXPIRATION.plus(Duration.ofSeconds(10)));
+    Assert.assertFalse("Table should be expired as it hasn't been written to for the duration of the cache interval",
+        catalog.getIfPresentQuietly(tableIdent).isPresent());
     Table tblAfterCacheMiss = catalog.loadTable(tableIdent);
     Assert.assertNotSame(
         "CachingCatalog should return a new instance after expiration",
-        tblAtCreate,
+        table,
         tblAfterCacheMiss);
-    Assert.assertEquals("CachingCatalog should return functionally equivalent tables on load after expiration",
-        tblAtCreate.name(), tblAfterCacheMiss.name());
-    Assertions.assertThat(tblAfterCacheMiss).isNotEqualTo(tblAtCreate);
-
-    // Ensure that the cache is now re-populated from the table load
-    Assert.assertEquals("Reloading the expired table should repopulate its cache entry",
-        1, tableCache.asMap().size());
   }
 
   @Test
-  public void testCacheExpirationRemovesMetadataTables() throws IOException {
-    boolean caseSensitive = true;
+  public void testCatalogExpirationTtlRefreshesAfterAccessViaCatalog() throws IOException {
     boolean expirationEnabled = true;
-    boolean recordCacheStats = true;
-    long expirationMinutes = Duration.ofMinutes(5).toMillis();
-
-    // Create CachingCatalog with a controllable ticker for testing cache expiry.
-    FakeTicker ticker = new FakeTicker();
-    long nanosAtTickerCreation = ticker.read();
-    Cache<TableIdentifier, Table> tableCache = CachingCatalog.createTableCache(
-        expirationEnabled, expirationMinutes, ticker, recordCacheStats);
-    Catalog catalog = new CachingCatalog(hadoopCatalog(), caseSensitive, expirationEnabled,
-        expirationMinutes, tableCache);
+    CachingCatalog catalog = (CachingCatalog) CachingCatalog.wrap(hadoopCatalog(), expirationEnabled,
+        EXPIRATION_TTL.toMillis(), ticker);
+    Cache<TableIdentifier, Table> cache = catalog.cache();
 
     // Create the table and populate the catalog.
-    String tblName = "tbl";
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Ensure table is in the cache.
+    assertTableIsCached("On creation, the caching catalog should cache tables", catalog, tableIdent);
+
+    // Check the age - Should be zero.
+    Assert.assertEquals("The catalog's cached entry should have an age of zero on initialization",
+        Optional.of(Duration.ZERO), catalog.cachedEntryAge(tableIdent));
+
+    // Move time forward without accessing the table from the cache.
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION);
+    assertCatalogEntryTimeToTTL(catalog, tableIdent, HALF_OF_EXPIRATION);
+
+    // Move time forward a bit more
+    Duration oneMinute = Duration.ofMinutes(1L);
+    ticker.advance(oneMinute);
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION.plus(oneMinute));
+    assertCatalogEntryTimeToTTL(catalog, tableIdent, EXPIRATION_TTL.minus(HALF_OF_EXPIRATION).minus(oneMinute));
+
+    // Access the table via the catalog, which should refresh the TTL
+    Table table = catalog.loadTable(tableIdent);
+    assertCatalogEntryHasAge(catalog, tableIdent, Duration.ZERO);
+    assertCatalogEntryTimeToTTL(catalog, tableIdent, EXPIRATION_TTL);
+
+    // Move forward, then access the table via the table object to ensure that does not advance TTL, only
+    // access via the catalog does.
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION);
+    assertCatalogEntryTimeToTTL(catalog, tableIdent, HALF_OF_EXPIRATION);
+    table.newAppend().appendFile(FILE_A).commit();  // This mutates the table object, but doesn't refresh the cache.
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION);
+    assertCatalogEntryTimeToTTL(catalog, tableIdent, HALF_OF_EXPIRATION);
+  }
+
+  @Test
+  public void testCacheExpirationEagerlyRemovesMetadataTables() throws IOException {
+    boolean expirationEnabled = true;
+    CachingCatalog catalog = (CachingCatalog) CachingCatalog.wrap(hadoopCatalog(), expirationEnabled,
+        EXPIRATION_TTL.toMillis(), ticker);
+    Cache<TableIdentifier, Table> cache = catalog.cache();
+
+    // Create the table and populate the catalog.
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
     TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+    assertTableIsCached("Upon creation, the caching catalog should cache tables", catalog, tableIdent);
 
+    // Write to the table.
     table.newAppend().appendFile(FILE_A).commit();
+    assertTableIsCached("Caching catalog should not expire a table after update if its expiration has not passed",
+        catalog, tableIdent);
 
-    // Ensure that the table is now in the cache
-    Assert.assertEquals("Table should remain in the cache after insertion before the expiration period",
-        1, tableCache.asMap().size());
-    checkStats(tableCache, 0L /* cache hits */, 1L /* cache misses */, 1 /* total cache load attempts */);
-
-    // remember the original snapshot
-    Snapshot oldSnapshot = table.currentSnapshot();
-
-    // populate the cache with metadata tables
-    int metadataTablesLoaded = 0;
-    for (MetadataTableType type : MetadataTableType.values()) {
-      metadataTablesLoaded += 1;
-      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)));
-    }
-
-    // Ensure that the metadata tables are now in the cache as well.
-    int expectedCacheTableCount = 1 + MetadataTableType.values().length;
-    Assert.assertEquals("Table should remain in the cache after insertion before the expiration period",
-        expectedCacheTableCount, tableCache.asMap().size());
-
-    // All the metadata tables should result in a cache hit as we pre-populate the metadata tables
-    //   when we load a table that has them and the original table identifier iss not already in the cache.
+    // Advance time by half of the expiration interval.
+    // We'll then load the metadata tables and ensure that they are expired when the main table is expired,
+    // even if their own age is not up to the expiration interval.
     //
-    // We have called loadTable explicitly one time for each metadata table, but since we pre-populate the metadata
-    //   tables, the stats track that as only one load operation.
-    //
-    // However, given that we have called loadTable 1 time for the table itself + 1 time for each metadata table,
-    //   the number of cache requests should reflect 1 for each attempt.
-    checkStats(tableCache, metadataTablesLoaded /* cache hits */, expectedCacheTableCount /* cache misses */,
-        expectedCacheTableCount - metadataTablesLoaded /* total cache load attempts */);
+    // We want to ensure that all cached metadata tables are expired together.
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertTableIsCached("The caching catalog should not expire tables before their ttl",
+        catalog, tableIdent);
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION);
 
-    tableCache.cleanUp();
+    // Load the metadata tables at time EXPIRATION_TTL / 2.
+    medtadataTables(tableIdent).forEach(catalog::loadTable);
+    assertMetadataTablesAreCached(cache, tableIdent);
 
-    Assert.assertEquals("Before the ticker is advanced, the cache should not drop tables during maintenance",
-        expectedCacheTableCount, tableCache.asMap().size());
+    // Accessing the metadata tables will also refresh the main table.
+    assertCatalogEntryTimeToTTL(catalog, tableIdent, EXPIRATION_TTL);
+    // Sanity check - the cached metadata tables should have an age of ZERO.
+    medtadataTables(tableIdent).forEach(metadataTbl -> assertCatalogEntryHasAge(catalog, metadataTbl, Duration.ZERO));
 
-    Assert.assertEquals("The ticker should have the same time until its advanced",
-        nanosAtTickerCreation, ticker.read());
+    // Move time forward now that metadata tables are loaded and then access the data table again, to reset its value.
+    ticker.advance(HALF_OF_EXPIRATION);
+    medtadataTables(tableIdent).forEach(catalog::loadTable);
+    medtadataTables(tableIdent).forEach(metadataTbl ->
+        assertCatalogEntryHasAge(catalog, metadataTbl, Duration.ZERO));
 
-    // Advance the ticker such that the tables are dropped.
-    ticker.advance(Duration.ofMinutes(expirationMinutes + 1).toNanos());
+    // Sanity check. Because the table is still in the cache, its ttl isn't updated on metadata table load
+    assertCatalogEntryHasAge(catalog, tableIdent, HALF_OF_EXPIRATION);
 
-    Assert.assertEquals(
-        "After advancing the ticker, it should reflect the changed time",
-        nanosAtTickerCreation + Duration.ofMinutes(expirationMinutes + 1).toNanos(),
-        ticker.read());
-
-    // Ensure that the table's are no longer being returned by the cache now that the expiration period has
-    // occurred.
-    Assert.assertNull(
-        "The cache should not return tables that have been expired",
-        tableCache.getIfPresent(tableIdent));
-    for (MetadataTableType type : MetadataTableType.values()) {
-      Assert.assertNull(
-          "Metadatatables should expire when the primary table has expired",
-          tableCache.getIfPresent(TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT))));
-    }
-
-    tableCache.cleanUp();
-    Assert.assertEquals("All of the metadata tables should be dropped after the table is dropped from the cache",
-        0, tableCache.asMap().size());
-
-    // drop the original table
-    catalog.dropTable(tableIdent);
-
-    // create a new table with the same name
-    table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key3", "value3"));
-
-    table.newAppend().appendFile(FILE_B).commit();
-
-    // remember the new snapshot
-    Snapshot newSnapshot = table.currentSnapshot();
-
-    Assert.assertNotEquals("Snapshots must be different", oldSnapshot, newSnapshot);
-
-    // validate metadata tables were correctly invalidated
-    for (MetadataTableType type : MetadataTableType.values()) {
-      TableIdentifier metadataIdent = TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT));
-      Table metadataTable = catalog.loadTable(metadataIdent);
-      Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable.currentSnapshot());
-    }
+    // Move time forward the other half of the expiration interval
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertCatalogHasExpiredTable(catalog, tableIdent);
+    assertCatalogHasExpiredMetadataTables(catalog, tableIdent);
   }
 
-  // TODO - Because of the way things are implemented, asserting on stats might not be the best idea.
-  private void checkStats(Cache<?, ?> cache, long hitCount, long missCount, long loadCount) {
-    CacheStats stats = cache.stats();
-    Assert.assertEquals("CachingCatalog should have the correct number of hits",
-        hitCount, stats.hitCount());
-    Assert.assertEquals("CachingCatalog should have the correct number of misses",
-        missCount, stats.missCount());
-    Assert.assertEquals("CachingCatalog should accurately reflect the number of times we've tried to load",
-        loadCount, stats.loadCount());
+  private void assertTableIsCached(String assertionMessage, CachingCatalog catalog, TableIdentifier identifier) {
+    catalog.cache().cleanUp();
+    Assert.assertTrue(assertionMessage, catalog.getIfPresentQuietly(identifier).isPresent());
+  }
+
+  private List<TableIdentifier> medtadataTables(TableIdentifier tableIdent) {
+    return Arrays.stream(MetadataTableType.values())
+        .map(type -> TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)))
+        .collect(Collectors.toList());
+  }
+
+  private void assertMetadataTablesAreCached(Cache<TableIdentifier, Table> cache, TableIdentifier tableIdentifier) {
+    medtadataTables(tableIdentifier)
+        .forEach(metadataTable ->
+          Assert.assertNotNull(String.format("Metadata table %s should be in the cache", metadataTable.name()),
+              cache.policy().getIfPresentQuietly(metadataTable)));
+  }
+
+  private void assertCatalogHasExpiredTable(CachingCatalog catalog, TableIdentifier tableIdent) {
+    Assert.assertFalse("The catalog should not serve table's that are past their TTL",
+        catalog.getIfPresentQuietly(tableIdent).isPresent());
+  }
+
+  private void assertCatalogHasExpiredMetadataTables(CachingCatalog catalog, TableIdentifier tableIdent) {
+    // Sanity check tha the table itself is expired
+    Assert.assertFalse("The table should not be served by the CachingCatalog's cache",
+        catalog.getIfPresentQuietly(tableIdent).isPresent());
+    medtadataTables(tableIdent)
+        .forEach(metadataTable ->
+            Assert.assertFalse("The CachingCatalog should not return metadata tables for a TTL'd table",
+                catalog.getIfPresentQuietly(metadataTable).isPresent()));
+  }
+
+  private void assertCatalogEntryHasAge(CachingCatalog catalog, TableIdentifier identifier, Duration expectedAge) {
+    Assert.assertEquals("The table entry should have the expected age in the catalog cache",
+        Optional.of(expectedAge), catalog.cachedEntryAge(identifier));
+  }
+
+  private void assertCatalogEntryTimeToTTL(CachingCatalog catalog, TableIdentifier ident, Duration expectedTimeLeft) {
+    Assert.assertEquals("The catalog should TTL the given table after the specified duration",
+        Optional.of(expectedTimeLeft), catalog.getTimeToTTL(ident));
   }
 }
