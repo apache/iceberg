@@ -25,7 +25,6 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.UpdatableRowData;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -132,6 +133,16 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
       super(task, tableSchema, requestedSchema);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
+    }
+
+    @Override
+    protected Consumer<InternalRow> deleteMarker() {
+      return record -> record.setBoolean(deleteMarkerIndex(), true);
+    }
+
+    @Override
+    protected boolean isDeletedRow(InternalRow row) {
+      return row.getBoolean(deleteMarkerIndex());
     }
 
     @Override
