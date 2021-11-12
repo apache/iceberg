@@ -400,6 +400,7 @@ public class SparkCatalog extends BaseCatalog {
 
     Preconditions.checkArgument(cacheEnabled || !cacheExpirationEnabled,
         "Table cache expiration cannot be enabled for catalogs that don't have caching enabled");
+
     if (cacheExpirationEnabled) {
       this.cacheExpirationIntervalMillis = PropertyUtil.propertyAsLong(options,
           TABLE_CACHE_EXPIRATION_INTERVAL_MS, TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
