@@ -441,6 +441,16 @@ public class SparkCatalog extends BaseCatalog {
     return catalogName;
   }
 
+  // VisibleForTesting
+  public boolean isCacheEnabled() {
+    return cacheEnabled;
+  }
+
+  // VisibleForTesting
+  public boolean isCacheExpirationEnabled() {
+    return cacheExpirationEnabled;
+  }
+
   private static void commitChanges(Table table, SetProperty setLocation, SetProperty setSnapshotId,
                                     SetProperty pickSnapshotId, List<TableChange> propertyChanges,
                                     List<TableChange> schemaChanges) {
