@@ -86,33 +86,6 @@ public class CachingCatalog implements Catalog {
   }
 
   /**
-   * For test purposes only, passing in a pre-built cache.
-   *
-   * Note that this assumes that this is using `expireAfterAccess`.
-   * We use expireAfterAccess to automatically refresh the TTL of a table after its
-   * accessed.
-   *
-   * NOTE - We might go back to expireAfterWrite, with custom handling for refreshing TTL after access,
-   *        to have more control over ensuring that metadata tables are expired at the same time as data tables.
-   *        We want to avoid having a cached metadata table that doesn't correspond to the same version of the
-   *        data table.
-   *
-   * To be more thorough, we should check all of them. Then we can possibly make the TableCache into its own
-   * class, with invalidation that happens there (and it can be invalidated in more places with writes such
-   * that if a table eagerly refreshes, the cache entry's TTL also refreshes).
-   */
-  // VisibleForTesting
-  public CachingCatalog(Catalog catalog, Cache<TableIdentifier, Table> cache) {
-    this.catalog = catalog;
-    this.caseSensitive = true;
-    // Only check for expireAfterAccess as that's what we presently use. We might need to more carefully consider that.
-    this.expirationEnabled = cache.policy().expireAfterAccess().isPresent();
-    this.expirationIntervalMillis = !expirationEnabled ? -1 :
-        cache.policy().expireAfterAccess().get().getExpiresAfter(TimeUnit.MILLISECONDS);
-    this.tableCache = cache;
-  }
-
-  /**
    * Return the age of an entry in the cache.
    * <p>
    * This method is only visiable for testing the cache expiration policy, as cache invalidation is handled
@@ -150,8 +123,6 @@ public class CachingCatalog implements Catalog {
         .map(age -> Duration.ofMillis(expirationIntervalMillis).minus(age));
   }
 
-  // TODO - Make this private (or its own class) and then exppose
-  // VisibleForTesting
   private Cache<TableIdentifier, Table> createTableCache(Ticker ticker,
       RemovalListener<TableIdentifier, Table> removalListener) {
     Caffeine<TableIdentifier, Table> cacheBuilder = Caffeine
@@ -188,37 +159,6 @@ public class CachingCatalog implements Catalog {
     return cacheBuilder.build();
   }
 
-  // VisibleForTesting
-  public static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled, long expirationMillis,
-      Ticker ticker, boolean recordTableStats) {
-    Preconditions.checkArgument(!expirationEnabled || (expirationMillis > 0L),
-        "The cache expiration time must be greater than zero if cache expiration is enabled");
-
-    Caffeine<TableIdentifier, Table> cacheBuilder = Caffeine
-        .newBuilder()
-        .softValues()
-        .removalListener(keyLoggingRemovalListener);
-
-    if (expirationEnabled) {
-      // TODO - Update this to be a write expiration so that it matches current semantics.
-      LOG.info("Instantiating CachingCatalog with a cache expiration interval of {} milliseconds", expirationMillis);
-      cacheBuilder = cacheBuilder.expireAfterAccess(Duration.ofMillis(expirationMillis));
-    }
-
-    if (recordTableStats) {
-      LOG.info("Instantiating CachingCatalog's internal table cache with statistics recording enabled");
-      cacheBuilder = cacheBuilder.recordStats();
-    }
-
-    if (ticker != null) {
-      LOG.info(
-          "Received a non-null Ticker when instantiating the CachingCatalog's tableCache. This should only happen " +
-          "during tests. If you see this log outside of tests, there is potentially a bug.");
-      cacheBuilder = cacheBuilder.ticker(ticker);
-    }
-    return cacheBuilder.build();
-  }
-
   private TableIdentifier canonicalizeIdentifier(TableIdentifier tableIdentifier) {
     if (caseSensitive) {
       return tableIdentifier;
@@ -242,22 +182,8 @@ public class CachingCatalog implements Catalog {
     TableIdentifier canonicalized = canonicalizeIdentifier(ident);
     Table cached = tableCache.getIfPresent(canonicalized);
     if (cached != null) {
-      // Restart the cache TTL upon user access for non-metadata tables.
-      // This allows metadata tables to continue to expire when their origin table does.
-      // TODO - It might be easier to use a custom Expiry policy and check for metadata table there.
-      //
-      // TODO - This part was used when expireAfterWrite was used.
-      //
-      // if (expirationEnabled) {
-      //   if (!MetadataTableUtils.hasMetadataTableName(canonicalized)) {
-      //     tableCache.put(canonicalized, cached);
-      //     metadataTableIdentifiers(canonicalized).forEach(metadataTblIdentifier -> {
-      //       Optional<Table> metadataTable = getIfPresentQuietly(metadataTblIdentifier);
-      //       metadataTable.ifPresent(table -> tableCache.put(metadataTblIdentifier, table));
-      //       tableCache.put(metadataTblIdentifier, metadataTable.get());
-      //     });
-      //   }
-      // }
+      // TODO - If this is a metadata table consider, checking that this is in sync
+      //        with the version that is presently cached. Could be confusing to user's though.
       return cached;
     }
 
