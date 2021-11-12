@@ -42,6 +42,7 @@ import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -321,7 +322,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,
         Collections.emptyList());
 
-    Map<StructLike, List<Record>> data = new HashMap<>(1);
+    Map<StructLike, List<Record>> data = Maps.newHashMap();
     data.put(null, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
     String createSql = String.format("CREATE EXTERNAL TABLE external_table_to_iceberg " +
