@@ -66,6 +66,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_ENABLED;
 import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
+import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED;
+import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT;
+import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_EXPIRATION_INTERVAL_MS;
+import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -87,8 +91,8 @@ public class SparkCatalog extends BaseCatalog {
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
-  private boolean cacheEnabled = CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
-  private boolean cacheExpirationEnabled = CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT;
+  private boolean cacheEnabled = TABLE_CACHE_ENABLED_DEFAULT;
+  private boolean cacheExpirationEnabled = TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT;
   private long cacheExpirationIntervalMillis = 0;  // Disabled. Value must be >= 0.
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
@@ -391,17 +395,16 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     this.cacheEnabled = PropertyUtil.propertyAsBoolean(options, TABLE_CACHE_ENABLED, TABLE_CACHE_ENABLED_DEFAULT);
-        CatalogProperties.TABLE_CACHE_ENABLED, Boolean.toString(CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT)));
-    this.cacheExpirationEnabled = Boolean.parseBoolean(options.getOrDefault(
-        CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED,
-        Boolean.toString(CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT)));
+    this.cacheExpirationEnabled = PropertyUtil.propertyAsBoolean(options,
+        TABLE_CACHE_EXPIRATION_ENABLED, TABLE_CACHE_ENABLED_DEFAULT);
 
-    // TODO - Wrap this into its own utility function so it can be used by Flink.
-    Preconditions.checkArgument(!cacheEnabled || !cacheExpirationEnabled,
+    Preconditions.checkArgument(cacheEnabled || !cacheExpirationEnabled,
         "Table cache expiration cannot be enabled for catalogs that don't have caching enabled");
+    if (cacheExpirationEnabled) {
+      this.cacheExpirationIntervalMillis = PropertyUtil.propertyAsLong(options,
+          TABLE_CACHE_EXPIRATION_INTERVAL_MS, TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+    }
 
-    this.cacheExpirationIntervalMillis = Long.parseLong(options.getOrDefault(CatalogProperties.TABLE_CACHE_EXPIRATION_INTERVAL_MS,
-        Long.toString(CatalogProperties.TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT)));
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
