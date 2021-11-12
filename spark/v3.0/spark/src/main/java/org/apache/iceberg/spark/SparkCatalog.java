@@ -83,9 +83,7 @@ public class SparkCatalog extends BaseCatalog {
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
-  private boolean cacheEnabled = CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
-  private boolean cacheExpirationEnabled = CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT;
-  private long cacheExpirationIntervalMillis = -1;  // Disabled. TODO - Maybe just set as default?
+  private boolean cacheEnabled = true;
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
@@ -386,26 +384,14 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault(
-        CatalogProperties.TABLE_CACHE_ENABLED, Boolean.toString(CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT)));
-    this.cacheExpirationEnabled = Boolean.parseBoolean(options.getOrDefault(
-        CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED,
-        Boolean.toString(CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT)));
-
-    // TODO - Wrap this into its own utility function so it can be used by Flink.
-    Preconditions.checkArgument(!cacheEnabled || !cacheExpirationEnabled,
-        "Table cache expiration cannot be enabled for catalogs that don't have caching enabled");
-
-    this.cacheExpirationIntervalMillis = Long.parseLong(options.getOrDefault(CatalogProperties.TABLE_CACHE_EXPIRY_MS,
-        Long.toString(CatalogProperties.TABLE_CACHE_EXPIRY_MS_DEFAULT)));
+    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
     this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
     this.tables = new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
-    this.icebergCatalog = cacheEnabled ?
-        CachingCatalog.wrap(catalog, cacheExpirationEnabled, cacheExpirationIntervalMillis) : catalog;
+    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {
