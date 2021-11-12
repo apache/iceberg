@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -62,6 +63,9 @@ import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+
+import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_ENABLED;
+import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -85,7 +89,7 @@ public class SparkCatalog extends BaseCatalog {
   private Catalog icebergCatalog = null;
   private boolean cacheEnabled = CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
   private boolean cacheExpirationEnabled = CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT;
-  private long cacheExpirationIntervalMillis = -1;  // Disabled. TODO - Maybe just set as default?
+  private long cacheExpirationIntervalMillis = 0;  // Disabled. Value must be >= 0.
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
@@ -386,7 +390,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault(
+    this.cacheEnabled = PropertyUtil.propertyAsBoolean(options, TABLE_CACHE_ENABLED, TABLE_CACHE_ENABLED_DEFAULT);
         CatalogProperties.TABLE_CACHE_ENABLED, Boolean.toString(CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT)));
     this.cacheExpirationEnabled = Boolean.parseBoolean(options.getOrDefault(
         CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED,
@@ -396,8 +400,8 @@ public class SparkCatalog extends BaseCatalog {
     Preconditions.checkArgument(!cacheEnabled || !cacheExpirationEnabled,
         "Table cache expiration cannot be enabled for catalogs that don't have caching enabled");
 
-    this.cacheExpirationIntervalMillis = Long.parseLong(options.getOrDefault(CatalogProperties.TABLE_CACHE_EXPIRY_MS,
-        Long.toString(CatalogProperties.TABLE_CACHE_EXPIRY_MS_DEFAULT)));
+    this.cacheExpirationIntervalMillis = Long.parseLong(options.getOrDefault(CatalogProperties.TABLE_CACHE_EXPIRATION_INTERVAL_MS,
+        Long.toString(CatalogProperties.TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT)));
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;

@@ -80,7 +80,7 @@ public class CachingCatalog implements Catalog {
     this.expirationEnabled = isExpirationEnabled;
     this.expirationIntervalMillis = expirationIntervalMillis;
 
-    this.tableCache = createTableCache(ticker, keyLoggingRemovalListener);
+    this.tableCache = createTableCache(ticker);
   }
 
   /**
@@ -125,12 +125,11 @@ public class CachingCatalog implements Catalog {
         .map(age -> Duration.ofMillis(expirationIntervalMillis).minus(age));
   }
 
-  private Cache<TableIdentifier, Table> createTableCache(Ticker ticker,
-      RemovalListener<TableIdentifier, Table> removalListener) {
+  private Cache<TableIdentifier, Table> createTableCache(Ticker ticker) {
     Caffeine<TableIdentifier, Table> cacheBuilder = Caffeine
         .newBuilder()
         .softValues()
-        .removalListener(removalListener)
+        .removalListener(keyLoggingRemovalListener)
         .writer(new CacheWriter<TableIdentifier, Table>() {
           @Override
           // TODO - Consider expiring and syncing any metadata tables that have a different snapshotId

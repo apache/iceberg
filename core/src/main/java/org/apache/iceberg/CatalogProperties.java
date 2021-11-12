@@ -35,8 +35,8 @@ public class CatalogProperties {
   public static final String TABLE_CACHE_EXPIRATION_ENABLED = "cache.expiration-enabled";
   // Keep as false to maintain backwards compatability. Eventually consider making true the default.
   public static final boolean TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT = false;
-  public static final String TABLE_CACHE_EXPIRY_MS = "cache.expiration-interval-ms";
-  public static final long TABLE_CACHE_EXPIRY_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
+  public static final String TABLE_CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";
+  public static final long TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
 
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";
