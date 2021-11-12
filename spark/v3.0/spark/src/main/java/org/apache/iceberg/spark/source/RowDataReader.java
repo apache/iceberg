@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
+import java.util.function.Consumer;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
@@ -184,6 +185,16 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
       super(task, tableSchema, requestedSchema);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
+    }
+
+    @Override
+    protected Consumer<InternalRow> deleteMarker() {
+      return record -> record.setBoolean(deleteMarkerIndex(), true);
+    }
+
+    @Override
+    protected boolean isDeletedRow(InternalRow row) {
+      return row.getBoolean(deleteMarkerIndex());
     }
 
     @Override

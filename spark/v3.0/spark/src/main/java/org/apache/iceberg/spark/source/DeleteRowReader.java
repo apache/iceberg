@@ -53,6 +53,10 @@ public class DeleteRowReader extends RowDataReader {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
+    if (deleteContent == null) {
+      return matches.keepRowsFromDeletes(open(task, requiredSchema, idToConstant)).iterator();
+    }
+
     if (deleteContent.equals(FileContent.EQUALITY_DELETES)) {
       return matches.keepRowsFromEqualityDeletes(open(task, requiredSchema, idToConstant)).iterator();
     } else {
