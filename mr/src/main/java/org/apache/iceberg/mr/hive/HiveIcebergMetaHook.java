@@ -80,25 +80,28 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     hmsTable.getParameters().put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
         BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
 
-    // We should set the input and output format so that the table can be read by other
-    // engines like Impala
-    hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
-    hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
+    TableIdentifier hmsTableIdentifier = TableIdentifier.of(hmsTable.getDbName(), hmsTable.getTableName());
+    TableIdentifier icebergTableIdentifier = TableIdentifier.parse(catalogProperties.getProperty(Catalogs.NAME));
+    if (!Catalogs.hiveCatalog(conf, catalogProperties) || !hmsTableIdentifier.equals(icebergTableIdentifier)) {
+      // We should set the input and output format so that the table can be read by other engines like Impala
+      hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
+      hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
 
-    // If not using HiveCatalog check for existing table
-    try {
-      this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
+      // Check for existing table
+      try {
+        this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
-      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
-          "Iceberg table already created - can not use provided schema");
-      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
-          "Iceberg table already created - can not use provided partition specification");
+        Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
+            "Iceberg table already created - can not use provided schema");
+        Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
+            "Iceberg table already created - can not use provided partition specification");
 
-      LOG.info("Iceberg table already exists {}", icebergTable);
+        LOG.info("Iceberg table already exists {}", icebergTable);
 
-      return;
-    } catch (NoSuchTableException nte) {
-      // If the table does not exist we will create it below
+        return;
+      } catch (NoSuchTableException nte) {
+        // If the table does not exist we will create it below
+      }
     }
 
     // If the table does not exist collect data for table creation
