@@ -63,6 +63,8 @@ import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_ENABLED;
 import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
@@ -88,6 +90,7 @@ import static org.apache.iceberg.CatalogProperties.TABLE_CACHE_EXPIRATION_INTERV
  */
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -401,9 +404,18 @@ public class SparkCatalog extends BaseCatalog {
     Preconditions.checkArgument(cacheEnabled || !cacheExpirationEnabled,
         "Table cache expiration cannot be enabled for catalogs that don't have caching enabled");
 
+    long cacheExpirationIntervalMs = PropertyUtil.propertyAsLong(options,
+        TABLE_CACHE_EXPIRATION_INTERVAL_MS, TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+
     if (cacheExpirationEnabled) {
-      this.cacheExpirationIntervalMillis = PropertyUtil.propertyAsLong(options,
-          TABLE_CACHE_EXPIRATION_INTERVAL_MS, TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+      this.cacheExpirationIntervalMillis = cacheExpirationIntervalMs;
+    } else {
+      if (cacheExpirationIntervalMs != TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT) {
+        LOG.error(
+            "The SparkCatalog {} is not configured to use cache expiration, but a cache expiration interval " +
+            "has been set via {}. This is likely an error and This property will be ignored."
+            name, TABLE_CACHE_EXPIRATION_INTERVAL_MS);
+      }
     }
 
     Catalog catalog = buildIcebergCatalog(name, options);
