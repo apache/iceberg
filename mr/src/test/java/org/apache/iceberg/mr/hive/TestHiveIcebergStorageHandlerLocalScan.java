@@ -46,6 +46,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -309,6 +310,26 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         testTables.locationForCreateTableSQL(identifier) +
         testTables.propertiesForCreateTableSQL(ImmutableMap.of());
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
+  }
+
+  @Test
+  public void testExternalTableToTableManagedInHiveCatalog() throws IOException {
+    Assume.assumeTrue("Only relevant for HiveCatalog", testTableType == TestTables.TestTableType.HIVE_CATALOG);
+
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    testTables.createIcebergTable(shell.getHiveConf(), identifier.name(),
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,
+        Collections.emptyList());
+
+    Map<StructLike, List<Record>> data = new HashMap<>(1);
+    data.put(null, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+
+    String createSql = String.format("CREATE EXTERNAL TABLE external_table_to_iceberg " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        "TBLPROPERTIES('name'='%s')", identifier);
+
+    runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        PartitionSpec.unpartitioned(), data);
   }
 
   @Test
