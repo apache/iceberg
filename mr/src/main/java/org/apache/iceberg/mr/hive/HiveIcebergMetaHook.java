@@ -87,7 +87,6 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
       hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
 
-      // Check for existing table
       try {
         this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
