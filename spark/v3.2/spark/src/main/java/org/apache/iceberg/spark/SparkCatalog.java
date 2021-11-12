@@ -413,7 +413,7 @@ public class SparkCatalog extends BaseCatalog {
       if (cacheExpirationIntervalMs != TABLE_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT) {
         LOG.error(
             "The SparkCatalog {} is not configured to use cache expiration, but a cache expiration interval " +
-            "has been set via {}. This is likely an error and This property will be ignored."
+            "has been set via {}. This is likely an error and This property will be ignored.",
             name, TABLE_CACHE_EXPIRATION_INTERVAL_MS);
       }
     }
