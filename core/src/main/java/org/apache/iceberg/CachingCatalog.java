@@ -30,13 +30,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,19 +100,23 @@ public class CachingCatalog implements Catalog {
         .flatMap(tableExpiration -> tableExpiration.ageOf(identifier));
   }
 
+  // Returns the cached Table entry corresponding to the given identifier iff
+  // it's in the cache. Grabs the table in a way that doesn't count as an access
+  // and thus won't affect the cache's ttl's (if enabled).
   // VisibleForTesting
-  public Optional<Table> getIfPresentQuietly(TableIdentifier identifier) {
+  public Optional<Table> tableFromCacheQuietly(TableIdentifier identifier) {
     // Ensure async cleanup actions have happened.
     tableCache.cleanUp();
     return Optional.ofNullable(tableCache.policy().getIfPresentQuietly(identifier));
   }
 
+  // TODO - Make this package private and add a utility helper method to access it for tests.
   // VisibleForTesting
   public Cache<TableIdentifier, Table> cache() {
     return tableCache;
   }
 
-  // Visible for testing
+  // Visiblefortesting
   public Optional<Duration> getTimeToTTL(TableIdentifier identifier) {
     return tableCache
         .policy()

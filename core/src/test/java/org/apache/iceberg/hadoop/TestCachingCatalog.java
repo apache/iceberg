@@ -171,7 +171,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
         catalog.getTimeToTTL(tableIdent)); // Get the time remaining until it would be evicted if
 
     // Alternate means of ensuring table is present.
-    Assertions.assertThat(catalog.getIfPresentQuietly(tableIdent)).isNotNull();
+    Assertions.assertThat(catalog.tableFromCacheQuietly(tableIdent)).isNotNull();
 
     // Move time forward by half of the duration interval
     ticker.advance(HALF_OF_EXPIRATION);
@@ -184,7 +184,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     // table (even if the table that is loaded is functionally equivalent).
     ticker.advance(HALF_OF_EXPIRATION.plus(Duration.ofSeconds(10)));
     Assert.assertFalse("Table should be expired as it hasn't been written to for the duration of the cache interval",
-        catalog.getIfPresentQuietly(tableIdent).isPresent());
+        catalog.tableFromCacheQuietly(tableIdent).isPresent());
     Table tblAfterCacheMiss = catalog.loadTable(tableIdent);
     Assert.assertNotSame(
         "CachingCatalog should return a new instance after expiration",
@@ -291,7 +291,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   private void assertTableIsCached(String assertionMessage, CachingCatalog catalog, TableIdentifier identifier) {
     catalog.cache().cleanUp();
-    Assert.assertTrue(assertionMessage, catalog.getIfPresentQuietly(identifier).isPresent());
+    Assert.assertTrue(assertionMessage, catalog.tableFromCacheQuietly(identifier).isPresent());
   }
 
   private List<TableIdentifier> medtadataTables(TableIdentifier tableIdent) {
@@ -309,17 +309,17 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   private void assertCatalogHasExpiredTable(CachingCatalog catalog, TableIdentifier tableIdent) {
     Assert.assertFalse("The catalog should not serve table's that are past their TTL",
-        catalog.getIfPresentQuietly(tableIdent).isPresent());
+        catalog.tableFromCacheQuietly(tableIdent).isPresent());
   }
 
   private void assertCatalogHasExpiredMetadataTables(CachingCatalog catalog, TableIdentifier tableIdent) {
     // Sanity check tha the table itself is expired
     Assert.assertFalse("The table should not be served by the CachingCatalog's cache",
-        catalog.getIfPresentQuietly(tableIdent).isPresent());
+        catalog.tableFromCacheQuietly(tableIdent).isPresent());
     medtadataTables(tableIdent)
         .forEach(metadataTable ->
             Assert.assertFalse("The CachingCatalog should not return metadata tables for a TTL'd table",
-                catalog.getIfPresentQuietly(metadataTable).isPresent()));
+                catalog.tableFromCacheQuietly(metadataTable).isPresent()));
   }
 
   private void assertCatalogEntryHasAge(CachingCatalog catalog, TableIdentifier identifier, Duration expectedAge) {
