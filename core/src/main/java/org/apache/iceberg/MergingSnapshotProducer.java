@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -87,6 +88,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private PartitionSpec dataSpec;
+  private Long sequenceNumberForNewDataFiles;
 
   // cache new manifests after writing
   private ManifestFile cachedNewManifest = null;
@@ -297,7 +299,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Iterable<DataFile> dataFiles) {
-    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, true);
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, true,
+        sequenceNumberForNewDataFiles != null);
+  }
+
+  protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                  Expression dataFilter, Iterable<DataFile> dataFiles,
+                                                  boolean caseSensitive) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, dataFilter, dataFiles, caseSensitive, false);
   }
 
   /**
@@ -309,10 +318,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param dataFilter a data filter
    * @param dataFiles data files to validate have no new row deletes
    * @param caseSensitive whether expression binding should be case-sensitive
+   * @param ignoreEqualityDeletes whether equality deletes should be ignored in validation
    */
-  protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
-                                                  Expression dataFilter, Iterable<DataFile> dataFiles,
-                                                  boolean caseSensitive) {
+  private void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                Expression dataFilter, Iterable<DataFile> dataFiles,
+                                                boolean caseSensitive, boolean ignoreEqualityDeletes) {
     // if there is no current table state, no files have been added
     if (base.currentSnapshot() == null || base.formatVersion() < 2) {
       return;
@@ -327,8 +337,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     for (DataFile dataFile : dataFiles) {
       // if any delete is found that applies to files written in or before the starting snapshot, fail
-      if (deletes.forDataFile(startingSequenceNumber, dataFile).length > 0) {
-        throw new ValidationException("Cannot commit, found new delete for replaced data file: %s", dataFile);
+      DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+      if (ignoreEqualityDeletes) {
+        ValidationException.check(
+            Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
+            "Cannot commit, found new position delete for replaced data file: %s", dataFile);
+      } else {
+        ValidationException.check(deleteFiles.length == 0,
+            "Cannot commit, found new delete for replaced data file: %s", dataFile);
       }
     }
   }
@@ -358,6 +374,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     ValidationException.check(deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+  }
+
+  protected void setSequenceNumberForNewDataFiles(long sequenceNumber) {
+    this.sequenceNumberForNewDataFiles = sequenceNumber;
   }
 
   private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
@@ -591,7 +611,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
         try {
-          writer.addAll(newFiles);
+          newFiles.forEach(f -> writer.add(f, sequenceNumberForNewDataFiles));
         } finally {
           writer.close();
         }

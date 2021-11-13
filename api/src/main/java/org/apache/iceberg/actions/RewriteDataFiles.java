@@ -78,6 +78,17 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
+   * If the compaction should commit rewritten data files using the sequence number at compaction start time instead
+   * of optimistically incrementing the latest sequence number.
+   * <p>
+   * This avoids commit conflicts with updates that add newer equality deletes at a higher sequence number.
+   * <p>
+   * Defaults to false.
+   */
+  String USE_STARTING_SEQUENCE_NUMBER = "use-starting-sequence-number";
+  boolean USE_STARTING_SEQUENCE_NUMBER_DEFAULT = false;
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    * @return this for method chaining
    */

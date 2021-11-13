@@ -103,6 +103,18 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     addEntry(reused.wrapAppend(snapshotId, addedFile));
   }
 
+  /**
+   * Add an added entry for a file at a specific sequence number.
+   * <p>
+   * The entry's snapshot ID will be this manifest's snapshot ID.
+   *
+   * @param addedFile a data file
+   * @param sequenceNumber sequence number for the data file
+   */
+  public void add(F addedFile, Long sequenceNumber) {
+    addEntry(reused.wrapAppend(snapshotId, sequenceNumber, addedFile));
+  }
+
   void add(ManifestEntry<F> entry) {
     addEntry(reused.wrapAppend(snapshotId, entry.file()));
   }

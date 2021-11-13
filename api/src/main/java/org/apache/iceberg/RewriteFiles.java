@@ -73,4 +73,13 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @return this for method chaining
    */
   RewriteFiles validateFromSnapshot(long snapshotId);
+
+  /**
+   * Use the specified sequence number for the new manifest of the data files added in this update,
+   * instead of inheriting the sequence number of the snapshot that will be created.
+   *
+   * @param sequenceNumber a sequence number
+   * @return this for method chaining
+   */
+  RewriteFiles overrideSequenceNumberForNewDataFiles(long sequenceNumber);
 }

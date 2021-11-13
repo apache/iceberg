@@ -48,6 +48,7 @@ public class RewriteDataFilesCommitManager {
 
   private final Table table;
   private final long startingSnapshotId;
+  private final boolean useStartingSequenceNumber;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -55,8 +56,13 @@ public class RewriteDataFilesCommitManager {
   }
 
   public RewriteDataFilesCommitManager(Table table, long startingSnapshotId) {
+    this(table, startingSnapshotId, RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+  }
+
+  public RewriteDataFilesCommitManager(Table table, long startingSnapshotId, boolean useStartingSequenceNumber) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
+    this.useStartingSequenceNumber = useStartingSequenceNumber;
   }
 
   /**
@@ -75,6 +81,11 @@ public class RewriteDataFilesCommitManager {
     RewriteFiles rewrite = table.newRewrite()
         .validateFromSnapshot(startingSnapshotId)
         .rewriteFiles(rewrittenDataFiles, addedDataFiles);
+
+    if (useStartingSequenceNumber) {
+      rewrite = rewrite.overrideSequenceNumberForNewDataFiles(table.snapshot(startingSnapshotId).sequenceNumber());
+    }
+
     rewrite.commit();
   }
 
