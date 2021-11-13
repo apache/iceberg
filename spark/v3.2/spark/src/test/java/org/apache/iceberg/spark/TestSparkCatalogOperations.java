@@ -1,0 +1,57 @@
+package org.apache.iceberg.spark;
+
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.Map;
+
+public class TestSparkCatalogOperations extends SparkCatalogTestBase {
+  public TestSparkCatalogOperations(String catalogName, String implementation, Map<String, String> config) {
+    super(catalogName, implementation, config);
+  }
+
+  @Before
+  public void createTable() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+  }
+
+  @After
+  public void removeTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @Test
+  public void testAlterTable() throws NoSuchTableException {
+    BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+
+    String fieldName = "location";
+    String propsKey = "note";
+    String propsValue = "jazz";
+    Table table = catalog.alterTable(
+        identifier,
+        TableChange.addColumn(new String[] {fieldName}, DataTypes.StringType, true),
+        TableChange.setProperty(propsKey, propsValue)
+    );
+
+    StructField expectedField = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
+    Assert.assertEquals(table.schema().fields()[2], expectedField);
+
+    Assert.assertTrue(
+        "Created table missing property: " + propsKey,
+        table.properties().containsKey(propsKey));
+    Assert.assertEquals("Property value is not the expected value",
+        propsValue, table.properties().get(propsKey));
+  }
+}
+
+
+

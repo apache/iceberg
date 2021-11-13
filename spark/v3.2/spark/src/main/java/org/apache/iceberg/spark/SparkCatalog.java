@@ -222,11 +222,11 @@ public class SparkCatalog extends BaseCatalog {
     try {
       Table table = load(ident);
       commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
+      table.refresh();
+      return new SparkTable(table, false);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
-
-    return null;
   }
 
   @Override
