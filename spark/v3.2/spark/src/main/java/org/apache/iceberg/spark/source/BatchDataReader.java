@@ -70,6 +70,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
+    Map<Integer, Object> moreConstants = findMoreCompoundConstants(expectedSchema, idToConstant);
 
     CloseableIterable<ColumnarBatch> iter;
     InputFile location = getInputFile(task);
@@ -81,7 +82,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           .project(expectedSchema)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
-              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, idToConstant,
+              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, moreConstants,
               deleteFilter))
           .recordsPerBatch(batchSize)
           .filter(task.residual())
@@ -97,7 +98,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
 
       iter = builder.build();
     } else if (task.file().format() == FileFormat.ORC) {
-      Set<Integer> constantFieldIds = idToConstant.keySet();
+      Set<Integer> constantFieldIds = moreConstants.keySet();
       Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
       Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
       Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema, constantAndMetadataFieldIds);
@@ -105,7 +106,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           .project(schemaWithoutConstantAndMetadataFields)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema, fileSchema,
-              idToConstant))
+              moreConstants))
           .recordsPerBatch(batchSize)
           .filter(task.residual())
           .caseSensitive(caseSensitive);

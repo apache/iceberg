@@ -23,9 +23,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
@@ -44,6 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
@@ -199,5 +203,37 @@ abstract class BaseDataReader<T> implements Closeable {
       default:
     }
     return value;
+  }
+
+  protected Map<Integer, Object> findMoreCompoundConstants(Schema tableSchema, Map<Integer, ?> idToConstant) {
+    Map<Integer, Object> constantMap = new HashMap<>(idToConstant);
+    TypeUtil.visit(tableSchema, new CompoundConstantFinder(constantMap));
+    return constantMap;
+  }
+
+  private static class CompoundConstantFinder extends TypeUtil.SchemaVisitor<Void> {
+
+    private final Map<Integer, Object> idToConstant;
+
+    CompoundConstantFinder(Map<Integer, Object> idToConstant) {
+      this.idToConstant = idToConstant;
+    }
+
+    @Override
+    public Void field(Types.NestedField field, Void fieldResult) {
+      if (field.type().typeId() == Type.TypeID.STRUCT) {
+        List<Types.NestedField> childFieldsInStruct = field.type().asStructType().fields();
+        List<Integer> childFieldID =
+                childFieldsInStruct.stream().map(NestedField::fieldId).collect(Collectors.toList());
+        if (idToConstant.keySet().containsAll(childFieldID)) {
+          Object[] objects = new Object[childFieldID.size()];
+          for (int i = 0; i < objects.length; i++) {
+            objects[i] = idToConstant.get(childFieldID.get(i));
+          }
+          idToConstant.put(field.fieldId(), new GenericInternalRow(objects));
+        }
+      }
+      return null;
+    }
   }
 }

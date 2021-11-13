@@ -21,7 +21,10 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
@@ -119,6 +122,8 @@ class ConstantColumnVector extends ColumnVector {
 
   @Override
   public ColumnVector getChild(int ordinal) {
-    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
+    DataType sparkType = ((StructType) type).fields()[ordinal].dataType();
+    Type childType = SparkSchemaUtil.convert(sparkType);
+    return new ConstantColumnVector(childType, batchSize, ((InternalRow) constant).get(ordinal, sparkType));
   }
 }

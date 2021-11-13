@@ -57,6 +57,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.spark.SparkWriteOptions.WRITE_FORMAT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -421,6 +422,7 @@ public class TestPartitionValues {
     // write into iceberg
     sourceDF.write()
         .format("iceberg")
+        .option(WRITE_FORMAT, format)
         .mode(SaveMode.Append)
         .save(baseLocation);
 
