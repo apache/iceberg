@@ -35,11 +35,11 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.NaNUtil;
 
 class Literals {
@@ -603,9 +603,7 @@ class Literals {
 
     @Override
     public String toString() {
-      byte[] binary = new byte[value().remaining()];
-      value().duplicate().get(binary);
-      return "0x" + BaseEncoding.base16().encode(binary);
+      return "0x" + ByteBuffers.encodeHexString(value());
     }
   }
 
@@ -650,9 +648,7 @@ class Literals {
 
     @Override
     public String toString() {
-      byte[] binary = new byte[value().remaining()];
-      value().duplicate().get(binary);
-      return "0x" + BaseEncoding.base16().encode(binary);
+      return "0x" + ByteBuffers.encodeHexString(value());
     }
   }
 }

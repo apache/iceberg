@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 
 public class ByteBuffers {
 
@@ -56,6 +57,11 @@ public class ByteBuffers {
     readerBuffer.get(copyArray);
 
     return ByteBuffer.wrap(copyArray);
+  }
+
+  public static String encodeHexString(ByteBuffer buffer) {
+    byte[] bytes = toByteArray(buffer.duplicate());
+    return BaseEncoding.base16().encode(bytes);
   }
 
   private ByteBuffers() {
