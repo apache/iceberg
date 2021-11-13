@@ -216,7 +216,11 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return table.currentSnapshot() != null;
   }
 
-  private static boolean isFutureStartTime(Table table, long streamStartTimeStampMillis) {
+  private static boolean isFutureStartTime(Table table, Long streamStartTimeStampMillis) {
+    if (streamStartTimeStampMillis == null) {
+      return false;
+    }
+
     return table.currentSnapshot().timestampMillis() < streamStartTimeStampMillis;
   }
 
@@ -230,13 +234,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
-    private final long fromTimestamp;
+    private final Long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation, long fromTimestamp) {
+    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
-      this.fromTimestamp = fromTimestamp;
+      this.fromTimestamp = fromTimestamp == null ? -1L : fromTimestamp;
     }
 
     public StreamingOffset initialOffset() {

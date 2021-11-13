@@ -215,7 +215,6 @@ public class SparkReadConf {
   public Long fromTimestamp() {
     return confParser.longConf()
             .option(SparkReadOptions.STREAM_FROM_TIMESTAMP)
-            .defaultValue(-1L)
-            .parse();
+            .parseOptional();
   }
 }

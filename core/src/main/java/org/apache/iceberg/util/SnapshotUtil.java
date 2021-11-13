@@ -72,13 +72,14 @@ public class SnapshotUtil {
    * @return null if there is no current snapshot in the table,
    * else the oldest ancestor snapshot after or equal to the timestamp in milliseconds.
    */
-  public static Snapshot oldestAncestorAfter(Table table, long timestampMillis) {
+  public static Snapshot oldestAncestorAfter(Table table, Long timestampMillis) {
     Snapshot current = table.currentSnapshot();
-    if (current == null || current.timestampMillis() < timestampMillis) {
+    long timestamp = timestampMillis == null ? -1L : timestampMillis;
+    if (current == null || current.timestampMillis() < timestamp) {
       return null;
     }
 
-    while (current.parentId() != null && table.snapshot(current.parentId()).timestampMillis() >= timestampMillis) {
+    while (current.parentId() != null && table.snapshot(current.parentId()).timestampMillis() >= timestamp) {
       current = table.snapshot(current.parentId());
     }
 
