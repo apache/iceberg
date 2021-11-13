@@ -37,6 +37,8 @@ public class TestSelect extends SparkCatalogTestBase {
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
 
+  private final String binaryTableName = tableName("binary_table");
+
   public TestSelect(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
 
@@ -49,8 +51,11 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    sql("CREATE TABLE %s (id bigint, data string, float float, binary binary) USING iceberg", tableName);
-    sql("INSERT INTO %s VALUES (1, 'a', 1.0, X''), (2, 'b', 2.0, X'11'), (3, 'c', float('NaN'), X'1111')", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, float float) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
+
+    sql("CREATE TABLE %s (id bigint, binary binary) USING iceberg", binaryTableName);
+    sql("INSERT INTO %s VALUES (1, X''), (2, X'11'), (3, X'1111')", binaryTableName);
 
     this.scanEventCount = 0;
     this.lastScanEvent = null;
@@ -59,21 +64,20 @@ public class TestSelect extends SparkCatalogTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", binaryTableName);
   }
 
   @Test
   public void testSelect() {
     List<Object[]> expected = ImmutableList.of(
-        row(1L, "a", 1.0F, new byte[]{}),
-        row(2L, "b", 2.0F, new byte[]{0x11}),
-        row(3L, "c", Float.NaN, new byte[]{0x11, 0x11}));
+        row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
   @Test
   public void testSelectRewrite() {
-    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN, new byte[]{0x11, 0x11}));
+    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected,
         sql("SELECT * FROM %s where float = float('NaN')", tableName));
@@ -125,9 +129,9 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testFilterBinary() {
-    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN, new byte[]{0x11, 0x11}));
+    List<Object[]> expected = ImmutableList.of(row(3L, new Byte[]{0x11, 0x11}));
 
     assertEquals("Should return all expected rows", expected,
-        sql("SELECT * FROM %s where binary > X'1101'", tableName));
+        sql("SELECT * FROM %s where binary > X'1101'", binaryTableName));
   }
 }
