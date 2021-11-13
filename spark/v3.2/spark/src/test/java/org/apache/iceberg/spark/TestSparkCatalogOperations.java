@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Map;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
@@ -29,8 +30,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.Map;
 
 public class TestSparkCatalogOperations extends SparkCatalogTestBase {
   public TestSparkCatalogOperations(String catalogName, String implementation, Map<String, String> config) {
