@@ -35,7 +35,6 @@ public class CreateNamespaceRequest implements Serializable {
   private Map<String, String> properties;
 
   private CreateNamespaceRequest() {
-
   }
 
   private CreateNamespaceRequest(String namespaceName, Map<String, String> properties) {
