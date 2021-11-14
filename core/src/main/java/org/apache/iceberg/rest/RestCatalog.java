@@ -152,10 +152,11 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     CreateNamespaceRequest req = CreateNamespaceRequest.builder()
-        .withNamespaceName(namespace.toString())
+        .withNamespace(namespace)
         .withProperties(metadata)
         .build();
 
+    // TODO - This should come from the server side.
     String path = properties.getOrDefault("create-namespace-path", "databases");
     restClient.post(path, req, null, ErrorHandlers.databaseErrorHandler());
   }

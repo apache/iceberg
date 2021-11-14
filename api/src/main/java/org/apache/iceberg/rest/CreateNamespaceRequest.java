@@ -19,45 +19,28 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Represents a REST request to create a namespace / database.
+ *
+ * Possible example POST body (outer format object possibly only used on Response):
+ *   { "data": { "namespace": ["prod", "accounting"], properties: {} }}
  */
-public class CreateNamespaceRequest implements Serializable {
+public class CreateNamespaceRequest {
 
-  // TODO - Use protected so users can extend this for their own impls. Or an interface.
-  //        Currently anything but private causes an error.
-  private String namespaceName;
+  private Namespace namespace;
   private Map<String, String> properties;
 
   private CreateNamespaceRequest() {
   }
 
-  private CreateNamespaceRequest(String namespaceName, Map<String, String> properties) {
-    this.namespaceName = namespaceName;
-    this.properties = properties;
-  }
-
-  /**
-   * Name of the database to create.
-   */
-  String getNamespaceName() {
-    return namespaceName;
-  }
-
-  void setNamespaceName(String name) {
-    this.namespaceName = name;
-  }
-
-  Map<String, String> getProperties() {
-    return ImmutableMap.copyOf(properties);
-  }
-
-  void setProperties(Map<String, String>  properties) {
+  private CreateNamespaceRequest(String[] namespaceLevels, Map<String, String> properties) {
+    this.namespace = Namespace.of(namespaceLevels);
     this.properties = properties;
   }
 
@@ -66,15 +49,16 @@ public class CreateNamespaceRequest implements Serializable {
   }
 
   public static class Builder {
-    private String namespaceName;
+    private ImmutableList.Builder<String> namespaceBuilder;
     private final ImmutableMap.Builder<String, String> propertiesBuilder;
 
     public Builder() {
+      this.namespaceBuilder = ImmutableList.builder();
       this.propertiesBuilder = ImmutableMap.builder();
     }
 
-    public Builder withNamespaceName(String name) {
-      this.namespaceName = name;
+    public Builder withNamespace(Namespace namespace) {
+      this.namespaceBuilder.add(namespace.levels());
       return this;
     }
 
@@ -91,8 +75,10 @@ public class CreateNamespaceRequest implements Serializable {
     }
 
     public CreateNamespaceRequest build() {
-      Preconditions.checkNotNull(namespaceName, "Cannot build CreateNamespaceRequest with a null namespaceName");
-      return new CreateNamespaceRequest(namespaceName, propertiesBuilder.build());
+      String[] namespaceLevels = namespaceBuilder.build().toArray(new String[0]);
+      Preconditions.checkState(namespaceLevels.length > 0,
+          "Cannot create a CreateNamespaceRequest with an empty namespace.");
+      return new CreateNamespaceRequest(namespaceLevels, propertiesBuilder.build());
 
     }
   }
