@@ -19,23 +19,19 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.rest.http.HttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 // TODO - Extract out to an interface - Implement with HTTP version.
-// TODO - Provide Builder interface - Implement with HTTP version.
 // TODO - Should we implement Configurable here? Since this will be an interface, I think not in the interface.
 // TODO - As this will be more of an interface, possibly extend TableOperations directly (like HadoopTableOperations)
-class RestTableOperations extends BaseMetastoreTableOperations implements Closeable {
+class RestTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(RestTableOperations.class);
 
@@ -48,7 +44,6 @@ class RestTableOperations extends BaseMetastoreTableOperations implements Closea
   private final FileIO fileIO;
   private TableMetadata currentMetadata;
   private String metadataFileLocation;
-  private CloseableGroup closeableGroup;
 
   protected RestTableOperations(
       HttpClient httpClient,
@@ -62,14 +57,35 @@ class RestTableOperations extends BaseMetastoreTableOperations implements Closea
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier);
-    this.closeableGroup = new CloseableGroup();
-
-    closeableGroup.addCloseable(httpClient);
-    closeableGroup.setSuppressCloseFailure(true);
   }
 
+  // TODO - Probably remove this builder since `newTableOps` is used instead.
   public static Builder builder() {
     return new Builder();
+  }
+
+  @Override
+  public TableMetadata refresh() {
+    throw new UnsupportedOperationException("Not implemented: refresh");
+  }
+
+  @Override
+  protected void doRefresh() {
+    throw new UnsupportedOperationException("Not implemented: doRefresh");
+  }
+
+  @Override
+  public FileIO io() {
+    return fileIO;
+  }
+
+  @Override
+  protected String tableName() {
+    return fullTableName;
+  }
+
+  public void setCurrentMetadata(TableMetadata tableMetadata) {
+    this.currentMetadata = tableMetadata;
   }
 
   public static class Builder {
@@ -110,29 +126,4 @@ class RestTableOperations extends BaseMetastoreTableOperations implements Closea
       return new RestTableOperations(httpClient, properties, io, catalogName, identifier);
     }
   }
-
-  @Override
-  public TableMetadata refresh() {
-    throw new UnsupportedOperationException("Not implemented: refresh");
-  }
-
-  @Override
-  public FileIO io() {
-    return fileIO;
-  }
-
-  @Override
-  protected String tableName() {
-    return fullTableName;
-  }
-
-  @Override
-  public void close() throws IOException {
-    closeableGroup.close();
-  }
-
-  public void setCurrentMetadata(TableMetadata tableMetadata) {
-    this.currentMetadata = tableMetadata;
-  }
-
 }
