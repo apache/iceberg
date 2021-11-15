@@ -153,12 +153,17 @@ public class IcebergTableSource
 
   @Override
   public ChangelogMode getChangelogMode() {
-    return ChangelogMode.newBuilder()
-        .addContainedKind(RowKind.DELETE)
-        .addContainedKind(RowKind.INSERT)
-        .addContainedKind(RowKind.UPDATE_AFTER)
-        .addContainedKind(RowKind.UPDATE_BEFORE)
-        .build();
+    if (properties.containsKey("streaming") && Boolean.parseBoolean(properties.get("streaming"))) {
+      return ChangelogMode.newBuilder()
+          .addContainedKind(RowKind.DELETE)
+          .addContainedKind(RowKind.INSERT)
+          .addContainedKind(RowKind.UPDATE_AFTER)
+          .addContainedKind(RowKind.UPDATE_BEFORE)
+          .build();
+    } else {
+      return ChangelogMode.insertOnly();
+    }
+
   }
 
   @Override
