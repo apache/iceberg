@@ -36,6 +36,7 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized read path. The
@@ -71,13 +72,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     }
 
     Pair<int[], Integer> rowIdMapping = rowIdMapping(numRowsToRead);
-    int[] eqDeleteRowIdMapping = null;
-    if(rowIdMapping == null && deletes != null && deletes.hasEqDeletes()) {
-      eqDeleteRowIdMapping = new int[numRowsToRead];
-      for (int i = 0; i < numRowsToRead; i++) {
-        eqDeleteRowIdMapping[i] = i;
-      }
-    }
+    int[] eqDeleteRowIdMapping = initEqDeleteRowIdMapping(numRowsToRead, rowIdMapping);
 
     for (int i = 0; i < readers.length; i += 1) {
       vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
@@ -106,7 +101,20 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     return batch;
   }
 
-  private ColumnVector arrowColumnVector(Pair<int[], Integer> rowIdMapping, int index, int numRowsInVector, int[] eqDeleteRowIdMapping) {
+  @Nullable
+  private int[] initEqDeleteRowIdMapping(int numRowsToRead, Pair<int[], Integer> rowIdMapping) {
+    int[] eqDeleteRowIdMapping = null;
+    if (rowIdMapping == null && deletes != null && deletes.hasEqDeletes()) {
+      eqDeleteRowIdMapping = new int[numRowsToRead];
+      for (int i = 0; i < numRowsToRead; i++) {
+        eqDeleteRowIdMapping[i] = i;
+      }
+    }
+    return eqDeleteRowIdMapping;
+  }
+
+  private ColumnVector arrowColumnVector(Pair<int[], Integer> rowIdMapping, int index, int numRowsInVector,
+                                         int[] eqDeleteRowIdMapping) {
     if (rowIdMapping != null) {
       int[] rowIdMap = rowIdMapping.first();
       Integer numRows = rowIdMapping.second();
