@@ -53,17 +53,20 @@ public class IcebergHttpResponse<T> {
    *   - type: Type of exception - more specifically a class name, e.g. NamespaceNotFoundException)
    *   - code: An (optional) application specific error code, to distinguish between causes
    *           of the same HTTP response code (eg possibly different types of Unauthorized exceptions).
+   *
+   *   #################### Optional fields to consider ######################################
    *   - status: HTTP response code (optional).
    *   - traceId: Unique specific identifier for this error and request, for monitoring purposes.
    *              Presumably this would be an OpenTracing Span (optional).
    *              Will almost certainly add tracing headers as an optional follow-up.
    *   - metadata: Further map of optional metadata (such as further directions to users etc) (optional - unsure?).
+   *   #######################################################################################
    *
+   *  Example:
    *    "error": {
-   *         "message": "Missing Bearer header.",
+   *         "message": "Authorization denied: Missing Bearer header",
    *         "type": "OAuthException",
-   *         "code": 40101,  // We document what 401xx error codes correspond to as part of the spec
-   *         "trace_id": "AWswcVwbcqfgrSgjG80MtqJ"
+   *         "code": 40102
    *    }
    */
   public static class Error {

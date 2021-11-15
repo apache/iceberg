@@ -26,14 +26,46 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * Represents a REST response to a create a namespace / database request.
  *
+ * The properties returned will include all the user provided properties from the
+ * request, as well as any server-side added properties.
  *
+ * Example server-side added properties could include things such as "created-at"
+ * or "owner".
+ *
+ * Presently, the JSON looks as follows:
+ *  { "namespace": "ns1.ns2.ns3", "properties": { "owner": "hank", "created-at": "1425744000000" } }
+ *
+ * Eventually, the idea is to wrap responses in IcebergHttpResponse so that it has a more standardized
+ * structure, including the possibility of richer metadata on errors, such as tracing telemetry or follw
+ * up user instruction.
+ *
+ * {
+ *   "error": { },
+ *   "data": {
+ *     "namespace": "ns1.ns2.ns3",
+ *     "properties": {
+ *       "owner": "hank",
+ *       "created-at": "1425744000000"
+ *     }
+ *   }
+ * }
+ *
+ * For an error response, we'll see something like the following:
+ *
+ * {
+ *   "data": { },
+ *   "error": {
+ *     "message": "Namespace already exists",
+ *     "type": "AlreadyExistsException",
+ *     "code": 40901
+ *   }
+ * }
  */
 public class CreateNamespaceResponse {
   private Namespace namespace;
   private Map<String, String> properties;
 
   private CreateNamespaceResponse() {
-
   }
 
   private CreateNamespaceResponse(Namespace namespace, Map<String, String> properties) {

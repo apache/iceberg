@@ -183,7 +183,7 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     // TODO - This should come from the server side.
     String path = properties.getOrDefault("create-namespace-path", "namespace");
-    restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.databaseErrorHandler());
+    restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
   }
 
   public CreateNamespaceResponse createDatabase(Namespace namespace, Map<String, String> props) {
@@ -194,7 +194,7 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     // TODO - This should come from the server side.
     String path = properties.getOrDefault("create-namespace-path", "namespace");
-    return restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.databaseErrorHandler());
+    return restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
   }
 
   @Override

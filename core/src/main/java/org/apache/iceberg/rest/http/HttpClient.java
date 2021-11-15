@@ -180,7 +180,7 @@ public class HttpClient implements RestClient {
     private ObjectMapper mapper;
     private Map<String, String> additionalHeaders = Maps.newHashMap();
     private Consumer<HttpUriRequest> requestInterceptor = r -> { };
-    private Consumer<CloseableHttpResponse> defaultErrorHandler = ErrorHandlers.databaseErrorHandler();
+    private Consumer<CloseableHttpResponse> defaultErrorHandler = ErrorHandlers.namespaceErrorHandler();
 
     private Builder() {
 

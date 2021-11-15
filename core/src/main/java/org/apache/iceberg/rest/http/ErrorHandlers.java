@@ -50,6 +50,9 @@ public class ErrorHandlers {
       String responseException = getIcebergExceptionHeader(errorResponse);
 
       switch (errorResponse.getCode()) {
+        // TODO - Probably this should be 400 and not 404. 404 makes monitoring more difficult.
+        //        as it's hard to tell what's a 404 from a route that does not exist and what's a
+        //        404 from a client calling an endpoint that doesn't exist.
         case HttpStatus.SC_NOT_FOUND:
           // TODO: Exception handling here could be better
           // some methods can result in different resource not found exceptions, so here we need to
@@ -73,7 +76,7 @@ public class ErrorHandlers {
   /**
    * Request error handlers specifically for CRUD ops on databases / namespaces.
    */
-  public static Consumer<CloseableHttpResponse> databaseErrorHandler() {
+  public static Consumer<CloseableHttpResponse> namespaceErrorHandler() {
     return (errorResponse) -> {
       String responseBody = getResponseBody(errorResponse);
 

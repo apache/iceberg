@@ -165,13 +165,4 @@ public class RequestResponseSerializers {
       }
     }
   }
-
-  // public static class CreateNamespaceRequestSerializer extends JsonSerializer<CreateNamespaceRequest> {
-  //   @Override
-  //   public void serialize(CreateNamespaceRequest req, JsonGenerator gen, SerializerProvider serializers) {
-  //     try {
-  //       gen.writeObjectRef(req);
-  //     }
-  //   }
-  // }
 }
