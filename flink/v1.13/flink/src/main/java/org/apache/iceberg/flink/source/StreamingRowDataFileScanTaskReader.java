@@ -52,225 +52,245 @@ import org.apache.iceberg.util.PartitionUtil;
 @Internal
 public class StreamingRowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
-    private final Schema tableSchema;
-    private final Schema projectedSchema;
-    private final String nameMapping;
-    private final boolean caseSensitive;
+  private final Schema tableSchema;
+  private final Schema projectedSchema;
+  private final String nameMapping;
+  private final boolean caseSensitive;
 
-    public StreamingRowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema,
-                                              String nameMapping, boolean caseSensitive) {
-        this.tableSchema = tableSchema;
-        this.projectedSchema = projectedSchema;
-        this.nameMapping = nameMapping;
-        this.caseSensitive = caseSensitive;
+  public StreamingRowDataFileScanTaskReader(
+      Schema tableSchema, Schema projectedSchema,
+      String nameMapping, boolean caseSensitive) {
+    this.tableSchema = tableSchema;
+    this.projectedSchema = projectedSchema;
+    this.nameMapping = nameMapping;
+    this.caseSensitive = caseSensitive;
+  }
+
+  @Override
+  public CloseableIterator<RowData> open(FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
+    Schema partitionSchema = TypeUtil.select(projectedSchema, task.spec().identitySourceIds());
+
+    Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
+        PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
+
+    RowDataFileScanTaskReader.FlinkDeleteFilter deletes =
+        new RowDataFileScanTaskReader.FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
+    CloseableIterable<RowData> iterable =
+        deletes.applyPosDeletes(newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor));
+
+    // Project the RowData to remove the extra meta columns.
+    if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
+      RowDataProjection rowDataProjection = RowDataProjection.create(
+          deletes.requiredRowType(), deletes.requiredSchema().asStruct(), projectedSchema.asStruct());
+      iterable = CloseableIterable.transform(iterable, rowDataProjection::wrap);
     }
 
-    @Override
-    public CloseableIterator<RowData> open(FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
-        Schema partitionSchema = TypeUtil.select(projectedSchema, task.spec().identitySourceIds());
+    return iterable.iterator();
+  }
 
-        Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
-                PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
+  @Override
+  public CloseableIterator<RowData> openDelete(FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
+    Schema partitionSchema = TypeUtil.select(projectedSchema, task.spec().identitySourceIds());
 
-        RowDataFileScanTaskReader.FlinkDeleteFilter deletes = new RowDataFileScanTaskReader.FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
-        CloseableIterable<RowData> iterable = deletes.applyPosDeletes(newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor));
+    Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
+        PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
 
-        // Project the RowData to remove the extra meta columns.
-        if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
-            RowDataProjection rowDataProjection = RowDataProjection.create(
-                    deletes.requiredRowType(), deletes.requiredSchema().asStruct(), projectedSchema.asStruct());
-            iterable = CloseableIterable.transform(iterable, rowDataProjection::wrap);
-        }
+    RowDataFileScanTaskReader.FlinkDeleteFilter deletes =
+        new RowDataFileScanTaskReader.FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
+    CloseableIterable<RowData> iterable =
+        newEqDeleteIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor);
 
-        return iterable.iterator();
+    // Project the RowData to remove the extra meta columns.
+    if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
+      RowDataProjection rowDataProjection = RowDataProjection.create(
+          deletes.requiredRowType(), deletes.requiredSchema().asStruct(), projectedSchema.asStruct());
+      iterable = CloseableIterable.transform(iterable, rowDataProjection::wrapDelete);
     }
 
-    @Override
-    public CloseableIterator<RowData> openDelete(FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
-        Schema partitionSchema = TypeUtil.select(projectedSchema, task.spec().identitySourceIds());
+    return iterable.iterator();
+  }
 
-        Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
-                PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
+  private CloseableIterable<RowData> newIterable(
+      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
+    CloseableIterable<RowData> iter;
+    if (task.isDataTask()) {
+      throw new UnsupportedOperationException("Cannot read data task.");
+    } else {
+      switch (task.file().format()) {
+        case PARQUET:
+          iter = newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-        RowDataFileScanTaskReader.FlinkDeleteFilter deletes = new RowDataFileScanTaskReader.FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
-        CloseableIterable<RowData> iterable = newEqDeleteIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor);
+        case AVRO:
+          iter = newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-        // Project the RowData to remove the extra meta columns.
-        if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
-            RowDataProjection rowDataProjection = RowDataProjection.create(
-                    deletes.requiredRowType(), deletes.requiredSchema().asStruct(), projectedSchema.asStruct());
-            iterable = CloseableIterable.transform(iterable, rowDataProjection::wrapDelete);
-        }
+        case ORC:
+          iter = newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-        return iterable.iterator();
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot read unknown format: " + task.file().format());
+      }
     }
 
-    private CloseableIterable<RowData> newIterable(
-            FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        CloseableIterable<RowData> iter;
-        if (task.isDataTask()) {
-            throw new UnsupportedOperationException("Cannot read data task.");
-        } else {
-            switch (task.file().format()) {
-                case PARQUET:
-                    iter = newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
-                    break;
+    return iter;
+  }
 
-                case AVRO:
-                    iter = newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
-                    break;
+  private CloseableIterable<RowData> newEqDeleteIterable(
+      FileScanTask task,
+      Schema schema,
+      Map<Integer, ?> idToConstant,
+      InputFilesDecryptor inputFilesDecryptor) {
+    CloseableIterable<RowData> iter;
+    if (task.isDataTask()) {
+      throw new UnsupportedOperationException("Cannot read data task.");
+    } else {
+      switch (task.file().format()) {
+        case PARQUET:
+          iter = newEqDeleteParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-                case ORC:
-                    iter = newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
-                    break;
+        case AVRO:
+          iter = newEqDeleteAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-                default:
-                    throw new UnsupportedOperationException(
-                            "Cannot read unknown format: " + task.file().format());
-            }
-        }
+        case ORC:
+          iter = newEqDeleteOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
+          break;
 
-        return iter;
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot read unknown format: " + task.file().format());
+      }
     }
 
-    private CloseableIterable<RowData> newEqDeleteIterable(FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        CloseableIterable<RowData> iter;
-        if (task.isDataTask()) {
-            throw new UnsupportedOperationException("Cannot read data task.");
-        } else {
-            switch (task.file().format()) {
-                case PARQUET:
-                    iter = newEqDeleteParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
-                    break;
+    return iter;
+  }
 
-                case AVRO:
-                    iter = newEqDeleteAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
-                    break;
+  private CloseableIterable<RowData> newAvroIterable(
+      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
+    Avro.ReadBuilder builder = Avro.read(inputFilesDecryptor.getInputFile(task))
+        .reuseContainers()
+        .project(schema)
+        .split(task.start(), task.length())
+        .createReaderFunc(readSchema -> new FlinkAvroReader(schema, readSchema, idToConstant));
 
-                case ORC:
-                    iter = newEqDeleteOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
-                    break;
-
-                default:
-                    throw new UnsupportedOperationException(
-                            "Cannot read unknown format: " + task.file().format());
-            }
-        }
-
-        return iter;
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
 
-    private CloseableIterable<RowData> newAvroIterable(
-            FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        Avro.ReadBuilder builder = Avro.read(inputFilesDecryptor.getInputFile(task))
-                .reuseContainers()
-                .project(schema)
-                .split(task.start(), task.length())
-                .createReaderFunc(readSchema -> new FlinkAvroReader(schema, readSchema, idToConstant));
+    return builder.build();
+  }
 
-        if (nameMapping != null) {
-            builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-        }
-
-        return builder.build();
+  private CloseableIterable<RowData> newEqDeleteAvroIterable(
+      FileScanTask task,
+      Schema schema,
+      Map<Integer, ?> idToConstant,
+      InputFilesDecryptor inputFilesDecryptor) {
+    if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
+      return CloseableIterable.empty();
     }
 
-    private CloseableIterable<RowData> newEqDeleteAvroIterable(FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
-            return CloseableIterable.empty();
-        }
+    Avro.ReadBuilder builder = Avro.read(inputFilesDecryptor.getEqDeleteInputFile(task))
+        .reuseContainers()
+        .project(schema)
+        .split(task.start(), task.length())
+        .createReaderFunc(readSchema -> new FlinkAvroReader(schema, readSchema, idToConstant));
 
-        Avro.ReadBuilder builder = Avro.read(inputFilesDecryptor.getEqDeleteInputFile(task))
-                .reuseContainers()
-                .project(schema)
-                .split(task.start(), task.length())
-                .createReaderFunc(readSchema -> new FlinkAvroReader(schema, readSchema, idToConstant));
-
-        if (nameMapping != null) {
-            builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-        }
-
-        return builder.build();
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
 
-    private CloseableIterable<RowData> newParquetIterable(
-            FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getInputFile(task))
-                .reuseContainers()
-                .split(task.start(), task.length())
-                .project(schema)
-                .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
-                .filter(task.residual())
-                .caseSensitive(caseSensitive)
-                .reuseContainers();
+    return builder.build();
+  }
 
-        if (nameMapping != null) {
-            builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-        }
+  private CloseableIterable<RowData> newParquetIterable(
+      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
+    Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getInputFile(task))
+        .reuseContainers()
+        .split(task.start(), task.length())
+        .project(schema)
+        .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
+        .filter(task.residual())
+        .caseSensitive(caseSensitive)
+        .reuseContainers();
 
-        return builder.build();
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
 
-    private CloseableIterable<RowData> newEqDeleteParquetIterable(FileScanTask task, Schema schema,
-                                                                  Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
-            return CloseableIterable.empty();
-        }
+    return builder.build();
+  }
 
-        Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getEqDeleteInputFile(task))
-                .reuseContainers()
-                .split(task.start(), task.length())
-                .project(schema)
-                .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
-                .filter(task.residual())
-                .caseSensitive(caseSensitive)
-                .reuseContainers();
-
-        if (nameMapping != null) {
-            builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-        }
-
-        return builder.build();
+  private CloseableIterable<RowData> newEqDeleteParquetIterable(
+      FileScanTask task, Schema schema,
+      Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
+    if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
+      return CloseableIterable.empty();
     }
 
-    private CloseableIterable<RowData> newOrcIterable(
-            FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(schema,
-                Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+    Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getEqDeleteInputFile(task))
+        .reuseContainers()
+        .split(task.start(), task.length())
+        .project(schema)
+        .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
+        .filter(task.residual())
+        .caseSensitive(caseSensitive)
+        .reuseContainers();
 
-        ORC.ReadBuilder builder = ORC.read(inputFilesDecryptor.getInputFile(task))
-                .project(readSchemaWithoutConstantAndMetadataFields)
-                .split(task.start(), task.length())
-                .createReaderFunc(readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
-                .filter(task.residual())
-                .caseSensitive(caseSensitive);
-
-        if (nameMapping != null) {
-            builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-        }
-
-        return builder.build();
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
 
-    private CloseableIterable<RowData> newEqDeleteOrcIterable(FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
-        if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
-            return CloseableIterable.empty();
-        }
+    return builder.build();
+  }
 
-        Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(schema,
-                Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+  private CloseableIterable<RowData> newOrcIterable(
+      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
+    Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(
+        schema,
+        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
-        ORC.ReadBuilder builder = ORC.read(inputFilesDecryptor.getEqDeleteInputFile(task))
-                .project(readSchemaWithoutConstantAndMetadataFields)
-                .split(task.start(), task.length())
-                .createReaderFunc(readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
-                .filter(task.residual())
-                .caseSensitive(caseSensitive);
+    ORC.ReadBuilder builder = ORC.read(inputFilesDecryptor.getInputFile(task))
+        .project(readSchemaWithoutConstantAndMetadataFields)
+        .split(task.start(), task.length())
+        .createReaderFunc(readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
+        .filter(task.residual())
+        .caseSensitive(caseSensitive);
 
-        if (nameMapping != null) {
-            builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-        }
-
-        return builder.build();
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
+
+    return builder.build();
+  }
+
+  private CloseableIterable<RowData> newEqDeleteOrcIterable(
+      FileScanTask task,
+      Schema schema,
+      Map<Integer, ?> idToConstant,
+      InputFilesDecryptor inputFilesDecryptor) {
+    if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
+      return CloseableIterable.empty();
+    }
+
+    Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(
+        schema,
+        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+
+    ORC.ReadBuilder builder = ORC.read(inputFilesDecryptor.getEqDeleteInputFile(task))
+        .project(readSchemaWithoutConstantAndMetadataFields)
+        .split(task.start(), task.length())
+        .createReaderFunc(readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
+        .filter(task.residual())
+        .caseSensitive(caseSensitive);
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
+  }
 }
