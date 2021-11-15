@@ -267,7 +267,7 @@ def test_bucket_method(type_var):
     bucket_transform = transforms.bucket(type_var, 8)
     assert str(bucket_transform) == str(eval(repr(bucket_transform)))
     assert bucket_transform.can_transform(type_var)
-    assert bucket_transform.get_result_type(type_var) == IntegerType
+    assert bucket_transform.result_type(type_var) == IntegerType
     assert bucket_transform.num_buckets == 8
     assert bucket_transform.apply(None) is None
     assert bucket_transform.to_human_string("test") == "test"
@@ -287,13 +287,13 @@ def test_truncate_method(type_var, value, expected):
     truncate_transform = transforms.truncate(type_var, 8)
     assert str(truncate_transform) == str(eval(repr(truncate_transform)))
     assert truncate_transform.can_transform(type_var)
-    assert truncate_transform.get_result_type(type_var) == type_var
+    assert truncate_transform.result_type(type_var) == type_var
     assert truncate_transform.to_human_string(None) == "null"
     assert truncate_transform.to_human_string(value) == expected
     assert truncate_transform.width == 8
     assert truncate_transform.apply(None) is None
-    assert truncate_transform.preserve_order()
-    assert truncate_transform.satisfy_order(truncate_transform)
+    assert truncate_transform.preserves_order()
+    assert truncate_transform.satisfies_order_of(truncate_transform)
 
 
 @pytest.mark.parametrize(
@@ -305,20 +305,18 @@ def test_truncate_method(type_var, value, expected):
     ],
 )
 def test_time_methods(type_var):
-    assert str(transforms.year(type_var)) == str(eval(repr(transforms.year(type_var))))
-    assert str(transforms.month(type_var)) == str(
-        eval(repr(transforms.month(type_var)))
-    )
-    assert str(transforms.day(type_var)) == str(eval(repr(transforms.day(type_var))))
+    assert transforms.year(type_var) == eval(repr(transforms.year(type_var)))
+    assert transforms.month(type_var) == eval(repr(transforms.month(type_var)))
+    assert transforms.day(type_var) == eval(repr(transforms.day(type_var)))
     assert transforms.year(type_var).can_transform(type_var)
     assert transforms.month(type_var).can_transform(type_var)
     assert transforms.day(type_var).can_transform(type_var)
-    assert transforms.year(type_var).preserve_order()
-    assert transforms.month(type_var).preserve_order()
-    assert transforms.day(type_var).preserve_order()
-    assert transforms.year(type_var).get_result_type(type_var) == IntegerType
-    assert transforms.month(type_var).get_result_type(type_var) == IntegerType
-    assert transforms.day(type_var).get_result_type(type_var) == DateType
+    assert transforms.year(type_var).preserves_order()
+    assert transforms.month(type_var).preserves_order()
+    assert transforms.day(type_var).preserves_order()
+    assert transforms.year(type_var).result_type(type_var) == IntegerType
+    assert transforms.month(type_var).result_type(type_var) == IntegerType
+    assert transforms.day(type_var).result_type(type_var) == DateType
     assert transforms.year(type_var).dedup_name() == "time"
     assert transforms.month(type_var).dedup_name() == "time"
     assert transforms.day(type_var).dedup_name() == "time"
@@ -347,9 +345,9 @@ def test_time_apply_method(transform, value, expected):
     ],
 )
 def test_hour_method(type_var):
-    assert str(transforms.hour(type_var)) == str(eval(repr(transforms.hour(type_var))))
+    assert transforms.hour(type_var) == eval(repr(transforms.hour(type_var)))
     assert transforms.hour(type_var).can_transform(type_var)
-    assert transforms.hour(type_var).get_result_type(type_var) == IntegerType
+    assert transforms.hour(type_var).result_type(type_var) == IntegerType
     assert transforms.hour(type_var).apply(1512151975038194) == 420042
     assert transforms.hour(type_var).dedup_name() == "time"
 
@@ -377,7 +375,7 @@ def test_identity_method(type_var):
     identity_transform = transforms.identity(type_var)
     assert str(identity_transform) == str(eval(repr(identity_transform)))
     assert identity_transform.can_transform(type_var)
-    assert identity_transform.get_result_type(type_var) == type_var
+    assert identity_transform.result_type(type_var) == type_var
     assert identity_transform.apply("test") == "test"
 
 
@@ -428,13 +426,13 @@ def test_identity_nested_type(type_var):
 
 def test_void_transform():
     void_transform = transforms.always_null()
-    assert str(void_transform) == str(eval(repr(void_transform)))
+    assert void_transform == eval(repr(void_transform))
     assert void_transform.apply("test") is None
     assert void_transform.can_transform(BooleanType)
-    assert void_transform.get_result_type(BooleanType) == BooleanType
-    assert not void_transform.preserve_order()
-    assert void_transform.satisfy_order(transforms.always_null())
-    assert not void_transform.satisfy_order(transforms.year(DateType))
+    assert void_transform.result_type(BooleanType) == BooleanType
+    assert not void_transform.preserves_order()
+    assert void_transform.satisfies_order_of(transforms.always_null())
+    assert not void_transform.satisfies_order_of(transforms.year(DateType))
     assert void_transform.to_human_string("test") == "null"
     assert void_transform.dedup_name() == "void"
 
@@ -446,7 +444,7 @@ def test_unknown_transform():
         unknown_transform.apply("test")
     assert unknown_transform.can_transform(FixedType(8))
     assert not unknown_transform.can_transform(FixedType(5))
-    assert unknown_transform.get_result_type(BooleanType) == StringType
+    assert unknown_transform.result_type(BooleanType) == StringType
 
 
 @pytest.mark.parametrize(
@@ -470,6 +468,7 @@ def test_unknown_transform():
 )
 def test_from_string(type_var, transform, expected):
     assert repr(transforms.from_string(type_var, transform)) == repr(expected)
+    assert transform == str(expected)
 
 
 @pytest.mark.parametrize(
@@ -506,8 +505,8 @@ def test_from_string(type_var, transform, expected):
         ),
     ],
 )
-def test_satisfy_order(transform, other_transform, expected):
-    assert transform.satisfy_order(other_transform) == expected
+def test_satisfies_order_of(transform, other_transform, expected):
+    assert transform.satisfies_order_of(other_transform) == expected
 
 
 def test_invalid_cases():
