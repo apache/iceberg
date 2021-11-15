@@ -115,6 +115,10 @@ class DeleteFileIndex {
     return forDataFile(entry.sequenceNumber(), entry.file());
   }
 
+  DeleteFile[] forStreamingEntry(ManifestEntry<DataFile> entry) {
+    return forStreamingDataFile(entry.file());
+  }
+
   DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
     Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
@@ -133,6 +137,21 @@ class DeleteFileIndex {
     return matchingDeletes
         .filter(deleteFile -> canContainDeletesForFile(file, deleteFile, specsById.get(file.specId()).schema()))
         .toArray(DeleteFile[]::new);
+  }
+
+  DeleteFile[] forStreamingDataFile(DataFile file) {
+    Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
+    Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
+    Stream<DeleteFile> matchingDeletes = Stream.empty();
+    if (globalDeletes != null) {
+      matchingDeletes = Stream.concat(matchingDeletes, Arrays.stream(globalDeletes));
+    }
+    if (partitionDeletes != null) {
+      matchingDeletes = Stream.concat(matchingDeletes, Arrays.stream(partitionDeletes.second()));
+    }
+    return matchingDeletes
+            .filter(deleteFile -> canContainDeletesForFile(file, deleteFile, specsById.get(file.specId()).schema()))
+            .toArray(DeleteFile[]::new);
   }
 
   private static boolean canContainDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {

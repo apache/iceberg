@@ -57,12 +57,10 @@ class FlinkSplitGenerator {
       scan = scan.asOfTime(context.asOfTimestamp());
     }
 
-    if (context.startSnapshotId() != null) {
-      if (context.endSnapshotId() != null) {
-        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
-      } else {
-        scan = scan.appendsAfter(context.startSnapshotId());
-      }
+    if (context.isStreaming()) {
+      scan = scan.appendsCurrent(context.snapshotId());
+    } else {
+      scan = getBatchScan(context, scan);
     }
 
     if (context.splitSize() != null) {
@@ -88,5 +86,16 @@ class FlinkSplitGenerator {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close table scan: " + scan, e);
     }
+  }
+
+  private static TableScan getBatchScan (ScanContext context, TableScan scan){
+    if (context.startSnapshotId() != null) {
+      if (context.endSnapshotId() != null) {
+        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
+      } else {
+        scan = scan.appendsAfter(context.startSnapshotId());
+      }
+    }
+    return scan;
   }
 }

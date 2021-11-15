@@ -204,7 +204,7 @@ public abstract class DeleteFilter<T> {
     return deleteRowPositions;
   }
 
-  private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
+  public CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
     if (posDeletes.isEmpty()) {
       return records;
     }

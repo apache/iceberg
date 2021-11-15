@@ -22,8 +22,11 @@ package org.apache.iceberg.encryption;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -53,6 +56,17 @@ public class InputFilesDecryptor {
   public InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
     return decryptedInputFiles.get(task.file().path().toString());
+  }
+
+  public InputFile getEqDeleteInputFile(FileScanTask task) {
+    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
+    Optional<DeleteFile> deleteFile =
+        task.deletes().stream().filter(file -> file.content().equals(FileContent.EQUALITY_DELETES)).findFirst();
+    if (deleteFile.isPresent()) {
+      return decryptedInputFiles.get(deleteFile.get().path().toString());
+    } else {
+      return null;
+    }
   }
 
   public InputFile getInputFile(String location) {

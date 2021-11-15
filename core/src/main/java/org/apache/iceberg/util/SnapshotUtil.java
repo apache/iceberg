@@ -90,11 +90,32 @@ public class SnapshotUtil {
     return snapshotIds;
   }
 
+  public static List<Snapshot> snapshotsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
+    List<Snapshot> snapshots = Lists.newArrayList(ancestorSnapshots(
+        table.snapshot(toSnapshotId),
+        snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    return snapshots;
+  }
+
   public static List<Long> ancestorIds(Snapshot snapshot, Function<Long, Snapshot> lookup) {
     List<Long> ancestorIds = Lists.newArrayList();
     Snapshot current = snapshot;
     while (current != null) {
       ancestorIds.add(current.snapshotId());
+      if (current.parentId() != null) {
+        current = lookup.apply(current.parentId());
+      } else {
+        current = null;
+      }
+    }
+    return ancestorIds;
+  }
+
+  public static List<Snapshot> ancestorSnapshots(Snapshot snapshot, Function<Long, Snapshot> lookup) {
+    List<Snapshot> ancestorIds = Lists.newArrayList();
+    Snapshot current = snapshot;
+    while (current != null) {
+      ancestorIds.add(current);
       if (current.parentId() != null) {
         current = lookup.apply(current.parentId());
       } else {

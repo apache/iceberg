@@ -37,6 +37,7 @@ import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushD
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.types.RowKind;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -152,7 +153,12 @@ public class IcebergTableSource
 
   @Override
   public ChangelogMode getChangelogMode() {
-    return ChangelogMode.insertOnly();
+    return ChangelogMode.newBuilder()
+        .addContainedKind(RowKind.DELETE)
+        .addContainedKind(RowKind.INSERT)
+        .addContainedKind(RowKind.UPDATE_AFTER)
+        .addContainedKind(RowKind.UPDATE_BEFORE)
+        .build();
   }
 
   @Override

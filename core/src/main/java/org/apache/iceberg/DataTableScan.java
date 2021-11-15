@@ -65,6 +65,15 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
+  public TableScan appendsCurrent(long snapshotId) {
+    final Snapshot currentSnapshot = table().currentSnapshot();
+    Preconditions.checkState(currentSnapshot != null,
+            "Cannot scan appends for %s, there is no snapshot", snapshotId);
+    return new StreamIncrementalDataTableScan(tableOps(), table(), schema(),
+            context().useSnapshotId(snapshotId));
+  }
+
+  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     // call method in superclass just for the side effect of argument validation;
     // we do not use its return value

@@ -189,6 +189,48 @@ class ManifestGroup {
     }
   }
 
+  /**
+   * Returns a iterable of scan tasks. It is safe to add entries of this iterable
+   * to a collection as {@link DataFile} in each {@link FileScanTask} is defensively
+   * copied.
+   * @return a {@link CloseableIterable} of {@link FileScanTask}
+   */
+  public CloseableIterable<FileScanTask> planStreamingFiles() {
+    LoadingCache<Integer, ResidualEvaluator> residualCache = Caffeine.newBuilder().build(specId -> {
+      PartitionSpec spec = specsById.get(specId);
+      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
+      return ResidualEvaluator.of(spec, filter, caseSensitive);
+    });
+
+    DeleteFileIndex deleteFiles = deleteIndexBuilder.build();
+
+    boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
+    if (!deleteFiles.isEmpty()) {
+      select(ManifestReader.withStatsColumns(columns));
+    }
+
+    Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
+      int specId = manifest.partitionSpecId();
+      PartitionSpec spec = specsById.get(specId);
+      String schemaString = SchemaParser.toJson(spec.schema());
+      String specString = PartitionSpecParser.toJson(spec);
+      ResidualEvaluator residuals = residualCache.get(specId);
+      if (dropStats) {
+        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+                e.file().copyWithoutStats(), deleteFiles.forStreamingEntry(e), schemaString, specString, residuals));
+      } else {
+        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+                e.file().copy(), deleteFiles.forStreamingEntry(e), schemaString, specString, residuals));
+      }
+    });
+
+    if (executorService != null) {
+      return new ParallelIterable<>(tasks, executorService);
+    } else {
+      return CloseableIterable.concat(tasks);
+    }
+  }
+
  /**
    * Returns an iterable for manifest entries in the set of manifests.
    * <p>
