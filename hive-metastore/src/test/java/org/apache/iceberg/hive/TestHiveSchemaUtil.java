@@ -154,6 +154,22 @@ public class TestHiveSchemaUtil {
     }
   }
 
+  @Test
+  public void testConversionWithoutLastComment() {
+    Schema expected = new Schema(
+        optional(0, "customer_id", Types.LongType.get(), "customer comment"),
+        optional(1, "first_name", Types.StringType.get(), null)
+    );
+
+    Schema schema = HiveSchemaUtil.convert(
+        Arrays.asList("customer_id", "first_name"),
+        Arrays.asList(TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.BIGINT_TYPE_NAME),
+          TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.STRING_TYPE_NAME)),
+        Arrays.asList("customer comment"));
+
+    Assert.assertEquals(expected.asStruct(), schema.asStruct());
+  }
+
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = new ArrayList<>();
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
