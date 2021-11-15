@@ -212,6 +212,9 @@ Columns in Iceberg data files are selected by field id. The table schema's colum
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
+Tables may also define a property `schema.name-mapping.default` with a JSON map of `columnName` -> `fieldId` which will be used if a data file was written without field ids. This `NameMapping` will **only** be used on files without field ids. Files imported or added to an Iceberg table from a system that does not generate field ids will fall back to using the table's name mapping to map columns to field ids.
+
+
 
 #### Identifier Field IDs
 
