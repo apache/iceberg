@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -158,7 +159,7 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     // TODO - This should come from the server side.
     String path = properties.getOrDefault("create-namespace-path", "databases");
-    restClient.post(path, req, null, ErrorHandlers.databaseErrorHandler());
+    restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.databaseErrorHandler());
   }
 
   @Override
@@ -270,6 +271,19 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     @Override
     public Transaction createOrReplaceTransaction() {
       throw new UnsupportedOperationException("Replace currently not supported");
+    }
+  }
+
+  // TODO - Modified from Dynamo catalog. Should probably share it.
+  private void validateNamespace(Namespace namespace) {
+    // We might sometimes allow Namespace.of()?
+    ValidationException.check(!namespace.isEmpty(),
+        "A namespace object with no levels is not a valid namespace for a REST request");
+    for (String level : namespace.levels()) {
+      ValidationException.check(level != null && !level.isEmpty(),
+          "Namespace level must not be empty: %s", namespace);
+      ValidationException.check(!level.contains("."),
+          "Namespace level must not contain dot, but found %s in %s", level, namespace);
     }
   }
 }

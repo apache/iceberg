@@ -54,7 +54,7 @@ public class HttpClient implements RestClient {
   private final CloseableHttpClient httpClient;
   private final Consumer<CloseableHttpResponse> defaultErrorHandler;
   private final ObjectMapper mapper;
-  private Map<String, String> additionalHeaders = Maps.newHashMap();
+  private final Map<String, String> additionalHeaders;
   private Consumer<HttpUriRequest> requestInterceptor = (r) -> { };
 
   private HttpClient(
