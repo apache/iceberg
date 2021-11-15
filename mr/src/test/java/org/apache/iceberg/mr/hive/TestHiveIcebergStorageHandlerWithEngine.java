@@ -21,6 +21,7 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -737,6 +738,36 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     shell.executeStatement("INSERT INTO target SELECT * FROM source WHERE first_name = 'Nobody'");
     HiveIcebergTestUtils.validateData(target, ImmutableList.of(), 0);
+  }
+
+  @Test
+  public void testVectorizationComplexDisable() throws IOException {
+    Schema complexSchema = new Schema(
+            optional(1, "id", Types.LongType.get()),
+            optional(2, "array_string", Types.ListType.ofOptional(3, Types.StringType.get()))
+    );
+
+    List<Record> complexRecords = TestHelper.RecordsBuilder.newInstance(complexSchema)
+            .add(100L, Arrays.asList("v11", "v12"))
+            .add(200L, Arrays.asList("v21"))
+            .add(300L, Arrays.asList("v31", "v32"))
+            .build();
+
+    shell.setHiveSessionValue("hive.vectorized.complex.types.enabled", false);
+    String tableName = "complex";
+    shell.executeStatement("DROP TABLE IF EXISTS default." + tableName);
+    testTables.createTable(shell, tableName, complexSchema, fileFormat, complexRecords);
+
+    List<Object[]> rows = shell.executeStatement("SELECT id, st FROM default." + tableName +
+             " Lateral view explode(array_string) t as st order by id,st"
+    );
+
+    Assert.assertEquals(5, rows.size());
+    Assert.assertArrayEquals(new Object[] {100L, "v11"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {100L, "v12"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {200L, "v21"}, rows.get(2));
+    Assert.assertArrayEquals(new Object[] {300L, "v31"}, rows.get(3));
+    Assert.assertArrayEquals(new Object[] {300L, "v32"}, rows.get(4));
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
