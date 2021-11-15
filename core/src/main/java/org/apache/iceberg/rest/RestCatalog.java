@@ -44,6 +44,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.http.ErrorHandlers;
@@ -68,7 +69,6 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public void initialize(String name, Map<String, String> props) {
-    super.initialize(name, props);
     this.catalogName = name;
     this.properties = props;
 
@@ -85,11 +85,35 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     // TODO - We can possibly handle multiple warehouses via one RestCatalog to reuse the connection pool
     //        and for cross database calls if users need to authenticate with each.
-    restClient = HttpClient.builder()
+    this.restClient = HttpClient.builder()
         .baseUrl(String.format("%s/warehouse/%s", baseUrl, catalogName))
         .mapper(mapper)
         .defaultErrorHandler(ErrorHandlers.tableErrorHandler())
         .build();
+  }
+
+  // TODO - Pass in ObjectMapper too when testing.
+  @VisibleForTesting
+  public void initialize(
+      String name,
+      Map<String, String> props,
+      HttpClient httpClient) {
+    this.catalogName = name;
+    this.properties = props;
+
+    // TODO - Possibly authenticate with the server initially and then have the server return some of this information
+    Preconditions.checkNotNull(
+        properties.getOrDefault("baseUrl", null),
+        "Cannot initialize the RestCatalog as the baseUrl is a required parameter.");
+
+    this.baseUrl = properties.get("baseUrl");
+    this.fileIO = initializeFileIO(properties);
+
+    this.mapper = new ObjectMapper();
+    RequestResponseSerializers.registerAll(mapper);
+
+    // Pass in the mock client instead.
+    this.restClient = httpClient;
   }
 
   @Override
@@ -158,8 +182,19 @@ public class RestCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         .build();
 
     // TODO - This should come from the server side.
-    String path = properties.getOrDefault("create-namespace-path", "databases");
+    String path = properties.getOrDefault("create-namespace-path", "namespace");
     restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.databaseErrorHandler());
+  }
+
+  public CreateNamespaceResponse createDatabase(Namespace namespace, Map<String, String> props) {
+    CreateNamespaceRequest req = CreateNamespaceRequest.builder()
+        .withNamespace(namespace)
+        .withProperties(props)
+        .build();
+
+    // TODO - This should come from the server side.
+    String path = properties.getOrDefault("create-namespace-path", "namespace");
+    return restClient.post(path, req, CreateNamespaceResponse.class, ErrorHandlers.databaseErrorHandler());
   }
 
   @Override

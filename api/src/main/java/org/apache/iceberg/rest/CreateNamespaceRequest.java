@@ -44,6 +44,22 @@ public class CreateNamespaceRequest {
     this.properties = properties;
   }
 
+  public Namespace getNamespace() {
+    return namespace;
+  }
+
+  public void setNamespace(Namespace namespace) {
+    this.namespace = namespace;
+  }
+
+  public Map<String, String> getProperties() {
+    return properties;
+  }
+
+  public void setProperties(Map<String, String> properties) {
+    this.properties = properties;
+  }
+
   public static Builder builder() {
     return new Builder();
   }

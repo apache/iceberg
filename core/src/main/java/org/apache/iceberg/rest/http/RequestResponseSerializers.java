@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.apache.avro.data.Json;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -40,7 +41,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-
+import org.apache.iceberg.rest.CreateNamespaceRequest;
 
 public class RequestResponseSerializers {
 
@@ -164,4 +165,13 @@ public class RequestResponseSerializers {
       }
     }
   }
+
+  // public static class CreateNamespaceRequestSerializer extends JsonSerializer<CreateNamespaceRequest> {
+  //   @Override
+  //   public void serialize(CreateNamespaceRequest req, JsonGenerator gen, SerializerProvider serializers) {
+  //     try {
+  //       gen.writeObjectRef(req);
+  //     }
+  //   }
+  // }
 }

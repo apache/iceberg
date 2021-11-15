@@ -186,6 +186,10 @@ class TestTables {
 
   static class LocalFileIO implements FileIO {
 
+    LocalFileIO() {
+
+    }
+
     @Override
     public InputFile newInputFile(String path) {
       return Files.localInput(path);
