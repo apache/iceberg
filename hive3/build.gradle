@@ -17,6 +17,11 @@
  * under the License.
  */
 
+// overriding default versions for Hive3
+def hiveVersion = "3.1.2"
+def hadoopVersion = "3.1.0"
+def tezVersion = "0.10.1"
+
 project(':iceberg-hive3') {
 
   // run the tests in iceberg-mr with Hive3 dependencies
@@ -45,11 +50,11 @@ project(':iceberg-hive3') {
     compileOnly project(':iceberg-mr')
     compileOnly project(':iceberg-data')
 
-    compileOnly("org.apache.hadoop:hadoop-client:3.1.0") {
+    compileOnly("org.apache.hadoop:hadoop-client:${hadoopVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    compileOnly("org.apache.hive:hive-exec:3.1.2:core") {
+    compileOnly("org.apache.hive:hive-exec:${hiveVersion}:core") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
@@ -69,10 +74,10 @@ project(':iceberg-hive3') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    compileOnly("org.apache.hive:hive-metastore:3.1.2") {
+    compileOnly("org.apache.hive:hive-metastore:${hiveVersion}") {
       exclude group: 'org.apache.orc'
     }
-    compileOnly("org.apache.hive:hive-serde:3.1.2") {
+    compileOnly("org.apache.hive:hive-serde:${hiveVersion}") {
       exclude group: 'org.apache.orc'
     }
 
@@ -89,8 +94,8 @@ project(':iceberg-hive3') {
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.apache.orc'
     }
-    testImplementation("org.apache.tez:tez-dag:0.10.1")
-    testImplementation("org.apache.tez:tez-mapreduce:0.10.1")
+    testImplementation("org.apache.tez:tez-dag:${tezVersion}")
+    testImplementation("org.apache.tez:tez-mapreduce:${tezVersion}")
   }
 
   test {
