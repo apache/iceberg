@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
@@ -80,7 +81,7 @@ public class RowDataWrapper implements StructLike {
     throw new UnsupportedOperationException("Could not set a field in the RowDataWrapper because rowData is read-only");
   }
 
-  private interface PositionalGetter<T> {
+  private interface PositionalGetter<T> extends Serializable {
     T get(RowData data, int pos);
   }
 
