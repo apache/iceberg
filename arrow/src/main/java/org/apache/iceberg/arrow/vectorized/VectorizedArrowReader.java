@@ -412,12 +412,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private static final class PositionVectorReader extends VectorizedArrowReader {
-    private final Field arrowField = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
+    private static final Field ROW_POSITION_ARROW_FIELD = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
     private final BufferAllocator bufferAllocator = ArrowAllocation.rootAllocator();
     private final boolean setArrowValidityVector;
     private long rowStart;
     private int batchSize;
-    private FieldVector vec;
     private NullabilityHolder nulls;
 
     PositionVectorReader(boolean setArrowValidityVector) {
@@ -426,19 +425,23 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      FieldVector vec;
       if (reuse == null) {
-        this.vec = newVector();
-        this.nulls = newNullabilityHolder();
+        vec = newVector(batchSize);
       } else {
-        vec.setValueCount(0);
+        FieldVector reusedVector = reuse.vector();
+        reusedVector.setValueCount(0);
+        vec = reusedVector;
       }
 
       ArrowBuf dataBuffer = vec.getDataBuffer();
-      ArrowBuf validityBuffer = vec.getValidityBuffer();
-
       for (int i = 0; i < numValsToRead; i += 1) {
         dataBuffer.setLong((long) i * Long.BYTES, rowStart + i);
-        if (setArrowValidityVector) {
+      }
+
+      if (setArrowValidityVector) {
+        ArrowBuf validityBuffer = vec.getValidityBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
           BitVectorHelper.setBit(validityBuffer, i);
         }
       }
@@ -449,16 +452,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
     }
 
-    private BigIntVector newVector() {
-      BigIntVector vector = (BigIntVector) arrowField.createVector(bufferAllocator);
-      vector.allocateNew(batchSize);
+    private BigIntVector newVector(int valueCount) {
+      BigIntVector vector = (BigIntVector) ROW_POSITION_ARROW_FIELD.createVector(bufferAllocator);
+      vector.allocateNew(valueCount);
       return vector;
-    }
-
-    private NullabilityHolder newNullabilityHolder() {
-      NullabilityHolder nullabilityHolder = new NullabilityHolder(batchSize);
-      nullabilityHolder.setNotNulls(0, batchSize);
-      return nullabilityHolder;
     }
 
     @Override
@@ -474,13 +471,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setBatchSize(int batchSize) {
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+      this.nulls = newNullabilityHolder(batchSize);
+    }
+
+    private NullabilityHolder newNullabilityHolder(int size) {
+      NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
+      nullabilityHolder.setNotNulls(0, size);
+      return nullabilityHolder;
     }
 
     @Override
     public void close() {
-      if (vec != null) {
-        vec.close();
-      }
+      // don't close vectors as they are not owned by readers
     }
   }
 
