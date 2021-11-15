@@ -226,7 +226,7 @@ A name may contain `.` but this refers to a literal name, not a nested field. Fo
 
 Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
 
-Fields which exist only in the Iceberg schema and not in imported data files may be included as a `field-mapping` with an empty list of `names`.
+Fields which exist only in the Iceberg schema and not in imported data files may be included as `field-mapping`s with an empty `names` list.
 
 ##### field-id
 
