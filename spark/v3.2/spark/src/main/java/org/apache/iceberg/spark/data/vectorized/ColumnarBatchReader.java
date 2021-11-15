@@ -164,7 +164,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private void applyEqDelete(ColumnarBatch batch, int[] posDeleteRowIdMapping, int[] eqDeleteRowIdMapping) {
     int[] rowIdMapping = posDeleteRowIdMapping == null ? eqDeleteRowIdMapping : posDeleteRowIdMapping;
     Preconditions.checkArgument(rowIdMapping != null, "Row Id mapping cannot be null");
-    int numRows = batch.numRows();
 
     Predicate<InternalRow> eqDeletedRows = deletes.eqDeletedRows();
     Iterator<InternalRow> it = batch.rowIterator();
@@ -172,10 +171,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     int currentRowId = 0;
     while (it.hasNext()) {
       InternalRow row = it.next();
-      if (!eqDeletedRows.test(row)) {
-        // the row is deleted
-        numRows--;
-      } else {
+      if (eqDeletedRows.test(row)) {
+        // the row is NOT deleted
         // skip deleted rows by pointing to the next undeleted row Id
         rowIdMapping[currentRowId] = rowIdMapping[rowId];
         currentRowId++;
@@ -184,6 +181,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       rowId++;
     }
 
-    batch.setNumRows(numRows);
+    batch.setNumRows(currentRowId);
   }
 }
