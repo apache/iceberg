@@ -413,7 +413,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private static final class PositionVectorReader extends VectorizedArrowReader {
     private static final Field ROW_POSITION_ARROW_FIELD = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
-    private final BufferAllocator bufferAllocator = ArrowAllocation.rootAllocator();
     private final boolean setArrowValidityVector;
     private long rowStart;
     private int batchSize;
@@ -429,9 +428,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       if (reuse == null) {
         vec = newVector(batchSize);
       } else {
-        FieldVector reusedVector = reuse.vector();
-        reusedVector.setValueCount(0);
-        vec = reusedVector;
+        vec = reuse.vector();
+        vec.setValueCount(0);
       }
 
       ArrowBuf dataBuffer = vec.getDataBuffer();
@@ -452,10 +450,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
     }
 
-    private BigIntVector newVector(int valueCount) {
-      BigIntVector vector = (BigIntVector) ROW_POSITION_ARROW_FIELD.createVector(bufferAllocator);
+    private static BigIntVector newVector(int valueCount) {
+      BigIntVector vector = (BigIntVector) ROW_POSITION_ARROW_FIELD.createVector(ArrowAllocation.rootAllocator());
       vector.allocateNew(valueCount);
       return vector;
+    }
+
+    private static NullabilityHolder newNullabilityHolder(int size) {
+      NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
+      nullabilityHolder.setNotNulls(0, size);
+      return nullabilityHolder;
     }
 
     @Override
@@ -470,14 +474,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      if (nulls == null || nulls.size() < batchSize) {
+        this.nulls = newNullabilityHolder(batchSize);
+      }
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
-      this.nulls = newNullabilityHolder(batchSize);
-    }
-
-    private NullabilityHolder newNullabilityHolder(int size) {
-      NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
-      nullabilityHolder.setNotNulls(0, size);
-      return nullabilityHolder;
     }
 
     @Override

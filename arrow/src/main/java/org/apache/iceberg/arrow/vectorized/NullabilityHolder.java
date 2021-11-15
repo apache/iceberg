@@ -42,6 +42,10 @@ public class NullabilityHolder {
     Arrays.fill(nulls, (byte) 1);
   }
 
+  public int size() {
+    return isNull.length;
+  }
+
   public void setNull(int index) {
     isNull[index] = 1;
     numNulls++;
