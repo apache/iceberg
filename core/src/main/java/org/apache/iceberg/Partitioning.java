@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
@@ -264,5 +265,11 @@ public class Partitioning {
 
   private static boolean compatibleTransforms(Transform<?, ?> t1, Transform<?, ?> t2) {
     return t1.equals(t2) || t1.equals(Transforms.alwaysNull()) || t2.equals(Transforms.alwaysNull());
+  }
+
+  public static Set<Integer> partitionFieldSourceIds(PartitionSpec spec) {
+    return spec.fields().stream()
+        .map(PartitionField::sourceId)
+        .collect(Collectors.toSet());
   }
 }

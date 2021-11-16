@@ -86,4 +86,10 @@ public class SortOrderUtil {
           .collect(Collectors.toSet());
     }
   }
+
+  public static Set<Integer> sortFieldSourceIds(SortOrder sortOrder) {
+    return sortOrder.fields().stream()
+        .map(SortField::sourceId)
+        .collect(Collectors.toSet());
+  }
 }

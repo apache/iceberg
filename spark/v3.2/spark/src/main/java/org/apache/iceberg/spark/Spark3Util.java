@@ -33,6 +33,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -240,7 +241,8 @@ public class Spark3Util {
    * @return an array of Transforms
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
-    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema());
+    Set<Integer> partitionFieldSourceIds = Partitioning.partitionFieldSourceIds(spec);
+    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema(), partitionFieldSourceIds);
     List<Transform> transforms = PartitionSpecVisitor.visit(spec,
         new PartitionSpecVisitor<Transform>() {
           @Override

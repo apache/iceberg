@@ -205,7 +205,9 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
       }
     }
 
-    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(expectedSchema());
+    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(
+        expectedSchema(),
+        partitionFieldSourceIds);
 
     // the optimizer will look for an equality condition with filter attributes in a join
     // as the scan has been already planned, filtering can only be done on projected attributes

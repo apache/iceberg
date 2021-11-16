@@ -319,7 +319,12 @@ public class SparkSchemaUtil {
   }
 
   public static Map<Integer, String> indexQuotedNameById(Schema schema) {
+    return indexQuotedNameById(schema, null);
+  }
+
+  public static Map<Integer, String> indexQuotedNameById(Schema schema, Set<Integer> fieldIds) {
     Function<String, String> quotingFunc = name -> String.format("`%s`", name.replace("`", "``"));
-    return TypeUtil.indexQuotedNameById(schema.asStruct(), quotingFunc);
+    Schema projectedSchema = fieldIds != null ? TypeUtil.select(schema, fieldIds) : schema;
+    return TypeUtil.indexQuotedNameById(projectedSchema.asStruct(), quotingFunc);
   }
 }

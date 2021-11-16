@@ -20,17 +20,20 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.NullOrder;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.transforms.SortOrderVisitor;
+import org.apache.iceberg.util.SortOrderUtil;
 
 class SortOrderToSpark implements SortOrderVisitor<OrderField> {
 
   private final Map<Integer, String> quotedNameById;
 
-  SortOrderToSpark(Schema schema) {
-    this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
+  SortOrderToSpark(SortOrder sortOrder) {
+    Set<Integer> sortFieldSourceIds = SortOrderUtil.sortFieldSourceIds(sortOrder);
+    this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(sortOrder.schema(), sortFieldSourceIds);
   }
 
   @Override
