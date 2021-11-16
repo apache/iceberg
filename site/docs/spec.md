@@ -214,13 +214,9 @@ For example, a file may be written with schema `1: a int, 2: b string, 3: c doub
 
 Tables may also define a property `schema.name-mapping.default` with a JSON `name mapping` containing a list of `field mapping` objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
 
-##### field mapping
-
 * `names`: A required list of 0 or more names for a field. 
 * `field-id`: An optional Iceberg field ID used when a field's name is present in `names`
 * `fields`: An optional list of field mappings for child field of structs, maps, and lists.
-
-##### names
 
 A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. Each child field should be defined with their own `field-mapping` under `fields`
 
@@ -228,17 +224,15 @@ Multiple values for `names` may be mapped to a single field ID to support cases 
 
 Fields which exist only in the Iceberg schema and not in imported data files may be included as `field-mapping`s with an empty `names` list.
 
-##### field-id
-
 Fields that exist in imported files but not in the Iceberg schema may omit `field-id`.
-
-##### fields
 
 List types should contain a mapping in `fields` for `element`
 
 Map types should contain mappings in `fields` for `key` and `value`.
 
 Struct types should contain mappings for their child fields.
+
+For details on serialization see [Appendix F](#appendix-f-name-mapping-serialization)
 
 #### Identifier Field IDs
 
@@ -1110,3 +1104,13 @@ Writing v2 metadata:
     * `sort_columns` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
+
+## Appendix F: Name Mapping Serialization
+
+Name mapping is serialized as a list of field mapping JSON Objects which are serialized as follows
+
+|Field mapping field|JSON representation|Example|
+|--- |--- |--- |
+|**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
+|**`field_id`**|`JSON int`|`1`|
+|**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
