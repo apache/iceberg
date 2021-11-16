@@ -60,6 +60,8 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
         TableChange.setProperty(propsKey, propsValue)
     );
 
+    Assert.assertNotNull("Should return updated table", table);
+
     StructField expectedField = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
     Assert.assertEquals(table.schema().fields()[2], expectedField);
 
