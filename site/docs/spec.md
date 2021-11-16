@@ -1114,3 +1114,13 @@ Name mapping is serialized as a list of field mapping JSON Objects which are ser
 |**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
 |**`field_id`**|`JSON int`|`1`|
 |**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
+
+Example
+```json
+[ { "field-id": 1, "names": ["id", "record_id"] },
+   { "field-id": 2, "names": ["data"] },
+   { "field-id": 3, "names": ["location"], "fields": [
+       { "field-id": 4, "names": ["latitude", "lat"] },
+       { "field-id": 5, "names": ["longitude", "long"] }
+     ] } ]
+```
