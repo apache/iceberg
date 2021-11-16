@@ -271,7 +271,19 @@ public class Deletes {
         return false;
       }
 
-      return s1.toString().equals(s2.toString());
+      if (s1 instanceof String && s2 instanceof String && s1.hashCode() != s2.hashCode()) {
+        return false;
+      }
+
+      // File paths inside a delete file normally have more identical chars at the beginning. For example, a typical
+      // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
+      // The uuid is where the difference starts. So it's faster to find the first diff backward.
+      for (int i = count - 1; i >= 0; i--) {
+        if (s1.charAt(i) != s2.charAt(i)) {
+          return false;
+        }
+      }
+      return true;
     }
   }
 }
