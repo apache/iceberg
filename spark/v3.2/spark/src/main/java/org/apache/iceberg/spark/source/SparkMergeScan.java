@@ -70,6 +70,8 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     this.splitOpenFileCost = readConf.splitOpenFileCost();
 
     Preconditions.checkArgument(readConf.snapshotId() == null, "Can't set snapshot-id in options");
+    // updating the snapshot, Merge and update should work on the latest currentSnapshot
+    table.refresh();
     Snapshot currentSnapshot = table.currentSnapshot();
     this.snapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
 
