@@ -1,0 +1,798 @@
+---
+openapi: 3.0.3
+info:
+  title: Apache Iceberg REST Catalog API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.1
+servers:
+  - url: http://127.0.0.1:1080
+    description: URL Used for Mock-Server Unit Tests
+# All routes are currently configured using an Authorization header.
+security:
+- BearerAuth: []
+paths:
+  /v1/config:
+    get:
+      tags:
+      - Configuration API
+      summary: List all catalog configuration settings
+      operationId: getConfig
+      description:
+        All REST catalogs will be initialized by calling this route. This route
+        will return at least the minimum necessary metadata to initialize the
+        catalog. Optionally, it can also include server-side specific overrides.
+        For example, it might also include information used to initialize this catalog
+        such as the details of the Http connection pooling, etc. This route might
+        also advertise information about operations that are not implemented
+        so that the catalog can eagerly throw or go about another way of performing
+        the desired action.
+      responses:
+        default:
+          description: Server-Specific Configuration Overrides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergConfiguration'
+        "400":
+          description: Unknown Error
+        "401":
+          description: Invalid credentials provided
+  # TODO - This might be optional for now as it's not really supported in
+  #        the normal Catalog spec, but we might want to include it for
+  #        convenience.
+  /v1/catalog/{catalog}:
+    parameters:
+      - name: catalog
+        in: path
+        required: true
+        description: Name of the catalog being configured
+        schema:
+          type: string
+          minLength: 1
+    post:
+      tags:
+         - Configuration API
+      summary: Persist catalog specific configuration, which can be retrieved
+        for later use.
+      operationId: postConfig
+      description:
+        Persist some catalog specific configurations, which will be returned by \
+        calls to /v1/config in the future. This is basically all of the data \
+        that would go into the Catalog's `initialize` call.
+      # TODO - Make this into a CatalogConfiguration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Catalog'
+        required: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized / Invalid Credentials Provided
+  #############
+  # Table Ops #
+  #############
+  #
+  # TODO - Add examples of these to the schemas section.
+  #
+  # XX listTables: 
+  #
+  #  Return all identifiers under this namespace
+  #  throws:NotFoundException if the namespace is not found
+  #
+  #     List<TableIdentifier> listTables(Namespace namespace): listTables
+  #
+  # createTable:
+  #       default Table createTable(
+  #        TableIdentifier identifier,
+  #        Schema schema,
+  #        PartitionSpec spec,
+  #        String location,
+  #        Map<String, String> properties): createTable (4 versions)
+  #
+  # createTableTransaction:
+  #     Transaction newCreateTableTransaction(
+  #        TableIdentifier identifier,
+  #        Schema schema,
+  #        PartitionSpec spec,
+  #        String location,
+  #        Map<String, String> properties): createTableTransaction
+  #
+  # (createOr)replaceTableTransaction:
+  #     default Transaction newReplaceTableTransaction(
+  #        TableIdentifier identifier,
+  #        Schema schema,
+  #        PartitionSpec spec,
+  #        String location,
+  #        Map<String, String> properties,
+  #        boolean orCreate)
+  # 
+  # tableExists:
+  #     boolean tableExists(TableIdentifier identifier)
+  #
+  #
+  # dropTable (with or without purge):
+  #     dropTable(TableIdentifier identifier)
+  #
+  # XXXX
+  # renameTable:
+  #     renameTable(TableIdentifier from, TableIdentifier to)
+  #
+  # loadTable:
+  #     loadTable(TableIdentifier identifier)
+  #
+  ##################################################
+  
+  # Also consider /v1/tables/{identifier} (or do both?)
+  # loadTable
+  # createTable
+  /v1/namespaces/{namespace}/tables/{table}:
+    parameters:
+      # Consider moving this to query parameter so it can be more easily URL encoded
+      # due to the dots
+      - name: namespace
+        in: path
+        description: Namespace the table is in
+        required: true
+        schema:
+          type: string
+        examples:
+          singlepart_namespace:
+            value: "prod"
+          multipart_namespace:
+            value: "prod.accounting"
+      - name: table
+        in: path
+        description: Name of the table to load
+        required: true
+        schema:
+          type: string
+        example: "sales"
+    get:
+      tags:
+        - Catalog API
+      summary: Load a given table from a given namespace
+      operationId: loadTable
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTableResponse'
+        '401':
+          description: Unauthorized
+        # Using 412, `Precondition Failed`, instead of 404, as 404 makes monitoring response codes from ELBs
+        #  very difficult - Hard to tell if clients or servers are misconfigured and calling non-existent routes
+        #  or missing routes versus exoected error cases such as NoSuchTableException (expected meaning that
+        #  a person who is on call shouldn't be paged for this but 404 they might need to be).
+        '412':
+          description: NoSuchTableException
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchTableError'
+    put:
+      tags:
+        - Catalog API
+      summary: Commit an in progress create (or replace) table transaction
+      operationId: commitTable
+      description: Commit a pending create (or replace) table transaction, e.g. for doCommit.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitTableRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitTableResponse'
+        '401':
+          description: Unauthorized / Invalid Credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergResponseObject'
+    delete:
+      tags:
+        - Catalog API
+      summary: Drop a table from the catalog, optionally purging the underlying data
+      operationId: dropTable
+      description: Remove a table from the catalog, optionally dropping the underlying data
+      parameters:
+        - name: purge
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                type: boolean
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a table with a given identifier exists
+      operationId: tableExists
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '412':
+          description: Table Not Found
+  /v1/tables:
+    get:
+      tags:
+        - Catalog API
+      summary: List all table identifiers underneath a given namespace
+      description: Return all table identifiers under this namespace
+      operationId: listTables
+      parameters:
+        - name: namespace
+          description: Namespace under which to get identifiers. Can be one or more levels.
+          in: query
+          required: false
+          schema:
+            type: string
+          examples:
+            singlepart_namespace:
+              value: "prod"
+            # Note that this one would need to be normalized due to the dots. Maybe the route should change.
+            multipart_namespace:
+              value: "prod.accounting"
+        # TODO - There's a much more native way to handle pagination
+        - name: limit
+          description: number of values to return in one request
+          in: query
+          required: false
+          schema:
+            type: integer
+          example: 10
+        - name: offset
+          description: Place in the response to continue from if paginating
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTablesResponse'
+    post:
+      tags:
+        - Catalog API
+      summary: Create a table with the identifier given in the body
+      operationId: createTable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTableRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTableResponse'
+  /v1/tables/renameTable:
+    post:
+      tags:
+        - Catalog API
+      summary: Rename a table from its current name to a new name within the same catalog
+      description: Rename a table within the same catalog
+      operationId: renameTable
+      requestBody:
+        description: Current table identifier to rename and new table identifier to rename to
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameTableRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        # TODO - Probably 404 will cause monitoring headaches as it's very hard to monitor if a client made
+        #        a valid request, but the table didn't exist, or if a client has been misconfigured or has
+        #        some other sort of bug and is calling endpoints that don't exist.
+        #        Need to settle on a non-404 error code.
+        '412':
+          description: Table to rename from does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchTableError'
+              example:
+                '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 41202 }'
+        '409':
+          description: The new table identifier, the to table rename to, already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TableAlreadyExistsError'
+              example:
+                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40902 }'
+  /v1/namespaces/{namespace}/properties:
+    parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - Catalog API
+      summary: Load the metadata properties for a namespace
+      operationId: loadNamespaceMetadata
+      description: Return all stored properties for a given namespace
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        '417':
+          description: Namespace not found
+          # TODO - Make a canonical example for NamespaceNotFound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41701 }'
+    put:
+      tags:
+        - Catalog API
+      summary: Add or overwrite properties to an existing namespace
+      operationId: setNamespaceProperties
+      description:
+        Adds propertiess for a namespace. This will overwrite any existing properties,
+        and merge with the others.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemovePropertiesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                type: boolean
+        '417':
+          description: Namespace not found
+          # TODO - Make a canonical example for NamespaceNotFound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41701 }'
+        '409':
+          description: Namespace already exists
+          content:
+            applicaton/json:
+              schema:
+                $ref: '#/components/schemas/NamespaceAlreadyExistsError'
+              example:
+                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
+    post:
+      tags:
+        - Catalog API
+      summary: Overwrite a namespace's properties with a new set of properties
+      description: Set properties on a namespace
+      operationId: setProperties
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPropertiesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                example: '{ data: { success: true }, error: { } }'
+  # TODO - Pagination
+  /v1/namespaces/list:
+    parameters:
+      - name: namespace
+        in: query
+        description: Namespace under which to list namespaces. Leave empty to list all namespaces in the catalog
+        required: false
+        schema:
+          type: string
+    get:
+      tags:
+        - Catalog API
+      summary: List all namespaces, or all namespaces underneat a given namespace
+      description: List namespaces underneath a given namespace
+      operationId: listNamespaces
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListNamespacesResponse'
+        '401':
+          description: Unauthorized
+  /v1/namespaces/{namespace}:
+    parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags:
+        - Catalog API
+      summary: Create a namespace
+      description: Create a namespace, with an optional set of properties. The server might also add properties.
+      operationId: createNamespace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNamespaceRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+    get:
+      tags:
+        - Catalog API
+      summary: Get the configured properties of a namespace
+      operationId: getNamespace
+      responses:
+        '200':
+          description: OK
+          content:
+            'Application/JSON':
+              schema:
+                $ref: '#/components/schemas/GetNamespaceResponse'
+    delete:
+      tags:
+        - Catalog API
+      summary: Drop a namespace from the catalog. Namespace must be empty.
+      operationId: dropNamespace
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: boolean
+        # TODO - Not empty exception, No such namespace exception
+        '401':
+          description: Unauthorized
+components:
+  schemas:
+    CommitTableRequest:
+      type: object
+      properties:
+        tableIdentifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        metadataJson:
+          type: string
+    TableIdentifier:
+      type: object
+      required:
+      - namespace
+      properties:
+        namespace:
+          type: array
+          items:
+            type: string
+          nullable: false  # Note this is ignored
+        name:
+          pattern: \S
+          type: string
+          nullable: false
+    CommitTableResponse:
+      type: object
+      properties:
+        metadataLocation:
+          type: string
+        metadataJson:
+          type: string
+    RemovePropertiesRequest:
+      type: object
+      properties:
+        namespace:
+          type: string
+        properties:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+    Catalog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for this catalog
+        name:
+          type: string
+        location:
+          type: string
+          description: Warehouse location for this catalog or URI of metastore or other identifying location
+        properties:
+          type: object
+          description: Additional catalog level properties
+          default: {}
+      required:
+        - name
+        - properties
+    CreateNamespaceRequest:
+      type: object
+      properties:
+        namespace:
+          type: array
+          description: individual levels of the namespace
+          items:
+            type: string
+        properties:
+          type: object
+          description: Configuration properties for the namespace
+          example: '{ owner: "Hank Bendickson" }'
+    RenameTableRequest:
+      type: object
+      properties:
+        sourceTableIdentifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        destinationTableIdentifier:
+          $ref: '#/components/schemas/TableIdentifier'
+    CreateTableRequest:
+      type: object
+      properties:
+        identifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        schema:
+          $ref: '#/components/schemas/Schema'
+        partitionSpec:
+          $ref: '#/components/schemas/PartitionSpec'
+        sortOrder:
+          $ref: '#/components/schemas/SortOrder'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        metadataJson:
+          type: string
+        commit:
+          type: boolean
+    PartitionSpec:
+      type: object
+      properties:
+        unpartitioned:
+          type: boolean
+    Schema:
+      type: object
+      properties:
+        aliases:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+    SortOrder:
+      type: object
+      properties:
+        unsorted:
+          type: boolean
+    CreateTableResponse:
+      type: object
+      properties:
+        identifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        tableLocation:
+          type: string
+          description: "Path of of the table just before the standard  \
+            metadata / data folders. This is useful in cases where a different location
+            provider might be used"
+          example: s3://bucket/prod/accounting.db/monthly_sales
+        metadataLocation:
+          type: string
+          description: "Location of the most current primary metadata file for the table"
+          example: s3://bucket/prod/accounting.db/monthly_sales/metadata/00001-0d4ef14f-ef7d-43e7-9af-5f4ad40a1103.metadata.json
+        metadataJson:
+          type: string
+          description: "Stringified JSON representing the tables metadata"
+          example:
+            "TODO"
+        accessToken:
+          type: string
+    SetPropertiesRequest:
+      type: object
+      properties:
+        namespace:
+          type: string
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+    ListNamespacesResponse:
+      type: object
+      properties:
+        databases:
+          type: array
+          items:
+            $ref: '#/components/schemas/Namespace'
+    Namespace:
+      type: object
+      description: Reference to one or more levels of a namespace
+      properties:
+        empty:
+          type: boolean
+    GetNamespaceResponse:
+      type: object
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+    ListTablesResponse:
+      type: object
+      properties:
+        identifiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableIdentifier'
+    GetTableResponse:
+      type: object
+      properties:
+        identifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        location:
+          type: string
+        metadataLocation:
+          type: string
+        metadataJson:
+          type: string
+        schema:
+          $ref: '#/components/schemas/Schema'
+        partitionSpec:
+          $ref: '#/components/schemas/PartitionSpec'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+    TableMetadata:
+      type: object
+      properties:
+        currentSnapshotTo:
+          $ref: '#/components/schemas/TableMetadata'
+    IcebergConfiguration:
+      type: object
+      description: "Server-provided configuration for the catalog."
+      # Can add more fields here
+      properties:
+        rootPath:
+          minLength: 1
+          type: string
+          default: /v1
+          nullable: false
+          description:
+            Root path to be used for all other requests. Only
+            the configuration route needs to be a well defined path, though
+            using the suggested route names is preferred (and required to interoperate
+            with the given URI genration etc).
+        catalogProperties:
+          type: object
+          nullable: true
+          description:
+            An optional field for storing catalog configuration properties that
+            are stored server side. This could be beneifical to an administrator,
+            for example to enforce that a given LocationProvider is used or to
+            enforce that a certain FileIO implementation is used.
+    NoSuchNamespaceError:
+      allOf:
+        - $ref: '#/components/schemas/ResponseErrorObject'
+      description: Namespace provided in the request does not exist
+    NamespaceAlreadyExistsError:
+      allOf:
+        - $ref: '#/components/schemas/ResponseErrorObject'
+      description: Namespace provided in the request already exists
+    NoSuchTableError:
+      allOf:
+        - $ref: '#/components/schemas/ResponseErrorObject'
+      description: The given table identifier does not exist
+    TableAlreadyExistsError:
+      allOf:
+        - $ref: '#/components/schemas/ResponseErrorObject'
+      description: the given table identifier already exists and cannot be created / renamed to
+    IcebergResponseObject:
+      type: object
+      description: JSON wrapper for all response bodies, with a data object and / or an error object
+      properties:
+        data:
+          $ref: '#/components/schemas/ResponseDataObject'
+        error:
+          $ref: '#/components/schemas/ResponseErrorObject'
+      example: "{ data: { }, error: { } }"
+    ResponseDataObject:
+      type: object
+      description: JSON data payload returned in a successful response body.
+      example: '{ data: { identifiers: [ "office.employees", "office.dogs", "office.cats" ] }'
+    ResponseErrorObject:
+      type: object
+      description: Error portion embedded in all JSON responses with further details of the error
+      properties:
+        message:
+          type: string
+          description: Human-readable error message
+        type:
+          type: string
+          description: Machine-type of the errror, such as an exception class
+        code:
+          type: integer
+          description: Application specific error code, to disambiguage amongst subclasses of HTTP responses
+          example: 40101
+        metadata:
+          type: object
+          description: Additional metadata to accompany this error, such as server side stack traces or user instructions
+          nullable: true
+      required:
+        - message
+        - type
+        - code
+  examples:
+    catalogName:
+      value: prod
+    namespace:
+      value: prod.accounting
+    no_such_table_error:
+      value: |-
+        {
+          message: "The given table does not exist",
+          type: "NoSuchTableException",
+          code: 40101
+        }
+
+    no_such_iceberg_table_eror:
+      value: |-
+        {
+          message: "The given table does not exist",
+          type: "NoSuchTableException",
+          code: 40101
+        }
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
