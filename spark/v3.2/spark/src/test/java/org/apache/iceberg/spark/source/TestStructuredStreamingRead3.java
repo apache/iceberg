@@ -31,6 +31,7 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -56,6 +57,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -245,6 +247,46 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  @Ignore("Existing logic doesn't work when the expired snapshot gets deleted")
+  public void testReadingStreamWithExpiredSnapshotFromTimestamp() throws TimeoutException {
+    List<SimpleRecord> firstSnapshotRecordList = Lists.newArrayList(
+            new SimpleRecord(1, "one"));
+
+    List<SimpleRecord> secondSnapshotRecordList = Lists.newArrayList(
+            new SimpleRecord(2, "two"));
+
+    List<SimpleRecord> thirdSnapshotRecordList = Lists.newArrayList(
+            new SimpleRecord(3, "three"));
+
+    List<SimpleRecord> expectedRecordList = Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(3, "three"));
+
+    appendData(firstSnapshotRecordList, tableIdentifier, "parquet");
+    table.refresh();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(firstSnapshot.timestampMillis()))
+            .load(tableIdentifier);
+
+    appendData(secondSnapshotRecordList, tableIdentifier, "parquet");
+    table.refresh();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    appendData(thirdSnapshotRecordList, tableIdentifier, "parquet");
+    table.refresh();
+
+    table.expireSnapshots().expireSnapshotId(secondSnapshot.snapshotId()).commit();
+    table.refresh();
+
+    List<SimpleRecord> actual = processAvailable(df);
+    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expectedRecordList));
   }
 
   @SuppressWarnings("unchecked")

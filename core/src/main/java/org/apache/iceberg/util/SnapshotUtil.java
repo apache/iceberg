@@ -79,8 +79,11 @@ public class SnapshotUtil {
       return null;
     }
 
-    while (current.parentId() != null && table.snapshot(current.parentId()).timestampMillis() >= timestamp) {
-      current = table.snapshot(current.parentId());
+    for (Snapshot snapshot : table.snapshots()) {
+      if (snapshot.timestampMillis() >= timestamp
+              && current.timestampMillis() > snapshot.timestampMillis()) {
+        current = snapshot;
+      }
     }
 
     return current;
