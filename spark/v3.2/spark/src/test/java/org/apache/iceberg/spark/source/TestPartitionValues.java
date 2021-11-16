@@ -435,4 +435,55 @@ public class TestPartitionValues {
 
     Assert.assertEquals("Number of rows should match", rows.size(), actual.size());
   }
+
+  @Test
+  public void testPartitionedByNotConstantCompoundNestedString() throws Exception {
+    // this struct field is not a constant struct type since not all subfields are constants
+    Schema nestedSchema = new Schema(
+            Types.NestedField.required(1, "col1",
+                    Types.StructType.of(
+                            Types.NestedField.required(2, "col2", Types.StringType.get()),
+                            Types.NestedField.required(3, "col3", Types.IntegerType.get()))
+            )
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("col1.col2").build();
+
+    // create table
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    String baseLocation = temp.newFolder("partition_by_nested_col1.col2").toString();
+    tables.create(nestedSchema, spec, baseLocation);
+
+    // input data frame
+    StructField[] structFields = {
+        new StructField("col1",
+            DataTypes.createStructType(
+              new StructField[] {
+                  new StructField("col2", DataTypes.StringType, false, Metadata.empty()),
+                  new StructField("col3", DataTypes.IntegerType, false, Metadata.empty())
+              }
+          ),
+          false, Metadata.empty()
+        )
+    };
+
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(RowFactory.create("nested_partition_field_value", 123)));
+    Dataset<Row> sourceDF = spark.createDataFrame(rows, new StructType(structFields));
+
+    // write into iceberg
+    sourceDF.write()
+            .format("iceberg")
+            .option(WRITE_FORMAT, format)
+            .mode(SaveMode.Append)
+            .save(baseLocation);
+
+    // verify
+    List<Row> actual = spark.read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(baseLocation)
+            .collectAsList();
+
+    Assert.assertEquals("Number of rows should match", rows.size(), actual.size());
+  }
 }
