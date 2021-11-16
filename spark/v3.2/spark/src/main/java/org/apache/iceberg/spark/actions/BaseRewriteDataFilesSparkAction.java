@@ -327,6 +327,8 @@ abstract class BaseRewriteDataFilesSparkAction
       LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual " +
           "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation " +
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
+      throw new ValidationException(
+          "No rewrite commits succeeded after " + PARTIAL_PROGRESS_MAX_COMMITS + " times committed");
     }
 
     List<FileGroupRewriteResult> rewriteResults = commitResults.stream()
