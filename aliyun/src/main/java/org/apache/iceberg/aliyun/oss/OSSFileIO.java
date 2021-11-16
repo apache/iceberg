@@ -30,7 +30,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 
 /**
- * FileIO implementation backend by OSS.
+ * FileIO implementation backed by OSS.
  * <p>
  * Locations used must follow the conventions for OSS URIs (e.g. oss://bucket/path...).
  * URIs with scheme https are also treated as oss file paths.

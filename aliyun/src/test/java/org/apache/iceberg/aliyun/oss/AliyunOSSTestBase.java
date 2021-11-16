@@ -20,7 +20,6 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.After;
 import org.junit.Before;
@@ -34,20 +33,14 @@ public abstract class AliyunOSSTestBase {
   private final String bucketName = OSS_TEST_RULE.testBucketName();
   private final String keyPrefix = OSS_TEST_RULE.keyPrefix();
 
-  private OSSFileIO fileIO;
-
   @Before
   public void before() {
-    fileIO = new OSSFileIO(ossClient);
-
     OSS_TEST_RULE.setUpBucket(bucketName);
   }
 
   @After
   public void after() {
     OSS_TEST_RULE.tearDownBucket(bucketName);
-
-    fileIO.close();
   }
 
   protected String location(String key) {
@@ -56,9 +49,5 @@ public abstract class AliyunOSSTestBase {
 
   protected SerializableSupplier<OSS> ossClient() {
     return ossClient;
-  }
-
-  protected FileIO fileIO() {
-    return fileIO;
   }
 }

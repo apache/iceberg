@@ -40,15 +40,27 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.SerializationUtil;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestOSSFileIO extends AliyunOSSTestBase {
   private static final String OSS_IMPL_CLASS = OSSFileIO.class.getName();
-
-  private final OSS ossClient = ossClient().get();
-  private final Random random = ThreadLocalRandom.current();
   private final Configuration conf = new Configuration();
+  private final Random random = ThreadLocalRandom.current();
+
+  private FileIO fileIO;
+
+  @Before
+  public void beforeFile() {
+    fileIO = new OSSFileIO(ossClient());
+  }
+
+  @After
+  public void afterFile() {
+    fileIO.close();
+  }
 
   @Test
   public void testOutputFile() throws IOException {
@@ -57,14 +69,12 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     byte[] data = randomData(dataSize);
 
     OutputFile out = fileIO().newOutputFile(location);
-    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
-      ByteStreams.copy(is, os);
-    }
+    writeOSSData(out, data);
 
     OSSURI uri = new OSSURI(location);
-    Assert.assertTrue("OSS file should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
+    Assert.assertTrue("OSS file should exist", ossClient().get().doesObjectExist(uri.bucket(), uri.key()));
     Assert.assertEquals("Should have expected location", location, out.location());
-    Assert.assertEquals("Should have expected length", ossDataLength(uri), dataSize);
+    Assert.assertEquals("Should have expected length", dataSize, ossDataLength(uri));
     Assert.assertArrayEquals("Should have expected content", data, ossDataContent(uri, dataSize));
   }
 
@@ -77,9 +87,7 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
     OutputFile out = fileIO().newOutputFile(location);
-    try (OutputStream os = out.createOrOverwrite(); InputStream is = new ByteArrayInputStream(data)) {
-      ByteStreams.copy(is, os);
-    }
+    writeOSSData(out, data);
 
     Assert.assertTrue("OSS file should exist", in.exists());
     Assert.assertEquals("Should have expected location", location, in.location());
@@ -93,9 +101,7 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
     OutputFile out = fileIO().newOutputFile(location);
-    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
-      ByteStreams.copy(is, os);
-    }
+    writeOSSData(out, data);
 
     InputFile in = fileIO().newInputFile(location);
     Assert.assertTrue("OSS file should exist", in.exists());
@@ -105,10 +111,10 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
 
   @Test
   public void testLoadFileIO() {
-    FileIO fileIO = CatalogUtil.loadFileIO(OSS_IMPL_CLASS, ImmutableMap.of(), conf);
-    Assert.assertTrue("Should be OSSFileIO", fileIO instanceof OSSFileIO);
+    FileIO file = CatalogUtil.loadFileIO(OSS_IMPL_CLASS, ImmutableMap.of(), conf);
+    Assert.assertTrue("Should be OSSFileIO", file instanceof OSSFileIO);
 
-    byte[] data = SerializationUtil.serializeToBytes(fileIO);
+    byte[] data = SerializationUtil.serializeToBytes(file);
     FileIO expectedFileIO = SerializationUtil.deserializeFromBytes(data);
     Assert.assertTrue("The deserialized FileIO should be OSSFileIO", expectedFileIO instanceof OSSFileIO);
   }
@@ -135,6 +141,10 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
         accessSecret, oss.getCredentialsProvider().getCredentials().getSecretAccessKey());
   }
 
+  private FileIO fileIO() {
+    return fileIO;
+  }
+
   private String randomLocation() {
     return location(String.format("%s.dat", UUID.randomUUID()));
   }
@@ -146,14 +156,20 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
   }
 
   private long ossDataLength(OSSURI uri) {
-    return ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength();
+    return ossClient().get().getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength();
   }
 
   private byte[] ossDataContent(OSSURI uri, int dataSize) throws IOException {
-    try (InputStream is = ossClient.getObject(uri.bucket(), uri.key()).getObjectContent()) {
+    try (InputStream is = ossClient().get().getObject(uri.bucket(), uri.key()).getObjectContent()) {
       byte[] actual = new byte[dataSize];
       ByteStreams.readFully(is, actual);
       return actual;
+    }
+  }
+
+  private void writeOSSData(OutputFile out, byte[] data) throws IOException {
+    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
+      ByteStreams.copy(is, os);
     }
   }
 
