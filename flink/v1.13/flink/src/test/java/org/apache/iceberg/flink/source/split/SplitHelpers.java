@@ -50,7 +50,7 @@ public class SplitHelpers {
   }
 
   public static List<IcebergSourceSplit> createMockedSplits(int splitCount) {
-    final List<IcebergSourceSplit> splits = new ArrayList<>();
+    List<IcebergSourceSplit> splits = new ArrayList<>();
     for (int i = 0; i < splitCount; ++i) {
       // make sure each task has a different length,
       // as it is part of the splitId calculation.
@@ -62,33 +62,41 @@ public class SplitHelpers {
     return splits;
   }
 
+  /**
+   * Unlike {@link SplitHelpers#createMockedSplits(int)} above, this is to generate some
+   * realistic IcebergSourceSplit with actual file paths.
+   *
+   * Actual data files are already deleted before return. Caller shouldn't attempt to read the
+   * data files. They are intended for serializer or enumerator unit test (without actual reading).
+   */
   public static List<IcebergSourceSplit> createFileSplits(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
-    final File warehouseFile = temporaryFolder.newFolder();
+    File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
-    final String warehouse = "file:" + warehouseFile;
+    String warehouse = "file:" + warehouseFile;
     org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
-    final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
+    HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
     try {
-      final Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
-      final GenericAppenderHelper dataAppender = new GenericAppenderHelper(
+      Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+      GenericAppenderHelper dataAppender = new GenericAppenderHelper(
           table, FileFormat.PARQUET, temporaryFolder);
       for (int i = 0; i < fileCount; ++i) {
         List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 2, i);
         dataAppender.appendToTable(records);
       }
 
-      final ScanContext scanContext = ScanContext.builder().build();
-      final List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext);
+      ScanContext scanContext = ScanContext.builder().build();
+      List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext);
       return splits.stream()
           .flatMap(split -> {
             List<List<FileScanTask>> filesList = Lists.partition(new ArrayList<>(split.task().files()), filesPerSplit);
             return filesList.stream()
                 .map(files ->  new BaseCombinedScanTask(files))
-                .map(combinedScanTask -> IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
+                .map(IcebergSourceSplit::fromCombinedScanTask);
           })
           .collect(Collectors.toList());
     } finally {
+      // drop the table and data files as caller shouldn't actually read the data files
       catalog.dropTable(TestFixtures.TABLE_IDENTIFIER);
       catalog.close();
     }

@@ -75,7 +75,7 @@ public class Position implements Serializable {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    final Position that = (Position) o;
+    Position that = (Position) o;
     return Objects.equals(fileOffset, that.fileOffset) &&
         Objects.equals(recordOffset, that.recordOffset);
   }

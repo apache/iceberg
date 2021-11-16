@@ -43,7 +43,7 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
   @Override
   public byte[] serialize(IcebergSourceSplit split) throws IOException {
     if (split.serializedBytesCache() == null) {
-      final byte[] result = serializeV1(split);
+      byte[] result = serializeV1(split);
       split.serializedBytesCache(result);
     }
     return split.serializedBytesCache();

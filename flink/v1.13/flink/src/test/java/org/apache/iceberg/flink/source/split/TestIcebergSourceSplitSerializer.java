@@ -41,15 +41,15 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void serializeAndDeserialize(int splitCount, int filesPerSplit) throws Exception {
-    final List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
-      final byte[] result = serializer.serialize(split);
-      final IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
+      byte[] result = serializer.serialize(split);
+      IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
       Assert.assertEquals(split, deserialized);
 
-      final byte[] cachedResult = serializer.serialize(split);
+      byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
-      final IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
+      IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
       Assert.assertEquals(split, deserialized2);
     }
   }
@@ -61,20 +61,20 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void serializeAndDeserializeV1(int splitCount, int filesPerSplit) throws Exception {
-    final List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
-      final byte[] result = serializer.serializeV1(split);
-      final IcebergSourceSplit deserialized = serializer.deserializeV1(result);
+      byte[] result = serializer.serializeV1(split);
+      IcebergSourceSplit deserialized = serializer.deserializeV1(result);
       Assert.assertEquals(split, deserialized);
     }
   }
 
   @Test
   public void testCheckpointedPosition() throws Exception {
-    final AtomicInteger index = new AtomicInteger();
-    final List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, 10, 2).stream()
+    AtomicInteger index = new AtomicInteger();
+    List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, 10, 2).stream()
         .map(split -> {
-          final IcebergSourceSplit result;
+          IcebergSourceSplit result;
           if (index.get() % 2 == 0) {
             result = IcebergSourceSplit.fromCombinedScanTask(split.task(), index.get(), index.get());
           } else {
@@ -86,13 +86,13 @@ public class TestIcebergSourceSplitSerializer {
         .collect(Collectors.toList());
 
     for (IcebergSourceSplit split : splits) {
-      final byte[] result = serializer.serialize(split);
-      final IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
+      byte[] result = serializer.serialize(split);
+      IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
       Assert.assertEquals(split, deserialized);
 
-      final byte[] cachedResult = serializer.serialize(split);
+      byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
-      final IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
+      IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
       Assert.assertEquals(split, deserialized2);
     }
   }
