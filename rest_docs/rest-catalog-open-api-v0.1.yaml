@@ -73,9 +73,9 @@ paths:
           description: OK
         '401':
           description: Unauthorized / Invalid Credentials Provided
-  #############
-  # Table Ops #
-  #############
+  ###########################
+  # Table-level Catalog Ops #
+  ###########################
   #
   # TODO - Add examples of these to the schemas section.
   #
@@ -126,10 +126,12 @@ paths:
   #     loadTable(TableIdentifier identifier)
   #
   ##################################################
+
+  ###############################
+  # Namespace Level Catalog Ops #
+  ###############################
   
-  # Also consider /v1/tables/{identifier} (or do both?)
-  # loadTable
-  # createTable
+  # Also consider /v1/tables/{identifier}
   /v1/namespaces/{namespace}/tables/{table}:
     parameters:
       # Consider moving this to query parameter so it can be more easily URL encoded
