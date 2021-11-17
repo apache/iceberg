@@ -4,7 +4,7 @@ info:
   title: Apache Iceberg REST Catalog API
   license:
     name: Apache 2.0
-    url: http://www.apache.org/licenses/LICENSE-2.0.html
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
   version: 0.0.1
 servers:
   - url: http://127.0.0.1:1080
@@ -118,7 +118,6 @@ paths:
   # dropTable (with or without purge):
   #     dropTable(TableIdentifier identifier)
   #
-  # XXXX
   # renameTable:
   #     renameTable(TableIdentifier from, TableIdentifier to)
   #
@@ -134,8 +133,8 @@ paths:
   # Also consider /v1/tables/{identifier}
   /v1/namespaces/{namespace}/tables/{table}:
     parameters:
-      # Consider moving this to query parameter so it can be more easily URL encoded
-      # due to the dots
+      # Consider moving this to query parameters,so it can be more easily URL encoded
+      # in case of dots or special characters
       - name: namespace
         in: path
         description: Namespace the table is in
@@ -170,7 +169,7 @@ paths:
           description: Unauthorized
         # Using 412, `Precondition Failed`, instead of 404, as 404 makes monitoring response codes from ELBs
         #  very difficult - Hard to tell if clients or servers are misconfigured and calling non-existent routes
-        #  or missing routes versus exoected error cases such as NoSuchTableException (expected meaning that
+        #  or missing routes versus expected error cases such as NoSuchTableException (expected meaning that
         #  a person who is on call shouldn't be paged for this but 404 they might need to be).
         '412':
           description: NoSuchTableException
@@ -647,8 +646,6 @@ components:
           type: string
         properties:
           type: object
-          additionalProperties:
-            type: string
     ListNamespacesResponse:
       type: object
       properties:
