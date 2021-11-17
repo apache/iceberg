@@ -621,7 +621,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
         try {
-          newFiles.forEach(f -> writer.add(f, newFilesSequenceNumber));
+          if (newFilesSequenceNumber == null) {
+            writer.addAll(newFiles);
+          } else {
+            newFiles.forEach(f -> writer.add(f, newFilesSequenceNumber));
+          }
         } finally {
           writer.close();
         }

@@ -111,7 +111,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * @param addedFile a data file
    * @param sequenceNumber sequence number for the data file
    */
-  public void add(F addedFile, Long sequenceNumber) {
+  public void add(F addedFile, long sequenceNumber) {
     addEntry(reused.wrapAppend(snapshotId, sequenceNumber, addedFile));
   }
 
