@@ -30,13 +30,11 @@ free to just open a [new issue](https://github.com/apache/iceberg/issues/new) in
 
 ## Pull Request Process
 
-Pull requests are the preferred mechanism for contributing to Iceberg. PRs will be automatically labeled based on
-the content by our github-actions labeling bot. Although it is not required, if the PR is related to an issue, it's
-helpful to prefix your PR title with the issue number surrounded by brackets, for example `Closes #1234 <PR title>`.
-With this format of issue reference in the PR title, the issue will be automatically closed when the PR is merged.
-It's also helpful to include additional prefixes that help provide context to PR reviewers, such as `Build:`, `Docs:`, 
-`Spark:`, `Flink:`, `Core:`, `API:`. Another thing to keep in mind is that if it's a PR that you've opened for
-visibility and may not necessarily be ready for review or merging, be sure to convert the PR to a draft.
+Pull requests are the preferred mechanism for contributing to Iceberg
+* PRs are automatically labeled based on the content by our github-actions labeling action
+* It's helpful to include a prefix in the summary that provides context to PR reviewers, such as `Build:`, `Docs:`, `Spark:`, `Flink:`, `Core:`, `API:`
+* If a PR is related to an issue, adding `Closes #1234` in the PR description will automatically close the issue and helps keep the project clean
+* If a PR is posted for visibility and isn't necessarily ready for review or merging, be sure to convert the PR to a draft
 
 ## Building the Project Locally
 
