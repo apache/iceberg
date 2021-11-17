@@ -25,27 +25,9 @@ import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 
 public interface AliyunClientFactory extends Serializable {
-  /**
-   * Create an aliyun OSS client.
-   *
-   * @return oss client.
-   */
-  OSS oss();
-
-  /**
-   * Initialize Aliyun client factory from catalog properties.
-   *
-   * @param properties catalog properties
-   */
-  void initialize(Map<String, String> properties);
-
-  /**
-   * Returns an initialized {@link AliyunProperties}
-   */
-  AliyunProperties aliyunProperties();
 
   static AliyunClientFactory load(Map<String, String> properties) {
-    String impl = properties.getOrDefault("client.factory", DefaultAliyunClientFactory.class.getName());
+    String impl = properties.getOrDefault(AliyunProperties.CLIENT_FACTORY, DefaultAliyunClientFactory.class.getName());
     return load(impl, properties);
   }
 
@@ -76,4 +58,23 @@ public interface AliyunClientFactory extends Serializable {
     factory.initialize(properties);
     return factory;
   }
+
+  /**
+   * Create an aliyun OSS client.
+   *
+   * @return oss client.
+   */
+  OSS oss();
+
+  /**
+   * Initialize Aliyun client factory from catalog properties.
+   *
+   * @param properties catalog properties
+   */
+  void initialize(Map<String, String> properties);
+
+  /**
+   * Returns an initialized {@link AliyunProperties}
+   */
+  AliyunProperties aliyunProperties();
 }
