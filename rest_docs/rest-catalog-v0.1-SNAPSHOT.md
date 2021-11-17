@@ -437,6 +437,8 @@ System.out.println(response.toString());
 
 *Check if a table with a given identifier exists*
 
+Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will return a TableNotFound error if not present. Can change to returning a 200 with a body of `false` if not found, but that does add more wok on the client.
+
 <h3 id="tableexists-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
