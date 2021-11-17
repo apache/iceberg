@@ -52,6 +52,17 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   }
 
   /**
+   * Add a rewrite that replaces one set of data files with another set that contains the same data.
+   * The sequence number provided will be used for all the data files added.
+   *
+   * @param filesToDelete  files that will be replaced (deleted), cannot be null or empty.
+   * @param filesToAdd     files that will be added, cannot be null or empty.
+   * @param sequenceNumber sequence number to use for all data files added
+   * @return this for method chaining
+   */
+  RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber);
+
+  /**
    * Add a rewrite that replaces one set of files with another set that contains the same data.
    *
    * @param dataFilesToReplace   data files that will be replaced (deleted).

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -80,6 +81,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private Long newFilesSequenceNumber;
   private final Map<Integer, List<DeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -297,7 +299,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Iterable<DataFile> dataFiles) {
-    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, true);
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, true,
+        newFilesSequenceNumber != null);
   }
 
   /**
@@ -313,6 +316,28 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Expression dataFilter, Iterable<DataFile> dataFiles,
                                                   boolean caseSensitive) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, dataFilter, dataFiles, caseSensitive, false);
+  }
+
+  /**
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot, with the option to ignore equality deletes during the validation.
+   * <p>
+   * For example, in the case of rewriting data files, if the added data files have the same sequence number as the
+   * replaced data files, equality deletes added at a higher sequence number are still effective against the added
+   * data files, so there is no risk of commit conflict between RewriteFiles and RowDelta. In cases like this,
+   * validation against equality delete files can be omitted.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter a data filter
+   * @param dataFiles data files to validate have no new row deletes
+   * @param caseSensitive whether expression binding should be case-sensitive
+   * @param ignoreEqualityDeletes whether equality deletes should be ignored in validation
+   */
+  private void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                Expression dataFilter, Iterable<DataFile> dataFiles,
+                                                boolean caseSensitive, boolean ignoreEqualityDeletes) {
     // if there is no current table state, no files have been added
     if (base.currentSnapshot() == null || base.formatVersion() < 2) {
       return;
@@ -327,8 +352,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     for (DataFile dataFile : dataFiles) {
       // if any delete is found that applies to files written in or before the starting snapshot, fail
-      if (deletes.forDataFile(startingSequenceNumber, dataFile).length > 0) {
-        throw new ValidationException("Cannot commit, found new delete for replaced data file: %s", dataFile);
+      DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+      if (ignoreEqualityDeletes) {
+        ValidationException.check(
+            Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
+            "Cannot commit, found new position delete for replaced data file: %s", dataFile);
+      } else {
+        ValidationException.check(deleteFiles.length == 0,
+            "Cannot commit, found new delete for replaced data file: %s", dataFile);
       }
     }
   }
@@ -358,6 +389,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     ValidationException.check(deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+  }
+
+  protected void setNewFilesSequenceNumber(long sequenceNumber) {
+    this.newFilesSequenceNumber = sequenceNumber;
   }
 
   private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
@@ -591,7 +626,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
         try {
-          writer.addAll(newFiles);
+          if (newFilesSequenceNumber == null) {
+            writer.addAll(newFiles);
+          } else {
+            newFiles.forEach(f -> writer.add(f, newFilesSequenceNumber));
+          }
         } finally {
           writer.close();
         }
