@@ -26,6 +26,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
@@ -1133,5 +1134,89 @@ public class TestRowDelta extends V2TableTestBase {
     rowDelta.commit();
 
     validateTableDeleteFiles(table, deleteFile1, deleteFile2);
+  }
+
+  @Test
+  public void testConcurrentNonConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add an equality delete file
+    DeleteFile deleteFile1 = newEqualityDeleteFile(table.spec().specId(), "data=a",
+        table.schema().asStruct().fields().get(0).fieldId());
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile2 = newDataFile("data=a");
+
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    rowDelta.commit();
+    rewriteFiles.commit();
+
+    validateTableDeleteFiles(table, deleteFile1);
+    validateTableFiles(table, dataFile2);
+  }
+
+  @Test
+  public void testConcurrentConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add an position delete file
+    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "data=a");
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile2 = newDataFile("data=a");
+
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    rowDelta.commit();
+
+    AssertHelpers.assertThrows("Should not allow any new position delete associated with the data file",
+        ValidationException.class,
+        "Cannot commit, found new position delete for replaced data file",
+        rewriteFiles::commit);
   }
 }
