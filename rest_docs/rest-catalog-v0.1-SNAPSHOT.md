@@ -24,7 +24,7 @@ Base URLs:
 
 * <a href="http://127.0.0.1:1080">http://127.0.0.1:1080</a>
 
-License: <a href="http://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</a>
+License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</a>
 
 # Authentication
 
@@ -944,10 +944,7 @@ Set properties on a namespace
 ```json
 {
   "namespace": "string",
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  }
+  "properties": {}
 }
 ```
 
@@ -958,7 +955,6 @@ Set properties on a namespace
 |body|body|[SetPropertiesRequest](#schemasetpropertiesrequest)|true|none|
 |» namespace|body|string|false|none|
 |» properties|body|object|false|none|
-|»» **additionalProperties**|body|string|false|none|
 |namespace|path|string|true|none|
 
 > Example responses
@@ -1574,10 +1570,7 @@ BearerAuth
 ```json
 {
   "namespace": "string",
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  }
+  "properties": {}
 }
 
 ```
@@ -1588,7 +1581,6 @@ BearerAuth
 |---|---|---|---|---|
 |namespace|string|false|none|none|
 |properties|object|false|none|none|
-|» **additionalProperties**|string|false|none|none|
 
 <h2 id="tocS_ListNamespacesResponse">ListNamespacesResponse</h2>
 <!-- backwards compatibility -->
