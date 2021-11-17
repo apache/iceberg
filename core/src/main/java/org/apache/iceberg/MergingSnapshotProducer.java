@@ -322,6 +322,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /**
    * Validates that no new delete files that must be applied to the given data files have been added to the table since
    * a starting snapshot, with the option to ignore equality deletes during the validation.
+   * <p>
+   * For example, in the case of rewriting data files, if the added data files have the same sequence number as the
+   * replaced data files, equality deletes added at a higher sequence number are still effective against the added
+   * data files, so there is no risk of commit conflict between RewriteFiles and RowDelta. In cases like this,
+   * validation against equality delete files can be omitted.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
