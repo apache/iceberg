@@ -21,13 +21,13 @@ package org.apache.iceberg.spark;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -62,23 +62,23 @@ public abstract class SparkSpecifyCatalogTestBase extends SparkTestBase {
   protected final String implementation;
 
   public SparkSpecifyCatalogTestBase() {
-    this(SparkCatalogType.TEST_HADOOP, null);
+    this(SparkCatalogConfig.SPARK_CATALOG_HADOOP, null);
   }
 
-  public SparkSpecifyCatalogTestBase(SparkCatalogType sparkCatalogType) {
+  public SparkSpecifyCatalogTestBase(SparkCatalogConfig sparkCatalogType) {
     this(sparkCatalogType, null);
   }
 
-  public SparkSpecifyCatalogTestBase(SparkCatalogType sparkCatalogType, Map<String, String> config) {
-    this.implementation = sparkCatalogType.getImplementation();
+  public SparkSpecifyCatalogTestBase(SparkCatalogConfig sparkCatalogConfig, Map<String, String> config) {
+    this.implementation = sparkCatalogConfig.implementation();
 
-    this.catalogConfig = new HashMap<>(sparkCatalogType.getConfig());
-    if (config != null && !config.isEmpty()) {
-      config.forEach((key, value) -> catalogConfig.merge(key, value, (oldValue, newValue) -> newValue));
+    this.catalogConfig = Maps.newHashMap(sparkCatalogConfig.config());
+    if (config != null) {
+      this.catalogConfig.putAll(config);
     }
 
-    this.catalogName = sparkCatalogType.getCatalogName();
-    this.validationCatalog = catalogName.equals(SparkCatalogType.TEST_HADOOP.getCatalogName()) ?
+    this.catalogName = sparkCatalogConfig.catalogName();
+    this.validationCatalog = catalogName.equals(SparkCatalogConfig.SPARK_CATALOG_HADOOP.catalogName()) ?
         new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse) :
         catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
@@ -90,7 +90,7 @@ public abstract class SparkSpecifyCatalogTestBase extends SparkTestBase {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
-    this.tableName = (catalogName.equals(SparkCatalogType.SPARK_CATALOG.getCatalogName()) ? "" :
+    this.tableName = (catalogName.equals(SparkCatalogConfig.SPARK_SESSION_CATALOG_HIVE.catalogName()) ? "" :
         catalogName + ".") + "default" + ".table";
 
     sql("CREATE NAMESPACE IF NOT EXISTS default");

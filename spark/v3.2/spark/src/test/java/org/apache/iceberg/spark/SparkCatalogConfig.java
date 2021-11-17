@@ -22,16 +22,22 @@ package org.apache.iceberg.spark;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public enum SparkCatalogType {
-  TEST_HIVE("testhive", SparkCatalog.class.getName(), ImmutableMap.of(
+public enum SparkCatalogConfig {
+  SPARK_CATALOG_HIVE("testhive", SparkCatalog.class.getName(), ImmutableMap.of(
       "type", "hive",
       "default-namespace", "default"
   )),
-  TEST_HADOOP("testhadoop", SparkCatalog.class.getName(), ImmutableMap.of(
+  SPARK_CATALOG_HADOOP("testhadoop", SparkCatalog.class.getName(), ImmutableMap.of(
       "type", "hadoop"
   )),
-  SPARK_CATALOG("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
+  SPARK_SESSION_CATALOG_HIVE("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
       "type", "hive",
+      "default-namespace", "default",
+      "parquet-enabled", "true",
+      "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+  )),
+  SPARK_SESSION_CATALOG_HADOOP("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
+      "type", "hadoop",
       "default-namespace", "default",
       "parquet-enabled", "true",
       "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
@@ -41,21 +47,21 @@ public enum SparkCatalogType {
   private final String implementation;
   private final Map<String, String> config;
 
-  SparkCatalogType(String catalogName, String implementation, Map<String, String> config) {
+  SparkCatalogConfig(String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
     this.implementation = implementation;
     this.config = config;
   }
 
-  public String getCatalogName() {
+  public String catalogName() {
     return catalogName;
   }
 
-  public String getImplementation() {
+  public String implementation() {
     return implementation;
   }
 
-  public Map<String, String> getConfig() {
+  public Map<String, String> config() {
     return config;
   }
 }

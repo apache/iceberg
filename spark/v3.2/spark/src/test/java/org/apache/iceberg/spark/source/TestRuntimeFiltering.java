@@ -31,7 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkCatalogType;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSpecifyCatalogTestBase;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
@@ -47,7 +47,7 @@ import static org.apache.spark.sql.functions.expr;
 public class TestRuntimeFiltering extends SparkSpecifyCatalogTestBase {
 
   public TestRuntimeFiltering() {
-    super(SparkCatalogType.SPARK_CATALOG);
+    super(SparkCatalogConfig.SPARK_CATALOG_HADOOP);
   }
 
   @After
