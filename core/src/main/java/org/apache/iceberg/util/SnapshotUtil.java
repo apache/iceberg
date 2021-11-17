@@ -92,9 +92,9 @@ public class SnapshotUtil {
       return null;
     }
 
-    while (current.parentId() != null
-            && table.snapshot(current.parentId()) != null
-            && table.snapshot(current.parentId()).timestampMillis() >= timestamp) {
+    while (current.parentId() != null &&
+            table.snapshot(current.parentId()) != null &&
+            table.snapshot(current.parentId()).timestampMillis() >= timestamp) {
       current = table.snapshot(current.parentId());
     }
 
