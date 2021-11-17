@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -301,7 +302,9 @@ public class Spark3Util {
       Transform transform = (Transform) expr;
       Preconditions.checkArgument(transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s", transform);
-      String colName = DOT.join(transform.references()[0].fieldNames());
+      List<String> fieldNames = Arrays.stream(transform.references()[0].fieldNames())
+              .map(Spark3Util::toIcebergField).collect(Collectors.toList());
+      String colName = DOT.join(fieldNames);
       switch (transform.name()) {
         case "identity":
           return org.apache.iceberg.expressions.Expressions.ref(colName);
@@ -446,6 +449,19 @@ public class Spark3Util {
   public static boolean extensionsEnabled(SparkSession spark) {
     String extensions = spark.conf().get("spark.sql.extensions", "");
     return extensions.contains("IcebergSparkSessionExtensions");
+  }
+
+  public static String toIcebergField(String name) {
+    Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
+    if (!isCaseSensitiveEnabled()) {
+      return name.toLowerCase(Locale.ROOT);
+    }
+    return name;
+  }
+
+  public static boolean isCaseSensitiveEnabled() {
+    return Boolean.parseBoolean(
+            SparkSession.active().conf().get("spark.sql.caseSensitive", "false"));
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {

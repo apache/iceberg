@@ -20,10 +20,12 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -278,5 +280,41 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
         .asc("id")
         .build();
     Assert.assertEquals("Sort order must match", expected, table.sortOrder());
+  }
+
+  @Test
+  public void testSetWriteOrderByColumnWithCaseInsensitive() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+
+    spark.conf().set("spark.sql.caseSensitive", "false");
+    sql("ALTER TABLE %s WRITE ORDERED BY CATEGORY, Id", tableName);
+
+    table.refresh();
+
+    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
+    Assert.assertEquals("Distribution mode must match", "range", distributionMode);
+
+    SortOrder expected = SortOrder.builderFor(table.schema())
+            .withOrderId(1)
+            .asc("category", NullOrder.NULLS_FIRST)
+            .asc("id", NullOrder.NULLS_FIRST)
+            .build();
+    Assert.assertEquals("Should have expected order", expected, table.sortOrder());
+  }
+
+  @Test
+  public void testSetWriteOrderByColumnWithCaseSensitive() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+
+    spark.conf().set("spark.sql.caseSensitive", "true");
+    AssertHelpers.assertThrows("Should reject invalid `write ordered` columns",
+            ValidationException.class, "Cannot find field 'CATEGORY' in struct",
+        () -> {
+          sql("ALTER TABLE %s WRITE ORDERED BY CATEGORY, Id", tableName);
+        });
   }
 }
