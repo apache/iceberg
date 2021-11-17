@@ -20,6 +20,8 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -34,6 +36,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
@@ -61,6 +64,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -198,48 +202,36 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        null, null, null);
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
-    // remove 2 rows for odd files, 1 row for even files
-    for (int i = 0; i < dataFiles.size(); i++) {
-      DataFile dataFile = dataFiles.get(i);
-      EncryptedOutputFile outputFile = EncryptedFiles.encryptedOutput(
-          table.io().newOutputFile(table.locationProvider().newDataLocation(UUID.randomUUID().toString())),
-          EncryptionKeyMetadata.EMPTY);
-      PositionDeleteWriter<Record> posDeleteWriter = appenderFactory.newPosDeleteWriter(
-          outputFile, FileFormat.PARQUET, dataFile.partition());
-      posDeleteWriter.delete(dataFile.path(), 0);
-      posDeleteWriter.close();
-      rowDelta.addDeletes(posDeleteWriter.toDeleteFile());
+    // add 1 delete file for data files 0, 1, 2
+    for (int i = 0; i < 3; i++) {
+      writePosDeletesToFile(table, dataFiles.get(i), 1)
+          .forEach(rowDelta::addDeletes);
+    }
 
-      if (i % 2 != 0) {
-        outputFile = EncryptedFiles.encryptedOutput(
-            table.io().newOutputFile(table.locationProvider().newDataLocation(UUID.randomUUID().toString())),
-            EncryptionKeyMetadata.EMPTY);
-        posDeleteWriter = appenderFactory.newPosDeleteWriter(outputFile, FileFormat.PARQUET, dataFile.partition());
-        posDeleteWriter.delete(dataFile.path(), 1);
-        posDeleteWriter.close();
-        rowDelta.addDeletes(posDeleteWriter.toDeleteFile());
-      }
+    // add 2 delete files for data files 3, 4
+    for (int i = 3; i < 5; i++) {
+      writePosDeletesToFile(table, dataFiles.get(i), 2)
+          .forEach(rowDelta::addDeletes);
     }
 
     rowDelta.commit();
     table.refresh();
     List<Object[]> expectedRecords = currentData();
     Result result = actions().rewriteDataFiles(table)
+        // do not include any file based on bin pack file size configs
         .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
         .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "4")
+        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "2")
         .execute();
-    Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
-    Assert.assertEquals("12 rows are removed", total - 12, actualRecords.size());
+    Assert.assertEquals("7 rows are removed", total - 7, actualRecords.size());
   }
 
   @Test
@@ -1115,6 +1107,39 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .format("iceberg")
         .mode("append")
         .save(tableLocation);
+  }
+
+  private List<DeleteFile> writePosDeletesToFile(Table table, DataFile dataFile, int outputDeleteFiles) {
+    return writePosDeletes(table, dataFile.partition(), dataFile.path().toString(), outputDeleteFiles);
+  }
+
+  private List<DeleteFile> writePosDeletes(Table table, StructLike partition, String path, int outputDeleteFiles) {
+    List<DeleteFile> results = Lists.newArrayList();
+    int rowPosition = 0;
+    for (int file = 0; file < outputDeleteFiles; file++) {
+      OutputFile outputFile = table.io().newOutputFile(
+          table.locationProvider().newDataLocation(UUID.randomUUID().toString()));
+      EncryptedOutputFile encryptedOutputFile = EncryptedFiles.encryptedOutput(
+          outputFile, EncryptionKeyMetadata.EMPTY);
+
+      GenericAppenderFactory appenderFactory = new GenericAppenderFactory(
+          table.schema(), table.spec(), null, null, null);
+      PositionDeleteWriter<Record> posDeleteWriter = appenderFactory
+          .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
+          .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+
+      posDeleteWriter.delete(path, rowPosition);
+      try {
+        posDeleteWriter.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+
+      results.add(posDeleteWriter.toDeleteFile());
+      rowPosition++;
+    }
+
+    return results;
   }
 
   private ActionsProvider actions() {
