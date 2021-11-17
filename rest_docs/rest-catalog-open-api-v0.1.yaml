@@ -1,3 +1,22 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
 ---
 openapi: 3.0.3
 info:
@@ -39,9 +58,9 @@ paths:
           description: Unknown Error
         "401":
           description: Invalid credentials provided
-  # TODO - This might be optional for now as it's not really supported in
-  #        the normal Catalog spec, but we might want to include it for
-  #        convenience.
+  # This might be optional for now as it's not really supported in
+  # the normal Catalog spec, but we might want to include it for
+  # convenience.
   /v1/catalog/{catalog}:
     parameters:
       - name: catalog
@@ -73,64 +92,8 @@ paths:
           description: OK
         '401':
           description: Unauthorized / Invalid Credentials Provided
-  ###########################
-  # Table-level Catalog Ops #
-  ###########################
-  #
-  # TODO - Add examples of these to the schemas section.
-  #
-  # XX listTables: 
-  #
-  #  Return all identifiers under this namespace
-  #  throws:NotFoundException if the namespace is not found
-  #
-  #     List<TableIdentifier> listTables(Namespace namespace): listTables
-  #
-  # createTable:
-  #       default Table createTable(
-  #        TableIdentifier identifier,
-  #        Schema schema,
-  #        PartitionSpec spec,
-  #        String location,
-  #        Map<String, String> properties): createTable (4 versions)
-  #
-  # createTableTransaction:
-  #     Transaction newCreateTableTransaction(
-  #        TableIdentifier identifier,
-  #        Schema schema,
-  #        PartitionSpec spec,
-  #        String location,
-  #        Map<String, String> properties): createTableTransaction
-  #
-  # (createOr)replaceTableTransaction:
-  #     default Transaction newReplaceTableTransaction(
-  #        TableIdentifier identifier,
-  #        Schema schema,
-  #        PartitionSpec spec,
-  #        String location,
-  #        Map<String, String> properties,
-  #        boolean orCreate)
-  # 
-  # tableExists:
-  #     boolean tableExists(TableIdentifier identifier)
-  #
-  #
-  # dropTable (with or without purge):
-  #     dropTable(TableIdentifier identifier)
-  #
-  # renameTable:
-  #     renameTable(TableIdentifier from, TableIdentifier to)
-  #
-  # loadTable:
-  #     loadTable(TableIdentifier identifier)
-  #
-  ##################################################
 
-  ###############################
-  # Namespace Level Catalog Ops #
-  ###############################
-  
-  # Also consider /v1/tables/{identifier}
+  # Could also consider /v1/tables/{identifier}
   /v1/namespaces/{namespace}/tables/{table}:
     parameters:
       # Consider moving this to query parameters,so it can be more easily URL encoded
@@ -702,7 +665,6 @@ components:
     IcebergConfiguration:
       type: object
       description: "Server-provided configuration for the catalog."
-      # Can add more fields here
       properties:
         rootPath:
           minLength: 1
@@ -710,10 +672,10 @@ components:
           default: /v1
           nullable: false
           description:
-            Root path to be used for all other requests. Only
-            the configuration route needs to be a well defined path, though
-            using the suggested route names is preferred (and required to interoperate
-            with the given URI genration etc).
+            Root path to be used for all other requests. Server-side implementations
+            are free to use another choice for root path, but must conform to the
+            specification otherwise in order to interoperate with the URI generation
+            that the REST catalog client will do.
         catalogProperties:
           type: object
           nullable: true
