@@ -26,65 +26,7 @@ It's recommended to report the Java, Scala, Spark, Flink and Hive versions you h
 In addition to testing in downstream projects, community members also check the release's signatures, checksums, and
 license documentation.
 
-## Testing the Release Candidate
-
-Release candidate announcements will also include a maven repository location. You can use this
-location to test downstream dependencies by adding it to your maven or gradle build.
-
-To use the release candidate in your maven build, add the following to your `POM` or `settings.xml`:
-```xml
-...
-  <repositories>
-    <repository>
-      <id>iceberg-release-candidate</id>
-      <name>Iceberg Release Candidate</name>
-      <url>${MAVEN_URL}</url>
-    </repository>
-  </repositories>
-...
-```
-
-To use the release candidate in your gradle build, add the following to your `build.gradle`:
-```groovy
-repositories {
-    mavenCentral()
-    maven {
-        url "${MAVEN_URL}"
-    }
-}
-```
-
-!!!Note
-    Replace `${MAVEN_URL}` with the URL provided in the release announcement
-
-## Verifying with Spark
-
-To verify the candidate using spark, start a `spark-shell` with the following command:
-```bash
-spark-shell \
-    --conf spark.jars.repositories=${MAVEN_URL} \
-    --packages org.apache.iceberg:iceberg-spark3-runtime:${ICEBERG_VERSION} \
-    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-    --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.local.type=hadoop \
-    --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
-    --conf spark.sql.catalog.local.default-namespace=default \
-    --conf spark.sql.defaultCatalog=local
-```
-
-## Verifying with Flink
-
-To verify a candidate using Flink, start a Flink SQL Client with the following command:
-```bash
-wget ${MAVEN_URL}/iceberg-flink-runtime/${ICEBERG_VERSION}/iceberg-flink-runtime-${ICEBERG_VERSION}.jar
-
-sql-client.sh embedded \
-    -j iceberg-flink-runtime-${ICEBERG_VERSION}.jar \
-    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
-    shell
-```
-
-## Announcement Content
+## Validating a source release candidate
 
 Release announcements include links to the following:
 
@@ -97,7 +39,7 @@ Release announcements include links to the following:
 After downloading the source tarball, signature, checksum, and key files, here are instructions on how to
 verify signatures, checksums, and documentation.
 
-## Verifying Signatures
+### Verifying Signatures
 
 First, import the keys.
 ```bash
@@ -109,13 +51,13 @@ Next, verify the `.asc` file.
 gpg --verify apache-iceberg-${VERSION}.tar.gz.asc
 ```
 
-## Verifying Checksums
+### Verifying Checksums
 
 ```bash
 shasum -a 512 apache-iceberg-${VERSION}.tar.gz.sha512
 ```
 
-## Verifying License Documentation
+### Verifying License Documentation
 
 Untar the archive and change into the source directory.
 ```bash
@@ -128,11 +70,69 @@ Run RAT checks to validate license headers.
 dev/check-license
 ```
 
-## Verifying Build and Test
+### Verifying Build and Test
 
 To verify that the release candidate builds properly, run the following command.
 ```bash
 ./gradlew build
+```
+
+## Testing release binaries
+
+Release announcements will also include a maven repository location. You can use this
+location to test downstream dependencies by adding it to your maven or gradle build.
+
+To use the release in your maven build, add the following to your `POM` or `settings.xml`:
+```xml
+...
+  <repositories>
+    <repository>
+      <id>iceberg-release-candidate</id>
+      <name>Iceberg Release Candidate</name>
+      <url>${MAVEN_URL}</url>
+    </repository>
+  </repositories>
+...
+```
+
+To use the release in your gradle build, add the following to your `build.gradle`:
+```groovy
+repositories {
+    mavenCentral()
+    maven {
+        url "${MAVEN_URL}"
+    }
+}
+```
+
+!!! Note
+    Replace `${MAVEN_URL}` with the URL provided in the release announcement
+
+### Verifying with Spark
+
+To verify using spark, start a `spark-shell` with a command like the following command:
+```bash
+spark-shell \
+    --conf spark.jars.repositories=${MAVEN_URL} \
+    --packages org.apache.iceberg:iceberg-spark3-runtime:${ICEBERG_VERSION} \
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+    --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.local.type=hadoop \
+    --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
+    --conf spark.sql.catalog.local.default-namespace=default \
+    --conf spark.sql.defaultCatalog=local
+```
+
+### Verifying with Flink
+
+To verify using Flink, start a Flink SQL Client with the following command:
+```bash
+wget ${MAVEN_URL}/iceberg-flink-runtime/${ICEBERG_VERSION}/iceberg-flink-runtime-${ICEBERG_VERSION}.jar
+
+sql-client.sh embedded \
+    -j iceberg-flink-runtime-${ICEBERG_VERSION}.jar \
+    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
+    shell
 ```
 
 ## Voting
