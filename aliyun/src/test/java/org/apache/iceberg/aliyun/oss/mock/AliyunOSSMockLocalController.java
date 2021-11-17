@@ -29,9 +29,9 @@ import java.io.OutputStream;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -168,7 +168,7 @@ public class AliyunOSSMockLocalController {
       try (OutputStream outputStream = response.getOutputStream()) {
         try (FileInputStream fis = new FileInputStream(metadata.getDataFile())) {
           fis.skip(skipSize);
-          IOUtils.copy(new BoundedInputStream(fis, bytesToRead), outputStream);
+          ByteStreams.copy(new BoundedInputStream(fis, bytesToRead), outputStream);
         }
       }
     } else {
@@ -180,7 +180,7 @@ public class AliyunOSSMockLocalController {
 
       try (OutputStream outputStream = response.getOutputStream()) {
         try (FileInputStream fis = new FileInputStream(metadata.getDataFile())) {
-          IOUtils.copy(fis, outputStream);
+          ByteStreams.copy(fis, outputStream);
         }
       }
     }

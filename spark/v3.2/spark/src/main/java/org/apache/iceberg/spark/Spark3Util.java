@@ -29,7 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.NullOrder;
@@ -58,7 +57,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -75,27 +73,19 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.connector.iceberg.distributions.Distribution;
-import org.apache.spark.sql.connector.iceberg.distributions.Distributions;
-import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution;
-import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
-
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 public class Spark3Util {
 
@@ -250,41 +240,42 @@ public class Spark3Util {
    * @return an array of Transforms
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
+    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema());
     List<Transform> transforms = PartitionSpecVisitor.visit(spec,
         new PartitionSpecVisitor<Transform>() {
           @Override
           public Transform identity(String sourceName, int sourceId) {
-            return Expressions.identity(sourceName);
+            return Expressions.identity(quotedName(sourceId));
           }
 
           @Override
           public Transform bucket(String sourceName, int sourceId, int numBuckets) {
-            return Expressions.bucket(numBuckets, sourceName);
+            return Expressions.bucket(numBuckets, quotedName(sourceId));
           }
 
           @Override
           public Transform truncate(String sourceName, int sourceId, int width) {
-            return Expressions.apply("truncate", Expressions.column(sourceName), Expressions.literal(width));
+            return Expressions.apply("truncate", Expressions.column(quotedName(sourceId)), Expressions.literal(width));
           }
 
           @Override
           public Transform year(String sourceName, int sourceId) {
-            return Expressions.years(sourceName);
+            return Expressions.years(quotedName(sourceId));
           }
 
           @Override
           public Transform month(String sourceName, int sourceId) {
-            return Expressions.months(sourceName);
+            return Expressions.months(quotedName(sourceId));
           }
 
           @Override
           public Transform day(String sourceName, int sourceId) {
-            return Expressions.days(sourceName);
+            return Expressions.days(quotedName(sourceId));
           }
 
           @Override
           public Transform hour(String sourceName, int sourceId) {
-            return Expressions.hours(sourceName);
+            return Expressions.hours(quotedName(sourceId));
           }
 
           @Override
@@ -295,81 +286,54 @@ public class Spark3Util {
 
           @Override
           public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
-            return Expressions.apply(transform, Expressions.column(sourceName));
+            return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
+          }
+
+          private String quotedName(int id) {
+            return quotedNameById.get(id);
           }
         });
 
     return transforms.stream().filter(Objects::nonNull).toArray(Transform[]::new);
   }
 
-  public static Distribution buildRequiredDistribution(org.apache.iceberg.Table table) {
-    DistributionMode distributionMode = distributionModeFor(table);
-    switch (distributionMode) {
-      case NONE:
-        return Distributions.unspecified();
-      case HASH:
-        if (table.spec().isUnpartitioned()) {
-          return Distributions.unspecified();
-        } else {
-          return Distributions.clustered(toTransforms(table.spec()));
-        }
-      case RANGE:
-        if (table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-          return Distributions.unspecified();
-        } else {
-          org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
-          return Distributions.ordered(convert(requiredSortOrder));
-        }
-      default:
-        throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
-    }
+  public static NamedReference toNamedReference(String name) {
+    return Expressions.column(name);
   }
 
-  public static SortOrder[] buildRequiredOrdering(Distribution distribution, org.apache.iceberg.Table table) {
-    if (distribution instanceof OrderedDistribution) {
-      OrderedDistribution orderedDistribution = (OrderedDistribution) distribution;
-      return orderedDistribution.ordering();
+  public static Term toIcebergTerm(Expression expr) {
+    if (expr instanceof Transform) {
+      Transform transform = (Transform) expr;
+      Preconditions.checkArgument(transform.references().length == 1,
+          "Cannot convert transform with more than one column reference: %s", transform);
+      String colName = DOT.join(transform.references()[0].fieldNames());
+      switch (transform.name()) {
+        case "identity":
+          return org.apache.iceberg.expressions.Expressions.ref(colName);
+        case "bucket":
+          return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+        case "years":
+          return org.apache.iceberg.expressions.Expressions.year(colName);
+        case "months":
+          return org.apache.iceberg.expressions.Expressions.month(colName);
+        case "date":
+        case "days":
+          return org.apache.iceberg.expressions.Expressions.day(colName);
+        case "date_hour":
+        case "hours":
+          return org.apache.iceberg.expressions.Expressions.hour(colName);
+        case "truncate":
+          return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+        default:
+          throw new UnsupportedOperationException("Transform is not supported: " + transform);
+      }
+
+    } else if (expr instanceof NamedReference) {
+      NamedReference ref = (NamedReference) expr;
+      return org.apache.iceberg.expressions.Expressions.ref(DOT.join(ref.fieldNames()));
+
     } else {
-      org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
-      return convert(requiredSortOrder);
-    }
-  }
-
-  public static DistributionMode distributionModeFor(org.apache.iceberg.Table table) {
-    boolean isSortedTable = !table.sortOrder().isUnsorted();
-    String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_DEFAULT;
-    String modeName = table.properties().getOrDefault(WRITE_DISTRIBUTION_MODE, defaultModeName);
-    return DistributionMode.fromName(modeName);
-  }
-
-  public static SortOrder[] convert(org.apache.iceberg.SortOrder sortOrder) {
-    List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark());
-    return converted.toArray(new OrderField[0]);
-  }
-
-  public static Term toIcebergTerm(Transform transform) {
-    Preconditions.checkArgument(transform.references().length == 1,
-        "Cannot convert transform with more than one column reference: %s", transform);
-    String colName = DOT.join(transform.references()[0].fieldNames());
-    switch (transform.name()) {
-      case "identity":
-        return org.apache.iceberg.expressions.Expressions.ref(colName);
-      case "bucket":
-        return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
-      case "years":
-        return org.apache.iceberg.expressions.Expressions.year(colName);
-      case "months":
-        return org.apache.iceberg.expressions.Expressions.month(colName);
-      case "date":
-      case "days":
-        return org.apache.iceberg.expressions.Expressions.day(colName);
-      case "date_hour":
-      case "hours":
-        return org.apache.iceberg.expressions.Expressions.hour(colName);
-      case "truncate":
-        return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
-      default:
-        throw new UnsupportedOperationException("Transform is not supported: " + transform);
+      throw new UnsupportedOperationException("Cannot convert unknown expression: " + expr);
     }
   }
 
@@ -484,43 +448,9 @@ public class Spark3Util {
     return Joiner.on(", ").join(SortOrderVisitor.visit(order, DescribeSortOrderVisitor.INSTANCE));
   }
 
-  public static Long propertyAsLong(CaseInsensitiveStringMap options, String property, Long defaultValue) {
-    if (defaultValue != null) {
-      return options.getLong(property, defaultValue);
-    }
-
-    String value = options.get(property);
-    if (value != null) {
-      return Long.parseLong(value);
-    }
-
-    return null;
-  }
-
-  public static Integer propertyAsInt(CaseInsensitiveStringMap options, String property, Integer defaultValue) {
-    if (defaultValue != null) {
-      return options.getInt(property, defaultValue);
-    }
-
-    String value = options.get(property);
-    if (value != null) {
-      return Integer.parseInt(value);
-    }
-
-    return null;
-  }
-
-  public static Boolean propertyAsBoolean(CaseInsensitiveStringMap options, String property, Boolean defaultValue) {
-    if (defaultValue != null) {
-      return options.getBoolean(property, defaultValue);
-    }
-
-    String value = options.get(property);
-    if (value != null) {
-      return Boolean.parseBoolean(value);
-    }
-
-    return null;
+  public static boolean extensionsEnabled(SparkSession spark) {
+    String extensions = spark.conf().get("spark.sql.extensions", "");
+    return extensions.contains("IcebergSparkSessionExtensions");
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {

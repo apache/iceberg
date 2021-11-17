@@ -19,6 +19,10 @@
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Metadata Indexing in Iceberg](https://tabular.io/blog/iceberg-metadata-indexing/)
+**Date**: 10 October 2021, **Company**: Tabular
+**Author**: [Ryan Blue](https://www.linkedin.com/in/rdblue/)
+
 ### [Using Debezium to Create a Data Lake with Apache Iceberg](https://debezium.io/blog/2021/10/20/using-debezium-create-data-lake-with-apache-iceberg/)
 **Date**: October 20th, 2021, **Company**: Memiiso Community
 **Author**: [Ismail Simsek](https://www.linkedin.com/in/ismailsimsek/)

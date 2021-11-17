@@ -109,8 +109,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       }
       newTable.metadataLocation(newMetadataLocation);
 
-      Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable.build()))
-          .commitMeta(NessieUtil.buildCommitMetadata("iceberg commit", catalogOptions)).build();
+      ImmutableIcebergTable icebergTable = newTable.build();
+      Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, icebergTable))
+          .commitMeta(NessieUtil.buildCommitMetadata(String.format("iceberg add table '%s'", key),
+              catalogOptions)).build();
       Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
           reference.getHash(), op);
       reference.updateReference(branch);

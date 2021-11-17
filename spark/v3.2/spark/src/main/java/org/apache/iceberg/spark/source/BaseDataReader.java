@@ -91,6 +91,10 @@ abstract class BaseDataReader<T> implements Closeable {
     this.currentIterator = CloseableIterator.empty();
   }
 
+  protected Table table() {
+    return table;
+  }
+
   public boolean next() throws IOException {
     try {
       while (true) {

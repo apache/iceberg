@@ -37,12 +37,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter;
 import org.apache.spark.sql.connector.read.Statistics;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
 
@@ -59,11 +57,10 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Set<String> filteredLocations = null;
 
-  SparkMergeScan(SparkSession spark, Table table, SparkReadConf readConf,
-                 boolean caseSensitive, boolean ignoreResiduals,
-                 Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkMergeScan(SparkSession spark, Table table, SparkReadConf readConf, boolean ignoreResiduals,
+                 Schema expectedSchema, List<Expression> filters) {
 
-    super(spark, table, readConf, caseSensitive, expectedSchema, filters, options);
+    super(spark, table, readConf, expectedSchema, filters);
 
     this.table = table;
     this.ignoreResiduals = ignoreResiduals;
@@ -72,7 +69,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
 
-    Preconditions.checkArgument(!options.containsKey(SparkReadOptions.SNAPSHOT_ID), "Can't set snapshot-id in options");
+    Preconditions.checkArgument(readConf.snapshotId() == null, "Can't set snapshot-id in options");
     Snapshot currentSnapshot = table.currentSnapshot();
     this.snapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
 

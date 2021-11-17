@@ -64,7 +64,7 @@ class HiveSchemaConverter {
     List<Types.NestedField> result = new ArrayList<>(names.size());
     for (int i = 0; i < names.size(); ++i) {
       result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i)),
-          comments.isEmpty() ? null : comments.get(i)));
+          (comments.isEmpty() || i >= comments.size()) ? null : comments.get(i)));
     }
 
     return result;

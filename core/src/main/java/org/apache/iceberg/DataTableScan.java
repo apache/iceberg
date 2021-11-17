@@ -23,6 +23,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -101,7 +102,9 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public long targetSplitSize() {
-    return tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
+    long tableValue = tableOps().current().propertyAsLong(
+        TableProperties.SPLIT_SIZE,
+        TableProperties.SPLIT_SIZE_DEFAULT);
+    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

@@ -23,16 +23,23 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
+import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 abstract class BaseOSSFile {
   private final OSS client;
   private final OSSURI uri;
+  private AliyunProperties aliyunProperties;
   private SimplifiedObjectMeta metadata;
 
   BaseOSSFile(OSS client, OSSURI uri) {
+    this(client, uri, new AliyunProperties());
+  }
+
+  BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     this.client = client;
     this.uri = uri;
+    this.aliyunProperties = aliyunProperties;
   }
 
   public String location() {
@@ -45,6 +52,10 @@ abstract class BaseOSSFile {
 
   public OSSURI uri() {
     return uri;
+  }
+
+  public AliyunProperties aliyunProperties() {
+    return aliyunProperties;
   }
 
   public boolean exists() {
