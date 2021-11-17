@@ -20,11 +20,13 @@
 ---
 openapi: 3.0.3
 info:
-  title: Apache Iceberg REST Catalog API
+  title: Apache Iceberg REST Catalog API v1
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
   version: 0.0.1
+  description:
+    Defines the specification for the first version of the REST Catalog API. Implementations should support both Iceberg table specs v1 and v2, with priority given to v2.
 servers:
   - url: http://127.0.0.1:1080
     description: URL Used for Mock-Server Unit Tests
@@ -61,7 +63,7 @@ paths:
   # This might be optional for now as it's not really supported in
   # the normal Catalog spec, but we might want to include it for
   # convenience.
-  /v1/catalog/{catalog}:
+  /v1/catalogs/{catalog}:
     parameters:
       - name: catalog
         in: path
