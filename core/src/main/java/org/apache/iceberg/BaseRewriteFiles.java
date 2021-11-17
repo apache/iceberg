@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
@@ -67,6 +68,12 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
+  public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber) {
+    setNewFilesSequenceNumber(sequenceNumber);
+    return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
+  }
+
+  @Override
   public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToReplace, Set<DeleteFile> deleteFilesToReplace,
                                    Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
     verifyInputAndOutputFiles(dataFilesToReplace, deleteFilesToReplace, dataFilesToAdd, deleteFilesToAdd);
@@ -94,12 +101,6 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   @Override
   public RewriteFiles validateFromSnapshot(long snapshotId) {
     this.startingSnapshotId = snapshotId;
-    return this;
-  }
-
-  @Override
-  public RewriteFiles overrideSequenceNumberForNewDataFiles(long sequenceNumber) {
-    setSequenceNumberForNewDataFiles(sequenceNumber);
     return this;
   }
 

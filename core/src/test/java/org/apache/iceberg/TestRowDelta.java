@@ -1168,9 +1168,8 @@ public class TestRowDelta extends V2TableTestBase {
     DataFile dataFile2 = newDataFile("data=a");
 
     RewriteFiles rewriteFiles = table.newRewrite()
-        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2))
-        .validateFromSnapshot(baseSnapshot.snapshotId())
-        .overrideSequenceNumberForNewDataFiles(baseSnapshot.sequenceNumber());
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
 
     rowDelta.commit();
     rewriteFiles.commit();
@@ -1210,9 +1209,8 @@ public class TestRowDelta extends V2TableTestBase {
     DataFile dataFile2 = newDataFile("data=a");
 
     RewriteFiles rewriteFiles = table.newRewrite()
-        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2))
-        .validateFromSnapshot(baseSnapshot.snapshotId())
-        .overrideSequenceNumberForNewDataFiles(baseSnapshot.sequenceNumber());
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
 
     rowDelta.commit();
 

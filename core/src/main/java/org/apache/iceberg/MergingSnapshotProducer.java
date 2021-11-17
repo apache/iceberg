@@ -81,6 +81,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private Long newFilesSequenceNumber;
   private final Map<Integer, List<DeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -88,7 +89,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private PartitionSpec dataSpec;
-  private Long sequenceNumberForNewDataFiles;
 
   // cache new manifests after writing
   private ManifestFile cachedNewManifest = null;
@@ -300,9 +300,19 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Iterable<DataFile> dataFiles) {
     validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, true,
-        sequenceNumberForNewDataFiles != null);
+        newFilesSequenceNumber != null);
   }
 
+  /**
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter a data filter
+   * @param dataFiles data files to validate have no new row deletes
+   * @param caseSensitive whether expression binding should be case-sensitive
+   */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Expression dataFilter, Iterable<DataFile> dataFiles,
                                                   boolean caseSensitive) {
@@ -311,7 +321,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /**
    * Validates that no new delete files that must be applied to the given data files have been added to the table since
-   * a starting snapshot.
+   * a starting snapshot, with the option to ignore equality deletes during the validation.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
@@ -376,8 +386,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
   }
 
-  protected void setSequenceNumberForNewDataFiles(long sequenceNumber) {
-    this.sequenceNumberForNewDataFiles = sequenceNumber;
+  protected void setNewFilesSequenceNumber(long sequenceNumber) {
+    this.newFilesSequenceNumber = sequenceNumber;
   }
 
   private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
@@ -611,7 +621,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
         try {
-          newFiles.forEach(f -> writer.add(f, sequenceNumberForNewDataFiles));
+          newFiles.forEach(f -> writer.add(f, newFilesSequenceNumber));
         } finally {
           writer.close();
         }

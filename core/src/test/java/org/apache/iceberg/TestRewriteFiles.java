@@ -264,13 +264,13 @@ public class TestRewriteFiles extends TableTestBase {
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, EXISTING));
 
-    // We should only get the 3 manifests that this test is expected to add.
+    // We should only get the 5 manifests that this test is expected to add.
     Assert.assertEquals("Only 5 manifests should exist", 5, listManifestFiles().size());
   }
 
   @Test
   public void testRewriteDataAndAssignOldSequenceNumber() {
-    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+    Assume.assumeTrue("Sequence number is only supported in iceberg format v2. ", formatVersion > 1);
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newRowDelta()
@@ -301,14 +301,12 @@ public class TestRewriteFiles extends TableTestBase {
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     Snapshot pending = table.newRewrite()
         .validateFromSnapshot(table.currentSnapshot().snapshotId())
-        .overrideSequenceNumberForNewDataFiles(oldSequenceNumber)
-        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES),
-            ImmutableSet.of(FILE_D), ImmutableSet.of())
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber)
         .apply();
 
     Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests().size());
-    Assert.assertFalse("Should not contain manifest from initial write",
-        pending.allManifests().stream().anyMatch(initialManifests::contains));
+    Assert.assertFalse("Should not contain data manifest from initial write",
+        pending.dataManifests().stream().anyMatch(initialManifests::contains));
 
     long pendingId = pending.snapshotId();
     ManifestFile newManifest = pending.allManifests().get(0);
@@ -326,13 +324,13 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, EXISTING, EXISTING));
 
     validateDeleteManifest(pending.allManifests().get(2),
-        seqs(2, 1),
-        ids(pendingId, baseSnapshotId),
+        seqs(1, 1),
+        ids(baseSnapshotId, baseSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(DELETED, EXISTING));
+        statuses(ADDED, ADDED));
 
-    // We should only get the 3 manifests that this test is expected to add.
-    Assert.assertEquals("Only 5 manifests should exist", 5, listManifestFiles().size());
+    // We should only get the 4 manifests that this test is expected to add.
+    Assert.assertEquals("Only 4 manifests should exist", 4, listManifestFiles().size());
   }
 
   @Test

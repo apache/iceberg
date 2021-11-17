@@ -78,12 +78,12 @@ public class RewriteDataFilesCommitManager {
       addedDataFiles = Sets.union(addedDataFiles, group.addedFiles());
     }
 
-    RewriteFiles rewrite = table.newRewrite()
-        .validateFromSnapshot(startingSnapshotId)
-        .rewriteFiles(rewrittenDataFiles, addedDataFiles);
-
+    RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
-      rewrite = rewrite.overrideSequenceNumberForNewDataFiles(table.snapshot(startingSnapshotId).sequenceNumber());
+      long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
+      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber);
+    } else {
+      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
     }
 
     rewrite.commit();
