@@ -56,8 +56,8 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoCommitSucceedException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -506,7 +506,7 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
         .when(spyRewrite)
         .commitManager(table.currentSnapshot().snapshotId());
 
-    AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", CommitFailedException.class,
+    AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", NoCommitSucceedException.class,
         () -> spyRewrite.execute());
 
     table.refresh();

@@ -47,6 +47,7 @@ import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoCommitSucceedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -327,7 +328,7 @@ abstract class BaseRewriteDataFilesSparkAction
       LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual " +
           "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation " +
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
-      throw new CommitFailedException("No rewrite commits succeeded after max commits");
+      throw new NoCommitSucceedException("No rewrite commits succeeded after max commits");
     }
 
     List<FileGroupRewriteResult> rewriteResults = commitResults.stream()
