@@ -21,11 +21,16 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.Set;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -39,12 +44,16 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -52,14 +61,18 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class IcebergFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<WriteResult, Void>, BoundedOneInput {
+class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
+    implements OneInputStreamOperator<WriteResult, CommitResult>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -274,6 +287,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       }
 
       commitOperation(appendFiles, numFiles, 0, "append", newFlinkJobId, checkpointId);
+
+      emitCommitResult(appendFiles, pendingResults.values());
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -297,6 +312,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
         commitOperation(rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, e.getKey());
+
+        emitCommitResult(rowDelta, Collections.singleton(result));
       }
     }
   }
@@ -314,9 +331,50 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     LOG.info("Committed in {} ms", duration);
   }
 
+  private void emitCommitResult(SnapshotUpdate<?> operation, Iterable<WriteResult> results) {
+    Preconditions.checkArgument(operation.updateEvent() instanceof CreateSnapshotEvent,
+        "Operation update event should be instance of CreateSnapshotEvent, but not %s", operation.updateEvent());
+    CreateSnapshotEvent event = (CreateSnapshotEvent) operation.updateEvent();
+
+    Multimap<Pair<Integer, StructLike>, DataFile> dataFilesByPartition = Multimaps.newListMultimap(
+        Maps.newHashMap(), Lists::newArrayList);
+    Multimap<Pair<Integer, StructLike>, DeleteFile> deleteFilesByPartition = Multimaps.newListMultimap(
+        Maps.newHashMap(), Lists::newArrayList);
+    Set<CharSequence> referencedDataFilesSet = Sets.newHashSet();
+    for (WriteResult writeResult : results) {
+      Arrays.stream(writeResult.dataFiles()).forEach(
+          dataFile -> dataFilesByPartition.put(Pair.of(dataFile.specId(), dataFile.partition()), dataFile));
+      Arrays.stream(writeResult.deleteFiles()).forEach(
+          deleteFile -> deleteFilesByPartition.put(Pair.of(deleteFile.specId(), deleteFile.partition()), deleteFile));
+      Collections.addAll(referencedDataFilesSet, writeResult.referencedDataFiles());
+    }
+
+    Set<Pair<Integer, StructLike>> pairs = Sets.union(dataFilesByPartition.keySet(), deleteFilesByPartition.keySet());
+    for (Pair<Integer, StructLike> pair : pairs) {
+      Collection<DataFile> dataFiles = dataFilesByPartition.get(pair);
+      Collection<DeleteFile> deleteFiles = deleteFilesByPartition.get(pair);
+      Collection<CharSequence> referencedDataFiles = dataFiles.stream()
+          .map(file -> referencedDataFilesSet.contains(file.path()) ? file.path() : null)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toList());
+
+      CommitResult commitResult = CommitResult.builder(event.snapshotId(), event.sequenceNumber())
+          .partition(pair.first(), pair.second())
+          .addDataFile(dataFiles)
+          .addDeleteFile(deleteFiles)
+          .addReferencedDataFile(referencedDataFiles)
+          .build();
+      emit(commitResult);
+    }
+  }
+
   @Override
   public void processElement(StreamRecord<WriteResult> element) {
     this.writeResultsOfCurrentCkpt.add(element.getValue());
+  }
+
+  private void emit(CommitResult result) {
+    output.collect(new StreamRecord<>(result));
   }
 
   @Override

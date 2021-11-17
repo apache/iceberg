@@ -38,9 +38,11 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
@@ -53,6 +55,7 @@ import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -105,6 +108,13 @@ public class SimpleDataUtil {
     return record;
   }
 
+  public static StructLike createPartition(Integer id, String data) {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    PartitionKey wrapper = new PartitionKey(spec, SCHEMA);
+    wrapper.partition(createRecord(id, data));
+    return wrapper;
+  }
+
   public static RowData createRowData(Integer id, String data) {
     return GenericRowData.of(id, StringData.fromString(data));
   }
@@ -147,13 +157,27 @@ public class SimpleDataUtil {
         .build();
   }
 
-  public static DeleteFile writeEqDeleteFile(Table table, FileFormat format, String tablePath, String filename,
-                                             FileAppenderFactory<RowData> appenderFactory,
-                                             List<RowData> deletes) throws IOException {
+  public static DataFile writeDataFile(Table table, FileFormat format, String tablePath, String filename,
+                                       FileAppenderFactory<RowData> appenderFactory,
+                                       StructLike partition, List<RowData> rows) throws IOException {
     EncryptedOutputFile outputFile =
         table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
 
-    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, null);
+    DataWriter<RowData> dataWriter = appenderFactory.newDataWriter(outputFile, format, partition);
+    try (DataWriter<RowData> writer = dataWriter) {
+      writer.write(rows);
+    }
+
+    return dataWriter.toDataFile();
+  }
+
+  public static DeleteFile writeEqDeleteFile(Table table, FileFormat format, String tablePath, String filename,
+                                             FileAppenderFactory<RowData> appenderFactory,
+                                             StructLike partition, List<RowData> deletes) throws IOException {
+    EncryptedOutputFile outputFile =
+        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+
+    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, partition);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
       writer.deleteAll(deletes);
     }
@@ -163,11 +187,12 @@ public class SimpleDataUtil {
   public static DeleteFile writePosDeleteFile(Table table, FileFormat format, String tablePath,
                                               String filename,
                                               FileAppenderFactory<RowData> appenderFactory,
+                                              StructLike partition,
                                               List<Pair<CharSequence, Long>> positions) throws IOException {
     EncryptedOutputFile outputFile =
         table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
 
-    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, null);
+    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, partition);
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
         writer.delete(p.first(), p.second());
