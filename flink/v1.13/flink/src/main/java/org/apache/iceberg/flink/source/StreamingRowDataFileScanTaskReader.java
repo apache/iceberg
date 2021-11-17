@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.source;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
@@ -35,10 +36,12 @@ import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -186,18 +189,24 @@ public class StreamingRowDataFileScanTaskReader implements FileScanTaskReader<Ro
     if (task.deletes().stream().noneMatch(file -> file.content().equals(FileContent.EQUALITY_DELETES))) {
       return CloseableIterable.empty();
     }
+    Iterable<RowData> closeableIterable = CloseableIterable.empty();
+    List<InputFile> inputFiles  = inputFilesDecryptor.getEqDeleteInputFile(task);
+    if (inputFiles !=null && inputFiles.size() > 0) {
+      for (InputFile inputFile: inputFiles) {
+        Avro.ReadBuilder builder = Avro.read(inputFile)
+                .reuseContainers()
+                .project(schema)
+                .split(task.start(), task.length())
+                .createReaderFunc(readSchema -> new FlinkAvroReader(schema, readSchema, idToConstant));
 
-    Avro.ReadBuilder builder = Avro.read(inputFilesDecryptor.getEqDeleteInputFile(task))
-        .reuseContainers()
-        .project(schema)
-        .split(task.start(), task.length())
-        .createReaderFunc(readSchema -> new FlinkAvroReader(schema, readSchema, idToConstant));
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+        if (nameMapping != null) {
+          builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+        }
+        closeableIterable = Iterables.concat(closeableIterable, builder.build());
+      }
     }
-
-    return builder.build();
+    return CloseableIterable.combine(closeableIterable, CloseableIterable.empty());
+//    return CloseableIterable.concat(closeableIterable);
   }
 
   private CloseableIterable<RowData> newParquetIterable(
@@ -225,20 +234,26 @@ public class StreamingRowDataFileScanTaskReader implements FileScanTaskReader<Ro
       return CloseableIterable.empty();
     }
 
-    Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getEqDeleteInputFile(task))
-        .reuseContainers()
-        .split(task.start(), task.length())
-        .project(schema)
-        .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
-        .filter(task.residual())
-        .caseSensitive(caseSensitive)
-        .reuseContainers();
+    Iterable<RowData> closeableIterable = CloseableIterable.empty();
+    List<InputFile> inputFiles  = inputFilesDecryptor.getEqDeleteInputFile(task);
+    if (inputFiles !=null) {
+      for (InputFile inputFile: inputFiles) {
+        Parquet.ReadBuilder builder = Parquet.read(inputFile)
+                .reuseContainers()
+                .split(task.start(), task.length())
+                .project(schema)
+                .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
+                .filter(task.residual())
+                .caseSensitive(caseSensitive)
+                .reuseContainers();
 
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+        if (nameMapping != null) {
+          builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+        }
+        closeableIterable = Iterables.concat(closeableIterable, builder.build());
+      }
     }
-
-    return builder.build();
+    return CloseableIterable.combine(closeableIterable, CloseableIterable.empty());
   }
 
   private CloseableIterable<RowData> newOrcIterable(
@@ -274,17 +289,23 @@ public class StreamingRowDataFileScanTaskReader implements FileScanTaskReader<Ro
         schema,
         Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
-    ORC.ReadBuilder builder = ORC.read(inputFilesDecryptor.getEqDeleteInputFile(task))
-        .project(readSchemaWithoutConstantAndMetadataFields)
-        .split(task.start(), task.length())
-        .createReaderFunc(readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
-        .filter(task.residual())
-        .caseSensitive(caseSensitive);
+    Iterable<RowData> closeableIterable = CloseableIterable.empty();
+    List<InputFile> inputFiles  = inputFilesDecryptor.getEqDeleteInputFile(task);
+    if (inputFiles !=null) {
+      for (InputFile inputFile: inputFiles) {
+        ORC.ReadBuilder builder = ORC.read(inputFile)
+                .project(readSchemaWithoutConstantAndMetadataFields)
+                .split(task.start(), task.length())
+                .createReaderFunc(readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
+                .filter(task.residual())
+                .caseSensitive(caseSensitive);
 
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+        if (nameMapping != null) {
+          builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+        }
+        closeableIterable = Iterables.concat(closeableIterable, builder.build());
+      }
     }
-
-    return builder.build();
+    return CloseableIterable.combine(closeableIterable, CloseableIterable.empty());
   }
 }
