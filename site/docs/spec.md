@@ -212,7 +212,7 @@ Columns in Iceberg data files are selected by field id. The table schema's colum
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
-Tables may also define a property `schema.name-mapping.default` with a JSON `name mapping` containing a list of `field mapping` objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
+Tables may also define a property `schema.name-mapping.default` with a JSON name mapping containing a list of field mapping objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
 
 * `names`: A required list of 0 or more names for a field. 
 * `field-id`: An optional Iceberg field ID used when a field's name is present in `names`
@@ -221,7 +221,7 @@ Tables may also define a property `schema.name-mapping.default` with a JSON `nam
 Field mapping fields are constrained by the following rules:
 
 * A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. 
-* Each child field should be defined with their own `field-mapping` under `fields`. 
+* Each child field should be defined with their own field mapping under `fields`. 
 * Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
 * Fields which exist only in the Iceberg schema and not in imported data files may use an empty `names` list.
 * Fields that exist in imported files but not in the Iceberg schema may omit `field-id`.
