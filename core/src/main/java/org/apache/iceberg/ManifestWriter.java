@@ -104,9 +104,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   /**
-   * Add an added entry for a file at a specific sequence number.
+   * Add an added entry for a file with a specific sequence number.
    * <p>
    * The entry's snapshot ID will be this manifest's snapshot ID.
+   * The entry's sequence number will be the provided sequence number.
    *
    * @param addedFile a data file
    * @param sequenceNumber sequence number for the data file
