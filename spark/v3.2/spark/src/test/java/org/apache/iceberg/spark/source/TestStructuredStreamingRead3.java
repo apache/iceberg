@@ -57,7 +57,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -251,7 +250,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
   @SuppressWarnings("unchecked")
   @Test
-  @Ignore("Existing logic doesn't work when the expired snapshot gets deleted")
   public void testReadingStreamWithExpiredSnapshotFromTimestamp() throws TimeoutException {
     List<SimpleRecord> firstSnapshotRecordList = Lists.newArrayList(
             new SimpleRecord(1, "one"));
@@ -263,7 +261,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
             new SimpleRecord(3, "three"));
 
     List<SimpleRecord> expectedRecordList = Lists.newArrayList(
-            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
             new SimpleRecord(3, "three"));
 
     appendData(firstSnapshotRecordList, tableIdentifier, "parquet");
@@ -277,12 +275,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     appendData(secondSnapshotRecordList, tableIdentifier, "parquet");
     table.refresh();
-    Snapshot secondSnapshot = table.currentSnapshot();
 
     appendData(thirdSnapshotRecordList, tableIdentifier, "parquet");
     table.refresh();
 
-    table.expireSnapshots().expireSnapshotId(secondSnapshot.snapshotId()).commit();
+    table.expireSnapshots().expireSnapshotId(firstSnapshot.snapshotId()).commit();
     table.refresh();
 
     List<SimpleRecord> actual = processAvailable(df);
