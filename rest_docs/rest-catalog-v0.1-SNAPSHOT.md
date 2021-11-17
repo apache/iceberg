@@ -1,5 +1,5 @@
 ---
-title: Apache Iceberg REST Catalog API v0.0.1
+title: Apache Iceberg REST Catalog API v1.0.0
 language_tabs:
   - shell: Shell
   - java: Java
@@ -16,9 +16,11 @@ headingLevel: 2
 
 <!-- Generator: Widdershins v4.0.1 -->
 
-<h1 id="apache-iceberg-rest-catalog-api">Apache Iceberg REST Catalog API v0.0.1</h1>
+<h1 id="apache-iceberg-rest-catalog-api">Apache Iceberg REST Catalog API v1.0.0</h1>
 
 > Scroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.
+
+Defines the specification for the first version of the REST Catalog API. Implementations should support both Iceberg table specs v1 and v2, with priority given to v2.
 
 Base URLs:
 
@@ -101,14 +103,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/catalog/{catalog} \
+curl -X POST http://127.0.0.1:1080/v1/catalogs/{catalog} \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/catalog/{catalog}");
+URL obj = new URL("http://127.0.0.1:1080/v1/catalogs/{catalog}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -124,7 +126,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/catalog/{catalog}`
+`POST /v1/catalogs/{catalog}`
 
 *Persist catalog specific configuration, which can be retrieved for later use.*
 
