@@ -27,19 +27,18 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-public abstract class SparkSpecifyCatalogTestBase extends SparkTestBase {
+public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   private static File warehouse = null;
 
   @BeforeClass
   public static void createWarehouse() throws IOException {
-    SparkSpecifyCatalogTestBase.warehouse = File.createTempFile("warehouse", null);
+    SparkTestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
     Assert.assertTrue(warehouse.delete());
   }
 
@@ -58,40 +57,30 @@ public abstract class SparkSpecifyCatalogTestBase extends SparkTestBase {
   protected final SupportsNamespaces validationNamespaceCatalog;
   protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
   protected final String tableName;
-  protected final Map<String, String> catalogConfig;
-  protected final String implementation;
 
-  public SparkSpecifyCatalogTestBase() {
-    this(SparkCatalogConfig.SPARK_CATALOG_HADOOP, null);
+  public SparkTestBaseWithCatalog() {
+    this(SparkCatalogConfig.HADOOP);
   }
 
-  public SparkSpecifyCatalogTestBase(SparkCatalogConfig sparkCatalogType) {
-    this(sparkCatalogType, null);
+  public SparkTestBaseWithCatalog(SparkCatalogConfig config) {
+    this(config.catalogName(), config.implementation(), config.properties());
   }
 
-  public SparkSpecifyCatalogTestBase(SparkCatalogConfig sparkCatalogConfig, Map<String, String> config) {
-    this.implementation = sparkCatalogConfig.implementation();
-
-    this.catalogConfig = Maps.newHashMap(sparkCatalogConfig.config());
-    if (config != null) {
-      this.catalogConfig.putAll(config);
-    }
-
-    this.catalogName = sparkCatalogConfig.catalogName();
-    this.validationCatalog = catalogName.equals(SparkCatalogConfig.SPARK_CATALOG_HADOOP.catalogName()) ?
+  public SparkTestBaseWithCatalog(String catalogName, String implementation, Map<String, String> config) {
+    this.catalogName = catalogName;
+    this.validationCatalog = catalogName.equals("testhadoop") ?
         new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse) :
         catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
-    catalogConfig.forEach((key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
+    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
-    if (catalogConfig.get("type").equalsIgnoreCase("hadoop")) {
+    if (config.get("type").equalsIgnoreCase("hadoop")) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
-    this.tableName = (catalogName.equals(SparkCatalogConfig.SPARK_SESSION_CATALOG_HIVE.catalogName()) ? "" :
-        catalogName + ".") + "default" + ".table";
+    this.tableName = (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
     sql("CREATE NAMESPACE IF NOT EXISTS default");
   }
