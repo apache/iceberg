@@ -23,21 +23,15 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public enum SparkCatalogConfig {
-  SPARK_CATALOG_HIVE("testhive", SparkCatalog.class.getName(), ImmutableMap.of(
+  HIVE("testhive", SparkCatalog.class.getName(), ImmutableMap.of(
       "type", "hive",
       "default-namespace", "default"
   )),
-  SPARK_CATALOG_HADOOP("testhadoop", SparkCatalog.class.getName(), ImmutableMap.of(
+  HADOOP("testhadoop", SparkCatalog.class.getName(), ImmutableMap.of(
       "type", "hadoop"
   )),
-  SPARK_SESSION_CATALOG_HIVE("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
+  SPARK("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
       "type", "hive",
-      "default-namespace", "default",
-      "parquet-enabled", "true",
-      "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-  )),
-  SPARK_SESSION_CATALOG_HADOOP("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
-      "type", "hadoop",
       "default-namespace", "default",
       "parquet-enabled", "true",
       "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
@@ -61,7 +55,7 @@ public enum SparkCatalogConfig {
     return implementation;
   }
 
-  public Map<String, String> config() {
+  public Map<String, String> properties() {
     return config;
   }
 }

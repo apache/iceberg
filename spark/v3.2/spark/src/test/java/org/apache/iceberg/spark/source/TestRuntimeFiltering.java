@@ -31,8 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkSpecifyCatalogTestBase;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -44,11 +43,7 @@ import org.junit.Test;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
-public class TestRuntimeFiltering extends SparkSpecifyCatalogTestBase {
-
-  public TestRuntimeFiltering() {
-    super(SparkCatalogConfig.SPARK_CATALOG_HADOOP);
-  }
+public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
   @After
   public void removeTables() {
