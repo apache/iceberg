@@ -469,6 +469,17 @@ public class TableTestBase {
         .build();
   }
 
+  protected DeleteFile newEqualityDeleteFile(int specId, String partitionPath, int... fieldIds) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes(fieldIds)
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
   protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {
     PositionDelete<T> positionDelete = PositionDelete.create();
     return positionDelete.set(path, pos, row);

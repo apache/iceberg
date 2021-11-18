@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
@@ -64,6 +65,12 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
       Preconditions.checkArgument(deleteFilesToAdd.isEmpty(),
           "Delete files to add must be empty because there's no delete file to be rewritten");
     }
+  }
+
+  @Override
+  public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber) {
+    setNewFilesSequenceNumber(sequenceNumber);
+    return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
   }
 
   @Override
