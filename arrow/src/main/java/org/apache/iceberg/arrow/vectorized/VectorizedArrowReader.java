@@ -367,9 +367,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public void close() {
-    if (vec != null) {
-      vec.close();
-    }
+    // don't close vectors as they are not owned by readers
   }
 
   @Override
