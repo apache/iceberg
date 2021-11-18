@@ -72,6 +72,3 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
         propsValue, table.properties().get(propsKey));
   }
 }
-
-
-
