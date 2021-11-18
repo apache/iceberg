@@ -79,6 +79,17 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
+   * If the compaction should use the sequence number of the snapshot at compaction start time for new data files,
+   * instead of using the sequence number of the newly produced snapshot.
+   * <p>
+   * This avoids commit conflicts with updates that add newer equality deletes at a higher sequence number.
+   * <p>
+   * Defaults to true.
+   */
+  String USE_STARTING_SEQUENCE_NUMBER = "use-starting-sequence-number";
+  boolean USE_STARTING_SEQUENCE_NUMBER_DEFAULT = true;
+
+  /**
    * If we make {@link #PARTIAL_PROGRESS_ENABLED} to be true, for some reasons, the all commits may not be successful
    * in the end. If we do rewrite in an isolated job, wo may want to fail the entire job. But if we do rewrite after write,
    * mey not want to fail the entire job. This setting determines whether the entire rewrite process will fail
