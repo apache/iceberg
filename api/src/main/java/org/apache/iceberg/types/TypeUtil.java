@@ -290,10 +290,10 @@ public class TypeUtil {
 
     switch (from.typeId()) {
       case INTEGER:
-        return to.equals(Types.LongType.get());
+        return to == Types.LongType.get();
 
       case FLOAT:
-        return to.equals(Types.DoubleType.get());
+        return to == Types.DoubleType.get();
 
       case DECIMAL:
         Types.DecimalType fromDecimal = (Types.DecimalType) from;

@@ -279,11 +279,11 @@ public class FlinkSink {
      * Configuring whether to enable the rewrite operator. The rewrite operator will rewrite committed files between
      * multiple checkpoints.
      *
-     * @param enable indicate whether it should rewrite committed files.
+     * @param enabled indicate whether it should rewrite committed files.
      * @return {@link Builder} to connect the iceberg table.
      */
-    public Builder rewrite(boolean enable) {
-      this.rewrite = enable;
+    public Builder rewrite(boolean enabled) {
+      this.rewrite = enabled;
       return this;
     }
 
@@ -324,13 +324,20 @@ public class FlinkSink {
       // Add parallel writers that append rows to files
       SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType);
 
+      boolean rewriteEnabled = rewrite || PropertyUtil.propertyAsBoolean(table.properties(),
+          STREAMING_REWRITE_ENABLE, STREAMING_REWRITE_ENABLE_DEFAULT);
+
+      // Emit commit result if any table maintenance enabled.
+      boolean emitCommitResult = rewriteEnabled;
+
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
-      SingleOutputStreamOperator<CommitResult> committerStream = appendCommitter(writerStream);
+      SingleOutputStreamOperator<CommitResult> committerStream = appendCommitter(writerStream, emitCommitResult);
 
       // Add parallel rewriter and single-parallelism committer to rewrite committed files
       // when streaming rewrite is enable.
-      SingleOutputStreamOperator<?> rewriterStream = appendRewriter(committerStream);
+      SingleOutputStreamOperator<?> rewriterStream = rewriteEnabled ?
+          appendRewriter(committerStream) : committerStream;
 
       // Add dummy discard sink
       return appendDummySink(rewriterStream);
@@ -376,13 +383,6 @@ public class FlinkSink {
     private SingleOutputStreamOperator<?> appendRewriter(
         SingleOutputStreamOperator<CommitResult> committerStream) {
 
-      boolean streamingRewriteEnable = rewrite || PropertyUtil.propertyAsBoolean(table.properties(),
-          STREAMING_REWRITE_ENABLE, STREAMING_REWRITE_ENABLE_DEFAULT);
-      if (!streamingRewriteEnable) {
-        // return upstream if streaming rewrite is unable
-        return committerStream;
-      }
-
       Integer fileRewriterParallelism = rewriteParallelism;
       if (fileRewriterParallelism == null) {
         // Fallback to use rewrite parallelism parsed from table properties if don't specify in job level.
@@ -414,8 +414,8 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<CommitResult> appendCommitter(
-        SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+        SingleOutputStreamOperator<WriteResult> writerStream, boolean emitResults) {
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite, emitResults);
       SingleOutputStreamOperator<CommitResult> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), TypeInformation.of(CommitResult.class), filesCommitter)
           .setParallelism(1)

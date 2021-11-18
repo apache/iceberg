@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -94,6 +95,8 @@ public class TestIcebergStreamRewriter {
         new Object[] {"parquet", 2, true},
         new Object[] {"orc", 1, false},
         new Object[] {"orc", 1, true},
+        new Object[] {"orc", 2, false},
+        new Object[] {"orc", 2, true},
     };
   }
 
@@ -135,7 +138,8 @@ public class TestIcebergStreamRewriter {
       harness.setup();
       harness.open();
 
-      StructLike partition = partitioned ? SimpleDataUtil.createPartition(null, "xxx") : null;
+      StructLike partition = SimpleDataUtil.createPartition(null, partitioned ? "xxx" : null);
+      StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
 
       List<RowData> expected = Lists.newArrayList();
       expected.add(SimpleDataUtil.createRowData(0, "xxx"));
@@ -167,7 +171,8 @@ public class TestIcebergStreamRewriter {
       Assert.assertEquals(1, harness.extractOutputValues().size());
       RewriteResult rewriteResult = harness.extractOutputValues().get(0);
 
-      Assert.assertTrue(partitioned ? rewriteResult.partitions().size() == 1 : rewriteResult.partitions().isEmpty());
+      Assert.assertEquals(1, rewriteResult.partitions().size());
+      Assert.assertEquals(partitionWrapper.set(partition), rewriteResult.partitions().iterator().next());
       Assert.assertEquals(formatVersion > 1 ? commit.snapshotId() : 0, rewriteResult.startingSnapshotId());
       Assert.assertEquals(formatVersion > 1 ? commit.sequenceNumber() : 0, rewriteResult.startingSnapshotSeqNum());
       Assert.assertEquals(++cnt, Iterables.size(rewriteResult.deletedDataFiles()));
@@ -184,7 +189,8 @@ public class TestIcebergStreamRewriter {
         .set(IcebergStreamRewriter.MAX_FILES_COUNT, "4")
         .commit();
 
-    StructLike partition = partitioned ? SimpleDataUtil.createPartition(null, "xxx") : null;
+    StructLike partition = SimpleDataUtil.createPartition(null, partitioned ? "xxx" : null);
+    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
 
     OperatorSubtaskState snapshot;
     long timestamp = 0;
@@ -239,7 +245,8 @@ public class TestIcebergStreamRewriter {
       Assert.assertEquals(1, harness.extractOutputValues().size());
       RewriteResult rewriteResult = harness.extractOutputValues().get(0);
 
-      Assert.assertTrue(partitioned ? rewriteResult.partitions().size() == 1 : rewriteResult.partitions().isEmpty());
+      Assert.assertEquals(1, rewriteResult.partitions().size());
+      Assert.assertEquals(partitionWrapper.set(partition), rewriteResult.partitions().iterator().next());
       Assert.assertEquals(formatVersion > 1 ? commit3.snapshotId() : 0, rewriteResult.startingSnapshotId());
       Assert.assertEquals(formatVersion > 1 ? commit3.sequenceNumber() : 0, rewriteResult.startingSnapshotSeqNum());
       Assert.assertEquals(4, Iterables.size(rewriteResult.deletedDataFiles()));
@@ -267,6 +274,9 @@ public class TestIcebergStreamRewriter {
         .set(IcebergStreamRewriter.MAX_FILES_COUNT, "4")
         .commit();
 
+    StructLike partition = SimpleDataUtil.createPartition(null, null);
+    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
+
     long timestamp = 0;
     JobID jobID = new JobID();
     try (OneInputStreamOperatorTestHarness<CommitResult, RewriteResult> harness = createStreamOpr(jobID)) {
@@ -274,12 +284,12 @@ public class TestIcebergStreamRewriter {
       harness.open();
 
       // Txn#1 Table[<1, "aaa">, <2, "bbb">, <3, "ccc">]
-      DataFile dataFile11 = writeDataFile("data-ckpt1-1", null, ImmutableList.of(
+      DataFile dataFile11 = writeDataFile("data-ckpt1-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(1, "aaa"),
           SimpleDataUtil.createRowData(2, "bbb"),
           SimpleDataUtil.createRowData(3, "ccc")
       ));
-      CommitResult commit1 = commitData(table.spec().specId(), null,
+      CommitResult commit1 = commitData(table.spec().specId(), partition,
           ImmutableList.of(dataFile11), ImmutableList.of(), ImmutableList.of());
 
       harness.processElement(commit1, ++timestamp);
@@ -287,14 +297,14 @@ public class TestIcebergStreamRewriter {
       Assert.assertTrue(harness.extractOutputValues().isEmpty());
 
       // Txn#2 Table[<1, "aaa">, <2, "bbb">, <3, "ccc">, <4, "ddd">, <3, "eee">, <2, "fff">]
-      DataFile dataFile21 = writeDataFile("data-ckpt2-1", null, ImmutableList.of(
+      DataFile dataFile21 = writeDataFile("data-ckpt2-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(4, "ddd"),
           SimpleDataUtil.createRowData(3, "eee")
       ));
-      DataFile dataFile22 = writeDataFile("data-ckpt2-2", null, ImmutableList.of(
+      DataFile dataFile22 = writeDataFile("data-ckpt2-2", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(2, "fff")
       ));
-      CommitResult commit2 = commitData(table.spec().specId(), null,
+      CommitResult commit2 = commitData(table.spec().specId(), partition,
           ImmutableList.of(dataFile21, dataFile22), ImmutableList.of(), ImmutableList.of());
 
       harness.processElement(commit2, ++timestamp);
@@ -302,10 +312,10 @@ public class TestIcebergStreamRewriter {
       Assert.assertTrue(harness.extractOutputValues().isEmpty());
 
       // Txn#3 Table[<1, "aaa">, <2, "bbb">, <3, "ccc">, <4, "ddd">, <3, "eee">, <2, "fff">, <1, "ggg">]
-      DataFile dataFile31 = writeDataFile("data-ckpt3-1", null, ImmutableList.of(
+      DataFile dataFile31 = writeDataFile("data-ckpt3-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(1, "ggg")
       ));
-      CommitResult commit3 = commitData(table.spec().specId(), null,
+      CommitResult commit3 = commitData(table.spec().specId(), partition,
           ImmutableList.of(dataFile31), ImmutableList.of(), ImmutableList.of());
 
       harness.processElement(commit3, ++timestamp);
@@ -313,7 +323,8 @@ public class TestIcebergStreamRewriter {
       Assert.assertEquals(1, harness.extractOutputValues().size());
       RewriteResult rewriteResult = harness.extractOutputValues().get(0);
 
-      Assert.assertTrue(rewriteResult.partitions().isEmpty());
+      Assert.assertEquals(1, rewriteResult.partitions().size());
+      Assert.assertEquals(partitionWrapper.set(partition), rewriteResult.partitions().iterator().next());
       Assert.assertEquals(formatVersion > 1 ? commit3.snapshotId() : 0, rewriteResult.startingSnapshotId());
       Assert.assertEquals(formatVersion > 1 ? commit3.sequenceNumber() : 0, rewriteResult.startingSnapshotSeqNum());
       Assert.assertEquals(4, Iterables.size(rewriteResult.deletedDataFiles()));
@@ -434,6 +445,9 @@ public class TestIcebergStreamRewriter {
         .set(IcebergStreamRewriter.MAX_FILES_COUNT, "4")
         .commit();
 
+    StructLike partition = SimpleDataUtil.createPartition(null, null);
+    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
+
     long timestamp = 0;
     JobID jobID = new JobID();
     try (OneInputStreamOperatorTestHarness<CommitResult, RewriteResult> harness = createStreamOpr(jobID)) {
@@ -441,15 +455,15 @@ public class TestIcebergStreamRewriter {
       harness.open();
 
       // Txn#1 Table[<1, "aaa">, <3, "ccc">]
-      DataFile dataFile11 = writeDataFile("data-ckpt1-1", null, ImmutableList.of(
+      DataFile dataFile11 = writeDataFile("data-ckpt1-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(1, "aaa"),
           SimpleDataUtil.createRowData(2, "bbb"),
           SimpleDataUtil.createRowData(3, "ccc")
       ));
-      DeleteFile deleteFile11 = writePosDeleteFile("pos-delete-ckpt1-1", null, ImmutableList.of(
+      DeleteFile deleteFile11 = writePosDeleteFile("pos-delete-ckpt1-1", partition, ImmutableList.of(
           Pair.of(dataFile11.path(), 1L))
       );
-      CommitResult commit1 = commitData(table.spec().specId(), null,
+      CommitResult commit1 = commitData(table.spec().specId(), partition,
           ImmutableList.of(dataFile11), ImmutableList.of(deleteFile11), ImmutableList.of(deleteFile11.path()));
 
       harness.processElement(commit1, ++timestamp);
@@ -457,17 +471,17 @@ public class TestIcebergStreamRewriter {
       Assert.assertTrue(harness.extractOutputValues().isEmpty());
 
       // Txn#2 Table[<1, "aaa">, <3, "xxx">, <4, "ddd">, <5, "eee">]
-      DataFile dataFile21 = writeDataFile("data-ckpt2-1", null, ImmutableList.of(
+      DataFile dataFile21 = writeDataFile("data-ckpt2-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(3, "xxx"),
           SimpleDataUtil.createRowData(4, "ddd")
       ));
-      DeleteFile deleteFile21 = writeEqDeleteFile("eq-delete-ckpt2-1", null, ImmutableList.of(
+      DeleteFile deleteFile21 = writeEqDeleteFile("eq-delete-ckpt2-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(3, "ccc")
       ));
-      DataFile dataFile22 = writeDataFile("data-ckpt2-2", null, ImmutableList.of(
+      DataFile dataFile22 = writeDataFile("data-ckpt2-2", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(5, "eee")
       ));
-      CommitResult commit2 = commitData(table.spec().specId(), null,
+      CommitResult commit2 = commitData(table.spec().specId(), partition,
           ImmutableList.of(dataFile21, dataFile22), ImmutableList.of(deleteFile21), ImmutableList.of());
 
       harness.processElement(commit2, ++timestamp);
@@ -475,13 +489,13 @@ public class TestIcebergStreamRewriter {
       Assert.assertTrue(harness.extractOutputValues().isEmpty());
 
       // Txn#3 Table[<1, "aaa">, <3, "xxx">, <5, "eee">, <7, "ggg">]
-      DataFile dataFile31 = writeDataFile("data-ckpt3-1", null, ImmutableList.of(
+      DataFile dataFile31 = writeDataFile("data-ckpt3-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(7, "ggg")
       ));
-      DeleteFile deleteFile31 = writeEqDeleteFile("eq-delete-ckpt3-1", null, ImmutableList.of(
+      DeleteFile deleteFile31 = writeEqDeleteFile("eq-delete-ckpt3-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(4, "ddd")
       ));
-      CommitResult commit3 = commitData(table.spec().specId(), null,
+      CommitResult commit3 = commitData(table.spec().specId(), partition,
           ImmutableList.of(dataFile31), ImmutableList.of(deleteFile31), ImmutableList.of());
 
       harness.processElement(commit3, ++timestamp);
@@ -489,7 +503,8 @@ public class TestIcebergStreamRewriter {
       Assert.assertEquals(1, harness.extractOutputValues().size());
       RewriteResult rewriteResult = harness.extractOutputValues().get(0);
 
-      Assert.assertTrue(rewriteResult.partitions().isEmpty());
+      Assert.assertEquals(1, rewriteResult.partitions().size());
+      Assert.assertEquals(partitionWrapper.set(partition), rewriteResult.partitions().iterator().next());
       Assert.assertEquals(commit3.snapshotId(), rewriteResult.startingSnapshotId());
       Assert.assertEquals(commit3.sequenceNumber(), rewriteResult.startingSnapshotSeqNum());
       Assert.assertEquals(4, Iterables.size(rewriteResult.deletedDataFiles()));
@@ -630,8 +645,9 @@ public class TestIcebergStreamRewriter {
     deleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
     CreateSnapshotEvent updateEvent = (CreateSnapshotEvent) rowDelta.updateEvent();
-    return CommitResult.builder(updateEvent.snapshotId(), updateEvent.sequenceNumber())
-        .partition(specId, partition)
+    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.specs().get(specId).partitionType());
+    return CommitResult.builder(specId, updateEvent.snapshotId(), updateEvent.sequenceNumber())
+        .partition(partitionWrapper.set(partition))
         .addDataFile(dataFiles)
         .addDeleteFile(deleteFiles)
         .addReferencedDataFile(referencedFiles)

@@ -23,21 +23,21 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.StructLikeWrapper;
 
 class RewriteResult {
 
-  private final Collection<StructLike> partitions;
+  private final Collection<StructLikeWrapper> partitions;
   private final long startingSnapshotSeqNum;
   private final long startingSnapshotId;
   private final Iterable<DataFile> addedDataFiles;
   private final Iterable<DataFile> deletedDataFiles;
 
-  private RewriteResult(Collection<StructLike> partitions,
+  private RewriteResult(Collection<StructLikeWrapper> partitions,
                         long startingSnapshotSeqNum,
                         long startingSnapshotId,
                         Iterable<DataFile> addedDataFiles,
@@ -49,7 +49,7 @@ class RewriteResult {
     this.deletedDataFiles = deletedDataFiles;
   }
 
-  Collection<StructLike> partitions() {
+  Collection<StructLikeWrapper> partitions() {
     return partitions;
   }
 
@@ -74,7 +74,7 @@ class RewriteResult {
   }
 
   static class Builder {
-    private final Set<StructLike> partitions;
+    private final Set<StructLikeWrapper> partitions;
     private long startingSnapshotSeqNum;
     private long startingSnapshotId;
     private final List<DataFile> addedFiles;
@@ -88,14 +88,12 @@ class RewriteResult {
       deletedFiles = Lists.newArrayList();
     }
 
-    Builder partition(StructLike newPartition) {
-      if (newPartition != null) {
-        this.partitions.add(newPartition);
-      }
+    Builder partition(StructLikeWrapper newPartition) {
+      this.partitions.add(newPartition);
       return this;
     }
 
-    Builder partitions(Collection<StructLike> newPartitions) {
+    Builder partitions(Collection<StructLikeWrapper> newPartitions) {
       newPartitions.forEach(this::partition);
       return this;
     }

@@ -23,21 +23,21 @@ import java.io.Serializable;
 import java.util.Collection;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.util.StructLikeWrapper;
 
 class CommitResult implements Serializable {
 
   private final long snapshotId;
   private final long sequenceNumber;
   private final int specId;
-  private final StructLike partition;
+  private final StructLikeWrapper partition;
   private final WriteResult writeResult;
 
   private CommitResult(long snapshotId,
                        long sequenceNumber,
                        int specId,
-                       StructLike partition,
+                       StructLikeWrapper partition,
                        WriteResult writeResult) {
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
@@ -58,7 +58,7 @@ class CommitResult implements Serializable {
     return specId;
   }
 
-  StructLike partition() {
+  StructLikeWrapper partition() {
     return partition;
   }
 
@@ -66,28 +66,27 @@ class CommitResult implements Serializable {
     return writeResult;
   }
 
-  static Builder builder(long snapshotId, long sequenceNumber) {
-    return new Builder(snapshotId, sequenceNumber);
+  static Builder builder(int specId, long snapshotId, long sequenceNumber) {
+    return new Builder(specId, snapshotId, sequenceNumber);
   }
 
   static class Builder {
 
     private final long snapshotId;
     private final long sequenceNumber;
-    private int specId;
-    private StructLike partition;
+    private final int specId;
+    private StructLikeWrapper partition;
     private final WriteResult.Builder writeResult;
 
-    private Builder(long snapshotId, long sequenceNumber) {
+    private Builder(int specId, long snapshotId, long sequenceNumber) {
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
-      this.specId = 0;
+      this.specId = specId;
       this.partition = null;
       this.writeResult = WriteResult.builder();
     }
 
-    Builder partition(int newSpecId, StructLike newPartition) {
-      this.specId = newSpecId;
+    Builder partition(StructLikeWrapper newPartition) {
       this.partition = newPartition;
       return this;
     }

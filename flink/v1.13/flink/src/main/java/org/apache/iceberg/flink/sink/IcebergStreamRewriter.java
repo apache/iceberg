@@ -46,7 +46,6 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StaticDataTableScan;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -61,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,10 +97,11 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
   private transient Integer splitLookback;
   private transient Long splitOpenFileCost;
 
-  private final Map<StructLike, DataFileGroup> dataFileGroupByPartition = Maps.newHashMap();
+  private final Map<StructLikeWrapper, DataFileGroup> dataFileGroupByPartition = Maps.newHashMap();
 
-  private static final ListStateDescriptor<Map<StructLike, DataFileGroup>> STATE_DESCRIPTOR = buildStateDescriptor();
-  private transient ListState<Map<StructLike, DataFileGroup>> dataFileGroupsState;
+  private static final ListStateDescriptor<Map<StructLikeWrapper, DataFileGroup>> STATE_DESCRIPTOR =
+      buildStateDescriptor();
+  private transient ListState<Map<StructLikeWrapper, DataFileGroup>> dataFileGroupsState;
 
   IcebergStreamRewriter(TableLoader tableLoader) {
     this.tableLoader = tableLoader;
@@ -178,12 +179,12 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     dataFileGroupsState.add(dataFileGroupByPartition);
   }
 
-  private void rewriteFileGroup(StructLike partition, DataFileGroup fileGroup) {
+  private void rewriteFileGroup(StructLikeWrapper partition, DataFileGroup fileGroup) {
     if (fileGroup.filesSize() < targetSizeInBytes && fileGroup.filesCount() < maxFilesCount) {
       return;
     }
     String description = MoreObjects.toStringHelper(DataFileGroup.class)
-        .add("partition", partition)
+        .add("partition", partition.get())
         .add("latestSequenceNumber", fileGroup.latestSequenceNumber())
         .add("latestSnapshotId", fileGroup.latestSnapshotId())
         .add("filesCount", fileGroup.filesCount())
@@ -213,7 +214,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     }
   }
 
-  private RewriteResult rewrite(StructLike partition, DataFileGroup fileGroup) throws IOException {
+  private RewriteResult rewrite(StructLikeWrapper partition, DataFileGroup fileGroup) throws IOException {
     CloseableIterable<FileScanTask> fileScanTasks = StaticDataTableScan.of(table, ops)
         .scan(fileGroup.manifestFiles())
         .planFiles();
@@ -274,9 +275,9 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     }
   }
 
-  private static ListStateDescriptor<Map<StructLike, DataFileGroup>> buildStateDescriptor() {
-    TypeInformation<Map<StructLike, DataFileGroup>> info = TypeInformation.of(
-        new TypeHint<Map<StructLike, DataFileGroup>>() {}
+  private static ListStateDescriptor<Map<StructLikeWrapper, DataFileGroup>> buildStateDescriptor() {
+    TypeInformation<Map<StructLikeWrapper, DataFileGroup>> info = TypeInformation.of(
+        new TypeHint<Map<StructLikeWrapper, DataFileGroup>>() {}
     );
     return new ListStateDescriptor<>("iceberg-stream-rewriter-state", info);
   }

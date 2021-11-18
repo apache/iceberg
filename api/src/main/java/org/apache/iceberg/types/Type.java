@@ -24,7 +24,6 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Objects;
 
 public interface Type extends Serializable {
   enum TypeID {
@@ -111,22 +110,6 @@ public interface Type extends Serializable {
 
     Object writeReplace() throws ObjectStreamException {
       return new PrimitiveHolder(toString());
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      } else if (!(o instanceof PrimitiveType)) {
-        return false;
-      }
-      PrimitiveType that = (PrimitiveType) o;
-      return this.typeId().equals(that.typeId());
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(this.getClass(), this.typeId());
     }
   }
 

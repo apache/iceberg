@@ -56,6 +56,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -328,8 +329,9 @@ public class TestIcebergRewriteFilesCommitter {
     deleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
     CreateSnapshotEvent updateEvent = (CreateSnapshotEvent) rowDelta.updateEvent();
-    return CommitResult.builder(updateEvent.snapshotId(), updateEvent.sequenceNumber())
-        .partition(specId, partition)
+    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.specs().get(specId).partitionType());
+    return CommitResult.builder(specId, updateEvent.snapshotId(), updateEvent.sequenceNumber())
+        .partition(partitionWrapper.set(partition))
         .addDataFile(dataFiles)
         .addDeleteFile(deleteFiles)
         .addReferencedDataFile(referencedFiles)
