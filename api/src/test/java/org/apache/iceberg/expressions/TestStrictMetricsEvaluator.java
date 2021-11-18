@@ -530,14 +530,22 @@ public class TestStrictMetricsEvaluator {
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
         notIn("all_nulls", "abc", "def")).eval(FILE);
-    Assert.assertTrue("Should match: notIn on all nulls column", shouldRead);
+    Assert.assertFalse("Should not match: notIn on all nulls column", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
         notIn("some_nulls", "abc", "def")).eval(FILE_3);
-    Assert.assertTrue("Should match: notIn on some nulls column, 'bbb' > 'abc' and 'bbb' < 'def'", shouldRead);
+    Assert.assertFalse("Should match: notIn on some nulls column, 'bbb' > 'abc' and 'bbb' < 'def'", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA,
         notIn("no_nulls", "abc", "def")).eval(FILE);
     Assert.assertFalse("Should not match: no_nulls field does not have bounds", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA,
+        notIn("some_nulls", "abc")).eval(FILE_3);
+    Assert.assertFalse("Should match: notIn on some nulls column, 'bbb' > 'abc' and 'bbb' < 'def'", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA,
+        notIn("all_nulls", "a")).eval(FILE);
+    Assert.assertFalse("Should not match: notIn with one element on all null column", shouldRead);
   }
 }

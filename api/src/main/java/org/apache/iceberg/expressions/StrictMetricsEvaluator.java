@@ -392,7 +392,12 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (canContainNulls(id)) {
+        // NOT null IN (1, 2) -> NOT null -> null -> false in filters
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 

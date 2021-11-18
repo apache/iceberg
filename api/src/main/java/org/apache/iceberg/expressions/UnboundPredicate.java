@@ -211,7 +211,12 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
         case IN:
           return new BoundLiteralPredicate<>(Operation.EQ, boundTerm, Iterables.get(convertedLiterals, 0));
         case NOT_IN:
-          return new BoundLiteralPredicate<>(Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+          if (boundTerm.ref().field().isRequired()) {
+            // 'col NOT IN (1)' is equivalent to 'col != 1' iff the column has no nulls
+            return new BoundLiteralPredicate<>(Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+          } else {
+            return new BoundSetPredicate<>(op(), boundTerm, literalSet);
+          }
         default:
           throw new ValidationException("Operation must be IN or NOT_IN");
       }
