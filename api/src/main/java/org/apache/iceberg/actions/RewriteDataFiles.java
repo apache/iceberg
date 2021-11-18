@@ -80,7 +80,7 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
 
   /**
    * If we make {@link #PARTIAL_PROGRESS_ENABLED} to be true, for some reasons, the all commits may not be successful
-   * in the end. If we do rewrite in an isolated job, wo may want to fail the entire job. But if we do it after write,
+   * in the end. If we do rewrite in an isolated job, wo may want to fail the entire job. But if we do rewrite after write,
    * mey not want to fail the entire job. This setting determines whether the entire rewrite process will fail
    * if no commits succeeded in the end. This setting has no effect if partial progress is disabled.
    */
