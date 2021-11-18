@@ -376,8 +376,7 @@ public class SparkCatalog extends BaseCatalog {
       try {
         return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
       } catch (NamespaceNotEmptyException e) {
-        throw new NamespaceNotEmptyException(
-            "Cannot drop a non-empty namespace, even with CASCADE. You must clear the namespace before dropping it", e);
+        throw new NamespaceNotEmptyException("Cannot delete non-empty namespace, even with CASCADE.", e);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(namespace);
       }
