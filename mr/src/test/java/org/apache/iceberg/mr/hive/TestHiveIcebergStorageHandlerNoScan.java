@@ -44,6 +44,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -156,7 +157,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateDropTable() throws TException, IOException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
@@ -214,7 +215,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateDropTableNonDefaultCatalog() throws TException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     String catalogName = "nondefaultcatalog";
     testTables.properties().entrySet()
         .forEach(e -> shell.setHiveSessionValue(e.getKey().replace(testTables.catalog, catalogName), e.getValue()));
@@ -241,7 +242,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithoutSpec() {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
@@ -257,7 +258,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithUnpartitionedSpec() {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     // We need the location for HadoopTable based tests only
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
@@ -275,7 +276,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithFormatV2ThroughTableProperty() {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     // We need the location for HadoopTable based tests only
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
@@ -295,7 +296,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testDeleteBackingTable() throws TException, IOException, InterruptedException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
@@ -342,7 +343,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         testTableType == TestTables.TestTableType.HIVE_CATALOG);
 
     // create test table
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     testTables.createTable(shell, identifier.name(),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET, ImmutableList.of());
 
@@ -366,7 +367,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableError() {
-    TableIdentifier identifier = TableIdentifier.of("default", "withShell2");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "withShell2");
 
     // Wrong schema
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
@@ -424,7 +425,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
       // With other catalogs, table creation should succeed
       shell.executeStatement("CREATE EXTERNAL TABLE customers " +
           "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-          testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
+          testTables.locationForCreateTableSQL(TableIdentifier.of(Namespace.of("default"), "customers")) +
           testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
     }
   }
@@ -439,7 +440,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
           shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
               "PARTITIONED BY (first_name STRING) " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
+              testTables.locationForCreateTableSQL(TableIdentifier.of(Namespace.of("default"), "customers")) +
               " TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" +
               PartitionSpecParser.toJson(spec) + "')");
         }
@@ -448,7 +449,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithColumnSpecificationHierarchy() {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     shell.executeStatement("CREATE EXTERNAL TABLE customers (" +
         "id BIGINT, name STRING, " +
@@ -468,7 +469,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithAllSupportedTypes() {
-    TableIdentifier identifier = TableIdentifier.of("default", "all_types");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "all_types");
     Schema allSupportedSchema = new Schema(
         optional(1, "t_float", Types.FloatType.get()),
         optional(2, "t_double", Types.DoubleType.get()),
@@ -497,7 +498,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithNotSupportedTypes() {
-    TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "not_supported_types");
     // Can not create INTERVAL types from normal create table, so leave them out from this test
     Map<String, Type> notSupportedTypes = ImmutableMap.of(
         "TINYINT", Types.IntegerType.get(),
@@ -520,7 +521,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithNotSupportedTypesWithAutoConversion() {
-    TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "not_supported_types");
     // Can not create INTERVAL types from normal create table, so leave them out from this test
     Map<String, Type> notSupportedTypes = ImmutableMap.of(
         "TINYINT", Types.IntegerType.get(),
@@ -544,7 +545,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithColumnComments() {
-    TableIdentifier identifier = TableIdentifier.of("default", "comment_table");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "comment_table");
     shell.executeStatement("CREATE EXTERNAL TABLE comment_table (" +
         "t_int INT COMMENT 'int column',  " +
         "t_string STRING COMMENT 'string column', " +
@@ -565,7 +566,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testCreateTableWithoutColumnComments() {
-    TableIdentifier identifier = TableIdentifier.of("default", "without_comment_table");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "without_comment_table");
     shell.executeStatement("CREATE EXTERNAL TABLE without_comment_table (" +
             "t_int INT,  " +
             "t_string STRING) " +
@@ -586,7 +587,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testIcebergAndHmsTableProperties() throws Exception {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     shell.executeStatement(String.format("CREATE EXTERNAL TABLE default.customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s" +
@@ -704,7 +705,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assume.assumeTrue("Iceberg - HMS property translation is only relevant for HiveCatalog",
         testTableType == TestTables.TestTableType.HIVE_CATALOG);
 
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     // Create HMS table with with a property to be translated
     shell.executeStatement(String.format("CREATE EXTERNAL TABLE default.customers " +
@@ -732,7 +733,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testDropTableWithAppendedData() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     testTables.createTable(shell, identifier.name(), HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, SPEC,
         FileFormat.PARQUET, ImmutableList.of());
@@ -749,7 +750,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assume.assumeFalse("Not relevant for HiveCatalog",
             testTableType.equals(TestTables.TestTableType.HIVE_CATALOG));
 
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     // Create the Iceberg table in non-HiveCatalog
     testTables.createIcebergTable(shell.getHiveConf(), identifier.name(),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,

@@ -72,7 +72,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     String tableName = identifier.name();
     MetadataTableType type = MetadataTableType.from(tableName);
     if (type != null) {
-      TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace());
       TableOperations ops = newTableOps(baseTableIdentifier);
       if (ops.current() == null) {
         throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
@@ -86,7 +86,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
     return MetadataTableType.from(identifier.name()) != null &&
-        isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
+        isValidIdentifier(TableIdentifier.of(identifier.namespace()));
   }
 
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
@@ -230,11 +230,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       sb.append(catalogName).append(".");
     }
 
-    for (String level : identifier.namespace().levels()) {
-      sb.append(level).append(".");
-    }
-
-    sb.append(identifier.name());
+    sb.append(identifier.toString());
 
     return sb.toString();
   }

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -30,8 +31,8 @@ import org.projectnessie.error.NessieNotFoundException;
 
 public class TestBranchVisibility extends BaseTestIceberg {
 
-  private final TableIdentifier tableIdentifier1 = TableIdentifier.of("test-ns", "table1");
-  private final TableIdentifier tableIdentifier2 = TableIdentifier.of("test-ns", "table2");
+  private final TableIdentifier tableIdentifier1 = TableIdentifier.of(Namespace.of("test-ns"), "table1");
+  private final TableIdentifier tableIdentifier2 = TableIdentifier.of(Namespace.of("test-ns"), "table2");
   private NessieCatalog testCatalog;
   private int schemaCounter = 1;
 
@@ -99,14 +100,14 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String mainName = "main";
 
     // asking for table@branch gives expected regardless of catalog
-    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")))
+    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of(Namespace.of("test-ns"), "table1@test")))
         .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
 
     // Asking for table@branch gives expected regardless of catalog.
     // Earlier versions used "table1@" + tree.getReferenceByName("main").getHash() before, but since
     // Nessie 0.8.2 the branch name became mandatory and specifying a hash within a branch is not
     // possible.
-    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainName)))
+    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of(Namespace.of("test-ns"), "table1@" + mainName)))
         .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
   }
 

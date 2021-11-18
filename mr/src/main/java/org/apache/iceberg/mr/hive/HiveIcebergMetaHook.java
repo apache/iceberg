@@ -35,6 +35,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveSchemaUtil;
@@ -223,7 +224,8 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     }
 
     if (properties.get(Catalogs.NAME) == null) {
-      properties.put(Catalogs.NAME, TableIdentifier.of(hmsTable.getDbName(), hmsTable.getTableName()).toString());
+      properties.put(Catalogs.NAME,
+          TableIdentifier.of(Namespace.of(hmsTable.getDbName()), hmsTable.getTableName()).toString());
     }
 
     // Remove HMS table parameters we don't want to propagate to Iceberg

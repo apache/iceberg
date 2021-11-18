@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -144,7 +145,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
               sql("SELECT * FROM %s ORDER BY id", tableName),
               sql("SELECT * FROM %s ORDER BY id", newTableName));
 
-      Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+      Table createdTable = validationCatalog.loadTable(TableIdentifier.of(Namespace.of("default"), newTableName));
       assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "ts", "tsz");
     });
   }
@@ -166,7 +167,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
         assertEquals("Row data should match expected",
               sql("SELECT * FROM %s ORDER BY id", tableName),
               sql("SELECT * FROM %s ORDER BY id", newTableName));
-        Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+        Table createdTable = validationCatalog.loadTable(TableIdentifier.of(Namespace.of("default"), newTableName));
         assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts", "tsz");
       });
   }

@@ -28,6 +28,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
@@ -71,7 +72,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             Types.NestedField.required(5, "f3", Types.LongType.get()))),
         required(6, "id", Types.LongType.get()));
 
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), schema);
+    Table table = catalog.createTable(TableIdentifier.of(Namespace.of("default"), "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
@@ -106,7 +107,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         Types.NestedField.optional(2, "time", Types.TimestampType.withZone())
     );
 
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), writeSchema);
+    Table table = catalog.createTable(TableIdentifier.of(Namespace.of("default"), "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);

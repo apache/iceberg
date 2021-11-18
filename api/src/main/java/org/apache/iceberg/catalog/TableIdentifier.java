@@ -35,16 +35,54 @@ public class TableIdentifier {
   private final Namespace namespace;
   private final String name;
 
+  /**
+   * Creates a {@link TableIdentifier} from the given array of name.
+   *
+   * @param names The names to create the {@link TableIdentifier} from.
+   * @return A {@link TableIdentifier} instance from the given array of names.
+   * @deprecated Please use {@link TableIdentifier#of(Namespace)} and {@link TableIdentifier#of(Namespace, String)}.
+   */
+  @Deprecated
   public static TableIdentifier of(String... names) {
     Preconditions.checkArgument(names != null, "Cannot create table identifier from null array");
     Preconditions.checkArgument(names.length > 0, "Cannot create table identifier without a table name");
     return new TableIdentifier(Namespace.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
   }
 
+  /**
+   * Creates a {@link TableIdentifier} from the given {@link Namespace} and simple table name.
+   *
+   * @param namespace The {@link Namespace} to use for the {@link TableIdentifier}.
+   * @param name      The simple table name.
+   * @return A {@link TableIdentifier} from the given {@link Namespace} and simple table name.
+   */
   public static TableIdentifier of(Namespace namespace, String name) {
     return new TableIdentifier(namespace, name);
   }
 
+  /**
+   * Creates a {@link TableIdentifier} with the same name as the given {@link Namespace} instance. This is mostly
+   * being used when one wants to create a base {@link TableIdentifier}, such as
+   * <code>TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace())</code>
+   *
+   * @param namespace The {@link Namespace} to create the base {@link TableIdentifier} from.
+   * @return A {@link TableIdentifier} with the same name as the given {@link Namespace} instance
+   */
+  public static TableIdentifier of(Namespace namespace) {
+    Preconditions.checkArgument(namespace != null, "Invalid Namespace: null");
+    Preconditions.checkArgument(!namespace.isEmpty(), "Cannot create table identifier from empty namespace");
+    String[] levels = namespace.levels();
+    return new TableIdentifier(Namespace.of(Arrays.copyOf(levels, levels.length - 1)), levels[levels.length - 1]);
+  }
+
+  /**
+   * Parses the given identifier into a {@link TableIdentifier} instance.
+   *
+   * @param identifier The table identifier to parse to a {@link TableIdentifier}
+   * @return A {@link TableIdentifier} instance based on the given string.
+   * @deprecated Please use {@link TableIdentifier#of(Namespace)} and {@link TableIdentifier#of(Namespace, String)}.
+   */
+  @Deprecated
   public static TableIdentifier parse(String identifier) {
     Preconditions.checkArgument(identifier != null, "Cannot parse table identifier: null");
     Iterable<String> parts = DOT.split(identifier);

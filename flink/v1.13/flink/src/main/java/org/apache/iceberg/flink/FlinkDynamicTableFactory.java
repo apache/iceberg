@@ -38,6 +38,7 @@ import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -191,7 +192,8 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
       }
     }
 
-    return TableLoader.fromCatalog(flinkCatalog.getCatalogLoader(), TableIdentifier.of(catalogDatabase, catalogTable));
+    return TableLoader.fromCatalog(flinkCatalog.getCatalogLoader(), TableIdentifier.of(
+        Namespace.of(catalogDatabase), catalogTable));
   }
 
   private static TableLoader createTableLoader(FlinkCatalog catalog, ObjectPath objectPath) {

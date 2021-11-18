@@ -322,7 +322,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
         for (Map<String, AttributeValue> item : response.items()) {
           String identifier = item.get(COL_IDENTIFIER).s();
           if (!COL_IDENTIFIER_NAMESPACE.equals(identifier)) {
-            identifiers.add(TableIdentifier.of(identifier.split("\\.")));
+            identifiers.add(TableIdentifier.parse(identifier));
           }
         }
       }

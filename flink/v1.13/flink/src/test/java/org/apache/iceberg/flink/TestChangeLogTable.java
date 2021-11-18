@@ -30,6 +30,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
@@ -251,7 +252,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     CatalogLoader loader = CatalogLoader.hadoop("my_catalog", CONF, ImmutableMap.of(
         CatalogProperties.WAREHOUSE_LOCATION, warehouse
     ));
-    Table table = loader.loadCatalog().loadTable(TableIdentifier.of(DATABASE_NAME, TABLE_NAME));
+    Table table = loader.loadCatalog().loadTable(TableIdentifier.of(Namespace.of(DATABASE_NAME), TABLE_NAME));
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));

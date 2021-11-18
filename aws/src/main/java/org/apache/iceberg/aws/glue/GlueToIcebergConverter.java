@@ -36,7 +36,7 @@ class GlueToIcebergConverter {
   }
 
   static TableIdentifier toTableId(Table table) {
-    return TableIdentifier.of(table.databaseName(), table.name());
+    return TableIdentifier.of(Namespace.of(table.databaseName()), table.name());
   }
 
   /**

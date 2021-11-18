@@ -48,7 +48,7 @@ public class TestGlueToIcebergConverter {
         .databaseName("db")
         .name("name")
         .build();
-    TableIdentifier icebergId = TableIdentifier.of("db", "name");
+    TableIdentifier icebergId = TableIdentifier.of(Namespace.of("db"), "name");
     Assert.assertEquals(icebergId, GlueToIcebergConverter.toTableId(table));
   }
 

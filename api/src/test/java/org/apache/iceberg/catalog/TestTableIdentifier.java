@@ -46,14 +46,14 @@ public class TestTableIdentifier {
   @Test
   public void testToLowerCase() {
     Assert.assertEquals(
-        TableIdentifier.of("Tbl").toLowerCase(),
-        TableIdentifier.of("tbl"));
+        TableIdentifier.of(Namespace.empty(), "Tbl").toLowerCase(),
+        TableIdentifier.of(Namespace.empty(), "tbl"));
     Assert.assertEquals(
-        TableIdentifier.of("dB", "TBL").toLowerCase(),
-        TableIdentifier.of("db", "tbl"));
+        TableIdentifier.of(Namespace.of("dB"), "TBL").toLowerCase(),
+        TableIdentifier.of(Namespace.of("db"), "tbl"));
     Assert.assertEquals(
-        TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase(),
-        TableIdentifier.of("catalog", "db", "tbl"));
+        TableIdentifier.of(Namespace.of("Catalog", "dB"), "TBL").toLowerCase(),
+        TableIdentifier.of(Namespace.of("catalog", "db"), "tbl"));
   }
 
   @Test
@@ -80,5 +80,20 @@ public class TestTableIdentifier {
     Assertions.assertThatThrownBy(() -> TableIdentifier.of(null, "name"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid Namespace: null");
+
+    Assertions.assertThatThrownBy(() -> TableIdentifier.of((Namespace) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid Namespace: null");
+  }
+
+  @Test
+  public void testFromNamespace() {
+    Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create table identifier from empty namespace");
+
+    Assertions.assertThat(TableIdentifier.of(Namespace.of("db")).toString()).isEqualTo("db");
+    Assertions.assertThat(TableIdentifier.of(Namespace.of("db.ns1")).toString()).isEqualTo("db.ns1");
+    Assertions.assertThat(TableIdentifier.of(Namespace.of("db.ns1.tbl.x")).toString()).isEqualTo("db.ns1.tbl.x");
   }
 }

@@ -94,13 +94,13 @@ public interface TableLoader extends Closeable, Serializable {
     private static final long serialVersionUID = 1L;
 
     private final CatalogLoader catalogLoader;
-    private final String identifier;
+    private final TableIdentifier identifier;
 
     private transient Catalog catalog;
 
     private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
       this.catalogLoader = catalogLoader;
-      this.identifier = tableIdentifier.toString();
+      this.identifier = tableIdentifier;
     }
 
     @Override
@@ -110,7 +110,7 @@ public interface TableLoader extends Closeable, Serializable {
 
     @Override
     public Table loadTable() {
-      return catalog.loadTable(TableIdentifier.parse(identifier));
+      return catalog.loadTable(identifier);
     }
 
     @Override

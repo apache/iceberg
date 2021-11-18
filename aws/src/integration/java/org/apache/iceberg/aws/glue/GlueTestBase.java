@@ -100,7 +100,7 @@ public class GlueTestBase {
   }
 
   public static String createTable(String namespace, String tableName) {
-    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    glueCatalog.createTable(TableIdentifier.of(Namespace.of(namespace), tableName), schema, partitionSpec);
     return tableName;
   }
 }

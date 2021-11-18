@@ -29,6 +29,7 @@ import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -47,7 +48,7 @@ import org.junit.Test;
 public class TestCatalogTableLoader extends FlinkTestBase {
 
   private static File warehouse = null;
-  private static final TableIdentifier IDENTIFIER = TableIdentifier.of("default", "my_table");
+  private static final TableIdentifier IDENTIFIER = TableIdentifier.of(Namespace.of("default"), "my_table");
   private static final Schema SCHEMA = new Schema(Types.NestedField.required(1, "f1", Types.StringType.get()));
 
   @BeforeClass

@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 
@@ -48,5 +49,5 @@ public class TestFixtures {
   public static final String DATABASE = "default";
   public static final String TABLE = "t";
 
-  public static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DATABASE, TABLE);
+  public static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(Namespace.of(DATABASE), TABLE);
 }

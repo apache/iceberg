@@ -44,6 +44,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
@@ -167,7 +168,8 @@ abstract class TestTables {
   public Table createTable(TestHiveShell shell, String tableName, Schema schema, FileFormat fileFormat,
       List<Record> records) throws IOException {
     Table table = createIcebergTable(shell.getHiveConf(), tableName, schema, fileFormat, records);
-    String createHiveSQL = createHiveTableSQL(TableIdentifier.of("default", tableName), ImmutableMap.of());
+    String createHiveSQL =
+        createHiveTableSQL(TableIdentifier.of(Namespace.of("default"), tableName), ImmutableMap.of());
     if (createHiveSQL != null) {
       shell.executeStatement(createHiveSQL);
     }
@@ -189,7 +191,7 @@ abstract class TestTables {
    */
   public Table createTable(TestHiveShell shell, String tableName, Schema schema, PartitionSpec spec,
       FileFormat fileFormat, List<Record> records)  {
-    TableIdentifier identifier = TableIdentifier.of("default", tableName);
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), tableName);
     shell.executeStatement("CREATE EXTERNAL TABLE " + identifier +
         " STORED BY '" + HiveIcebergStorageHandler.class.getName() + "' " +
         locationForCreateTableSQL(identifier) +

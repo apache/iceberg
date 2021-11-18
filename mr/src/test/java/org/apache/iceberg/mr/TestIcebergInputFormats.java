@@ -47,6 +47,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
@@ -358,7 +359,7 @@ public class TestIcebergInputFormats {
         CatalogProperties.WAREHOUSE_LOCATION), warehouseLocation);
 
     Catalog catalog = new HadoopCatalog(conf, conf.get("warehouse.location"));
-    TableIdentifier identifier = TableIdentifier.of("db", "t");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("db"), "t");
     Table table = catalog.createTable(identifier, SCHEMA, SPEC, helper.properties());
     helper.setTable(table);
 

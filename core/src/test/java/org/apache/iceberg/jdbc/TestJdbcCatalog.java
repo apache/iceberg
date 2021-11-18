@@ -134,7 +134,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCreateTableBuilder() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Table table = catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(PARTITION_SPEC)
         .withProperties(null)
@@ -150,7 +150,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCreateTableTxnBuilder() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Transaction txn = catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(null)
         .withProperty("key1", "testval1")
@@ -165,7 +165,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testReplaceTxnBuilder() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
 
     final DataFile fileA = DataFiles.builder(PARTITION_SPEC)
         .withPath("/path/to/data-a.parquet")
@@ -208,7 +208,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCreateTableDefaultSortOrder() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, PARTITION_SPEC);
 
     SortOrder sortOrder = table.sortOrder();
@@ -218,7 +218,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCreateTableCustomSortOrder() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     SortOrder order = SortOrder.builderFor(SCHEMA)
         .asc("id", NULLS_FIRST)
         .build();
@@ -238,7 +238,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testBasicCatalog() throws Exception {
-    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
@@ -255,7 +255,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCreateAndDropTableWithoutNamespace() throws Exception {
-    TableIdentifier testTable = TableIdentifier.of("tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.empty(), "tbl");
     Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
 
     Assert.assertEquals(table.schema().toString(), SCHEMA.toString());
@@ -270,7 +270,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testDefaultWarehouseLocation() throws Exception {
-    TableIdentifier testTable = TableIdentifier.of("tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.empty(), "tbl");
     TableIdentifier testTable2 = TableIdentifier.of(Namespace.of("ns"), "tbl");
     Assert.assertEquals(catalog.defaultWarehouseLocation(testTable),
         warehouseLocation + "/" + testTable.name());
@@ -280,7 +280,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testConcurrentCommit() throws IOException {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "table");
     Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     // append file and commit!
     String data = temp.newFile("data.parquet").getPath();
@@ -308,7 +308,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCommitHistory() throws IOException {
-    TableIdentifier testTable = TableIdentifier.of("db", "ns", "tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.of("db", "ns"), "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     Table table = catalog.loadTable(testTable);
 
@@ -345,8 +345,9 @@ public class TestJdbcCatalog {
 
   @Test
   public void testDropTable() {
-    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    TableIdentifier testTable2 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier testTable = TableIdentifier.of(namespace, "tbl");
+    TableIdentifier testTable2 = TableIdentifier.of(namespace, "tbl2");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     catalog.createTable(testTable2, SCHEMA, PartitionSpec.unpartitioned());
     catalog.dropTable(testTable);
@@ -356,13 +357,14 @@ public class TestJdbcCatalog {
         "not exist", () -> catalog.listTables(testTable2.namespace())
     );
 
-    Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
+    Assert.assertFalse(catalog.dropTable(TableIdentifier.of(Namespace.of("db"), "tbl-not-exists")));
   }
 
   @Test
   public void testRenameTable() {
-    TableIdentifier from = TableIdentifier.of("db", "tbl1");
-    TableIdentifier to = TableIdentifier.of("db", "tbl2-newtable");
+    Namespace namespace = Namespace.of("db");
+    TableIdentifier from = TableIdentifier.of(namespace, "tbl1");
+    TableIdentifier to = TableIdentifier.of(namespace, "tbl2-newtable");
     catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
     catalog.renameTable(from, to);
     Assert.assertTrue(catalog.listTables(to.namespace()).contains(to));
@@ -371,11 +373,11 @@ public class TestJdbcCatalog {
 
     AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
         "Table does not exist", () ->
-            catalog.renameTable(TableIdentifier.of("db", "tbl-not-exists"), to)
+            catalog.renameTable(TableIdentifier.of(namespace, "tbl-not-exists"), to)
     );
 
     // rename table to existing table name!
-    TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
+    TableIdentifier from2 = TableIdentifier.of(namespace, "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
     AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
         "Failed to rename db.tbl2 to db.tbl2-newtable", () -> catalog.renameTable(from2, to)
@@ -384,11 +386,11 @@ public class TestJdbcCatalog {
 
   @Test
   public void testListTables() {
-    TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "tbl2", "subtbl2");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "ns1", "tbl3");
-    TableIdentifier tbl5 = TableIdentifier.of("db", "metadata", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db"), "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "tbl2"), "subtbl2");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db", "ns1"), "tbl3");
+    TableIdentifier tbl5 = TableIdentifier.of(Namespace.of("db", "metadata"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -410,7 +412,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCallingLocationProviderWhenNoCurrentMetadata() {
-    TableIdentifier tableIdent = TableIdentifier.of("ns1", "ns2", "table1");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("ns1", "ns2"), "table1");
     Transaction create = catalog.newCreateTableTransaction(tableIdent, SCHEMA);
     create.table().locationProvider();  // NPE triggered if not handled appropriately
     create.commitTransaction();
@@ -421,7 +423,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testExistingTableUpdate() {
-    TableIdentifier tableIdent = TableIdentifier.of("ns1", "ns2", "table1");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("ns1", "ns2"), "table1");
     Transaction create = catalog.newCreateTableTransaction(tableIdent, SCHEMA);
     create.table().locationProvider();  // NPE triggered if not handled appropriately
     create.commitTransaction();
@@ -438,14 +440,14 @@ public class TestJdbcCatalog {
 
   @Test
   public void testTableName() {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(PARTITION_SPEC)
         .create();
     Table table = catalog.loadTable(tableIdent);
     Assert.assertEquals("Name must match", catalog.name() + ".db.ns1.ns2.tbl", table.name());
 
-    TableIdentifier snapshotsTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    TableIdentifier snapshotsTableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2", "tbl"), "snapshots");
     Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
     Assert.assertEquals(
         "Name must match", catalog.name() + ".db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
@@ -453,12 +455,12 @@ public class TestJdbcCatalog {
 
   @Test
   public void testListNamespace() {
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
-    TableIdentifier tbl5 = TableIdentifier.of("db2", "metadata");
-    TableIdentifier tbl6 = TableIdentifier.of("tbl6");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "metadata");
+    TableIdentifier tbl5 = TableIdentifier.of(Namespace.of("db2"), "metadata");
+    TableIdentifier tbl6 = TableIdentifier.of(Namespace.empty(), "tbl6");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -498,10 +500,10 @@ public class TestJdbcCatalog {
 
   @Test
   public void testLoadNamespaceMeta() {
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -516,10 +518,10 @@ public class TestJdbcCatalog {
 
   @Test
   public void testNamespaceExists() {
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -537,11 +539,11 @@ public class TestJdbcCatalog {
     AssertHelpers.assertThrows("Should fail to drop namespace doesn't exist", NoSuchNamespaceException.class,
         "Namespace does not exist", () -> catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
 
-    TableIdentifier tbl0 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "tbl1");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns1", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "tbl");
+    TableIdentifier tbl0 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl2");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns1"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "tbl");
 
     Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())

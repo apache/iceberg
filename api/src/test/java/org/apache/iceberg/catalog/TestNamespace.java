@@ -31,6 +31,12 @@ public class TestNamespace {
         .hasMessage("Cannot create Namespace from null array");
 
     Assertions.assertThat(Namespace.of()).isEqualTo(Namespace.empty());
+
+    Assertions.assertThatThrownBy(() -> Namespace.of((String) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
+
+    Assertions.assertThat(Namespace.of("")).isEqualTo(Namespace.empty());
   }
 
   @Test
@@ -39,6 +45,18 @@ public class TestNamespace {
     Namespace namespace = Namespace.of(levels);
     Assertions.assertThat(namespace).isNotNull();
     Assertions.assertThat(namespace.levels()).isNotNull().hasSize(4);
+    Assertions.assertThat(namespace.toString()).isEqualTo("a.b.c.d");
+    for (int i = 0; i < levels.length; i++) {
+      Assertions.assertThat(namespace.level(i)).isEqualTo(levels[i]);
+    }
+  }
+
+  @Test
+  public void testNamespaceFromString() {
+    String[] levels = {"a", "b", "c", "d"};
+    Namespace namespace = Namespace.of("a.b.c.d");
+    Assertions.assertThat(namespace).isNotNull();
+    Assertions.assertThat(namespace.levels()).isNotNull().hasSize(levels.length);
     Assertions.assertThat(namespace.toString()).isEqualTo("a.b.c.d");
     for (int i = 0; i < levels.length; i++) {
       Assertions.assertThat(namespace.level(i)).isEqualTo(levels[i]);

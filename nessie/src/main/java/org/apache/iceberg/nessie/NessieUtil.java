@@ -63,8 +63,9 @@ public final class NessieUtil {
   }
 
   static TableIdentifier toIdentifier(EntriesResponse.Entry entry) {
-    List<String> elements = entry.getName().getElements();
-    return TableIdentifier.of(elements.toArray(new String[elements.size()]));
+    return TableIdentifier.of(
+        Namespace.of(entry.getName().getNamespace().name()),
+        entry.getName().getElements().get(entry.getName().getElements().size() - 1));
   }
 
   static TableIdentifier removeCatalogName(TableIdentifier to, String name) {

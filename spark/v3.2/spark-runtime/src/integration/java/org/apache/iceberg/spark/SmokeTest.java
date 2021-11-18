@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -150,7 +151,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
   }
 
   private Table getTable(String name) {
-    return validationCatalog.loadTable(TableIdentifier.of("default", name));
+    return validationCatalog.loadTable(TableIdentifier.of(Namespace.of("default"), name));
   }
 
   private Table getTable() {

@@ -58,7 +58,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableBuilder() throws Exception {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Table table = hadoopCatalog().buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
         .withProperties(null)
@@ -75,7 +75,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testCreateTableTxnBuilder() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Transaction txn = catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(null)
         .createTransaction();
@@ -89,7 +89,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testReplaceTxnBuilder() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
 
     Transaction createTxn = catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
@@ -126,7 +126,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testTableBuilderWithLocation() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
 
     AssertHelpers.assertThrows("Should reject a custom location",
         IllegalArgumentException.class, "Cannot set a custom location for a path-based table",
@@ -143,7 +143,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableDefaultSortOrder() throws Exception {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Table table = hadoopCatalog().createTable(tableIdent, SCHEMA, SPEC);
 
     SortOrder sortOrder = table.sortOrder();
@@ -153,7 +153,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableCustomSortOrder() throws Exception {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     SortOrder order = SortOrder.builderFor(SCHEMA)
         .asc("id", NULLS_FIRST)
         .build();
@@ -174,7 +174,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testBasicCatalog() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
@@ -189,7 +189,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testCreateAndDropTableWithoutNamespace() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
 
-    TableIdentifier testTable = TableIdentifier.of("tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.empty(), "tbl");
     Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
 
     Assert.assertEquals(table.schema().toString(), TABLE_SCHEMA.toString());
@@ -206,7 +206,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testDropTable() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
@@ -220,7 +220,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testDropNonIcebergTable() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier testTable = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
     // testing with non existent directory
     Assert.assertFalse(catalog.dropTable(testTable));
@@ -236,11 +236,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testRenameTable() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
+    Namespace namespace = Namespace.of("db");
+    TableIdentifier testTable = TableIdentifier.of(namespace, "tbl1");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     AssertHelpers.assertThrows("should throw exception", UnsupportedOperationException.class,
         "Cannot rename Hadoop tables", () -> {
-          catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2"));
+          catalog.renameTable(testTable, TableIdentifier.of(namespace, "tbl2"));
         }
     );
   }
@@ -249,10 +250,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testListTables() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
 
-    TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns1", "tbl3");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db"), "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns1"), "tbl3");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db", "metadata"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -278,12 +279,13 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testCallingLocationProviderWhenNoCurrentMetadata() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
 
-    TableIdentifier tableIdent = TableIdentifier.of("ns1", "ns2", "table1");
+    Namespace namespace = Namespace.of("ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "table1");
     Transaction create = catalog.newCreateTableTransaction(tableIdent, SCHEMA);
     create.table().locationProvider();  // NPE triggered if not handled appropriately
     create.commitTransaction();
 
-    Assert.assertEquals("1 table expected", 1, catalog.listTables(Namespace.of("ns1", "ns2")).size());
+    Assert.assertEquals("1 table expected", 1, catalog.listTables(namespace).size());
     catalog.dropTable(tableIdent, true);
   }
 
@@ -294,8 +296,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     catalog.setConf(new Configuration());
     catalog.initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
 
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
 
     Lists.newArrayList(tbl1, tbl2).forEach(t ->
         catalog.createNamespace(t.namespace(), meta)
@@ -320,11 +322,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testListNamespace() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
 
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
-    TableIdentifier tbl5 = TableIdentifier.of("db2", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "metadata");
+    TableIdentifier tbl5 = TableIdentifier.of(Namespace.of("db2"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -363,10 +365,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testLoadNamespaceMeta() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
 
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -383,10 +385,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testNamespaceExists() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
 
-    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
-    TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
-    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
-    TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
+    TableIdentifier tbl1 = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "metadata");
+    TableIdentifier tbl2 = TableIdentifier.of(Namespace.of("db", "ns2", "ns3"), "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of(Namespace.of("db", "ns3"), "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of(Namespace.of("db"), "metadata");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -518,7 +520,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testTableName() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
         .create();
@@ -526,7 +528,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Table table = catalog.loadTable(tableIdent);
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl", table.name());
 
-    TableIdentifier snapshotsTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    TableIdentifier snapshotsTableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2", "tbl"), "snapshots");
     Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
   }

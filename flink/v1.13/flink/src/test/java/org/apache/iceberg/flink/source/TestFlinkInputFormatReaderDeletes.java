@@ -27,6 +27,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -53,7 +54,7 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
         Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));
     CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(), hiveConf, properties);
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
-        .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", tableName)))
+        .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of(Namespace.of("default"), tableName)))
         .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();
 
     StructLikeSet set = StructLikeSet.create(projected.asStruct());

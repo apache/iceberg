@@ -30,6 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -90,7 +91,7 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.DEFAULT_FILE_FORMAT, format.name());
 
-    Table table = catalog.createTable(TableIdentifier.of(databaseName, name), schema, spec, props);
+    Table table = catalog.createTable(TableIdentifier.of(Namespace.of(databaseName), name), schema, spec, props);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
@@ -100,7 +101,7 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
 
   @Override
   protected void dropTable(String name) {
-    catalog.dropTable(TableIdentifier.of(databaseName, name));
+    catalog.dropTable(TableIdentifier.of(Namespace.of(databaseName), name));
   }
 
   @Override

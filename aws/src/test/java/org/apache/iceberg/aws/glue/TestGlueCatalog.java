@@ -98,7 +98,7 @@ public class TestGlueCatalog {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
-    String location = catalogWithSlash.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    String location = catalogWithSlash.defaultWarehouseLocation(TableIdentifier.of(Namespace.of("db"), "table"));
     Assert.assertEquals(WAREHOUSE_PATH + "/db.db/table", location);
   }
 
@@ -107,7 +107,7 @@ public class TestGlueCatalog {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
-    String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of(Namespace.of("db"), "table"));
     Assert.assertEquals(WAREHOUSE_PATH + "/db.db/table", location);
   }
 
@@ -116,7 +116,7 @@ public class TestGlueCatalog {
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").locationUri("s3://bucket2/db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
-    String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of(Namespace.of("db"), "table"));
     Assert.assertEquals("s3://bucket2/db/table", location);
   }
 
@@ -152,12 +152,13 @@ public class TestGlueCatalog {
             Table.builder().databaseName("db1").name("t5").parameters(null).build()
         ).build())
         .when(glue).getTables(Mockito.any(GetTablesRequest.class));
+    Namespace namespace = Namespace.of("db1");
     Assert.assertEquals(
         Lists.newArrayList(
-            TableIdentifier.of("db1", "t1"),
-            TableIdentifier.of("db1", "t2")
+            TableIdentifier.of(namespace, "t1"),
+            TableIdentifier.of(namespace, "t2")
         ),
-        glueCatalog.listTables(Namespace.of("db1"))
+        glueCatalog.listTables(namespace)
     );
   }
 
@@ -210,7 +211,7 @@ public class TestGlueCatalog {
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
     Mockito.doReturn(DeleteTableResponse.builder().build())
         .when(glue).deleteTable(Mockito.any(DeleteTableRequest.class));
-    glueCatalog.dropTable(TableIdentifier.of("db1", "t1"));
+    glueCatalog.dropTable(TableIdentifier.of(Namespace.of("db1"), "t1"));
   }
 
   @Test
@@ -234,7 +235,7 @@ public class TestGlueCatalog {
         return DeleteTableResponse.builder().build();
       }
     }).when(glue).deleteTable(Mockito.any(DeleteTableRequest.class));
-    glueCatalog.dropTable(TableIdentifier.of("db1", "t1"));
+    glueCatalog.dropTable(TableIdentifier.of(Namespace.of("db1"), "t1"));
     Assert.assertEquals(0, counter.get());
   }
 
@@ -264,18 +265,17 @@ public class TestGlueCatalog {
                     .database(Database.builder().name("db").build()).build())
             .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
 
-    Mockito.doAnswer(new Answer() {
-      @Override
-      public Object answer(InvocationOnMock invocation) throws Throwable {
-        CreateTableRequest createTableRequest = (CreateTableRequest) invocation.getArguments()[0];
-        if (createTableRequest.tableInput().storageDescriptor().hasParameters()) {
-          counter.decrementAndGet();
-        }
-        return CreateTableResponse.builder().build();
+    Mockito.doAnswer(invocation -> {
+      CreateTableRequest createTableRequest = (CreateTableRequest) invocation.getArguments()[0];
+      if (createTableRequest.tableInput().storageDescriptor().hasParameters()) {
+        counter.decrementAndGet();
       }
+      return CreateTableResponse.builder().build();
     }).when(glue).createTable(Mockito.any(CreateTableRequest.class));
 
-    glueCatalog.renameTable(TableIdentifier.of("db", "t"), TableIdentifier.of("db", "x_renamed"));
+    Namespace namespace = Namespace.of("db");
+    glueCatalog.renameTable(
+        TableIdentifier.of(namespace, "t"), TableIdentifier.of(namespace, "x_renamed"));
     Assert.assertEquals(0, counter.get());
   }
 

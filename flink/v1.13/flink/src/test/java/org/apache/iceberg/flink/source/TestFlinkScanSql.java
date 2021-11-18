@@ -32,6 +32,7 @@ import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
@@ -101,7 +102,8 @@ public class TestFlinkScanSql extends TestFlinkSource {
 
   @Test
   public void testResiduals() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
+    Table table =
+        catalog.createTable(TableIdentifier.of(Namespace.of("default"), "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
 
     List<Record> writeRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     writeRecords.get(0).set(1, 123L);
@@ -126,7 +128,8 @@ public class TestFlinkScanSql extends TestFlinkSource {
 
   @Test
   public void testInferedParallelism() throws IOException {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
+    Table table =
+        catalog.createTable(TableIdentifier.of(Namespace.of("default"), "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
 
     TableLoader tableLoader = TableLoader.fromHadoopTable(table.location());
     FlinkInputFormat flinkInputFormat = FlinkSource.forRowData().tableLoader(tableLoader).table(table).buildFormat();

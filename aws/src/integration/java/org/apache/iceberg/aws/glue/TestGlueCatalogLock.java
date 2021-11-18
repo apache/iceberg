@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.Tasks;
@@ -74,7 +75,7 @@ public class TestGlueCatalogLock extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
-    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    Table table = glueCatalog.loadTable(TableIdentifier.of(Namespace.of(namespace), tableName));
     DataFile dataFile = DataFiles.builder(partitionSpec)
         .withPath("/path/to/data-a.parquet")
         .withFileSizeInBytes(1)
@@ -104,7 +105,7 @@ public class TestGlueCatalogLock extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
-    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    Table table = glueCatalog.loadTable(TableIdentifier.of(Namespace.of(namespace), tableName));
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(table.spec())
         .withPath(FileFormat.PARQUET.addExtension(fileName))

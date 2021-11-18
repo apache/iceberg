@@ -36,6 +36,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -84,7 +85,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public synchronized void testTablesSupport() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "table");
     createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
@@ -110,7 +111,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testEntriesTable() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table entriesTable = loadTable(tableIdentifier, "entries");
 
@@ -152,7 +153,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testEntriesTablePartitionedPrune() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
 
     List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
@@ -177,7 +178,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testEntriesTableDataFilePrune() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
@@ -204,7 +205,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testEntriesTableDataFilePruneMulti() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
@@ -232,7 +233,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testFilesSelectMap() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
@@ -260,7 +261,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testAllEntriesTable() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table entriesTable = loadTable(tableIdentifier, "all_entries");
 
@@ -315,7 +316,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testCountEntriesTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "count_entries_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "count_entries_test");
     createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     // init load
@@ -339,7 +340,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testFilesTable() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "files");
@@ -389,7 +390,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   public void testFilesTableWithSnapshotIdInheritance() throws Exception {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_inheritance_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "files_inheritance_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     table.updateProperties()
         .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
@@ -449,7 +450,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   public void testEntriesTableWithSnapshotIdInheritance() throws Exception {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "entries_inheritance_test");
     PartitionSpec spec = SPEC;
     Table table = createTable(tableIdentifier, SCHEMA, spec);
 
@@ -499,7 +500,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testFilesUnpartitionedTable() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "unpartitioned_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "files");
@@ -550,7 +551,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testAllMetadataTablesWithStagedCommits() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "stage_aggregate_table_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "stage_aggregate_table_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
 
     table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
@@ -594,7 +595,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testAllDataFilesTable() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "all_data_files");
@@ -651,7 +652,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testHistoryTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "history_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "history_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table historyTable = loadTable(tableIdentifier, "history");
 
@@ -726,7 +727,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testSnapshotsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "snapshots_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "snapshots_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     Table snapTable = loadTable(tableIdentifier, "snapshots");
 
@@ -794,7 +795,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testPrunedSnapshotsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "snapshots_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "snapshots_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
@@ -858,7 +859,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testManifestsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "manifests_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "manifests");
     Dataset<Row> df1 = spark.createDataFrame(
@@ -905,7 +906,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testPruneManifestsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "manifests_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "manifests");
     Dataset<Row> df1 = spark.createDataFrame(
@@ -965,7 +966,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testAllManifestsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "manifests_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "all_manifests");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -1024,7 +1025,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testUnpartitionedPartitionsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_partitions_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "unpartitioned_partitions_test");
     createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     Dataset<Row> df = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -1061,7 +1062,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testPartitionsTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "partitions_test");
     Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -1142,7 +1143,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testRemoveOrphanFilesActionSupport() throws InterruptedException {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     List<SimpleRecord> records = Lists.newArrayList(
@@ -1185,7 +1186,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public void testFilesTablePartitionId() throws Exception {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("db"), "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
     int spec0 = table.spec().specId();
 

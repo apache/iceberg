@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -48,7 +49,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
   private static final String TABLE_NAME = "tbl";
-  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
+  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(Namespace.of(DB_NAME), TABLE_NAME);
   private static final Schema SCHEMA = new Schema(
       required(3, "id", Types.IntegerType.get()),
       required(4, "data", Types.StringType.get())

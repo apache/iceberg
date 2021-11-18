@@ -120,7 +120,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) {
-    Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
+    Table table = catalog.createTable(TableIdentifier.of(Namespace.of("default"), name), schema);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
@@ -135,14 +135,14 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Override
   protected void dropTable(String name) {
-    catalog.dropTable(TableIdentifier.of("default", name));
+    catalog.dropTable(TableIdentifier.of(Namespace.of("default"), name));
   }
 
   @Override
   public StructLikeSet rowSet(String name, Table table, String... columns) {
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .load(TableIdentifier.of("default", name).toString())
+        .load(TableIdentifier.of(Namespace.of("default"), name).toString())
         .selectExpr(columns);
 
     Types.StructType projection = table.schema().select(columns).asStruct();
@@ -176,7 +176,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Types.StructType projection = table.schema().select("*").asStruct();
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .load(TableIdentifier.of("default", tableName).toString())
+        .load(TableIdentifier.of(Namespace.of("default"), tableName).toString())
         .filter("data = 'a'") // select a deleted row
         .selectExpr("*");
 

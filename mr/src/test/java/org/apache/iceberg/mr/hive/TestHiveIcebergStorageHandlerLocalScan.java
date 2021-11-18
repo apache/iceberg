@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -243,7 +244,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Test
   public void testCreateTableWithColumnSpecification() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     Map<StructLike, List<Record>> data = new HashMap<>(1);
     data.put(null, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     String createSql = "CREATE EXTERNAL TABLE " + identifier +
@@ -258,7 +259,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Test
   public void testCreateTableWithColumnSpecificationPartitioned() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     PartitionSpec spec =
         PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA).identity("last_name").build();
     Map<StructLike, List<Record>> data = ImmutableMap.of(
@@ -276,7 +277,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Test
   public void testCreatePartitionedTableByProperty() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     PartitionSpec spec =
         PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA).identity("last_name").build();
     Map<StructLike, List<Record>> data = ImmutableMap.of(
@@ -295,7 +296,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Test
   public void testCreateTableWithColumnSpecificationMultilevelPartitioned() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
     PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
         .identity("first_name").identity("last_name").build();
     Map<StructLike, List<Record>> data = ImmutableMap.of(

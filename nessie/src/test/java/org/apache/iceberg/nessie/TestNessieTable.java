@@ -39,6 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
@@ -67,7 +68,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   private static final String DB_NAME = "db";
   private static final String TABLE_NAME = "tbl";
-  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
+  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(Namespace.of(DB_NAME), TABLE_NAME);
   private static final ContentsKey KEY = ContentsKey.of(DB_NAME, TABLE_NAME);
   private static final Schema schema = new Schema(Types.StructType.of(
       required(1, "id", Types.LongType.get())).fields());

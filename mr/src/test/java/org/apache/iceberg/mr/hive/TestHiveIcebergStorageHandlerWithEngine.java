@@ -32,6 +32,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -706,7 +707,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         executionEngine.equals("mr") && testTableType == TestTables.TestTableType.HIVE_CATALOG &&
                 fileFormat == FileFormat.ORC);
 
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("default"), "customers");
 
     // create Iceberg table without specifying a write format in the tbl properties
     // it should fall back to using the default file format

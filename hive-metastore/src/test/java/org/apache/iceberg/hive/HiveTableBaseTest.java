@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -42,7 +43,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class HiveTableBaseTest extends HiveMetastoreTest {
 
   static final String TABLE_NAME =  "tbl";
-  static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
+  static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(Namespace.of(DB_NAME), TABLE_NAME);
 
   static final Schema schema = new Schema(Types.StructType.of(
       required(1, "id", Types.LongType.get())).fields());

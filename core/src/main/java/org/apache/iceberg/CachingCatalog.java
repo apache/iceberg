@@ -76,7 +76,7 @@ public class CachingCatalog implements Catalog {
     }
 
     if (MetadataTableUtils.hasMetadataTableName(canonicalized)) {
-      TableIdentifier originTableIdentifier = TableIdentifier.of(canonicalized.namespace().levels());
+      TableIdentifier originTableIdentifier = TableIdentifier.of(canonicalized.namespace());
       Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
 
       // share TableOperations instance of origin table for all metadata tables, so that metadata table instances are
@@ -119,8 +119,8 @@ public class CachingCatalog implements Catalog {
 
     for (MetadataTableType type : MetadataTableType.values()) {
       // metadata table resolution is case insensitive right now
-      builder.add(TableIdentifier.parse(ident + "." + type.name()));
-      builder.add(TableIdentifier.parse(ident + "." + type.name().toLowerCase(Locale.ROOT)));
+      builder.add(TableIdentifier.of(Namespace.of(ident.toString()), type.name()));
+      builder.add(TableIdentifier.of(Namespace.of(ident.toString()), type.name().toLowerCase(Locale.ROOT)));
     }
 
     return builder.build();

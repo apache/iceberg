@@ -27,6 +27,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.s3.S3TestUtil;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -221,7 +222,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   private Table setupTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
-    return glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    return glueCatalog.loadTable(TableIdentifier.of(Namespace.of(namespace), tableName));
   }
 
   private TableMetadata updateTable(Table table, GlueTableOperations ops) {

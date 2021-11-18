@@ -36,6 +36,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -53,7 +54,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestJdbcTableConcurrency {
 
-  static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("db", "test_table");
+  static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(Namespace.of("db"), "test_table");
   static final Schema SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get())

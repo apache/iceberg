@@ -22,6 +22,8 @@ package org.apache.iceberg.catalog;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * A namespace in a {@link Catalog}.
@@ -29,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class Namespace {
   private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
   private static final Joiner DOT = Joiner.on('.');
+  private static final Splitter DOT_SPLITTER = Splitter.on('.');
 
   public static Namespace empty() {
     return EMPTY_NAMESPACE;
@@ -41,6 +44,14 @@ public class Namespace {
     }
 
     return new Namespace(levels);
+  }
+
+  public static Namespace of(String namespace) {
+    Preconditions.checkArgument(null != namespace, "Invalid namespace: null");
+    if ("".equals(namespace)) {
+      return empty();
+    }
+    return new Namespace(Iterables.toArray(DOT_SPLITTER.split(namespace), String.class));
   }
 
   private final String[] levels;

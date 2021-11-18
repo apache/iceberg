@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -89,7 +90,7 @@ public class TestCatalogs {
             "identifier not set", () -> Catalogs.loadTable(conf));
 
     HadoopCatalog catalog = new CustomHadoopCatalog(conf, warehouseLocation);
-    Table hadoopCatalogTable = catalog.createTable(TableIdentifier.of("table"), SCHEMA);
+    Table hadoopCatalogTable = catalog.createTable(TableIdentifier.of(Namespace.empty(), "table"), SCHEMA);
 
     conf.set(InputFormatConfig.TABLE_IDENTIFIER, "table");
 
@@ -142,7 +143,7 @@ public class TestCatalogs {
 
   @Test
   public void testCreateDropTableToCatalog() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("test", "table");
+    TableIdentifier identifier = TableIdentifier.of(Namespace.of("test"), "table");
     String defaultCatalogName = "default";
     String warehouseLocation = temp.newFolder("hadoop", "warehouse").toString();
 

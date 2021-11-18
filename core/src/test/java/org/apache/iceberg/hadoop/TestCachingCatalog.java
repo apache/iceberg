@@ -26,6 +26,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -36,17 +37,17 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testInvalidateMetadataTablesIfBaseTableIsModified() throws Exception {
     Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
     table.newAppend().appendFile(FILE_A).commit();
 
     Snapshot oldSnapshot = table.currentSnapshot();
 
-    TableIdentifier filesMetaTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "files");
+    TableIdentifier filesMetaTableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2", "tbl"), "files");
     Table filesMetaTable = catalog.loadTable(filesMetaTableIdent);
 
-    TableIdentifier manifestsMetaTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "manifests");
+    TableIdentifier manifestsMetaTableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2", "tbl"), "manifests");
     Table manifestsMetaTable = catalog.loadTable(manifestsMetaTableIdent);
 
     table.newAppend().appendFile(FILE_B).commit();
@@ -71,7 +72,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
 
     // create the original table
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -81,8 +82,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     // populate the cache with metadata tables
     for (MetadataTableType type : MetadataTableType.values()) {
-      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name()));
-      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)));
+      catalog.loadTable(TableIdentifier.of(Namespace.of(tableIdent.toString()), type.name()));
+      catalog.loadTable(TableIdentifier.of(Namespace.of(tableIdent.toString()), type.name().toLowerCase(Locale.ROOT)));
     }
 
     // drop the original table
@@ -100,11 +101,12 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     // validate metadata tables were correctly invalidated
     for (MetadataTableType type : MetadataTableType.values()) {
-      TableIdentifier metadataIdent1 = TableIdentifier.parse(tableIdent + "." + type.name());
+      TableIdentifier metadataIdent1 = TableIdentifier.of(Namespace.of(tableIdent.toString()), type.name());
       Table metadataTable1 = catalog.loadTable(metadataIdent1);
       Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable1.currentSnapshot());
 
-      TableIdentifier metadataIdent2 = TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT));
+      TableIdentifier metadataIdent2 =
+          TableIdentifier.of(Namespace.of(tableIdent.toString()), type.name().toLowerCase(Locale.ROOT));
       Table metadataTable2 = catalog.loadTable(metadataIdent2);
       Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable2.currentSnapshot());
     }
@@ -113,13 +115,13 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testTableName() throws Exception {
     Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2"), "tbl");
     catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
     Table table = catalog.loadTable(tableIdent);
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl", table.name());
 
-    TableIdentifier snapshotsTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    TableIdentifier snapshotsTableIdent = TableIdentifier.of(Namespace.of("db", "ns1", "ns2", "tbl"), "snapshots");
     Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
   }

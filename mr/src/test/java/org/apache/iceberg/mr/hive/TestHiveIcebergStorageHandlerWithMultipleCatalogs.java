@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -115,9 +116,9 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
 
   @Test
   public void testJoinTablesFromDifferentCatalogs() throws IOException {
-    createAndAddRecords(testTables1, fileFormat1, TableIdentifier.of("default", "customers1"),
+    createAndAddRecords(testTables1, fileFormat1, TableIdentifier.of(Namespace.of("default"), "customers1"),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-    createAndAddRecords(testTables2, fileFormat2, TableIdentifier.of("default", "customers2"),
+    createAndAddRecords(testTables2, fileFormat2, TableIdentifier.of(Namespace.of("default"), "customers2"),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement("SELECT c2.customer_id, c2.first_name, c2.last_name " +

@@ -574,8 +574,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   @Test
   public void testHiveCatalogTable() throws IOException {
-    Table table = catalog.createTable(TableIdentifier.of("default", "hivetestorphan"), SCHEMA, SPEC, tableLocation,
-        Maps.newHashMap());
+    Table table = catalog.createTable(TableIdentifier.of(Namespace.of("default"), "hivetestorphan"), SCHEMA, SPEC,
+        tableLocation, Maps.newHashMap());
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
         new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")

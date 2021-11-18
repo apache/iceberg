@@ -72,7 +72,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 16)
         .build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
     String location = temp.newFolder("tbl").toString();
 
     try {
@@ -102,7 +102,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 16)
         .build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
     String location = temp.newFolder("tbl").toString();
     ImmutableMap<String, String> properties = ImmutableMap.of("key1", "value1", "key2", "value2");
     Catalog cachingCatalog = CachingCatalog.wrap(catalog);
@@ -154,7 +154,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         required(1, "id", Types.IntegerType.get(), "unique ID"),
         required(2, "data", Types.StringType.get())
     );
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
     String location = temp.newFolder("tbl").toString();
 
     try {
@@ -181,7 +181,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 16)
         .build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
     String location = temp.newFolder("tbl").toString();
 
     try {
@@ -229,7 +229,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 16)
         .build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
 
     try {
       Table table = catalog.createTable(tableIdent, schema, spec);
@@ -252,7 +252,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     SortOrder order = SortOrder.builderFor(schema)
         .asc("id", NULLS_FIRST)
         .build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
 
     try {
       Table table = catalog.buildTable(tableIdent, schema)
@@ -418,7 +418,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 16)
         .build();
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdent = TableIdentifier.of(Namespace.of(DB_NAME), "tbl");
 
     try {
       catalog.buildTable(tableIdent, schema)
@@ -428,7 +428,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Table table = catalog.loadTable(tableIdent);
       Assert.assertEquals("Name must match", "hive.hivedb.tbl", table.name());
 
-      TableIdentifier snapshotsTableIdent = TableIdentifier.of(DB_NAME, "tbl", "snapshots");
+      TableIdentifier snapshotsTableIdent = TableIdentifier.of(Namespace.of(DB_NAME, "tbl"), "snapshots");
       Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
       Assert.assertEquals("Name must match", "hive.hivedb.tbl.snapshots", snapshotsTable.name());
     } finally {

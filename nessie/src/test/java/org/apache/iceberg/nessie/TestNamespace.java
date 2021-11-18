@@ -35,12 +35,12 @@ public class TestNamespace extends BaseTestIceberg {
 
   @Test
   public void testListNamespaces() {
-    createTable(TableIdentifier.parse("a.b.c.t1"));
-    createTable(TableIdentifier.parse("a.b.t2"));
-    createTable(TableIdentifier.parse("a.t3"));
-    createTable(TableIdentifier.parse("b.c.t4"));
-    createTable(TableIdentifier.parse("b.t5"));
-    createTable(TableIdentifier.parse("t6"));
+    createTable(TableIdentifier.of(Namespace.of("a.b.c"), "t1"));
+    createTable(TableIdentifier.of(Namespace.of("a.b"), "t2"));
+    createTable(TableIdentifier.of(Namespace.of("a"), "t3"));
+    createTable(TableIdentifier.of(Namespace.of("b.c"), "t4"));
+    createTable(TableIdentifier.of(Namespace.of("b"), "t5"));
+    createTable(TableIdentifier.of(Namespace.empty(), "t6"));
 
     List<TableIdentifier> tables = catalog.listTables(Namespace.of("a", "b", "c"));
     Assertions.assertThat(tables).isNotNull().hasSize(1);

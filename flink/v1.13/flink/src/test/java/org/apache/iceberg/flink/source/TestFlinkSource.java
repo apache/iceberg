@@ -26,6 +26,7 @@ import java.util.Optional;
 import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -41,7 +42,7 @@ public abstract class TestFlinkSource extends TestFlinkScan {
   protected List<Row> runWithProjection(String... projected) throws Exception {
     TableSchema.Builder builder = TableSchema.builder();
     TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(
-        catalog.loadTable(TableIdentifier.of("default", "t")).schema()));
+        catalog.loadTable(TableIdentifier.of(Namespace.of("default"), "t")).schema()));
     for (String field : projected) {
       TableColumn column = schema.getTableColumn(field).get();
       builder.field(column.getName(), column.getType());
