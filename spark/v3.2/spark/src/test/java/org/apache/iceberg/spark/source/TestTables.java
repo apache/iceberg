@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -46,11 +47,23 @@ class TestTables {
   }
 
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
+    return create(temp, name, schema, spec, null, false);
+  }
+
+  static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, File locationPrefix,
+      boolean useRelativePaths) {
     TestTableOperations ops = new TestTableOperations(name);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of()));
+
+    Map<String, String> properties = useRelativePaths ?
+        ImmutableMap.of(
+            TableProperties.WRITE_METADATA_USE_RELATIVE_PATH, "true",
+            TableProperties.FORMAT_VERSION, "2") : ImmutableMap.of();
+
+    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(),
+        locationPrefix.toString(), properties));
     return new TestTable(ops, name);
   }
 

@@ -166,7 +166,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, locationPrefix, baseLocation,
+          properties);
 
       try {
         ops.commit(null, metadata);
