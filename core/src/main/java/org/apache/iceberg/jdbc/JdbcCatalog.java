@@ -44,7 +44,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -289,8 +288,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         LOG.debug("Successfully inserted {} properties for namespace {}", properties, namespaceName);
         return true;
       } else {
-        throw new CommitFailedException("Failed to insertProperties to namespace %s in catalog %s", namespaceName,
-            catalogName);
+        throw new IllegalStateException();
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -332,8 +330,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         LOG.debug("Successfully updated {} to new namespace: {}", properties, namespaceName);
         return true;
       } else {
-        throw new CommitFailedException("Failed to updateProperties to namespace %s in catalog %s", namespaceName,
-            catalogName);
+        throw new IllegalStateException();
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -509,8 +506,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         LOG.info("Successfully committed to namespace: {}", namespaceName);
         return true;
       } else {
-        throw new CommitFailedException("Failed to remove properties for namespace %s in catalog %s", namespaceName,
-                catalogName);
+        throw new IllegalStateException();
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
