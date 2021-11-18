@@ -96,10 +96,6 @@ final class JdbcUtil {
       " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
       ", " + NAMESPACE_PROPERTY_VALUE + ") VALUES ";
   protected static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
-  protected static final String UPDATE_NAMESPACE_PROPERTIES_SQL = "UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
-      " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE {} END WHERE " +  CATALOG_NAME + " = ? AND " +
-          NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ";
-  protected static final String UPDATE_PROPERTIES_VALUES_BASE = " WHEN " + NAMESPACE_PROPERTY_KEY + " = ? THEN ?";
   protected static final String GET_ALL_NAMESPACE_PROPERTIES_SQL = "SELECT * " +
       " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? ";
   protected static final String DELETE_NAMESPACE_PROPERTIES_SQL = "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
@@ -137,25 +133,25 @@ final class JdbcUtil {
     return result;
   }
 
-  public static String updatePropertiesStatement(Map<String, String> properties) {
-    StringBuilder valueCase = new StringBuilder();
-    for (int i = 0; i < properties.size(); i++) {
-      valueCase.append(" \n " + JdbcUtil.UPDATE_PROPERTIES_VALUES_BASE);
+  public static String updatePropertiesStatement(int size) {
+    StringBuilder sqlStatement = new StringBuilder("UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
+            " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE");
+    for (int i = 0; i < size; i += 1) {
+      sqlStatement.append(" WHEN key = ? THEN ?");
     }
+    sqlStatement.append(" END WHERE " +  CATALOG_NAME + " = ? AND " +
+            NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ");
 
-    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.UPDATE_NAMESPACE_PROPERTIES_SQL.replace("{}",
-            valueCase.toString()));
-
-    String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
+    String values = String.join(",", Collections.nCopies(size, String.valueOf('?')));
     sqlStatement.append("(").append(values).append(")");
 
     return sqlStatement.toString();
   }
 
-  public static String insertPropertiesStatement(Map<String, String> properties) {
+  public static String insertPropertiesStatement(int size) {
     StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
 
-    for (int i = 0; i < properties.size(); i++) {
+    for (int i = 0; i < size; i++) {
       if (i != 0) {
         sqlStatement.append(", ");
       }

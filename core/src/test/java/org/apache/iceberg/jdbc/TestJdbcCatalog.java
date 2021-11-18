@@ -583,10 +583,10 @@ public class TestJdbcCatalog {
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
     Assert.assertTrue(catalog.setProperties(testNamespace, propertiesToSet));
 
-    Map<String, String> allProperties = catalog.getProperties(testNamespace);
+    Map<String, String> allProperties = catalog.fetchProperties(testNamespace);
     Assert.assertEquals(5, allProperties.size());
 
-    Map<String, String> namespaceProperties = catalog.getProperties(testNamespace);
+    Map<String, String> namespaceProperties = catalog.fetchProperties(testNamespace);
     for (Map.Entry<String, String> keyValue : namespaceProperties.entrySet()) {
       Assert.assertTrue(propertiesToSet.containsKey(keyValue.getKey()));
       Assert.assertEquals(keyValue.getValue(), propertiesToSet.get(keyValue.getKey()));
@@ -602,7 +602,7 @@ public class TestJdbcCatalog {
 
     Set<String> propertiesToRemove = ImmutableSet.of("key_2", "key_4");
     catalog.removeProperties(testNamespace, propertiesToRemove);
-    Map<String, String> remainderProperties = catalog.getProperties(testNamespace);
+    Map<String, String> remainderProperties = catalog.fetchProperties(testNamespace);
 
     Assert.assertEquals(2, remainderProperties.size());
     Assert.assertTrue(remainderProperties.containsKey("key_1"));

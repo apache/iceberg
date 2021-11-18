@@ -270,34 +270,35 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       int insertedRecords = connections.run(conn -> {
-        String sqlStatement = JdbcUtil.insertPropertiesStatement(properties);
+        String sqlStatement = JdbcUtil.insertPropertiesStatement(properties.size());
 
         try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
           int rowIndex = 0;
           for (Map.Entry<String, String> keyValue : properties.entrySet()) {
-            sql.setString(++rowIndex, catalogName);
-            sql.setString(++rowIndex, namespaceName);
-            sql.setString(++rowIndex, keyValue.getKey());
-            sql.setString(++rowIndex, keyValue.getValue());
+            sql.setString(rowIndex + 1, catalogName);
+            sql.setString(rowIndex + 2, namespaceName);
+            sql.setString(rowIndex + 3, keyValue.getKey());
+            sql.setString(rowIndex + 4, keyValue.getValue());
+            rowIndex += 4;
           }
           return sql.executeUpdate();
         }
       });
 
       if (insertedRecords == properties.size()) {
-        LOG.debug("Successfully committed to new namespace: {}", namespaceName);
+        LOG.debug("Successfully inserted {} properties for namespace {}", properties, namespaceName);
         return true;
       } else {
         throw new CommitFailedException("Failed to insertProperties to namespace %s in catalog %s", namespaceName,
-                catalogName);
+            catalogName);
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new UncheckedInterruptedException(e,
-              "Interrupted in call to insertProperties(namespace, properties) Namespace: %s", namespace);
+      throw new UncheckedInterruptedException(e, "Interrupted in call to insertProperties(namespace, properties) " +
+          "Namespace: %s", namespace);
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to insertProperties to namespace: %s in catalog: %s", namespace,
-              catalogName);
+          catalogName);
     }
   }
 
@@ -306,26 +307,29 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       int updatedRecords = connections.run(conn -> {
-        String sqlStatement = JdbcUtil.updatePropertiesStatement(properties);
+        String sqlStatement = JdbcUtil.updatePropertiesStatement(properties.size());
 
         try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
           int rowIndex = 0;
           for (Map.Entry<String, String> keyValue : properties.entrySet()) {
-            sql.setString(++rowIndex, keyValue.getKey());
-            sql.setString(++rowIndex, keyValue.getValue());
+            sql.setString(rowIndex + 1, keyValue.getKey());
+            sql.setString(rowIndex + 2, keyValue.getValue());
+            rowIndex += 2;
           }
-          sql.setString(++rowIndex, catalogName);
-          sql.setString(++rowIndex, namespaceName);
+          sql.setString(rowIndex + 1, catalogName);
+          sql.setString(rowIndex + 2, namespaceName);
+          rowIndex += 2;
           for (String key : properties.keySet()) {
-            sql.setString(++rowIndex, key);
+            sql.setString(rowIndex + 1, key);
+            rowIndex += 1;
           }
-
+          LOG.info("Final log string {}", sql);
           return sql.executeUpdate();
         }
       });
 
       if (updatedRecords == properties.size()) {
-        LOG.debug("Successfully committed to new namespace: {}", namespaceName);
+        LOG.debug("Successfully updated {} to new namespace: {}", properties, namespaceName);
         return true;
       } else {
         throw new CommitFailedException("Failed to updateProperties to namespace %s in catalog %s", namespaceName,
@@ -446,7 +450,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new IllegalArgumentException("Cannot setProperties to a namespace with null or empty properties");
     }
 
-    Map<String, String> namespaceProperties = getProperties(namespace);
+    Map<String, String> namespaceProperties = fetchProperties(namespace);
     Map<String, String> propertiesToInsert = Maps.newHashMap();
     Map<String, String> propertiesToUpdate = Maps.newHashMap();
 
@@ -518,7 +522,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     }
   }
 
-  public Map<String, String> getProperties(Namespace namespace) {
+  public Map<String, String> fetchProperties(Namespace namespace) {
     if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
