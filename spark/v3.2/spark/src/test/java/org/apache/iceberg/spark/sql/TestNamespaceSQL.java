@@ -27,10 +27,13 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.spark.SparkException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -38,13 +41,22 @@ import org.junit.Test;
 
 public class TestNamespaceSQL extends SparkCatalogTestBase {
   private static final Namespace NS = Namespace.of("db");
+  private static final Namespace NESTED_NS1 = Namespace.of("db", "ns1");
+  private static final Namespace NESTED_NS2 = Namespace.of("db", "ns2");
+  private static final Namespace DOUBLE_NESTED_NS = Namespace.of("db", "ns2", "ns3");
 
   private final String fullNamespace;
+  private final String fullNestedNamespace1;
+  private final String fullNestedNamespace2;
+  private final String fullDoubleNestedNamespace;
   private final boolean isHadoopCatalog;
 
   public TestNamespaceSQL(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
-    this.fullNamespace = ("spark_catalog".equals(catalogName) ? "" : catalogName + ".") + NS;
+    this.fullNamespace = fullNamespaceFor(NS);
+    this.fullNestedNamespace1 = fullNamespaceFor(NESTED_NS1);
+    this.fullNestedNamespace2 = fullNamespaceFor(NESTED_NS2);
+    this.fullDoubleNestedNamespace = fullNamespaceFor(DOUBLE_NESTED_NS);
     this.isHadoopCatalog = "testhadoop".equals(catalogName);
   }
 
@@ -89,8 +101,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testDropNonEmptyNamespace() {
-    Assume.assumeFalse("Session catalog has flaky behavior", "spark_catalog".equals(catalogName));
-
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
@@ -104,6 +114,119 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
         () -> sql("DROP NAMESPACE %s", fullNamespace));
 
     sql("DROP TABLE %s.table", fullNamespace);
+  }
+
+  @Test
+  public void testDropNonEmptyNamespaceWithSomeEmptySubNamespaces() {
+    Assume.assumeTrue("Only hadoop catalog allows for multi-level namespaces", isHadoopCatalog);
+
+    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+
+    sql("CREATE NAMESPACE %s", fullNamespace);
+    sql("CREATE NAMESPACE %s", fullNestedNamespace2);
+    sql("CREATE NAMESPACE %s", fullDoubleNestedNamespace);
+    sql("CREATE NAMESPACE %s", fullNestedNamespace1);
+    sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullDoubleNestedNamespace);
+
+    // Sanity check
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(NS)).isTrue();
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(NESTED_NS1)).isTrue();
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(NESTED_NS2)).isTrue();
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(DOUBLE_NESTED_NS)).isTrue();
+    Assertions.assertThat(validationCatalog.tableExists(TableIdentifier.of(DOUBLE_NESTED_NS, "table"))).isTrue();
+
+    AssertHelpers.assertThrows("Should fail if trying to delete a non-empty namespace",
+        SparkException.class, "non-empty namespace",
+        () -> sql("DROP NAMESPACE %s", fullNamespace));
+
+    // Ensure we had no partial drops
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(NS)).isTrue();
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(NESTED_NS1)).isTrue();
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(NESTED_NS2)).isTrue();
+    Assertions.assertThat(validationNamespaceCatalog.namespaceExists(DOUBLE_NESTED_NS)).isTrue();
+    Assertions.assertThat(validationCatalog.tableExists(TableIdentifier.of(DOUBLE_NESTED_NS, "table"))).isTrue();
+
+    // Full quick clean-up
+    Assertions.assertThatCode(() -> sql("DROP NAMESPACE %s CASCADE", fullNamespace))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testDropNonEmptyNamespaceOnCascade() {
+    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+
+    sql("CREATE NAMESPACE %s", fullNamespace);
+    sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullNamespace);
+    sql("INSERT INTO %s.table VALUES (1), (2), (3), (4), (5)", fullNamespace);
+
+    Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertTrue("Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+
+    AssertHelpers.assertThrows(
+        "Should fail if trying to delete a non-empty namespace",
+        SparkException.class, "non-empty namespace",
+        () -> sql("DROP NAMESPACE %s", fullNamespace));
+
+    Assert.assertTrue("Namespace should still exist after a failed drop",
+        validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertTrue("Table should still exist after a failed drop",
+        validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+
+    sql("DROP NAMESPACE %s CASCADE", fullNamespace);
+
+    Assert.assertFalse(
+        "Namespace should not exist after deleting with CASCADE",
+        validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Table should not exist after deleting its parent namespace with CASCADE",
+        validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+  }
+
+  @Test
+  public void testDropNamespaceRespectsRestrictKeyword() {
+    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+
+    sql("CREATE NAMESPACE %s", fullNamespace);
+    sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullNamespace);
+
+    Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertTrue("Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+
+    AssertHelpers.assertThrows("Should fail if trying to delete a non-empty namespace with RESTRICT",
+        SparkException.class, "non-empty namespace",
+        () -> sql("DROP NAMESPACE %s RESTRICT", fullNamespace));
+
+    Assert.assertTrue("Non-empty namespace should not drop with RESTRICT",
+        validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertTrue("Table should still exist after a failed drop",
+        validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+
+    // Drop the table and then try using RESTRICT again.
+    sql("DROP TABLE %s.table", fullNamespace);
+    Assert.assertFalse(validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+
+    sql("DROP NAMESPACE %s RESTRICT", fullNamespace);
+    Assert.assertFalse(
+        "Namespace should get dropped when using RESTRICT if it's empty",
+        validationNamespaceCatalog.namespaceExists(NS));
+  }
+
+  @Test
+  public void testDropNamespaceIfExists() {
+    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+
+    Assertions
+        .assertThatCode(() -> sql("DROP NAMESPACE IF EXISTS %s", NS))
+        .doesNotThrowAnyException();
+
+    Assertions
+        .assertThat(sql("DROP NAMESPACE IF EXISTS %s", NS))
+        .isEqualTo(ImmutableList.of());
+
+    AssertHelpers.assertThrows(
+        "Attempting to drop a non-existing namespace without IF EXISTS should throw",
+        NoSuchNamespaceException.class, "not found",
+        () -> sql("DROP NAMESPACE %s", NS));
   }
 
   @Test
@@ -217,5 +340,10 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
     Assert.assertEquals("Namespace should have expected prop value", "value", nsMetadata.get("prop"));
+  }
+
+  // Returns the full string representation of a namespace, with catalog appended to the front.
+  private String fullNamespaceFor(Namespace ns) {
+    return ("spark_catalog".equals(catalogName) ? "" : catalogName + ".") + ns;
   }
 }

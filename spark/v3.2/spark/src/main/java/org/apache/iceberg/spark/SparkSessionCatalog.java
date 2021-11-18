@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
@@ -102,7 +103,30 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
+  // Spark assumes that catalogs CASCADE by default. So we have to eagerly
+  // attempt to drop namespaces and tables, but the CASCADE keyword is still
+  // required to actually drop tables and namespaces as Spark will error out
+  // if any of the recursive deletes are non-empty and the user didn't specify
+  // cascades in their query.
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+
+    // This will eagerly throw NoSuchNamespaceException if namespace does not exist
+    // and the user did not use "IF EXISTS"
+    String[][] subNamespaces = getSessionCatalog().listNamespaces(namespace);
+
+    for (String[] ns : subNamespaces) {
+      try {
+        dropNamespace(ns);
+      } catch (NoSuchNamespaceException e) {
+        // Do nothing. It's possible this namespace doesn't exist at all or the user used `if not exists`.
+      }
+    }
+
+    try {
+      Arrays.stream(listTables(namespace)).forEach(tbl -> getSessionCatalog().dropTable(tbl));
+    } catch (NoSuchNamespaceException e) {
+      // Do nothing. It's possible this namespace doesn't exist at all or the user used `if not exists`.
+    }
     return getSessionCatalog().dropNamespace(namespace);
   }
 
