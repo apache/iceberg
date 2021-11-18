@@ -35,6 +35,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -374,6 +375,9 @@ public class SparkCatalog extends BaseCatalog {
     if (asNamespaceCatalog != null) {
       try {
         return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
+      } catch (NamespaceNotEmptyException e) {
+        throw new NamespaceNotEmptyException(
+            "Cannot drop a non-empty namespace, even with CASCADE. You must clear the namespace before dropping it", e);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(namespace);
       }
