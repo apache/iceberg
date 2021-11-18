@@ -31,19 +31,19 @@ public abstract class SparkCatalogTestBase extends SparkTestBaseWithCatalog {
   // these parameters are broken out to avoid changes that need to modify lots of test suites
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
-    return new Object[][] { {
-      SparkCatalogConfig.HIVE.catalogName(),
-        SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties()
-    }, {
-      SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
-    }, {
-      SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
-    } };
+    return new Object[][] {{
+                               SparkCatalogConfig.HIVE.catalogName(),
+                               SparkCatalogConfig.HIVE.implementation(),
+                               SparkCatalogConfig.HIVE.properties()
+                           }, {
+                               SparkCatalogConfig.HADOOP.catalogName(),
+                               SparkCatalogConfig.HADOOP.implementation(),
+                               SparkCatalogConfig.HADOOP.properties()
+                           }, {
+                               SparkCatalogConfig.SPARK.catalogName(),
+                               SparkCatalogConfig.SPARK.implementation(),
+                               SparkCatalogConfig.SPARK.properties()
+                           }};
   }
 
   @Rule
