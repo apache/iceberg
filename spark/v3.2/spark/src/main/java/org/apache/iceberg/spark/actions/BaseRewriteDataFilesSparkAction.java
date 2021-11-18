@@ -47,7 +47,6 @@ import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NoCommitSucceedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -80,6 +79,7 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
+      IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED,
       TARGET_FILE_SIZE_BYTES
   );
 
@@ -89,6 +89,7 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean ignoreNoSuccessfulCommitEnabled;
   private RewriteStrategy strategy = null;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -328,7 +329,11 @@ abstract class BaseRewriteDataFilesSparkAction
       LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual " +
           "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation " +
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
-      throw new NoCommitSucceedException("No rewrite commits succeeded after max commits");
+      if (!ignoreNoSuccessfulCommitEnabled) {
+        throw new RewriteDataFiles.NoSuccessfulCommitException(
+            "No rewrite commits succeeded after " + maxCommits + " times commits, table name: " + table.name() +
+                ", total group count: " + ctx.totalGroupCount());
+      }
     }
 
     List<FileGroupRewriteResult> rewriteResults = commitResults.stream()
@@ -376,6 +381,10 @@ abstract class BaseRewriteDataFilesSparkAction
     partialProgressEnabled = PropertyUtil.propertyAsBoolean(options(),
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
+
+    ignoreNoSuccessfulCommitEnabled = PropertyUtil.propertyAsBoolean(options(),
+        IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED,
+        IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED_DEFAULT);
 
     Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",

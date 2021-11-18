@@ -57,7 +57,6 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
-import org.apache.iceberg.exceptions.NoCommitSucceedException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -481,7 +480,7 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testPartialProgressSingleCommitWithCommitFailure() {
+  public void testPartialProgressSingleCommitWithCommitFailureThrowException() {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
@@ -492,7 +491,8 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
             basicRewrite(table)
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
-                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "1");
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "1")
+                .option(RewriteDataFiles.IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED, "false");
 
     BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
     RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
@@ -506,8 +506,46 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
         .when(spyRewrite)
         .commitManager(table.currentSnapshot().snapshotId());
 
-    AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", NoCommitSucceedException.class,
+    AssertHelpers.assertThrows(
+        "Should fail entire rewrite if commit fails", RewriteDataFiles.NoSuccessfulCommitException.class,
         () -> spyRewrite.execute());
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 1);
+    shouldHaveNoOrphans(table);
+    shouldHaveACleanCache(table);
+  }
+
+  @Test
+  public void testPartialProgressSingleCommitWithCommitFailureNoThrowException() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            basicRewrite(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "1")
+                .option(RewriteDataFiles.IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED, "true");
+
+    BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
+    RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
+
+    // Fail to commit
+    doThrow(new RuntimeException("Commit Failure"))
+        .when(util)
+        .commitFileGroups(any());
+
+    doReturn(util)
+        .when(spyRewrite)
+        .commitManager(table.currentSnapshot().snapshotId());
 
     table.refresh();
 
