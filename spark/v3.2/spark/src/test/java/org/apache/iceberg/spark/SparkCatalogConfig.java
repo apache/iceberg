@@ -39,12 +39,12 @@ public enum SparkCatalogConfig {
 
   private final String catalogName;
   private final String implementation;
-  private final Map<String, String> config;
+  private final Map<String, String> properties;
 
-  SparkCatalogConfig(String catalogName, String implementation, Map<String, String> config) {
+  SparkCatalogConfig(String catalogName, String implementation, Map<String, String> properties) {
     this.catalogName = catalogName;
     this.implementation = implementation;
-    this.config = config;
+    this.properties = properties;
   }
 
   public String catalogName() {
@@ -56,6 +56,6 @@ public enum SparkCatalogConfig {
   }
 
   public Map<String, String> properties() {
-    return config;
+    return properties;
   }
 }
