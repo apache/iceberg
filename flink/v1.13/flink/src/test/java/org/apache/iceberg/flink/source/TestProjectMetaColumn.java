@@ -72,7 +72,7 @@ public class TestProjectMetaColumn {
     // Create the table with given format version.
     String location = folder.getRoot().getAbsolutePath();
     Table table = SimpleDataUtil.createTable(location,
-        ImmutableMap.of("format-version", String.valueOf(formatVersion)),
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
         false);
 
     List<RowData> rows = Lists.newArrayList(
@@ -112,7 +112,7 @@ public class TestProjectMetaColumn {
   public void testV2RemoveMetaColumn() throws Exception {
     // Create the v2 table.
     String location = folder.getRoot().getAbsolutePath();
-    Table table = SimpleDataUtil.createTable(location, ImmutableMap.of("format-version", "2"), false);
+    Table table = SimpleDataUtil.createTable(location, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), false);
 
     List<RowData> rows = Lists.newArrayList(
         SimpleDataUtil.createInsert(1, "AAA"),
