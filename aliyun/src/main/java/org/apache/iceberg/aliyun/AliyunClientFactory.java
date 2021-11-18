@@ -64,7 +64,7 @@ public interface AliyunClientFactory extends Serializable {
    *
    * @return oss client.
    */
-  OSS oss();
+  OSS newClient();
 
   /**
    * Initialize Aliyun client factory from catalog properties.

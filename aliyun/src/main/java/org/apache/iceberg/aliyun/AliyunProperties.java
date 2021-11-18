@@ -53,9 +53,11 @@ public class AliyunProperties implements Serializable {
   public static final String ACCESS_KEY_SECRET = "access.key.secret";
 
   /**
-   * Aliyun client factory for oss service, defaults to {@link DefaultAliyunClientFactory} implementation
+   * The implementation class of {@link AliyunClientFactory} to customize Aliyun client configurations.
+   * If set, all Aliyun clients will be initialized by the specified factory.
+   * If not set, {@link DefaultAliyunClientFactory} is used as default factory.
    */
-  public static final String CLIENT_FACTORY = "client.factory";
+  public static final String CLIENT_FACTORY = "client.factory-impl";
 
   /**
    * Location to put staging files for uploading to OSS, defaults to the directory value of java.io.tmpdir.

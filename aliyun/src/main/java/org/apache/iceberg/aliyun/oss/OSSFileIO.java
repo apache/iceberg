@@ -90,7 +90,7 @@ public class OSSFileIO implements FileIO {
   public void initialize(Map<String, String> properties) {
     AliyunClientFactory factory = AliyunClientFactory.load(properties);
     this.aliyunProperties = factory.aliyunProperties();
-    this.oss = factory::oss;
+    this.oss = factory::newClient;
   }
 
   @Override

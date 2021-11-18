@@ -29,14 +29,6 @@ public class OSSInputFile extends BaseOSSFile implements InputFile {
 
   private Long length = null;
 
-  OSSInputFile(OSS client, OSSURI uri) {
-    this(client, uri, new AliyunProperties());
-  }
-
-  OSSInputFile(OSS client, OSSURI uri, long length) {
-    this(client, uri, new AliyunProperties(), length);
-  }
-
   OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     super(client, uri, aliyunProperties);
   }

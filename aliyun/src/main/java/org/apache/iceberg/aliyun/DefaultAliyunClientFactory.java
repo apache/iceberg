@@ -28,7 +28,7 @@ public class DefaultAliyunClientFactory implements AliyunClientFactory {
   private AliyunProperties aliyunProperties;
 
   @Override
-  public OSS oss() {
+  public OSS newClient() {
     Preconditions.checkNotNull(
         aliyunProperties, "Cannot create aliyun oss client before initializing the AliyunClientFactory.");
 
