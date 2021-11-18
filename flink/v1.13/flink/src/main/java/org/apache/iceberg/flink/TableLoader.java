@@ -21,6 +21,8 @@ package org.apache.iceberg.flink;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Table;
@@ -94,13 +96,13 @@ public interface TableLoader extends Closeable, Serializable {
     private static final long serialVersionUID = 1L;
 
     private final CatalogLoader catalogLoader;
-    private final TableIdentifier identifier;
+    private final SerializableTableIdentifier identifier;
 
     private transient Catalog catalog;
 
     private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
       this.catalogLoader = catalogLoader;
-      this.identifier = tableIdentifier;
+      this.identifier = new SerializableTableIdentifier(tableIdentifier);
     }
 
     @Override
@@ -110,7 +112,7 @@ public interface TableLoader extends Closeable, Serializable {
 
     @Override
     public Table loadTable() {
-      return catalog.loadTable(identifier);
+      return catalog.loadTable(identifier.get());
     }
 
     @Override
@@ -126,6 +128,28 @@ public interface TableLoader extends Closeable, Serializable {
           .add("tableIdentifier", identifier)
           .add("catalogLoader", catalogLoader)
           .toString();
+    }
+  }
+
+  class SerializableTableIdentifier implements Serializable {
+    private transient TableIdentifier identifier;
+
+    SerializableTableIdentifier(TableIdentifier identifier) {
+      this.identifier = identifier;
+    }
+
+    private void writeObject(ObjectOutputStream out) throws IOException {
+      out.defaultWriteObject();
+      out.writeObject(identifier.toString());
+    }
+
+    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      identifier = TableIdentifier.parse((String) in.readObject());
+    }
+
+    public TableIdentifier get() {
+      return identifier;
     }
   }
 }
