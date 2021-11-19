@@ -33,8 +33,8 @@ import org.openjdk.jmh.annotations.Param;
  * To run this benchmark for spark-3.2:
  * <code>
  * ./gradlew :iceberg-spark:iceberg-spark-3.2:jmh
- *   -PjmhIncludeRegex=IcebergSourceParquetDeleteBenchmark
- *   -PjmhOutputPath=benchmark/iceberg-source-parquet-delete-benchmark-result.txt
+ *   -PjmhIncludeRegex=IcebergSourceParquetPosDeleteBenchmark
+ *   -PjmhOutputPath=benchmark/iceberg-source-parquet-pos-delete-benchmark-result.txt
  * </code>
  */
 public class IcebergSourceParquetPosDeleteBenchmark extends IcebergSourceDeleteBenchmark {
