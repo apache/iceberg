@@ -197,7 +197,7 @@ public abstract class DeleteFilter<T> {
     return remainingRowsFilter.filter(records);
   }
 
-  public Predicate<T> eqDeletedRows() {
+  public Predicate<T> eqDeletedRowFilter() {
     if (eqDeleteRows == null) {
       eqDeleteRows = applyEqDeletes().stream()
           .map(Predicate::negate)

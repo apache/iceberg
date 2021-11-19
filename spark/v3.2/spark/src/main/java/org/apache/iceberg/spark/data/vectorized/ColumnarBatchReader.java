@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.data.DeleteFilter;
@@ -71,8 +70,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       closeVectors();
     }
 
-    Pair<int[], Integer> rowIdMapping = rowIdMapping(numRowsToRead);
-    int[] eqDeleteRowIdMapping = initEqDeleteRowIdMapping(numRowsToRead, rowIdMapping);
+    Pair<int[], Integer> posDeleteRowIdMapping = rowIdMapping(numRowsToRead);
+    int[] eqDeleteRowIdMapping = initEqDeleteRowIdMapping(numRowsToRead, posDeleteRowIdMapping);
 
     for (int i = 0; i < readers.length; i += 1) {
       vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
@@ -82,22 +81,29 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
           numRowsToRead);
 
-      arrowColumnVectors[i] = arrowColumnVector(rowIdMapping, i, numRowsInVector, eqDeleteRowIdMapping);
+      arrowColumnVectors[i] = arrowColumnVector(posDeleteRowIdMapping, i, numRowsInVector, eqDeleteRowIdMapping);
     }
 
     rowStartPosInBatch += numRowsToRead;
     ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
 
-    if (rowIdMapping == null) {
+    if (posDeleteRowIdMapping == null) {
       batch.setNumRows(numRowsToRead);
     } else {
-      Integer numRows = rowIdMapping.second();
+      Integer numRows = posDeleteRowIdMapping.second();
       batch.setNumRows(numRows);
     }
 
     if (deletes != null && deletes.hasEqDeletes()) {
-      applyEqDelete(batch, rowIdMapping == null ? null : rowIdMapping.first(), eqDeleteRowIdMapping);
+      int[] rowIdMapping = eqDeleteRowIdMapping;
+      if (posDeleteRowIdMapping != null && posDeleteRowIdMapping.first() != null) {
+        rowIdMapping = posDeleteRowIdMapping.first();
+      }
+      Preconditions.checkArgument(rowIdMapping != null, "Row Id mapping cannot be null");
+
+      applyEqDelete(batch, rowIdMapping);
     }
+
     return batch;
   }
 
@@ -167,19 +173,15 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   }
 
   /**
-   * Reuse the row Id mapping array to filter out equality deleted rows.
+   * Reuse the row id mapping array to filter out equality deleted rows.
    */
-  private void applyEqDelete(ColumnarBatch batch, int[] posDeleteRowIdMapping, int[] eqDeleteRowIdMapping) {
-    int[] rowIdMapping = posDeleteRowIdMapping == null ? eqDeleteRowIdMapping : posDeleteRowIdMapping;
-    Preconditions.checkArgument(rowIdMapping != null, "Row Id mapping cannot be null");
-
-    Predicate<InternalRow> eqDeletedRows = deletes.eqDeletedRows();
+  private void applyEqDelete(ColumnarBatch batch, int[] rowIdMapping) {
     Iterator<InternalRow> it = batch.rowIterator();
     int rowId = 0;
     int currentRowId = 0;
     while (it.hasNext()) {
       InternalRow row = it.next();
-      if (eqDeletedRows.test(row)) {
+      if (deletes.eqDeletedRowFilter().test(row)) {
         // the row is NOT deleted
         // skip deleted rows by pointing to the next undeleted row Id
         rowIdMapping[currentRowId] = rowIdMapping[rowId];
