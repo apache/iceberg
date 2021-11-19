@@ -345,7 +345,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Evaluator inclusive = inclusiveDeleteEvaluator(reader.spec());
     Evaluator strict = strictDeleteEvaluator(reader.spec());
     boolean hasDeletedFiles = false;
-    for (ManifestEntry<F> entry : reader.entries()) {
+    for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
       boolean fileDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
