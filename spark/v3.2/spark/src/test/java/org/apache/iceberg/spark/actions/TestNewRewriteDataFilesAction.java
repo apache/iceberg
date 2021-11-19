@@ -555,7 +555,7 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "1")
-                .option(RewriteDataFiles.IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED, "false");
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED, "false");
 
     BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
     RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
@@ -596,7 +596,7 @@ public class TestNewRewriteDataFilesAction extends SparkTestBase {
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "1")
-                .option(RewriteDataFiles.IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED, "true");
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED, "true");
 
     BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
     RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));

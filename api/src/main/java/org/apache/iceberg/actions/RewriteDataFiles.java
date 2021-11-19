@@ -49,6 +49,15 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
 
   /**
+   * If we make {@link #PARTIAL_PROGRESS_ENABLED} to be true, for some reasons, the all commits may not be successful
+   * in the end. If we do rewrite in an isolated job, wo may want to fail the entire job. But if we do rewrite after
+   * writing, may not want to fail the entire job. This setting determines whether the entire rewrite process will fail
+   * if no commits succeeded in the end. This setting has no effect if partial progress is disabled.
+   */
+  String PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED = "partial-progress.ignore-no-successful-commit.enabled";
+  boolean PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED_DEFAULT = true;
+
+  /**
    * The entire rewrite operation is broken down into pieces based on partitioning and within partitions based
    * on size into groups. These sub-units of the rewrite are referred to as file groups. The largest amount of data that
    * should be compacted in a single group is controlled by {@link #MAX_FILE_GROUP_SIZE_BYTES}. This helps with
@@ -88,15 +97,6 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    */
   String USE_STARTING_SEQUENCE_NUMBER = "use-starting-sequence-number";
   boolean USE_STARTING_SEQUENCE_NUMBER_DEFAULT = true;
-
-  /**
-   * If we make {@link #PARTIAL_PROGRESS_ENABLED} to be true, for some reasons, the all commits may not be successful
-   * in the end. If we do rewrite in an isolated job, wo may want to fail the entire job. But if we do rewrite after
-   * writing, may not want to fail the entire job. This setting determines whether the entire rewrite process will fail
-   * if no commits succeeded in the end. This setting has no effect if partial progress is disabled.
-   */
-  String IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED = "ignore-no-successful-commit.enabled";
-  boolean IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED_DEFAULT = true;
 
   /**
    * Choose BINPACK as a strategy for this rewrite operation
