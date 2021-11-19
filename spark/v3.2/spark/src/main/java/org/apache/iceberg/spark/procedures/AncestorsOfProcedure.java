@@ -20,8 +20,8 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.List;
-import org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.collect.Lists;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
