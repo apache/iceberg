@@ -333,7 +333,7 @@ abstract class BaseRewriteDataFilesSparkAction
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
       if (!ignoreNoSuccessfulCommitEnabled) {
         throw new RewriteDataFiles.NoSuccessfulCommitException(
-            String.format("No rewrite commits succeeded after %s times commits, table name: %s, total group count: %s",
+            String.format("No rewrite commits succeeded after %s times commits, table name: %s, total group count: %s.",
                 maxCommits, table().name(), ctx.totalGroupCount()));
       }
     }
