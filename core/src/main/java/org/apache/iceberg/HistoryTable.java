@@ -91,7 +91,7 @@ public class HistoryTable extends BaseMetadataTable {
       snapshots.put(snap.snapshotId(), snap);
     }
 
-    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.currentAncestors(table));
+    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.currentAncestorIds(table));
 
     return historyEntry -> {
       long snapshotId = historyEntry.snapshotId();

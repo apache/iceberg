@@ -34,6 +34,7 @@ public class IcebergSpark {
     SparkTypeToType typeConverter = new SparkTypeToType();
     Type sourceIcebergType = typeConverter.atomic(sourceType);
     Transform<Object, Integer> bucket = Transforms.bucket(sourceIcebergType, numBuckets);
-    session.udf().register(funcName, bucket::apply, DataTypes.IntegerType);
+    session.udf().register(funcName,
+        value -> bucket.apply(SparkValueConverter.convert(sourceIcebergType, value)), DataTypes.IntegerType);
   }
 }

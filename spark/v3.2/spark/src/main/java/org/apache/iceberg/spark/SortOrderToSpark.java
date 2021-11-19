@@ -19,44 +19,57 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Map;
 import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 
 class SortOrderToSpark implements SortOrderVisitor<OrderField> {
+
+  private final Map<Integer, String> quotedNameById;
+
+  SortOrderToSpark(Schema schema) {
+    this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
+  }
+
   @Override
   public OrderField field(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.column(sourceName, direction, nullOrder);
+    return OrderField.column(quotedName(id), direction, nullOrder);
   }
 
   @Override
   public OrderField bucket(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.bucket(sourceName, width, direction, nullOrder);
+    return OrderField.bucket(quotedName(id), width, direction, nullOrder);
   }
 
   @Override
   public OrderField truncate(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.truncate(sourceName, width, direction, nullOrder);
+    return OrderField.truncate(quotedName(id), width, direction, nullOrder);
   }
 
   @Override
   public OrderField year(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.year(sourceName, direction, nullOrder);
+    return OrderField.year(quotedName(id), direction, nullOrder);
   }
 
   @Override
   public OrderField month(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.month(sourceName, direction, nullOrder);
+    return OrderField.month(quotedName(id), direction, nullOrder);
   }
 
   @Override
   public OrderField day(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.day(sourceName, direction, nullOrder);
+    return OrderField.day(quotedName(id), direction, nullOrder);
   }
 
   @Override
   public OrderField hour(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.hour(sourceName, direction, nullOrder);
+    return OrderField.hour(quotedName(id), direction, nullOrder);
+  }
+
+  private String quotedName(int id) {
+    return quotedNameById.get(id);
   }
 }
 

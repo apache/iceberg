@@ -19,7 +19,11 @@
 
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -71,5 +75,80 @@ public class TestDeleteFiles extends TableTestBase {
         ids(delete2.snapshotId(), append.snapshotId()),
         files(FILE_B, FILE_C),
         statuses(Status.DELETED, Status.EXISTING));
+  }
+
+  @Test
+  public void testAlreadyDeletedFilesAreIgnoredDuringDeletesByRowFilter() {
+    PartitionSpec spec = table.spec();
+
+    DataFile firstDataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-2.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+            ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+            null, // no nan value counts
+            ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+        ))
+        .build();
+
+    DataFile secondDataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-1.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+            ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+            null, // no nan value counts
+            ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
+        ))
+        .build();
+
+    // add both data files
+    table.newFastAppend()
+        .appendFile(firstDataFile)
+        .appendFile(secondDataFile)
+        .commit();
+
+    Snapshot initialSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
+    validateManifestEntries(initialSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
+        files(firstDataFile, secondDataFile),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // delete the first data file
+    table.newDelete()
+        .deleteFile(firstDataFile)
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(deleteSnapshot.snapshotId(), initialSnapshot.snapshotId()),
+        files(firstDataFile, secondDataFile),
+        statuses(Status.DELETED, Status.EXISTING));
+
+    // delete the second data file using a row filter
+    // the commit should succeed as there is only one live data file
+    table.newDelete()
+        .deleteFromRowFilter(Expressions.lessThan("id", 7))
+        .commit();
+
+    Snapshot finalSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, finalSnapshot.allManifests().size());
+    validateManifestEntries(finalSnapshot.allManifests().get(0),
+        ids(finalSnapshot.snapshotId()),
+        files(secondDataFile),
+        statuses(Status.DELETED));
+  }
+
+  private ByteBuffer longToBuffer(long value) {
+    return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
 }
