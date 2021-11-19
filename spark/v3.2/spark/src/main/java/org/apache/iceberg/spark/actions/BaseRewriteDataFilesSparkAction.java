@@ -79,6 +79,7 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
+      PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED,
       TARGET_FILE_SIZE_BYTES,
       USE_STARTING_SEQUENCE_NUMBER
   );
@@ -89,6 +90,7 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean ignoreNoSuccessfulCommitEnabled;
   private boolean useStartingSequenceNumber;
   private RewriteStrategy strategy = null;
 
@@ -329,6 +331,11 @@ abstract class BaseRewriteDataFilesSparkAction
       LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual " +
           "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation " +
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
+      if (!ignoreNoSuccessfulCommitEnabled) {
+        throw new RewriteDataFiles.NoSuccessfulCommitException(
+            String.format("No rewrite commits succeeded after %s times commits, table name: %s, total group count: %s.",
+                maxCommits, table().name(), ctx.totalGroupCount()));
+      }
     }
 
     List<FileGroupRewriteResult> rewriteResults = commitResults.stream()
@@ -376,6 +383,10 @@ abstract class BaseRewriteDataFilesSparkAction
     partialProgressEnabled = PropertyUtil.propertyAsBoolean(options(),
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
+
+    ignoreNoSuccessfulCommitEnabled = PropertyUtil.propertyAsBoolean(options(),
+        PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED,
+        PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED_DEFAULT);
 
     useStartingSequenceNumber = PropertyUtil.propertyAsBoolean(options(),
         USE_STARTING_SEQUENCE_NUMBER,

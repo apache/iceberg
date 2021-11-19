@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import com.google.errorprone.annotations.FormatMethod;
 import java.util.List;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -46,6 +47,15 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    */
   String PARTIAL_PROGRESS_MAX_COMMITS = "partial-progress.max-commits";
   int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
+
+  /**
+   * If we make {@link #PARTIAL_PROGRESS_ENABLED} to be true, for some reasons, the all commits may not be successful
+   * in the end. If we do rewrite in an isolated job, wo may want to fail the entire job. But if we do rewrite after
+   * writing, may not want to fail the entire job. This setting determines whether the entire rewrite process will fail
+   * if no commits succeeded in the end. This setting has no effect if partial progress is disabled.
+   */
+  String PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED = "partial-progress.ignore-no-successful-commit.enabled";
+  boolean PARTIAL_PROGRESS_IGNORE_NO_SUCCESSFUL_COMMIT_ENABLED_DEFAULT = true;
 
   /**
    * The entire rewrite operation is broken down into pieces based on partitioning and within partitions based
@@ -172,5 +182,23 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
      * returns which partition this file group contains files from
      */
     StructLike partition();
+  }
+
+  /**
+   * Exception raised when no commit succeed.
+   * <p>
+   * For example, this is thrown when rewriting data files partial commit is enabled,
+   * but no commit succeed at the end.
+   */
+  class NoSuccessfulCommitException extends RuntimeException {
+    @FormatMethod
+    public NoSuccessfulCommitException(String message, Object... args) {
+      super(String.format(message, args));
+    }
+
+    @FormatMethod
+    public NoSuccessfulCommitException(Throwable cause, String message, Object... args) {
+      super(String.format(message, args), cause);
+    }
   }
 }
