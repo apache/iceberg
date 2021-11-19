@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -45,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -463,33 +465,33 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> manifests = Lists.newArrayList();
     Set<Long> newSnapshots = Sets.newHashSet();
 
-    Long currentSnapshotId = base.currentSnapshot().snapshotId();
-    while (currentSnapshotId != null && !currentSnapshotId.equals(startingSnapshotId)) {
-      Snapshot currentSnapshot = ops.current().snapshot(currentSnapshotId);
-
-      ValidationException.check(currentSnapshot != null,
-          "Cannot determine history between starting snapshot %s and current %s",
-          startingSnapshotId, currentSnapshotId);
+    Snapshot lastSnapshot = null;
+    Iterable<Snapshot> snapshots = SnapshotUtil.ancestorsBetween(
+        base.currentSnapshot().snapshotId(), startingSnapshotId, base::snapshot);
+    for (Snapshot currentSnapshot : snapshots) {
+      lastSnapshot = currentSnapshot;
 
       if (matchingOperations.contains(currentSnapshot.operation())) {
-        newSnapshots.add(currentSnapshotId);
+        newSnapshots.add(currentSnapshot.snapshotId());
         if (content == ManifestContent.DATA) {
           for (ManifestFile manifest : currentSnapshot.dataManifests()) {
-            if (manifest.snapshotId() == (long) currentSnapshotId) {
+            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
           }
         } else {
           for (ManifestFile manifest : currentSnapshot.deleteManifests()) {
-            if (manifest.snapshotId() == (long) currentSnapshotId) {
+            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
           }
         }
       }
-
-      currentSnapshotId = currentSnapshot.parentId();
     }
+
+    ValidationException.check(lastSnapshot == null || Objects.equals(lastSnapshot.parentId(), startingSnapshotId),
+        "Cannot determine history between starting snapshot %s and the last known ancestor %s",
+        startingSnapshotId, lastSnapshot != null ? lastSnapshot.snapshotId() : null);
 
     return Pair.of(manifests, newSnapshots);
   }
