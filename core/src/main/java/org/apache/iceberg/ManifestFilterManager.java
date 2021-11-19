@@ -26,11 +26,11 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
-import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,7 +42,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
 import org.apache.iceberg.util.ManifestFileUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -170,16 +172,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return ImmutableList.of();
     }
 
-    // use a common metrics evaluator for all manifests because it is bound to the table schema
-    StrictMetricsEvaluator metricsEvaluator = new StrictMetricsEvaluator(tableSchema, deleteExpression);
-
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
         .stopOnFailure().throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .run(index -> {
-          ManifestFile manifest = filterManifest(metricsEvaluator, manifests.get(index));
+          ManifestFile manifest = filterManifest(tableSchema, manifests.get(index));
           filtered[index] = manifest;
         });
 
@@ -276,7 +275,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   /**
    * @return a ManifestReader that is a filtered version of the input manifest.
    */
-  private ManifestFile filterManifest(StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest) {
+  private ManifestFile filterManifest(Schema tableSchema, ManifestFile manifest) {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {
       return cached;
@@ -292,13 +291,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
-      boolean hasDeletedFiles = manifestHasDeletedFiles(metricsEvaluator, reader);
+      ExpressionEvaluator deleteEvaluator = new ExpressionEvaluator(tableSchema, reader.spec(), deleteExpression);
+
+      boolean hasDeletedFiles = manifestHasDeletedFiles(reader, deleteEvaluator);
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
 
-      return filterManifestWithDeletedFiles(metricsEvaluator, manifest, reader);
+      return filterManifestWithDeletedFiles(manifest, reader, deleteEvaluator);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
@@ -339,20 +340,17 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   @SuppressWarnings("CollectionUndefinedEquality")
-  private boolean manifestHasDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator, ManifestReader<F> reader) {
+  private boolean manifestHasDeletedFiles(ManifestReader<F> reader, ExpressionEvaluator deleteEvaluator) {
     boolean isDelete = reader.isDeleteManifestReader();
-    Evaluator inclusive = inclusiveDeleteEvaluator(reader.spec());
-    Evaluator strict = strictDeleteEvaluator(reader.spec());
     boolean hasDeletedFiles = false;
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
       boolean fileDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
           (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
-      if (fileDelete || inclusive.eval(file.partition())) {
+      if (fileDelete || deleteEvaluator.rowsMightMatch(file)) {
         ValidationException.check(
-            fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
+            fileDelete || deleteEvaluator.rowsMustMatch(file),
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 
@@ -366,12 +364,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return hasDeletedFiles;
   }
 
-  @SuppressWarnings("CollectionUndefinedEquality")
-  private ManifestFile filterManifestWithDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader<F> reader) {
+  @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
+  private ManifestFile filterManifestWithDeletedFiles(ManifestFile manifest, ManifestReader<F> reader,
+                                                      ExpressionEvaluator deleteEvaluator) {
     boolean isDelete = reader.isDeleteManifestReader();
-    Evaluator inclusive = inclusiveDeleteEvaluator(reader.spec());
-    Evaluator strict = strictDeleteEvaluator(reader.spec());
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
     List<F> deletedFiles = Lists.newArrayList();
@@ -386,9 +382,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               dropPartitions.contains(file.specId(), file.partition()) ||
               (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
           if (entry.status() != ManifestEntry.Status.DELETED) {
-            if (fileDelete || inclusive.eval(file.partition())) {
+            if (fileDelete || deleteEvaluator.rowsMightMatch(file)) {
               ValidationException.check(
-                  fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
+                  fileDelete || deleteEvaluator.rowsMustMatch(file),
                   "Cannot delete file where some, but not all, rows match filter %s: %s",
                   this.deleteExpression, file.path());
 
@@ -429,13 +425,44 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
   }
 
-  private Evaluator strictDeleteEvaluator(PartitionSpec spec) {
-    Expression strictExpr = Projections.strict(spec).project(deleteExpression);
-    return new Evaluator(spec.partitionType(), strictExpr);
-  }
+  // an evaluator that checks whether rows in a file may/must match a given expression
+  // this class first partially evaluates the provided expression using the partition tuple
+  // and then checks the remaining part of the expression using metrics evaluators
+  private class ExpressionEvaluator {
+    private final Schema tableSchema;
+    private final ResidualEvaluator residualEvaluator;
+    private final StructLikeMap<Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator>> metricsEvaluators;
 
-  private Evaluator inclusiveDeleteEvaluator(PartitionSpec spec) {
-    Expression inclusiveExpr = Projections.inclusive(spec).project(deleteExpression);
-    return new Evaluator(spec.partitionType(), inclusiveExpr);
+    // TODO: support case sensitive flags
+    ExpressionEvaluator(Schema tableSchema, PartitionSpec spec, Expression expr) {
+      this.tableSchema = tableSchema;
+      this.residualEvaluator = ResidualEvaluator.of(spec, expr, true);
+      this.metricsEvaluators = StructLikeMap.create(spec.partitionType());
+    }
+
+    boolean rowsMightMatch(F file) {
+      Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> evaluators = metricsEvaluators(file);
+      InclusiveMetricsEvaluator inclusiveMetricsEvaluator = evaluators.first();
+      return inclusiveMetricsEvaluator.eval(file);
+    }
+
+    boolean rowsMustMatch(F file) {
+      Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> evaluators = metricsEvaluators(file);
+      StrictMetricsEvaluator strictMetricsEvaluator = evaluators.second();
+      return strictMetricsEvaluator.eval(file);
+    }
+
+    private Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> metricsEvaluators(F file) {
+      // this logic depends on ResidualEvaluator that behaves in the following way
+      // if strict projection returns true -> the pred would return true -> replace the pred with true
+      // if inclusive projection returns false -> the pred would return false -> replace the pred with false
+      // otherwise, keep the original predicate and try evaluating it using metrics
+      return metricsEvaluators.computeIfAbsent(file.partition(), partition -> {
+        Expression residual = residualEvaluator.residualFor(partition);
+        InclusiveMetricsEvaluator inclusive = new InclusiveMetricsEvaluator(tableSchema, residual);
+        StrictMetricsEvaluator strict = new StrictMetricsEvaluator(tableSchema, residual);
+        return Pair.of(inclusive, strict);
+      });
+    }
   }
 }

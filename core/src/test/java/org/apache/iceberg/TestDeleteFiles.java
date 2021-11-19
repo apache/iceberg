@@ -22,9 +22,12 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -146,6 +149,154 @@ public class TestDeleteFiles extends TableTestBase {
         ids(finalSnapshot.snapshotId()),
         files(secondDataFile),
         statuses(Status.DELETED));
+  }
+
+  @Test
+  public void testDeleteSomeFilesByRowFilterWithoutPartitionPredicates() {
+    PartitionSpec spec = table.spec();
+
+    DataFile firstDataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-1.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+            ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+            null, // no nan value counts
+            ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
+        ))
+        .build();
+
+    DataFile secondDataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-2.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+            ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+            null, // no nan value counts
+            ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+        ))
+        .build();
+
+    // add both data files
+    table.newFastAppend()
+        .appendFile(firstDataFile)
+        .appendFile(secondDataFile)
+        .commit();
+
+    Snapshot initialSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
+    validateManifestEntries(initialSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
+        files(firstDataFile, secondDataFile),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // delete the second one using a metrics filter (no partition filter)
+    table.newDelete()
+        .deleteFromRowFilter(Expressions.greaterThan("id", 5))
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        files(firstDataFile, secondDataFile),
+        statuses(Status.EXISTING, Status.DELETED));
+  }
+
+  @Test
+  public void testDeleteSomeFilesByRowFilterWithCombinedPredicates() {
+    PartitionSpec spec = table.spec();
+
+    DataFile firstDataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-1.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+            ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+            null, // no nan value counts
+            ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
+        ))
+        .build();
+
+    DataFile secondDataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-2.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+            ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+            null, // no nan value counts
+            ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
+            ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+        ))
+        .build();
+
+    // add both data files
+    table.newFastAppend()
+        .appendFile(firstDataFile)
+        .appendFile(secondDataFile)
+        .commit();
+
+    Snapshot initialSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
+    validateManifestEntries(initialSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
+        files(firstDataFile, secondDataFile),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // delete the second one using a filter that relies on metrics and partition data
+    Expression partPredicate = Expressions.equal(Expressions.bucket("data", 16), 0);
+    Expression rowPredicate = Expressions.greaterThan("id", 5);
+    Expression predicate = Expressions.and(partPredicate, rowPredicate);
+    table.newDelete()
+        .deleteFromRowFilter(predicate)
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        files(firstDataFile, secondDataFile),
+        statuses(Status.EXISTING, Status.DELETED));
+  }
+
+  @Test
+  public void testCannotDeleteFileWhereNotAllRowsMatchPartitionFilter() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.truncate("data", 2))
+        .commit();
+
+    PartitionSpec spec = table.spec();
+
+    DataFile dataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-1.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_trunc_2=aa")
+        .build();
+
+    table.newFastAppend()
+        .appendFile(dataFile)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject as not all rows match filter",
+        ValidationException.class, "Cannot delete file where some, but not all, rows match filter",
+        () -> table.newDelete()
+            .deleteFromRowFilter(Expressions.equal("data", "aa"))
+            .commit());
   }
 
   private ByteBuffer longToBuffer(long value) {
