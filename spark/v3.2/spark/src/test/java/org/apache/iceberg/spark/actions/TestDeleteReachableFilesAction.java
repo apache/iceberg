@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
 import java.io.File;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -35,15 +35,18 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.DeleteReachableFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -303,12 +306,13 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_A)
         .commit();
     // There are three metadata json files at this point
-    List<String> result = Actions.forTable(table)
-        .removeOrphanFiles()
-        .olderThan(System.currentTimeMillis()).execute();
+    DeleteOrphanFiles.Result result =
+        sparkActions().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    Assert.assertEquals("Should delete 1 file", 1, result.size());
-    Assert.assertTrue("Should remove v1 file", result.get(0).contains("v1.metadata.json"));
+    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
+    Assert.assertTrue("Should remove v1 file",
+        StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
+            .anyMatch(file -> file.contains("v1.metadata.json")));
 
     DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
         .deleteReachableFiles(metadataLocation(table))
@@ -329,7 +333,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testRemoveFilesActionWhenGarabageCollectionDisabled() {
+  public void testRemoveFilesActionWhenGarbageCollectionDisabled() {
     table.updateProperties()
         .set(TableProperties.GC_ENABLED, "false")
         .commit();

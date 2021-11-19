@@ -71,7 +71,7 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] convert(org.apache.iceberg.SortOrder sortOrder) {
-    List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark());
+    List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark(sortOrder.schema()));
     return converted.toArray(new OrderField[0]);
   }
 }

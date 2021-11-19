@@ -250,4 +250,31 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
 
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
+
+  @Test
+  public void testRangeDistributionWithQuotedColumnNames() throws NoSuchTableException {
+    sql("CREATE TABLE %s (`c.1` INT, c2 STRING, c3 STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (bucket(2, `c.1`))", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.selectExpr("c1 as `c.1`", "c2", "c3").coalesce(1).sortWithinPartitions("`c.1`");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY `c.1`, c2", tableName);
+
+    inputDF.writeTo(tableName).append();
+
+    assertEquals("Row count must match",
+        ImmutableList.of(row(7L)),
+        sql("SELECT count(*) FROM %s", tableName));
+  }
 }

@@ -238,7 +238,7 @@ public class TestDataSourceOptions {
           .mode("append")
           .save(tableLocation);
     }
-    List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
+    List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // start-snapshot-id and snapshot-id are both configured.
     AssertHelpers.assertThrows(

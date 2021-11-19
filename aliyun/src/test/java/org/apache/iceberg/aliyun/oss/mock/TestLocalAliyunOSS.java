@@ -140,8 +140,9 @@ public class TestLocalAliyunOSS {
     oss.putObject(bucketName, "key", new ByteArrayInputStream(bytes));
 
     byte[] actual = new byte[2000];
-    ByteStreams.readFully(oss.getObject(bucketName, "key").getObjectContent(), actual);
-
+    try (InputStream is = oss.getObject(bucketName, "key").getObjectContent()) {
+      ByteStreams.readFully(is, actual);
+    }
     Assert.assertArrayEquals(bytes, actual);
     oss.deleteObject(bucketName, "key");
   }
@@ -215,7 +216,9 @@ public class TestLocalAliyunOSS {
     GetObjectRequest getObjectRequest;
     getObjectRequest = new GetObjectRequest(bucketName, "key");
     getObjectRequest.setRange(start, end);
-    ByteStreams.readFully(oss.getObject(getObjectRequest).getObjectContent(), actual);
+    try (InputStream is = oss.getObject(getObjectRequest).getObjectContent()) {
+      ByteStreams.readFully(is, actual);
+    }
     Assert.assertArrayEquals(testBytes, actual);
   }
 
