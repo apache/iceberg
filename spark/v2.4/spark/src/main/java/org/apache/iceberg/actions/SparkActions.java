@@ -28,4 +28,3 @@ class SparkActions extends Actions {
     super(spark, table);
   }
 }
- 
