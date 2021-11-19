@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
@@ -30,6 +32,8 @@ import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
 abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces {
 
+  private final Map<String, ProcedureBuilder> registeredBuilders = new HashMap<>();
+
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
     String[] namespace = ident.namespace();
@@ -37,6 +41,9 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
 
     // namespace resolution is case insensitive until we have a way to configure case sensitivity in catalogs
     if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
+      if (registeredBuilders.containsKey(name)) {
+        return registeredBuilders.get(name).withTableCatalog(this).build();
+      }
       ProcedureBuilder builder = SparkProcedures.newBuilder(name);
       if (builder != null) {
         return builder.withTableCatalog(this).build();
@@ -44,5 +51,9 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
     }
 
     throw new NoSuchProcedureException(ident);
+  }
+
+  void registerProcedure(String name, ProcedureBuilder builder) {
+    registeredBuilders.put(name, builder);
   }
 }
