@@ -37,7 +37,7 @@ import org.openjdk.jmh.annotations.Param;
  *   -PjmhOutputPath=benchmark/iceberg-source-parquet-delete-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceParquetDeleteBenchmark extends IcebergSourceDeleteBenchmark {
+public class IcebergSourceParquetPosDeleteBenchmark extends IcebergSourceDeleteBenchmark {
   @Param({"0", "0.000001", "0.05", "0.25", "0.5", "1"})
   private double percentDeleteRow;
 
