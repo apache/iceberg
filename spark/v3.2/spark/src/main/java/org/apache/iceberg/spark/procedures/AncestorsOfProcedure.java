@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.List;
+import org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.collect.Lists;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -79,7 +80,8 @@ public class AncestorsOfProcedure extends BaseProcedure {
       toSnapshotId = icebergTable.currentSnapshot() != null ? icebergTable.currentSnapshot().snapshotId() : -1;
     }
 
-    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(icebergTable, 0L, toSnapshotId);
+    List<Long> snapshotIds = Lists.newArrayList(
+        SnapshotUtil.ancestorIdsBetween(toSnapshotId, null, icebergTable::snapshot));
 
     return toOutputRow(icebergTable, snapshotIds);
   }

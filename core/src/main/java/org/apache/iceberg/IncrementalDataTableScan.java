@@ -126,8 +126,8 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   private void validateSnapshotIdsRefinement(long newFromSnapshotId, long newToSnapshotId) {
-    Set<Long> snapshotIdsRange = Sets.newHashSet(SnapshotUtil.toIds(
-        SnapshotUtil.ancestorsBetween(context().toSnapshotId(), context().fromSnapshotId(), table()::snapshot)));
+    Set<Long> snapshotIdsRange = Sets.newHashSet(
+        SnapshotUtil.ancestorIdsBetween(context().toSnapshotId(), context().fromSnapshotId(), table()::snapshot));
     // since snapshotIdsBetween return ids in range (fromSnapshotId, toSnapshotId]
     snapshotIdsRange.add(context().fromSnapshotId());
     Preconditions.checkArgument(

@@ -101,6 +101,11 @@ public class SnapshotUtil {
     return ancestorsOf(start, lookup);
   }
 
+  public static Iterable<Long> ancestorIdsBetween(long latestSnapshotId, Long oldestSnapshotId,
+                                                  Function<Long, Snapshot> lookup) {
+    return toIds(ancestorsBetween(latestSnapshotId, oldestSnapshotId, lookup));
+  }
+
   public static Iterable<Snapshot> ancestorsBetween(long latestSnapshotId, Long oldestSnapshotId,
                                                     Function<Long, Snapshot> lookup) {
     if (oldestSnapshotId != null) {
@@ -161,7 +166,7 @@ public class SnapshotUtil {
     return Lists.newArrayList(toIds(ancestorsOf(snapshot, lookup)));
   }
 
-  public static Iterable<Long> toIds(Iterable<Snapshot> snapshots) {
+  private static Iterable<Long> toIds(Iterable<Snapshot> snapshots) {
     return Iterables.transform(snapshots, Snapshot::snapshotId);
   }
 
