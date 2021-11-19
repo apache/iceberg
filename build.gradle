@@ -204,6 +204,7 @@ project(':iceberg-common') {
 
 project(':iceberg-core') {
   dependencies {
+    annotationProcessor "org.immutables:value"
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -212,6 +213,7 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
+    implementation "org.immutables:value"
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
     implementation "com.github.ben-manes.caffeine:caffeine"

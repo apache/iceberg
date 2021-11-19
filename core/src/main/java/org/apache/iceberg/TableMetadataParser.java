@@ -288,7 +288,7 @@ public class TableMetadataParser {
     return fromJson(io, file.location(), node);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
@@ -430,9 +430,26 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(metadataLocation, formatVersion, uuid, location,
-        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build());
+    return ImmutableTableMetadata.builder()
+        .metadataFileLocation(metadataLocation)
+        .formatVersion(formatVersion)
+        .uuid(uuid)
+        .location(location)
+        .lastSequenceNumber(lastSequenceNumber)
+        .lastUpdatedMillis(lastUpdatedMillis)
+        .lastColumnId(lastAssignedColumnId)
+        .currentSchemaId(currentSchemaId)
+        .schemas(schemas)
+        .defaultSpecId(defaultSpecId)
+        .specs(specs)
+        .lastAssignedPartitionId(lastAssignedPartitionId)
+        .defaultSortOrderId(defaultSortOrderId)
+        .sortOrders(sortOrders)
+        .properties(properties)
+        .currentSnapshotId(currentVersionId)
+        .snapshots(snapshots)
+        .snapshotLog(entries.build())
+        .previousFiles(metadataEntries.build())
+        .build();
   }
 }
