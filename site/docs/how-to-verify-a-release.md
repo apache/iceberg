@@ -15,7 +15,7 @@
  - limitations under the License.
  -->
 
-# The Release Candidate
+# How to Verify a Release
 
 Each Apache Iceberg release is validated by the community by holding a vote. A community release manager
 will prepare a release candidate and call a vote on the Iceberg
@@ -33,28 +33,29 @@ Release announcements include links to the following:
 - **A source tarball**
 - **A signature (.asc)**
 - **A checksum (.sha512)**
-- **Key files**
+- **KEYS file**
 - **GitHub change comparison**
 
-After downloading the source tarball, signature, checksum, and key files, here are instructions on how to
+After downloading the source tarball, signature, checksum, and KEYS file, here are instructions on how to
 verify signatures, checksums, and documentation.
 
 ### Verifying Signatures
 
 First, import the keys.
 ```bash
-gpg --import ${PATH_TO_KEY_FILES}
+curl https://dist.apache.org/repos/dist/dev/iceberg/KEYS -o KEYS
+gpg --import KEYS
 ```
 
 Next, verify the `.asc` file.
 ```bash
-gpg --verify apache-iceberg-${VERSION}.tar.gz.asc
+gpg --verify apache-iceberg-{{ extra.versions.iceberg }}.tar.gz.asc
 ```
 
 ### Verifying Checksums
 
 ```bash
-shasum -a 512 apache-iceberg-${VERSION}.tar.gz.sha512
+shasum -a 512 apache-iceberg-{{ extra.versions.iceberg }}.tar.gz.sha512
 ```
 
 ### Verifying License Documentation
@@ -127,19 +128,20 @@ spark-shell \
 
 To verify using Flink, start a Flink SQL Client with the following command:
 ```bash
-wget ${MAVEN_URL}/iceberg-flink-runtime/${ICEBERG_VERSION}/iceberg-flink-runtime-${ICEBERG_VERSION}.jar
+wget ${MAVEN_URL}/iceberg-flink-runtime/{{ extra.versions.iceberg }}/iceberg-flink-runtime-{{ extra.versions.iceberg }}.jar
 
 sql-client.sh embedded \
-    -j iceberg-flink-runtime-${ICEBERG_VERSION}.jar \
+    -j iceberg-flink-runtime-{{ extra.versions.iceberg }}.jar \
     -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
     shell
 ```
 
 ## Voting
+
 Votes are cast by replying to the release candidate announcement email on the dev mailing list
 with either `+1`, `0`, or `-1`.
 
-> [ ] +1 Release this as Apache Iceberg ${VERSION}  
+> [ ] +1 Release this as Apache Iceberg {{ extra.versions.iceberg }}
 [ ] +0  
 [ ] -1 Do not release this because...  
 
