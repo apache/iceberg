@@ -22,6 +22,7 @@ package org.apache.iceberg.aliyun.oss;
 import com.aliyun.oss.OSS;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.iceberg.aliyun.AliyunClientFactories;
 import org.apache.iceberg.aliyun.AliyunClientFactory;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.io.FileIO;
@@ -88,9 +89,9 @@ public class OSSFileIO implements FileIO {
 
   @Override
   public void initialize(Map<String, String> properties) {
-    AliyunClientFactory factory = AliyunClientFactory.load(properties);
+    AliyunClientFactory factory = AliyunClientFactories.load(properties);
     this.aliyunProperties = factory.aliyunProperties();
-    this.oss = factory::newClient;
+    this.oss = factory::ossClient;
   }
 
   @Override

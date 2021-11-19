@@ -55,7 +55,7 @@ public class AliyunProperties implements Serializable {
   /**
    * The implementation class of {@link AliyunClientFactory} to customize Aliyun client configurations.
    * If set, all Aliyun clients will be initialized by the specified factory.
-   * If not set, {@link DefaultAliyunClientFactory} is used as default factory.
+   * If not set, {@link AliyunClientFactories#defaultFactory()} is used as default factory.
    */
   public static final String CLIENT_FACTORY = "client.factory-impl";
 

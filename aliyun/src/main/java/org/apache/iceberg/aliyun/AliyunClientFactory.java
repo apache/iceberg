@@ -22,49 +22,15 @@ package org.apache.iceberg.aliyun;
 import com.aliyun.oss.OSS;
 import java.io.Serializable;
 import java.util.Map;
-import org.apache.iceberg.common.DynConstructors;
 
 public interface AliyunClientFactory extends Serializable {
-
-  static AliyunClientFactory load(Map<String, String> properties) {
-    String impl = properties.getOrDefault(AliyunProperties.CLIENT_FACTORY, DefaultAliyunClientFactory.class.getName());
-    return load(impl, properties);
-  }
-
-  /**
-   * Load an implemented {@link AliyunClientFactory} based on the class name, and initialize it.
-   *
-   * @param impl       the class name.
-   * @param properties to initialize the factory.
-   * @return an initialized {@link AliyunClientFactory}.
-   */
-  static AliyunClientFactory load(String impl, Map<String, String> properties) {
-    DynConstructors.Ctor<AliyunClientFactory> ctor;
-    try {
-      ctor = DynConstructors.builder(AliyunClientFactory.class).impl(impl).buildChecked();
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot initialize AliyunClientFactory, missing no-arg constructor: %s", impl), e);
-    }
-
-    AliyunClientFactory factory;
-    try {
-      factory = ctor.newInstance();
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize AliyunClientFactory, %s does not implement AliyunClientFactory.", impl), e);
-    }
-
-    factory.initialize(properties);
-    return factory;
-  }
 
   /**
    * Create an aliyun OSS client.
    *
    * @return oss client.
    */
-  OSS newClient();
+  OSS ossClient();
 
   /**
    * Initialize Aliyun client factory from catalog properties.
