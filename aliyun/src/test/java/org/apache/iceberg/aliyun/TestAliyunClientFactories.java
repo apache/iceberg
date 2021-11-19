@@ -20,8 +20,6 @@
 package org.apache.iceberg.aliyun;
 
 import com.aliyun.oss.OSS;
-
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
@@ -34,7 +32,8 @@ public class TestAliyunClientFactories {
     Assert.assertEquals("Default client should be singleton",
         AliyunClientFactories.defaultFactory(), AliyunClientFactories.defaultFactory());
 
-    Assert.assertTrue("Should load default when not configured",
+    Assert.assertTrue(
+        "Should load default when not configured",
         AliyunClientFactories.load(Maps.newHashMap()) instanceof AliyunClientFactories.DefaultAliyunClientFactory);
   }
 
@@ -42,13 +41,15 @@ public class TestAliyunClientFactories {
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AliyunProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-    Assert.assertTrue("Should load custom class",
+    Assert.assertTrue(
+        "Should load custom class",
         AliyunClientFactories.load(properties) instanceof CustomFactory);
   }
 
   public static class CustomFactory implements AliyunClientFactory {
 
     AliyunProperties aliyunProperties;
+
     public CustomFactory() {
     }
 
