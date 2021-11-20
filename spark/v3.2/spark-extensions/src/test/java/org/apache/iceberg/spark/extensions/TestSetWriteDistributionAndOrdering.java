@@ -297,10 +297,10 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
     Assert.assertEquals("Distribution mode must match", "range", distributionMode);
 
     SortOrder expected = SortOrder.builderFor(table.schema())
-            .withOrderId(1)
-            .asc("category", NullOrder.NULLS_FIRST)
-            .asc("id", NullOrder.NULLS_FIRST)
-            .build();
+        .withOrderId(1)
+        .asc("category", NullOrder.NULLS_FIRST)
+        .asc("id", NullOrder.NULLS_FIRST)
+        .build();
     Assert.assertEquals("Should have expected order", expected, table.sortOrder());
   }
 
@@ -312,9 +312,7 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
 
     spark.conf().set("spark.sql.caseSensitive", "true");
     AssertHelpers.assertThrows("Should reject invalid `write ordered` columns",
-            ValidationException.class, "Cannot find field 'CATEGORY' in struct",
-        () -> {
-          sql("ALTER TABLE %s WRITE ORDERED BY CATEGORY, Id", tableName);
-        });
+        ValidationException.class, "Cannot find field 'CATEGORY' in struct",
+        () -> sql("ALTER TABLE %s WRITE ORDERED BY CATEGORY, Id", tableName));
   }
 }

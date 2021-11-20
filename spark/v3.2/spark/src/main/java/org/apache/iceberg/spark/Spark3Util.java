@@ -303,7 +303,7 @@ public class Spark3Util {
       Preconditions.checkArgument(transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s", transform);
       List<String> fieldNames = Arrays.stream(transform.references()[0].fieldNames())
-              .map(Spark3Util::toIcebergField).collect(Collectors.toList());
+          .map(Spark3Util::toIcebergField).collect(Collectors.toList());
       String colName = DOT.join(fieldNames);
       switch (transform.name()) {
         case "identity":
@@ -461,7 +461,7 @@ public class Spark3Util {
 
   public static boolean isCaseSensitiveEnabled() {
     return Boolean.parseBoolean(
-            SparkSession.active().conf().get("spark.sql.caseSensitive", "false"));
+        SparkSession.active().conf().get("spark.sql.caseSensitive", "false"));
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
