@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,7 +30,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -91,9 +93,9 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    Actions actions = Actions.forTable(table);
+    SparkActions actions = SparkActions.get();
 
-    actions.rewriteManifests()
+    actions.rewriteManifests(table)
         .rewriteIf(manifest -> true)
         .stagingLocation(temp.newFolder().toString())
         .execute();
@@ -125,14 +127,14 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
-    Actions actions = Actions.forTable(table);
+    SparkActions actions = SparkActions.get();
 
-    RewriteManifestsActionResult result = actions.rewriteManifests()
+    RewriteManifests.Result result = actions.rewriteManifests(table)
         .rewriteIf(manifest -> true)
         .execute();
 
-    Assert.assertEquals("Action should rewrite 2 manifests", 2, result.deletedManifests().size());
-    Assert.assertEquals("Action should add 1 manifests", 1, result.addedManifests().size());
+    Assert.assertEquals("Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals("Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
@@ -194,7 +196,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 4 manifests before rewrite", 4, manifests.size());
 
-    Actions actions = Actions.forTable(table);
+    SparkActions actions = SparkActions.get();
 
     // we will expect to have 2 manifests with 4 entries in each after rewrite
     long manifestEntrySizeBytes = computeManifestEntrySizeBytes(manifests);
@@ -204,12 +206,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(targetManifestSizeBytes))
         .commit();
 
-    RewriteManifestsActionResult result = actions.rewriteManifests()
+    RewriteManifests.Result result = actions.rewriteManifests(table)
         .rewriteIf(manifest -> true)
         .execute();
 
-    Assert.assertEquals("Action should rewrite 4 manifests", 4, result.deletedManifests().size());
-    Assert.assertEquals("Action should add 2 manifests", 2, result.addedManifests().size());
+    Assert.assertEquals("Action should rewrite 4 manifests", 4, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals("Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
@@ -269,15 +271,15 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
       Snapshot snapshot = table.currentSnapshot();
 
-      Actions actions = Actions.forTable(table);
+      SparkActions actions = SparkActions.get();
 
-      RewriteManifestsActionResult result = actions.rewriteManifests()
+      RewriteManifests.Result result = actions.rewriteManifests(table)
           .rewriteIf(manifest -> true)
           .stagingLocation(temp.newFolder().toString())
           .execute();
 
-      Assert.assertEquals("Action should rewrite all manifests", snapshot.allManifests(), result.deletedManifests());
-      Assert.assertEquals("Action should add 1 manifest", 1, result.addedManifests().size());
+      Assert.assertEquals("Action should rewrite all manifests", snapshot.allManifests(), result.rewrittenManifests());
+      Assert.assertEquals("Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
 
     } finally {
       spark.sql("DROP TABLE parquet_table");
@@ -312,15 +314,15 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(manifests.get(0).length() / 2))
         .commit();
 
-    Actions actions = Actions.forTable(table);
+    SparkActions actions = SparkActions.get();
 
-    RewriteManifestsActionResult result = actions.rewriteManifests()
+    RewriteManifests.Result result = actions.rewriteManifests(table)
         .rewriteIf(manifest -> true)
         .stagingLocation(temp.newFolder().toString())
         .execute();
 
-    Assert.assertEquals("Action should rewrite 1 manifest", 1, result.deletedManifests().size());
-    Assert.assertEquals("Action should add 2 manifests", 2, result.addedManifests().size());
+    Assert.assertEquals("Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals("Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
@@ -362,17 +364,17 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
-    Actions actions = Actions.forTable(table);
+    SparkActions actions = SparkActions.get();
 
     // rewrite only the first manifest without caching
-    RewriteManifestsActionResult result = actions.rewriteManifests()
+    RewriteManifests.Result result = actions.rewriteManifests(table)
         .rewriteIf(manifest -> manifest.path().equals(manifests.get(0).path()))
         .stagingLocation(temp.newFolder().toString())
-        .useCaching(false)
+        .option("use-caching", "false")
         .execute();
 
-    Assert.assertEquals("Action should rewrite 1 manifest", 1, result.deletedManifests().size());
-    Assert.assertEquals("Action should add 1 manifests", 1, result.addedManifests().size());
+    Assert.assertEquals("Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals("Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
