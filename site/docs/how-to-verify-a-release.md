@@ -62,8 +62,8 @@ shasum -a 512 apache-iceberg-{{ extra.versions.iceberg }}.tar.gz.sha512
 
 Untar the archive and change into the source directory.
 ```bash
-tar xzf apache-iceberg-${VERSION}.tar.gz
-cd apache-iceberg-${VERSION}
+tar xzf apache-iceberg-{{ extra.versions.iceberg }}.tar.gz
+cd apache-iceberg-{{ extra.versions.iceberg }}
 ```
 
 Run RAT checks to validate license headers.
@@ -115,7 +115,7 @@ To verify using spark, start a `spark-shell` with a command like the following c
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \
-    --packages org.apache.iceberg:iceberg-spark3-runtime:${ICEBERG_VERSION} \
+    --packages org.apache.iceberg:iceberg-spark3-runtime:{{ extra.versions.iceberg }} \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=hadoop \
