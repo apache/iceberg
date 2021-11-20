@@ -37,11 +37,11 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
- * A procedure that removes orphan files in a table.
+ * A procedure that deletes orphan files in a table.
  *
  * @see SparkActions#deleteOrphanFiles(Table)
  */
-public class RemoveOrphanFilesProcedure extends BaseProcedure {
+public class DeleteOrphanFilesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
       ProcedureParameter.required("table", DataTypes.StringType),
@@ -55,15 +55,15 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   });
 
   public static ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<RemoveOrphanFilesProcedure>() {
+    return new BaseProcedure.Builder<DeleteOrphanFilesProcedure>() {
       @Override
-      protected RemoveOrphanFilesProcedure doBuild() {
-        return new RemoveOrphanFilesProcedure(tableCatalog());
+      protected DeleteOrphanFilesProcedure doBuild() {
+        return new DeleteOrphanFilesProcedure(tableCatalog());
       }
     };
   }
 
-  private RemoveOrphanFilesProcedure(TableCatalog catalog) {
+  private DeleteOrphanFilesProcedure(TableCatalog catalog) {
     super(catalog);
   }
 
@@ -128,16 +128,16 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     long intervalMillis = System.currentTimeMillis() - olderThanMillis;
     if (intervalMillis < TimeUnit.DAYS.toMillis(1)) {
       throw new IllegalArgumentException(
-          "Cannot remove orphan files with an interval less than 24 hours. Executing this " +
+          "Cannot delete orphan files with an interval less than 24 hours. Executing this " +
           "procedure with a short interval may corrupt the table if other operations are happening " +
           "at the same time. If you are absolutely confident that no concurrent operations will be " +
           "affected by removing orphan files with such a short interval, you can use the Action API " +
-          "to remove orphan files with an arbitrary interval.");
+          "to delete orphan files with an arbitrary interval.");
     }
   }
 
   @Override
   public String description() {
-    return "RemoveOrphanFilesProcedure";
+    return "DeleteOrphanFilesProcedure";
   }
 }

@@ -105,7 +105,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
     spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);
   }
 
-  private void checkRemoveFilesResults(long expectedDatafiles, long expectedManifestsDeleted,
+  private void checkDeleteFilesResults(long expectedDatafiles, long expectedManifestsDeleted,
                                        long expectedManifestListsDeleted, long expectedOtherFilesDeleted,
                                        DeleteReachableFiles.Result results) {
     Assert.assertEquals("Incorrect number of manifest files deleted",
@@ -161,7 +161,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
     Lists.newArrayList(FILE_A, FILE_B, FILE_C, FILE_D).forEach(file ->
         Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()))
     );
-    checkRemoveFilesResults(4L, 6L, 4L, 6, result);
+    checkDeleteFilesResults(4L, 6L, 4L, 6, result);
   }
 
   @Test
@@ -187,20 +187,20 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         .io(table.io())
         .execute();
 
-    checkRemoveFilesResults(3L, 3L, 3L, 5, result);
+    checkDeleteFilesResults(3L, 3L, 3L, 5, result);
   }
 
   @Test
-  public void testRemoveFileActionOnEmptyTable() {
+  public void testDeleteFileActionOnEmptyTable() {
     DeleteReachableFiles.Result result = sparkActions().deleteReachableFiles(metadataLocation(table))
         .io(table.io())
         .execute();
 
-    checkRemoveFilesResults(0, 0, 0, 2, result);
+    checkDeleteFilesResults(0, 0, 0, 2, result);
   }
 
   @Test
-  public void testRemoveFilesActionWithReducedVersionsTable() {
+  public void testDeleteFilesActionWithReducedVersionsTable() {
     table.updateProperties()
         .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2").commit();
     table.newAppend()
@@ -223,16 +223,16 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_D)
         .commit();
 
-    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+    DeleteReachableFiles baseDeleteFilesSparkAction = sparkActions()
         .deleteReachableFiles(metadataLocation(table))
         .io(table.io());
-    DeleteReachableFiles.Result result = baseRemoveFilesSparkAction.execute();
+    DeleteReachableFiles.Result result = baseDeleteFilesSparkAction.execute();
 
-    checkRemoveFilesResults(4, 5, 5, 8, result);
+    checkDeleteFilesResults(4, 5, 5, 8, result);
   }
 
   @Test
-  public void testRemoveFilesAction() {
+  public void testDeleteFilesAction() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -241,14 +241,14 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+    DeleteReachableFiles baseDeleteFilesSparkAction = sparkActions()
         .deleteReachableFiles(metadataLocation(table))
         .io(table.io());
-    checkRemoveFilesResults(2, 2, 2, 4,  baseRemoveFilesSparkAction.execute());
+    checkDeleteFilesResults(2, 2, 2, 4,  baseDeleteFilesSparkAction.execute());
   }
 
   @Test
-  public void testRemoveFilesActionWithDefaultIO() {
+  public void testDeleteFilesActionWithDefaultIO() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -257,11 +257,11 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    // IO not set explicitly on removeReachableFiles action
+    // IO not set explicitly on DeleteReachableFiles action
     // IO defaults to HadoopFileIO
-    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+    DeleteReachableFiles baseDeleteFilesSparkAction = sparkActions()
         .deleteReachableFiles(metadataLocation(table));
-    checkRemoveFilesResults(2, 2, 2, 4,  baseRemoveFilesSparkAction.execute());
+    checkDeleteFilesResults(2, 2, 2, 4,  baseDeleteFilesSparkAction.execute());
   }
 
   @Test
@@ -289,7 +289,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
       int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
       int totalJobsRun = jobsAfter - jobsBefore;
 
-      checkRemoveFilesResults(3L, 4L, 3L, 5, results);
+      checkDeleteFilesResults(3L, 4L, 3L, 5, results);
 
       Assert.assertEquals(
           "Expected total jobs to be equal to total number of shuffle partitions",
@@ -314,32 +314,33 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("v1.metadata.json")));
 
-    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+    DeleteReachableFiles baseDeleteFilesSparkAction = sparkActions()
         .deleteReachableFiles(metadataLocation(table))
         .io(table.io());
-    DeleteReachableFiles.Result res = baseRemoveFilesSparkAction.execute();
+    DeleteReachableFiles.Result res = baseDeleteFilesSparkAction.execute();
 
-    checkRemoveFilesResults(1, 1, 1, 4,  res);
+    checkDeleteFilesResults(1, 1, 1, 4,  res);
   }
 
   @Test
   public void testEmptyIOThrowsException() {
-    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+    DeleteReachableFiles baseDeleteFilesSparkAction = sparkActions()
         .deleteReachableFiles(metadataLocation(table))
         .io(null);
     AssertHelpers.assertThrows("FileIO needs to be set to use RemoveFiles action",
         IllegalArgumentException.class, "File IO cannot be null",
-        baseRemoveFilesSparkAction::execute);
+        baseDeleteFilesSparkAction::execute);
   }
 
   @Test
-  public void testRemoveFilesActionWhenGarbageCollectionDisabled() {
+  public void testDeleteFilesActionWhenGarbageCollectionDisabled() {
     table.updateProperties()
         .set(TableProperties.GC_ENABLED, "false")
         .commit();
 
     AssertHelpers.assertThrows("Should complain about removing files when GC is disabled",
-        ValidationException.class, "Cannot remove files: GC is disabled (deleting files may corrupt other tables)",
+        ValidationException.class, "Cannot delete reachable files: " +
+            "GC is disabled (deleting files may corrupt other tables)",
         () -> sparkActions().deleteReachableFiles(metadataLocation(table)));
   }
 

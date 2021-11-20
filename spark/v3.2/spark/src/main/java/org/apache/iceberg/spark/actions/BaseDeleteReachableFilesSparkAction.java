@@ -78,8 +78,8 @@ public class BaseDeleteReachableFilesSparkAction
     }
   };
 
-  private Consumer<String> removeFunc = defaultDelete;
-  private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private Consumer<String> deleteWithFunc = defaultDelete;
+  private ExecutorService deleteFilesExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
 
   public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
@@ -87,7 +87,7 @@ public class BaseDeleteReachableFilesSparkAction
     this.tableMetadata = TableMetadataParser.read(io, metadataLocation);
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(tableMetadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot remove files: GC is disabled (deleting files may corrupt other tables)");
+        "Cannot delete reachable files: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override
@@ -103,14 +103,14 @@ public class BaseDeleteReachableFilesSparkAction
 
   @Override
   public DeleteReachableFiles deleteWith(Consumer<String> deleteFunc) {
-    this.removeFunc = deleteFunc;
+    this.deleteWithFunc = deleteFunc;
     return this;
 
   }
 
   @Override
   public DeleteReachableFiles executeDeleteWith(ExecutorService executorService) {
-    this.removeExecutorService = executorService;
+    this.deleteFilesExecutorService = executorService;
     return this;
   }
 
@@ -118,7 +118,7 @@ public class BaseDeleteReachableFilesSparkAction
   public Result execute() {
     Preconditions.checkArgument(io != null, "File IO cannot be null");
     String msg = String.format("Removing files reachable from %s", tableMetadata.metadataFileLocation());
-    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", msg);
+    JobGroupInfo info = newJobGroupInfo("DELETE-FILES", msg);
     return withJobGroupInfo(info, this::doExecute);
   }
 
@@ -166,7 +166,7 @@ public class BaseDeleteReachableFilesSparkAction
 
     Tasks.foreach(deleted)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .executeWith(removeExecutorService)
+        .executeWith(deleteFilesExecutorService)
         .onFailure((fileInfo, exc) -> {
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
@@ -175,7 +175,7 @@ public class BaseDeleteReachableFilesSparkAction
         .run(fileInfo -> {
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
-          removeFunc.accept(file);
+          deleteWithFunc.accept(file);
           switch (type) {
             case DATA_FILE:
               dataFileCount.incrementAndGet();
@@ -197,7 +197,7 @@ public class BaseDeleteReachableFilesSparkAction
         });
 
     long filesCount = dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
-    LOG.info("Total files removed: {}", filesCount);
+    LOG.info("Total files deleted: {}", filesCount);
     return new BaseDeleteReachableFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
         otherFilesCount.get());
   }

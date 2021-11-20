@@ -34,7 +34,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
+public class TestDeleteOrphanFilesAction3 extends TestDeleteOrphanFilesAction {
   @Test
   public void testSparkCatalogTable() throws Exception {
     spark.conf().set("spark.sql.catalog.mycat", "org.apache.iceberg.spark.SparkCatalog");
@@ -56,7 +56,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     DeleteOrphanFiles.Result results = SparkActions.get().deleteOrphanFiles(table.table())
         .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    Assert.assertTrue("trash file should be deleted",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }
@@ -82,7 +82,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     DeleteOrphanFiles.Result results = SparkActions.get().deleteOrphanFiles(table.table())
         .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    Assert.assertTrue("trash file should be deleted",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }
@@ -108,7 +108,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     DeleteOrphanFiles.Result results = SparkActions.get().deleteOrphanFiles(table.table())
         .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    Assert.assertTrue("trash file should be deleted",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }
@@ -134,7 +134,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     DeleteOrphanFiles.Result results = SparkActions.get().deleteOrphanFiles(table.table())
         .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    Assert.assertTrue("trash file should be deleted",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }
@@ -160,7 +160,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
     DeleteOrphanFiles.Result results = SparkActions.get().deleteOrphanFiles(table.table())
         .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    Assert.assertTrue("trash file should be deleted",
         StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
   }

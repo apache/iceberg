@@ -60,7 +60,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
+public abstract class TestDeleteOrphanFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   protected static final Schema SCHEMA = new Schema(
@@ -358,7 +358,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testRemoveUnreachableMetadataVersionFiles() throws InterruptedException {
+  public void testDeleteUnreachableMetadataVersionFiles() throws InterruptedException {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_DATA_LOCATION, tableLocation);
     props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1");
@@ -391,7 +391,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .execute();
 
     Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
-    Assert.assertTrue("Should remove v1 file", StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
+    Assert.assertTrue("Should delete v1 file", StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("v1.metadata.json")));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -485,7 +485,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException, InterruptedException {
+  public void testDeleteOrphanFilesWithRelativeFilePath() throws IOException, InterruptedException {
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableDir.getAbsolutePath());
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
@@ -535,7 +535,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException {
+  public void testDeleteOrphanFilesWithHadoopCatalog() throws InterruptedException {
     HadoopCatalog catalog = new HadoopCatalog(new Configuration(), tableLocation);
     String namespaceName = "testDb";
     String tableName = "testTb";
@@ -598,7 +598,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    Assert.assertTrue("trash file should be deleted",
         StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "data/trashfile")));
   }
@@ -624,7 +624,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .commit();
 
     AssertHelpers.assertThrows("Should complain about removing orphan files",
-        ValidationException.class, "Cannot remove orphan files: GC is disabled",
+        ValidationException.class, "Cannot delete orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
   }
 }

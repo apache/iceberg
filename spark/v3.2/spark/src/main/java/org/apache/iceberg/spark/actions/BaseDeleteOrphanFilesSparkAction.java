@@ -60,12 +60,12 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
- * An action that removes orphan metadata and data files by listing a given location and comparing
+ * An action that deletes orphan metadata and data files by listing a given location and comparing
  * the actual files in that location with data and metadata files referenced by all valid snapshots.
  * The location must be accessible for listing via the Hadoop {@link FileSystem}.
  * <p>
  * By default, this action cleans up the table location returned by {@link Table#location()} and
- * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can be modified
+ * deletes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can be modified
  * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
  * For example, someone might point this action to the data folder to clean up only orphan data files.
  * In addition, there is a way to configure an alternative delete method via {@link #deleteWith(Consumer)}.
@@ -109,7 +109,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot remove orphan files: GC is disabled (deleting files may corrupt other tables)");
+        "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override
@@ -137,7 +137,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
   @Override
   public DeleteOrphanFiles.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", jobDesc());
+    JobGroupInfo info = newJobGroupInfo("DELETE-ORPHAN-FILES", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
 
