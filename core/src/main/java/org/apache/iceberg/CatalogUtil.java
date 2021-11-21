@@ -29,6 +29,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -274,12 +275,20 @@ public class CatalogUtil {
    * @param maybeConfigurable an object that may be Configurable
    * @param conf a Configuration
    */
+  @SuppressWarnings("unchecked")
   public static void configureHadoopConf(Object maybeConfigurable, Object conf) {
     Preconditions.checkArgument(maybeConfigurable != null, "Cannot configure: null Configurable");
     if (conf == null) {
       return;
     }
 
+    if (maybeConfigurable instanceof Configurable) {
+      // use the Iceberg configurable interface to pass the conf
+      ((Configurable<Object>) maybeConfigurable).setConf(conf);
+      return;
+    }
+
+    // try to use Hadoop's Configurable interface dynamically
     // use the classloader of the object that may be configurable
     ClassLoader maybeConfigurableLoader = maybeConfigurable.getClass().getClassLoader();
 
@@ -321,7 +330,7 @@ public class CatalogUtil {
           .buildChecked()
           .bind(maybeConfigurable);
     } catch (NoSuchMethodException e) {
-      // this shouldn't happen because Configurable cannot be loaded without first loading Configuration
+      // this shouldn't happen because Configurable was loaded and defines setConf
       throw new UnsupportedOperationException("Failed to load Configuration.setConf after loading Configurable", e);
     }
 
