@@ -106,6 +106,7 @@ nav:
     - Spec: spec.md
   - Project:
     - How To Release: how-to-release.md
+    - How To Verify A Release: how-to-verify-a-release.md
     - Trademarks: trademarks.md
     - Security: security.md
   - ASF:
