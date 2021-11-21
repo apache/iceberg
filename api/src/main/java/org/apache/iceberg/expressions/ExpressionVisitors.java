@@ -60,12 +60,6 @@ public class ExpressionVisitors {
     }
   }
 
-  /**
-   * This base class is used by existing visitors that have not been updated to extend BoundExpressionVisitor.
-   *
-   * @deprecated use {@link BoundVisitor} instead
-   */
-  @Deprecated
   public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
     public <T> R isNull(BoundReference<T> ref) {
       return null;
@@ -119,10 +113,26 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    /**
+     * Handle a non-reference value in this visitor.
+     * <p>
+     * Visitors that require {@link BoundReference references} and not {@link Bound terms} can use this method to
+     * return a default value for expressions with non-references. The default implementation will throw a validation
+     * exception because the non-reference is not supported.
+     *
+     * @param term a non-reference bound expression
+     * @param <T> a Java return type
+     * @return a return value for the visitor
+     */
+    public <T> R handleNonReference(Bound<T> term) {
+      throw new ValidationException("Visitor %s does not support non-reference: %s", this, term);
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
-      ValidationException.check(pred.term() instanceof BoundReference,
-          "Visitor %s does not support expression: %s", this, pred.term());
+      if (!(pred.term() instanceof BoundReference)) {
+        return handleNonReference(pred.term());
+      }
 
       if (pred.isLiteralPredicate()) {
         BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
