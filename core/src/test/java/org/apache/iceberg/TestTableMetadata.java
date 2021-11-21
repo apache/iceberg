@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
