@@ -198,8 +198,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
     PageWriteStore pageStore = pageStoreCtorParquet.newInstance(
         compressor, parquetSchema, props.getAllocator(), this.columnIndexTruncateLength);
-    Preconditions.checkState(pageStore instanceof BloomFilterWriteStore,
-        "pageStore must be an instance of BloomFilterWriteStore");
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, (BloomFilterWriteStore) pageStore);

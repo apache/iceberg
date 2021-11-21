@@ -24,11 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configuration;
 
 /**
- * TODO: Once org.apache.parquet.hadoop.ColumnConfigParser is made public, should replace this class.
- * Parses the specified key-values in the format of root.key#column.path from a {@link Configuration} object.
+ * Copied from parquet-hadoop
  */
 class ColumnConfigParser {
 
@@ -54,27 +52,16 @@ class ColumnConfigParser {
 
   private final List<ConfigHelper<?>> helpers = new ArrayList<>();
 
-  public <T> ColumnConfigParser withColumnConfig(String rootKey, Function<String, T> function,
+  public <T> ColumnConfigParser withColumnConfig(String prefix, Function<String, T> function,
       BiConsumer<String, T> consumer) {
-    helpers.add(new ConfigHelper<T>(rootKey + '#', function, consumer));
+    helpers.add(new ConfigHelper<>(prefix, function, consumer));
     return this;
-  }
-
-  public void parseConfig(Configuration conf) {
-    for (Map.Entry<String, String> entry : conf) {
-      for (ConfigHelper<?> helper : helpers) {
-        // We retrieve the value from function instead of parsing from the string here to use the exact implementations
-        // in Configuration
-        helper.processKey(entry.getKey());
-      }
-    }
   }
 
   public void parseConfig(Map<String, String> conf) {
     for (Map.Entry<String, String> entry : conf.entrySet()) {
       for (ConfigHelper<?> helper : helpers) {
-        // We retrieve the value from function instead of parsing from the string here to use the exact implementations
-        // in Configuration
+        // We retrieve the value from function instead of parsing from the string here to get the correct type
         helper.processKey(entry.getKey());
       }
     }

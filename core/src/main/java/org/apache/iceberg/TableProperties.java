@@ -111,11 +111,14 @@ public class TableProperties {
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 
-  public static final String PARQUET_BLOOM_FILTER_ENABLED = "write.parquet.bloom-filter-enabled";
-  public static final boolean PARQUET_BLOOM_FILTER_ENABLED_DEFAULT = false;
+  public static final String DEFAULT_PARQUET_BLOOM_FILTER_ENABLED = "write.parquet.bloom-filter-enabled.default";
+  public static final boolean DEFAULT_PARQUET_BLOOM_FILTER_ENABLED_DEFAULT = false;
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX = "write.parquet.bloom-filter-enabled.column.";
+  public static final boolean PARQUET_BLOOM_FILTER_COLUMN_ENABLED_DEFAULT = false;
 
-  public static final String PARQUET_BLOOM_FILTER_EXPECTED_NDV = "write.parquet.bloom-filter-expected-ndv";
-  public static final long PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT = -1L;
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_PREFIX =
+      "write.parquet.bloom-filter-expected-ndv.column.";
+  public static final long PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_DEFAULT = -1L;
 
   public static final String PARQUET_BLOOM_FILTER_MAX_BYTES = "write.parquet.bloom-filter-max-bytes";
   public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;

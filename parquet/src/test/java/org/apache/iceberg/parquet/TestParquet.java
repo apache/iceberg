@@ -49,7 +49,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ENABLED;
+import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
@@ -212,8 +213,8 @@ public class TestParquet {
     }
 
     ImmutableMap<String, String> config = ImmutableMap.of(
-        PARQUET_BLOOM_FILTER_ENABLED, "true",
-        PARQUET_BLOOM_FILTER_ENABLED + "#id_no_bloom", "false");
+        DEFAULT_PARQUET_BLOOM_FILTER_ENABLED, "true",
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_no_bloom", "false");
     return writeRecords(temp, schema, config, records.toArray(new GenericData.Record[] {}));
   }
 }

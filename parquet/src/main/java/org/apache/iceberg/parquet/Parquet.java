@@ -78,15 +78,17 @@ import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED;
+import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ENABLED;
-import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ENABLED_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_EXPECTED_NDV;
-import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
@@ -231,8 +233,8 @@ public class Parquet {
       int dictionaryPageSize = context.dictionaryPageSize();
       String compressionLevel = context.compressionLevel();
       CompressionCodecName codec = context.codec();
-      boolean bloomFilterEnabled = PropertyUtil.propertyAsBoolean(config, PARQUET_BLOOM_FILTER_ENABLED,
-          PARQUET_BLOOM_FILTER_ENABLED_DEFAULT);
+      boolean bloomFilterEnabled = PropertyUtil.propertyAsBoolean(config, DEFAULT_PARQUET_BLOOM_FILTER_ENABLED,
+          DEFAULT_PARQUET_BLOOM_FILTER_ENABLED_DEFAULT);
       int bloomFilterMaxBytes = PropertyUtil.propertyAsInt(config, PARQUET_BLOOM_FILTER_MAX_BYTES,
           PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
 
@@ -278,14 +280,14 @@ public class Parquet {
 
         new ColumnConfigParser()
             .withColumnConfig(
-                PARQUET_BLOOM_FILTER_ENABLED,
-                key -> conf.getBoolean(key, PARQUET_BLOOM_FILTER_ENABLED_DEFAULT),
+                PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+                key -> PropertyUtil.propertyAsBoolean(config, key, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_DEFAULT),
                 propsBuilder::withBloomFilterEnabled)
             .withColumnConfig(
-                PARQUET_BLOOM_FILTER_EXPECTED_NDV,
-                key -> conf.getLong(key, PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT),
+                PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_PREFIX,
+                key -> PropertyUtil.propertyAsLong(config, key, PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_DEFAULT),
                 propsBuilder::withBloomFilterNDV)
-            .parseConfig(conf);
+            .parseConfig(config);
 
         ParquetProperties parquetProperties = propsBuilder.build();
 
@@ -308,12 +310,12 @@ public class Parquet {
 
         new ColumnConfigParser()
             .withColumnConfig(
-                PARQUET_BLOOM_FILTER_ENABLED,
-                key -> PropertyUtil.propertyAsBoolean(config, key, PARQUET_BLOOM_FILTER_ENABLED_DEFAULT),
+                PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+                key -> PropertyUtil.propertyAsBoolean(config, key, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_DEFAULT),
                 parquetWriteBuilder::withBloomFilterEnabled)
             .withColumnConfig(
-                PARQUET_BLOOM_FILTER_EXPECTED_NDV,
-                key -> PropertyUtil.propertyAsLong(config, key, PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT),
+                PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_PREFIX,
+                key -> PropertyUtil.propertyAsLong(config, key, PARQUET_BLOOM_FILTER_COLUMN_EXPECTED_NDV_DEFAULT),
                 parquetWriteBuilder::withBloomFilterNDV)
             .parseConfig(config);
 
