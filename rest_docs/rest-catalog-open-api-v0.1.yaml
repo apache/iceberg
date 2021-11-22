@@ -407,7 +407,7 @@ paths:
                 type: object
                 example: '{ data: { success: true }, error: { } }'
   # TODO - Pagination
-  /v1/namespaces/list:
+  /v1/namespaces:
     parameters:
       - name: namespace
         in: query
