@@ -468,14 +468,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/tables \
+curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/tables");
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -491,7 +491,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/tables`
+`GET /v1/namespaces/{namespace}/tables`
 
 *List all table identifiers underneath a given namespace*
 
@@ -501,7 +501,7 @@ Return all table identifiers under this namespace
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|namespace|query|string|false|Namespace under which to get identifiers. Can be one or more levels.|
+|namespace|path|string|true|Namespace under which to list tables.|
 |limit|query|integer|false|number of values to return in one request|
 |offset|query|integer|false|Place in the response to continue from if paginating|
 
@@ -541,7 +541,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/tables \
+curl -X POST http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -549,7 +549,7 @@ curl -X POST http://127.0.0.1:1080/v1/tables \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/tables");
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -565,7 +565,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/tables`
+`POST /v1/namespaces/{namespace}/tables`
 
 *Create a table with the identifier given in the body*
 
@@ -619,6 +619,7 @@ System.out.println(response.toString());
 |»» **additionalProperties**|body|string|false|none|
 |» metadataJson|body|string|false|none|
 |» commit|body|boolean|false|none|
+|namespace|path|string|true|Namespace under which to list tables.|
 
 > Example responses
 

@@ -32,12 +32,12 @@ servers:
     description: URL Used for Mock-Server Unit Tests
 # All routes are currently configured using an Authorization header.
 security:
-- BearerAuth: []
+  - BearerAuth: []
 paths:
   /v1/config:
     get:
       tags:
-      - Configuration API
+        - Configuration API
       summary: List all catalog configuration settings
       operationId: getConfig
       description:
@@ -74,7 +74,7 @@ paths:
           minLength: 1
     post:
       tags:
-         - Configuration API
+        - Configuration API
       summary: Persist catalog specific configuration, which can be retrieved
         for later use.
       operationId: postConfig
@@ -209,7 +209,19 @@ paths:
           description: OK
         '412':
           description: Table Not Found
-  /v1/tables:
+  /v1/namespaces/{namespace}/tables:
+    parameters:
+      - name: namespace
+        description: Namespace under which to list tables.
+        in: path
+        required: true
+        schema:
+          type: string
+        examples:
+          singlepart_namespace:
+            value: "accounting"
+          multipart_namespace:
+            value: "accounting.tax"
     get:
       tags:
         - Catalog API
@@ -218,15 +230,14 @@ paths:
       operationId: listTables
       parameters:
         - name: namespace
-          description: Namespace under which to get identifiers. Can be one or more levels.
-          in: query
-          required: false
+          description: Namespace under which to list tables.
+          in: path
+          required: true
           schema:
             type: string
           examples:
             singlepart_namespace:
               value: "accounting"
-            # Note that this one would need to be normalized due to the dots. Maybe the route should change.
             multipart_namespace:
               value: "accounting.tax"
         # TODO - There's a much more native way to handle pagination
@@ -240,6 +251,7 @@ paths:
         - name: offset
           description: Place in the response to continue from if paginating
           in: query
+          required: false
           schema:
             type: integer
       responses:
@@ -476,7 +488,7 @@ components:
     TableIdentifier:
       type: object
       required:
-      - namespace
+        - namespace
       properties:
         namespace:
           type: array
