@@ -169,13 +169,14 @@ paths:
     delete:
       tags:
         - Catalog API
-      summary: Drop a table from the catalog, optionally purging the underlying data
+      summary: Drop a table from the catalog
       operationId: dropTable
-      description: Remove a table from the catalog, optionally dropping the underlying data
+      description: Remove a table from the catalog
       parameters:
-        - name: purge
+        - name: purgeRequested
           in: query
           required: false
+          description: Whether the user requested to purge the underlying table's data and metadata
           schema:
             type: boolean
             default: false
