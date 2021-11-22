@@ -79,7 +79,7 @@ public class AliyunClientFactories {
     }
 
     @Override
-    public OSS ossClient() {
+    public OSS newOSSClient() {
       Preconditions.checkNotNull(
           aliyunProperties, "Cannot create aliyun oss client before initializing the AliyunClientFactory.");
 

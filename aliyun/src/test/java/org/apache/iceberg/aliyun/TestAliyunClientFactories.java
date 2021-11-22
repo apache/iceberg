@@ -54,7 +54,7 @@ public class TestAliyunClientFactories {
     }
 
     @Override
-    public OSS ossClient() {
+    public OSS newOSSClient() {
       return null;
     }
 
