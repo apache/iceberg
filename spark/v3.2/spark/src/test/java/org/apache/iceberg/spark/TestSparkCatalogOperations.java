@@ -32,7 +32,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class TestSparkCatalogOperations extends SparkCatalogTestBase {
-  public TestSparkCatalogOperations(String catalogName, String implementation, Map<String, String> config) {
+  public TestSparkCatalogOperations(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -54,21 +55,26 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
     String fieldName = "location";
     String propsKey = "note";
     String propsValue = "jazz";
-    Table table = catalog.alterTable(
-        identifier,
-        TableChange.addColumn(new String[] {fieldName}, DataTypes.StringType, true),
-        TableChange.setProperty(propsKey, propsValue)
-    );
+    Table table =
+        catalog.alterTable(
+            identifier,
+            TableChange.addColumn(new String[] {fieldName}, DataTypes.StringType, true),
+            TableChange.setProperty(propsKey, propsValue));
 
     Assert.assertNotNull("Should return updated table", table);
 
     StructField expectedField = DataTypes.createStructField(fieldName, DataTypes.StringType, true);
-    Assert.assertEquals(table.schema().fields()[2], expectedField);
+    Assert.assertEquals(
+        "Adding a column to a table should return the updated table with the new column",
+        table.schema().fields()[2],
+        expectedField);
 
     Assert.assertTrue(
-        "Created table missing property: " + propsKey,
+        "Adding a property to a table should return the updated table with the new property",
         table.properties().containsKey(propsKey));
-    Assert.assertEquals("Property value is not the expected value",
-        propsValue, table.properties().get(propsKey));
+    Assert.assertEquals(
+        "Altering a table to add a new property should add the correct value",
+        propsValue,
+        table.properties().get(propsKey));
   }
 }
