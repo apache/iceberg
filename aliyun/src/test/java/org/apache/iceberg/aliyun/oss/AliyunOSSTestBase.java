@@ -27,7 +27,7 @@ import org.junit.ClassRule;
 
 public abstract class AliyunOSSTestBase {
   @ClassRule
-  public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunOSSTestUtility.initialize();
+  public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunTestUtility.initialize();
 
   private final SerializableSupplier<OSS> ossClient = OSS_TEST_RULE::createOSSClient;
   private final String bucketName = OSS_TEST_RULE.testBucketName();
