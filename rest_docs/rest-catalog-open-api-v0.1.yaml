@@ -60,45 +60,9 @@ paths:
           description: Unknown Error
         "401":
           description: Unauthorized
-  # This might be optional for now as it's not really supported in
-  # the normal Catalog spec, but we might want to include it for
-  # convenience.
-  /v1/catalogs/{catalog}:
-    parameters:
-      - name: catalog
-        in: path
-        required: true
-        description: Name of the catalog being configured
-        schema:
-          type: string
-          minLength: 1
-    post:
-      tags:
-        - Configuration API
-      summary: Persist catalog specific configuration, which can be retrieved
-        for later use.
-      operationId: postConfig
-      description:
-        Persist some catalog specific configurations, which will be returned by \
-        calls to /v1/config in the future. This is basically all of the data \
-        that would go into the Catalog's `initialize` call.
-      # TODO - Make this into a CatalogConfiguration
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Catalog'
-        required: true
-      responses:
-        '200':
-          description: OK
-        '401':
-          description: Unauthorized
 
   /v1/namespaces/{namespace}/tables/{table}:
     parameters:
-      # Consider moving this to query parameters,so it can be more easily URL encoded
-      # in case of dots or special characters
       - name: namespace
         in: path
         description: Namespace the table is in

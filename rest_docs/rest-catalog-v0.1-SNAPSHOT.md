@@ -95,77 +95,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
-## postConfig
-
-<a id="opIdpostConfig"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/catalogs/{catalog} \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/catalogs/{catalog}");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`POST /v1/catalogs/{catalog}`
-
-*Persist catalog specific configuration, which can be retrieved for later use.*
-
-Persist some catalog specific configurations, which will be returned by \ calls to /v1/config in the future. This is basically all of the data \ that would go into the Catalog's `initialize` call.
-
-> Body parameter
-
-```json
-{
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "location": "string",
-  "properties": {}
-}
-```
-
-<h3 id="postconfig-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[Catalog](#schemacatalog)|true|none|
-|» id|body|string(uuid)|false|Unique identifier for this catalog|
-|» name|body|string|true|none|
-|» location|body|string|false|Warehouse location for this catalog or URI of metastore or other identifying location|
-|» properties|body|object|true|Additional catalog level properties|
-|catalog|path|string|true|Name of the catalog being configured|
-
-<h3 id="postconfig-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
 <h1 id="apache-iceberg-rest-catalog-api-catalog-api">Catalog API</h1>
 
 ## loadTable
@@ -374,15 +303,15 @@ System.out.println(response.toString());
 
 `DELETE /v1/namespaces/{namespace}/tables/{table}`
 
-*Drop a table from the catalog, optionally purging the underlying data*
+*Drop a table from the catalog*
 
-Remove a table from the catalog, optionally dropping the underlying data
+Remove a table from the catalog
 
 <h3 id="droptable-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|purge|query|boolean|false|none|
+|purgeRequested|query|boolean|false|Whether the user requested to purge the underlying table's data and metadata|
 |namespace|path|string|true|Namespace the table is in|
 |table|path|string|true|Name of the table to load|
 
