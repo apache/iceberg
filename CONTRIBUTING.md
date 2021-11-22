@@ -53,7 +53,7 @@ For Python, please use the tox command `tox -e format` to apply autoformatting t
 
 #### Line breaks
 
-Continuation indents are 2 indents (= 4 spaces) from the start of the previous line.
+Continuation indents are 2 indents (4 spaces) from the start of the previous line.
 
 Try to break long lines at the same semantic level to make code more readable.
 * Don't use the same level of indentation for arguments to different methods
