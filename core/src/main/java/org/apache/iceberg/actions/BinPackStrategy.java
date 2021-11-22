@@ -77,7 +77,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * The minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting.
-   * If a data file has more than this number of deletes, it will be rewritten regardless of its file size determined
+   * If a data file has this number of deletes or more, it will be rewritten regardless of its file size determined
    * by {@link #MIN_FILE_SIZE_BYTES} and {@link #MAX_FILE_SIZE_BYTES}.
    * If a file group contains a file that satisfies this condition, the file group will be rewritten regardless of
    * the number of files in the file group determined by {@link #MIN_INPUT_FILES}
@@ -88,7 +88,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
   private int minInputFiles;
-  private int minDeletesPerFile;
+  private int deleteFileThreshold;
   private long minFileSize;
   private long maxFileSize;
   private long targetFileSize;
@@ -134,7 +134,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
 
-    minDeletesPerFile = PropertyUtil.propertyAsInt(options,
+    deleteFileThreshold = PropertyUtil.propertyAsInt(options,
         DELETE_FILE_THRESHOLD,
         DELETE_FILE_THRESHOLD_DEFAULT);
 
@@ -239,7 +239,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   private boolean taskHasTooManyDeletes(FileScanTask task) {
-    return task.deletes() != null && task.deletes().size() >= minDeletesPerFile;
+    return task.deletes() != null && task.deletes().size() >= deleteFileThreshold;
   }
 
   private void validateOptions() {
@@ -263,8 +263,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_INPUT_FILES, minInputFiles);
 
-    Preconditions.checkArgument(minDeletesPerFile > 0,
+    Preconditions.checkArgument(deleteFileThreshold > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
-        DELETE_FILE_THRESHOLD, minDeletesPerFile);
+        DELETE_FILE_THRESHOLD, deleteFileThreshold);
   }
 }
