@@ -279,8 +279,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateTableResponse'
-  /v1/tables/renameTable:
-    post:
+    put:
       tags:
         - Catalog API
       summary: Rename a table from its current name to a new name within the same catalog
@@ -298,10 +297,14 @@ paths:
           description: OK
         '401':
           description: Unauthorized
-        # TODO - Probably 404 will cause monitoring headaches as it's very hard to monitor if a client made
-        #        a valid request, but the table didn't exist, or if a client has been misconfigured or has
-        #        some other sort of bug and is calling endpoints that don't exist.
-        #        Need to settle on a non-404 error code.
+        # Not using 404 as 404 is very hard to monitor.
+        # There's no way to tell by monitoring returned response codes
+        # if a client made a valid request but the table didn't exist,
+        # or if a client or server has been misconfigured or some bug exists
+        # and the client is actually calling endpoints that the server doesn't
+        # have.
+        #
+        # We can consider a different response code to use than 412.
         '412':
           description: Table to rename from does not exist
           content:

@@ -659,7 +659,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/tables/renameTable \
+curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -667,9 +667,9 @@ curl -X POST http://127.0.0.1:1080/v1/tables/renameTable \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/tables/renameTable");
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
+con.setRequestMethod("PUT");
 int responseCode = con.getResponseCode();
 BufferedReader in = new BufferedReader(
     new InputStreamReader(con.getInputStream()));
@@ -683,7 +683,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/tables/renameTable`
+`PUT /v1/namespaces/{namespace}/tables`
 
 *Rename a table from its current name to a new name within the same catalog*
 
@@ -717,6 +717,7 @@ Rename a table within the same catalog
 |»» namespace|body|[string]|true|none|
 |»» name|body|string|false|none|
 |» destinationTableIdentifier|body|[TableIdentifier](#schematableidentifier)|false|none|
+|namespace|path|string|true|Namespace under which to list tables.|
 
 > Example responses
 
