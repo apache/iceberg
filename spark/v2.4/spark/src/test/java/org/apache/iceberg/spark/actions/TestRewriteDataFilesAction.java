@@ -82,7 +82,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
-public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
+public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
   protected abstract ActionsProvider actions();
   protected abstract Set<String> cacheContents(Table table);
