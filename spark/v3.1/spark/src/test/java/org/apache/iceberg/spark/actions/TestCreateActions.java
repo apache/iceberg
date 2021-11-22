@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +32,8 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.MigrateTable;
+import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -163,7 +165,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_migrate_partitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
-    assertMigratedFileCount(Actions.migrate(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
   @Test
@@ -183,7 +185,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .parquet(location.toURI().toString());
     sql("ALTER TABLE %s ADD PARTITION(id=0)", source);
 
-    assertMigratedFileCount(Actions.migrate(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
   @Test
@@ -202,7 +204,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .write()
         .mode(SaveMode.Overwrite).parquet(partitionDataLoc.toURI().toString());
     sql("ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'", source, partitionDataLoc.toURI().toString());
-    assertMigratedFileCount(Actions.migrate(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
   @Test
@@ -216,7 +218,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected2 = sql("select *, null, null from %s order by id", source);
 
     // migrate table
-    Actions.migrate(source).execute();
+    SparkActions.get().migrateTable(source).execute();
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
 
@@ -253,7 +255,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     createSourceTable(CREATE_PARQUET, source);
 
     // migrate table
-    Actions.migrate(source).execute();
+    SparkActions.get().migrateTable(source).execute();
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
     List<Object[]> expected = sql("select id, null, data from %s order by id", source);
@@ -291,7 +293,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected2 = sql("select id from %s order by id", source);
 
     // migrate table
-    Actions.migrate(source).execute();
+    SparkActions.get().migrateTable(source).execute();
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
 
@@ -330,7 +332,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     List<Object[]> expected = sql("select id, col2 from %s order by id", source);
 
     // migrate table
-    Actions.migrate(source).execute();
+    SparkActions.get().migrateTable(source).execute();
 
     // drop column
     sql("ALTER TABLE %s DROP COLUMN %s", dest, "col1");
@@ -350,7 +352,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_migrate_unpartitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
-    assertMigratedFileCount(Actions.migrate(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
   @Test
@@ -361,7 +363,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_snapshot_partitioned_table");
     String dest = destName("iceberg_snapshot_partitioned");
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
+    assertSnapshotFileCount(
+        SparkActions.get().snapshotTable(source).as(dest).tableLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -373,7 +376,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_snapshot_unpartitioned_table");
     String dest = destName("iceberg_snapshot_unpartitioned");
     createSourceTable(CREATE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
+    assertSnapshotFileCount(
+        SparkActions.get().snapshotTable(source).as(dest).tableLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -385,7 +389,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("snapshot_hive_table");
     String dest = destName("iceberg_snapshot_hive_table");
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
+    assertSnapshotFileCount(
+        SparkActions.get().snapshotTable(source).as(dest).tableLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -395,7 +400,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("migrate_hive_table");
     String dest = source;
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
-    assertMigratedFileCount(Actions.migrate(source), source, dest);
+    assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
   @Test
@@ -405,7 +410,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("snapshot_managed_hive_table");
     String dest = destName("iceberg_snapshot_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
+    assertSnapshotFileCount(
+        SparkActions.get().snapshotTable(source).as(dest).tableLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -416,7 +422,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("migrate_managed_hive_table");
     String dest = destName("iceberg_migrate_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
+    assertSnapshotFileCount(
+        SparkActions.get().snapshotTable(source).as(dest).tableLocation(location.toString()), source, dest);
   }
 
   @Test
@@ -431,7 +438,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
       spark.sql(String.format("ALTER TABLE %s SET TBLPROPERTIES (\"%s\" = \"%s\")",
           source, keyValue.getKey(), keyValue.getValue()));
     }
-    assertMigratedFileCount(Actions.snapshot(source, dest).withProperty("dogs", "sundance"), source, dest);
+    assertSnapshotFileCount(
+        SparkActions.get().snapshotTable(source).as(dest).tableProperty("dogs", "sundance"), source, dest);
     SparkTable table = loadTable(dest);
 
     Map<String, String> expectedProps = Maps.newHashMap();
@@ -453,7 +461,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_reserved_properties_table");
     String dest = destName(destTableName);
     createSourceTable(CREATE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest), source, dest);
+    assertSnapshotFileCount(SparkActions.get().snapshotTable(source).as(dest), source, dest);
     SparkTable table = loadTable(dest);
     // set sort orders
     table.table().replaceSortOrder().asc("id").desc("data").commit();
@@ -477,7 +485,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_snapshot_default");
     String dest = destName("iceberg_snapshot_default");
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest), source, dest);
+    assertSnapshotFileCount(SparkActions.get().snapshotTable(source).as(dest), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -510,7 +518,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         tblName);
 
     // Migrate table
-    Actions.migrate(tblName).execute();
+    SparkActions.get().migrateTable(tblName).execute();
 
     // check if iceberg and non-iceberg output
     List<Object[]> afterMigarteBeforeAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
@@ -547,7 +555,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         tblName);
 
     // Migrate table
-    Actions.migrate(tblName).execute();
+    SparkActions.get().migrateTable(tblName).execute();
 
     // check if iceberg and non-iceberg output
     List<Object[]> afterMigarteBeforeAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
@@ -586,8 +594,36 @@ public class TestCreateActions extends SparkCatalogTestBase {
   }
 
   // Counts the number of files in the source table, makes sure the same files exist in the destination table
-  private void assertMigratedFileCount(CreateAction migrateAction, String source, String dest)
+  private void assertMigratedFileCount(MigrateTable migrateAction, String source, String dest)
       throws NoSuchTableException, NoSuchDatabaseException, ParseException {
+    long expectedFiles = expectedFilesCount(source);
+    MigrateTable.Result migratedFiles = migrateAction.execute();
+    validateTables(source, dest);
+    Assert.assertEquals("Expected number of migrated files",
+        expectedFiles, migratedFiles.migratedDataFilesCount());
+  }
+
+  // Counts the number of files in the source table, makes sure the same files exist in the destination table
+  private void assertSnapshotFileCount(SnapshotTable snapshotTable, String source, String dest)
+      throws NoSuchTableException, NoSuchDatabaseException, ParseException {
+    long expectedFiles = expectedFilesCount(source);
+    SnapshotTable.Result snapshotTableResult = snapshotTable.execute();
+    validateTables(source, dest);
+    Assert.assertEquals("Expected number of imported snapshot files", expectedFiles,
+        snapshotTableResult.importedDataFilesCount());
+  }
+
+  private void validateTables(String source, String dest) throws NoSuchTableException, ParseException {
+    List<Row> expected = spark.table(source).collectAsList();
+    SparkTable destTable = loadTable(dest);
+    Assert.assertEquals("Provider should be iceberg", "iceberg",
+        destTable.properties().get(TableCatalog.PROP_PROVIDER));
+    List<Row> actual = spark.table(dest).collectAsList();
+    Assert.assertTrue(String.format("Rows in migrated table did not match\nExpected :%s rows \nFound    :%s",
+        expected, actual), expected.containsAll(actual) && actual.containsAll(expected));
+  }
+
+  private long expectedFilesCount(String source) throws NoSuchDatabaseException, NoSuchTableException, ParseException {
     CatalogTable sourceTable = loadSessionTable(source);
     List<URI> uris;
     if (sourceTable.partitionColumnNames().size() == 0) {
@@ -601,25 +637,14 @@ public class TestCreateActions extends SparkCatalogTestBase {
           .map(CatalogTablePartition::location)
           .collect(Collectors.toList());
     }
-    long expectedMigratedFiles = uris.stream()
+    return uris.stream()
         .flatMap(uri ->
             FileUtils.listFiles(Paths.get(uri).toFile(),
                 TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).stream())
         .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS")).count();
-
-    List<Row> expected = spark.table(source).collectAsList();
-    long migratedFiles = migrateAction.execute();
-
-    SparkTable destTable = loadTable(dest);
-    Assert.assertEquals("Provider should be iceberg", "iceberg",
-        destTable.properties().get(TableCatalog.PROP_PROVIDER));
-    Assert.assertEquals("Expected number of migrated files", expectedMigratedFiles, migratedFiles);
-    List<Row> actual = spark.table(dest).collectAsList();
-    Assert.assertTrue(String.format("Rows in migrated table did not match\nExpected :%s rows \nFound    :%s",
-        expected, actual), expected.containsAll(actual) && actual.containsAll(expected));
   }
 
-  // Inserts records into the destination, makes sure those records exist and source table is unchanged
+  // Insert records into the destination, makes sure those records exist and source table is unchanged
   private void assertIsolatedSnapshot(String source, String dest) {
     List<Row> expected = spark.sql(String.format("SELECT * FROM %s", source)).collectAsList();
 
