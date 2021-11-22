@@ -74,7 +74,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
+    return deletes.filter(open(task, requiredSchema, findMoreCompoundConstants(expectedSchema, idToConstant)))
+            .iterator();
   }
 
   protected Schema tableSchema() {
