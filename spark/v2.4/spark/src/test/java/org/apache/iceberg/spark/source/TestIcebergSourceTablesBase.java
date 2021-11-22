@@ -32,7 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -47,6 +47,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
@@ -1391,18 +1392,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // sleep for 1 second to ensure files will be old enough
     Thread.sleep(1000);
 
-    Actions actions = Actions.forTable(table);
+    SparkActions actions = SparkActions.get();
 
-    List<String> result1 = actions.removeOrphanFiles()
+    DeleteOrphanFiles.Result result1 = actions.deleteOrphanFiles(table)
         .location(table.location() + "/metadata")
         .olderThan(System.currentTimeMillis())
         .execute();
-    Assert.assertTrue("Should not delete any metadata files", result1.isEmpty());
+    Assert.assertTrue("Should not delete any metadata files", Iterables.isEmpty(result1.orphanFileLocations()));
 
-    List<String> result2 = actions.removeOrphanFiles()
+    DeleteOrphanFiles.Result result2 = actions.deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis())
         .execute();
-    Assert.assertEquals("Should delete 1 data file", 1, result2.size());
+    Assert.assertEquals("Should delete 1 data file", 1, Iterables.size(result2.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords = resultDF
