@@ -52,6 +52,6 @@ class OSSOutputFile extends BaseOSSFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new OSSInputFile(client(), uri());
+    return new OSSInputFile(client(), uri(), aliyunProperties());
   }
 }

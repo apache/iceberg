@@ -20,6 +20,7 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -28,12 +29,12 @@ public class OSSInputFile extends BaseOSSFile implements InputFile {
 
   private Long length = null;
 
-  OSSInputFile(OSS client, OSSURI uri) {
-    super(client, uri);
+  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+    super(client, uri, aliyunProperties);
   }
 
-  OSSInputFile(OSS client, OSSURI uri, long length) {
-    super(client, uri);
+  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, long length) {
+    super(client, uri, aliyunProperties);
     ValidationException.check(length >= 0, "Invalid file length: %s", length);
     this.length = length;
   }
