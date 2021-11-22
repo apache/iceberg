@@ -756,7 +756,7 @@ BearerAuth
 ```shell
 # You can also use wget
 curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
-  -H 'Accept: application/json' \
+  -H 'Accept: application' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
@@ -782,7 +782,7 @@ System.out.println(response.toString());
 
 *Load the metadata properties for a namespace*
 
-Return all stored properties for a given namespace
+Return all stored metadata properties for a given namespace
 
 <h3 id="loadnamespacemetadata-parameters">Parameters</h3>
 
@@ -794,10 +794,6 @@ Return all stored properties for a given namespace
 
 > 200 Response
 
-```json
-{}
-```
-
 > 417 Response
 
 ```json
@@ -808,10 +804,8 @@ Return all stored properties for a given namespace
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|Inline|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
 |417|[Expectation Failed](https://tools.ietf.org/html/rfc7231#section-6.5.14)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-
-<h3 id="loadnamespacemetadata-responseschema">Response Schema</h3>
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -990,14 +984,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces/list \
+curl -X GET http://127.0.0.1:1080/v1/namespaces \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/list");
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -1013,9 +1007,9 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/namespaces/list`
+`GET /v1/namespaces`
 
-*List all namespaces, or all namespaces underneat a given namespace*
+*List all namespaces, or all namespaces underneath a given namespace*
 
 List namespaces underneath a given namespace
 
@@ -1113,62 +1107,7 @@ Create a namespace, with an optional set of properties. The server might also ad
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## getNamespace
-
-<a id="opIdgetNamespace"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace} \
-  -H 'Accept: Application/JSON' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("GET");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`GET /v1/namespaces/{namespace}`
-
-*Get the configured properties of a namespace*
-
-<h3 id="getnamespace-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-<h3 id="getnamespace-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:

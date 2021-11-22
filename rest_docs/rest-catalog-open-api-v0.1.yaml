@@ -333,14 +333,14 @@ paths:
         - Catalog API
       summary: Load the metadata properties for a namespace
       operationId: loadNamespaceMetadata
-      description: Return all stored properties for a given namespace
+      description: Return all stored metadata properties for a given namespace
       responses:
         '200':
           description: OK
           content:
-            application/json:
+            application:
               schema:
-                type: object
+                $ref: '#/components/schemas/GetNamespaceResponse'
         '417':
           description: Namespace not found
           content:
@@ -418,7 +418,7 @@ paths:
     get:
       tags:
         - Catalog API
-      summary: List all namespaces, or all namespaces underneat a given namespace
+      summary: List all namespaces, or all namespaces underneath a given namespace
       description: List namespaces underneath a given namespace
       operationId: listNamespaces
       responses:
@@ -452,18 +452,8 @@ paths:
       responses:
         '200':
           description: OK
-    get:
-      tags:
-        - Catalog API
-      summary: Get the configured properties of a namespace
-      operationId: getNamespace
-      responses:
-        '200':
-          description: OK
-          content:
-            'Application/JSON':
-              schema:
-                $ref: '#/components/schemas/GetNamespaceResponse'
+        '401':
+          description: Unauthorized
     delete:
       tags:
         - Catalog API
