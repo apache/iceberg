@@ -25,17 +25,22 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AliyunOSSTestUtility {
-  private static final Logger LOG = LoggerFactory.getLogger(AliyunOSSTestUtility.class);
-  private static final String ALIYUN_TEST_OSS_TEST_RULE_CLASS = "ALIYUN_TEST_OSS_TEST_RULE_CLASS";
+public class AliyunTestUtility {
+  private static final Logger LOG = LoggerFactory.getLogger(AliyunTestUtility.class);
+  private static final String ALIYUN_TEST_OSS_RULE_CLASS = "ALIYUN_TEST_OSS_TEST_RULE_CLASS";
+  private static final String ALIYUN_TEST_OSS_ENDPOINT = "ALIYUN_TEST_OSS_ENDPOINT";
+  private static final String ALIYUN_TEST_ACCESS_KEY_ID = "ALIYUN_TEST_ACCESS_KEY_ID";
+  private static final String ALIYUN_TEST_ACCESS_KEY_SECRET = "ALIYUN_TEST_ACCESS_KEY_SECRET";
+  private static final String ALIYUN_TEST_BUCKET_NAME = "ALIYUN_TEST_BUCKET";
+  private static final String ALIYUN_TEST_OSS_KEY_PREFIX = "ALIYUN_TEST_OSS_KEY_PREFIX";
 
-  private AliyunOSSTestUtility() {
+  private AliyunTestUtility() {
   }
 
   public static AliyunOSSTestRule initialize() {
     AliyunOSSTestRule testRule;
 
-    String implClass = System.getenv(ALIYUN_TEST_OSS_TEST_RULE_CLASS);
+    String implClass = systemEnv(ALIYUN_TEST_OSS_RULE_CLASS);
     if (!Strings.isNullOrEmpty(implClass)) {
       LOG.info("The initializing AliyunOSSTestRule implementation is: {}", implClass);
       try {
@@ -55,5 +60,29 @@ public class AliyunOSSTestUtility {
     }
 
     return testRule;
+  }
+
+  public static String testOSSEndpoint() {
+    return systemEnv(ALIYUN_TEST_OSS_ENDPOINT);
+  }
+
+  public static String testAccessKeyId() {
+    return systemEnv(ALIYUN_TEST_ACCESS_KEY_ID);
+  }
+
+  public static String testAccessKeySecret() {
+    return systemEnv(ALIYUN_TEST_ACCESS_KEY_SECRET);
+  }
+
+  public static String testBucketName() {
+    return systemEnv(ALIYUN_TEST_BUCKET_NAME);
+  }
+
+  public static String testOssKeyPrefix() {
+    return systemEnv(ALIYUN_TEST_OSS_KEY_PREFIX);
+  }
+
+  private static String systemEnv(String name) {
+    return System.getenv(name);
   }
 }
