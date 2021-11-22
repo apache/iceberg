@@ -107,9 +107,9 @@ paths:
           type: string
         examples:
           singlepart_namespace:
-            value: "prod"
+            value: "accounting"
           multipart_namespace:
-            value: "prod.accounting"
+            value: "accounting.tax"
       - name: table
         in: path
         description: Name of the table to load
@@ -225,10 +225,10 @@ paths:
             type: string
           examples:
             singlepart_namespace:
-              value: "prod"
+              value: "accounting"
             # Note that this one would need to be normalized due to the dots. Maybe the route should change.
             multipart_namespace:
-              value: "prod.accounting"
+              value: "accounting.tax"
         # TODO - There's a much more native way to handle pagination
         - name: limit
           description: number of values to return in one request
@@ -586,7 +586,7 @@ components:
           $ref: '#/components/schemas/TableIdentifier'
         tableLocation:
           type: string
-          description: "Path of of the table just before the standard  \
+          description: "Path of of the table just before the standard \
             metadata / data folders. This is useful in cases where a different location
             provider might be used"
           example: s3://bucket/prod/accounting.db/monthly_sales
@@ -738,7 +738,7 @@ components:
     catalogName:
       value: prod
     namespace:
-      value: prod.accounting
+      value: accounting
     no_such_table_error:
       value: |-
         {

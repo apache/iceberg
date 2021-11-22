@@ -87,7 +87,7 @@ All REST catalogs will be initialized by calling this route. This route will ret
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |400|[Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)|Unknown Error|None|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Invalid credentials provided|None|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 |default|Default|Server-Specific Configuration Overrides|[IcebergConfiguration](#schemaicebergconfiguration)|
 
 <aside class="warning">
@@ -159,7 +159,7 @@ Persist some catalog specific configurations, which will be returned by \ calls 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized / Invalid Credentials Provided|None|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -334,7 +334,7 @@ Commit a pending create (or replace) table transaction, e.g. for doCommit.
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[CommitTableResponse](#schemacommittableresponse)|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized / Invalid Credentials|[IcebergResponseObject](#schemaicebergresponseobject)|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|[IcebergResponseObject](#schemaicebergresponseobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -1557,7 +1557,7 @@ BearerAuth
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |identifier|[TableIdentifier](#schematableidentifier)|false|none|none|
-|tableLocation|string|false|none|Path of of the table just before the standard  metadata / data folders. This is useful in cases where a different location provider might be used|
+|tableLocation|string|false|none|Path of of the table just before the standard metadata / data folders. This is useful in cases where a different location provider might be used|
 |metadataLocation|string|false|none|Location of the most current primary metadata file for the table|
 |metadataJson|string|false|none|Stringified JSON representing the tables metadata|
 |accessToken|string|false|none|none|
