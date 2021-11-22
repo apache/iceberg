@@ -938,15 +938,15 @@ System.out.println(response.toString());
 
 `GET /v1/namespaces`
 
-*List all namespaces, or all namespaces underneath a given namespace*
+*List namespaces, optionally providing a parent namespace to list underneaath*
 
-List namespaces underneath a given namespace
+List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /v1/namespaces?parent=a` and must return Namepace.of("a","b").
 
 <h3 id="listnamespaces-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|namespace|query|string|false|Namespace under which to list namespaces. Leave empty to list all namespaces in the catalog|
+|parent|query|string|false|Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.|
 
 > Example responses
 

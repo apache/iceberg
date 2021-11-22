@@ -151,6 +151,7 @@ paths:
             'application/json':
               schema:
                 type: boolean
+                description: true if the table was dropped and false if the table did not exist
     head:
       tags:
         - Catalog API
@@ -374,17 +375,20 @@ paths:
   # TODO - Pagination
   /v1/namespaces:
     parameters:
-      - name: namespace
+      - name: parent
         in: query
-        description: Namespace under which to list namespaces. Leave empty to list all namespaces in the catalog
+        description: Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.
         required: false
         schema:
           type: string
     get:
       tags:
         - Catalog API
-      summary: List all namespaces, or all namespaces underneath a given namespace
-      description: List namespaces underneath a given namespace
+      summary: List namespaces, optionally providing a parent namespace to list underneaath
+      description:
+        List all namespaces at a certain level, optionally starting from a given parent namespace.
+        For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into
+        `GET /v1/namespaces?parent=a` and must return Namepace.of("a","b").
       operationId: listNamespaces
       responses:
         '200':
@@ -717,13 +721,6 @@ components:
           code: 40101
         }
 
-    no_such_iceberg_table_eror:
-      value: |-
-        {
-          message: "The given table does not exist",
-          type: "NoSuchTableException",
-          code: 40101
-        }
   securitySchemes:
     BearerAuth:
       type: http
