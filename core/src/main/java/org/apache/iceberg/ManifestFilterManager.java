@@ -293,13 +293,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // out of the loop and move on to filtering the manifest.
       ExpressionEvaluator deleteEvaluator = new ExpressionEvaluator(tableSchema, reader.spec(), deleteExpression);
 
-      boolean hasDeletedFiles = manifestHasDeletedFiles(reader, deleteEvaluator);
+      boolean hasDeletedFiles = manifestHasDeletedFiles(deleteEvaluator, reader);
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
 
-      return filterManifestWithDeletedFiles(manifest, reader, deleteEvaluator);
+      return filterManifestWithDeletedFiles(deleteEvaluator, manifest, reader);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
@@ -340,7 +340,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   @SuppressWarnings("CollectionUndefinedEquality")
-  private boolean manifestHasDeletedFiles(ManifestReader<F> reader, ExpressionEvaluator deleteEvaluator) {
+  private boolean manifestHasDeletedFiles(ExpressionEvaluator deleteEvaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
     boolean hasDeletedFiles = false;
     for (ManifestEntry<F> entry : reader.liveEntries()) {
@@ -365,8 +365,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
-  private ManifestFile filterManifestWithDeletedFiles(ManifestFile manifest, ManifestReader<F> reader,
-                                                      ExpressionEvaluator deleteEvaluator) {
+  private ManifestFile filterManifestWithDeletedFiles(ExpressionEvaluator deleteEvaluator,
+                                                      ManifestFile manifest, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
