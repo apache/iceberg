@@ -16,11 +16,9 @@
 # under the License.
 
 from __future__ import annotations
-from urllib import parse
-from collections import defaultdict
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
-from iceberg.types import Type, NestedField, Schema
+from iceberg.types import NestedField, Schema, index_by_id
 from iceberg.exceptions import ValidationException
 
 
@@ -42,6 +40,8 @@ class PartitionField:
     @property
     def name(self) -> str:
         return self._name
+
+    # TODO: add property for transform
 
     def __eq__(self, other):
         if isinstance(other, PartitionField):
@@ -78,9 +78,6 @@ PARTITION_DATA_ID_START = 1000
 
 
 class PartitionSpec:
-    fields_by_source_id: defaultdict[list] = None
-    field_list: List[PartitionField] = None
-
     def __init__(
         self,
         schema: Schema,
@@ -92,6 +89,7 @@ class PartitionSpec:
         self._spec_id = spec_id
         self._fields = tuple(part_fields)
         self._last_assigned_field_id = last_assigned_field_id
+        self.fields_by_source_id: Dict[int, List[PartitionField]] = {}
 
     @property
     def schema(self) -> Schema:
@@ -112,15 +110,11 @@ class PartitionSpec:
     def is_partitioned(self):
         return len(self.fields) < 1
 
-    def _generate_fields_by_source_id(self):
-        if not self.fields_by_source_id:
-            fields_source_to_field_dict = defaultdict(list)
-            for field in self.fields:
-                fields_source_to_field_dict[field.source_id] = [field]
-            return fields_source_to_field_dict
-
     def get_fields_by_source_id(self, field_id: int) -> List[PartitionField]:
-        return self._generate_fields_by_source_id().get(field_id, None)
+        if not self.fields_by_source_id:
+            for field in self.fields:
+                self.fields_by_source_id[field.source_id] = [field]
+        return self.fields_by_source_id.get(field_id)
 
     def __eq__(self, other):
         if isinstance(other, PartitionSpec):
@@ -150,14 +144,14 @@ class PartitionSpec:
         index = 0
         # TODO: Need to fix with transforms
         for field in self.fields:
-            other_field: PartitionField = other.fields[index]
+            other_field = other.fields[index]
             if (
                 field.source_id != other_field.source_id
                 or field.name != other_field.name
             ):
-                index += 1
                 # TODO: Add transform check
                 return False
+            index += 1
         return True
 
     def partition_type(self):
@@ -171,7 +165,7 @@ class PartitionSpec:
 
     def unpartitioned(self):
         return PartitionSpec(
-            schema=Schema(columns=[]),
+            schema=Schema,
             spec_id=0,
             part_fields=[],
             last_assigned_field_id=PARTITION_DATA_ID_START - 1,
@@ -187,15 +181,13 @@ class PartitionSpec:
 
 
 class Builder:
-    schema: Schema = None
-    fields: List[PartitionField] = []
-    partition_names = set()
-    dedup_fields = dict()
-    spec_id = 0
-    last_assigned_field_id = PARTITION_DATA_ID_START - 1
-
     def __init__(self, schema: Schema):
         self._schema = schema
+        self.fields: List[PartitionField] = []
+        self.partition_names = set()
+        self.dedup_fields = dict()
+        self.spec_id = 0
+        self.last_assigned_field_id = PARTITION_DATA_ID_START - 1
 
     def builder_for(self, schema):
         return Builder(schema=schema)
