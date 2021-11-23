@@ -96,6 +96,7 @@ class PartitionData
     return schema;
   }
 
+  @Override
   public Type getType(int pos) {
     return partitionType.fields().get(pos).type();
   }

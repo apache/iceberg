@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
@@ -28,6 +29,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PartitionsTable;
@@ -53,10 +55,12 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.util.DateFormatter;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
@@ -73,6 +77,7 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -315,23 +320,38 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public StructType partitionSchema() {
     if (lazyPartitionSchema == null) {
       Table table = table();
-      PartitionsTable partitionsTable =
-          (PartitionsTable) MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.PARTITIONS);
-      Types.NestedField partition = partitionsTable.schema().findField("partition");
-      if (partition != null) {
-        this.lazyPartitionSchema = (StructType) SparkSchemaUtil.convert(partition.type());
+      PartitionSpec spec = table.spec();
+      if (spec != null) {
+        // type always String when transform is void
+        List<PartitionField> fields = spec.fields();
+        Types.StructType structType = spec.partitionType();
+        List<Types.NestedField> fieldsType = structType.fields();
+        StructField[] structFields = new StructField[fields.size()];
+
+        for (int i = 0; i < fields.size(); ++i) {
+          PartitionField partitionField = fields.get(i);
+          Types.NestedField nestedField = fieldsType.get(i);
+          if ("void".equals(partitionField.transform().toString())) {
+            structFields[i] = StructField.apply(nestedField.name(), DataTypes.StringType, nestedField.isOptional(),
+                Metadata.empty());
+          } else {
+            structFields[i] = StructField.apply(nestedField.name(), SparkSchemaUtil.convert(nestedField.type()),
+                nestedField.isOptional(), Metadata.empty());
+          }
+        }
+        this.lazyPartitionSchema = new StructType(structFields);
       } else {
         this.lazyPartitionSchema = new StructType();
       }
     }
-
     return lazyPartitionSchema;
   }
 
   @Override
   public void createPartition(InternalRow ident, Map<String, String> properties)
       throws UnsupportedOperationException {
-    throw new UnsupportedOperationException("Cannot create partition: partitions exist only when there are rows");
+    throw new UnsupportedOperationException(
+        "Cannot create partition: partitions are created implicitly when inserting new rows into iceberg tables");
   }
 
   @Override
@@ -342,13 +362,14 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public void replacePartitionMetadata(InternalRow ident, Map<String, String> properties)
       throws UnsupportedOperationException {
-    throw new UnsupportedOperationException("Cannot replace partition metadata: partition metadata is only related to" +
-        " data files");
+    throw new UnsupportedOperationException(
+        "Cannot replace partition metadata: iceberg partitions do not support metadata");
   }
 
   @Override
   public Map<String, String> loadPartitionMetadata(InternalRow ident) throws UnsupportedOperationException {
-    throw new UnsupportedOperationException("Cannot load partition metadata: not implemented");
+    throw new UnsupportedOperationException(
+        "Cannot load partition metadata: iceberg partitions do not support metadata");
   }
 
   @Override
@@ -357,19 +378,29 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     if (partitionSchema.isEmpty()) {
       return new InternalRow[0];
     }
-    // get position by partition name
+
     Table table = table();
-    StructField[] partitionFileds = partitionSchema.fields();
-    Map<String, Integer> fieldToPosition = Maps.newHashMapWithExpectedSize(partitionSchema.size());
-    for (int i = 0; i < partitionFileds.length; i++) {
-      fieldToPosition.put(partitionFileds[i].name(), i);
+    // position by name
+    Map<String, Integer> nameToPosition = Maps.newHashMapWithExpectedSize(partitionSchema.size());
+    // partition by id, for transform、name
+    List<PartitionField> idToFields = table.spec().fields();
+    Map<Integer, PartitionField> idToPartition = Maps.newHashMapWithExpectedSize(idToFields.size());
+    for (int i = 0; i < idToFields.size(); ++i) {
+      idToPartition.put(i, idToFields.get(i));
+      nameToPosition.put(idToFields.get(i).name(), i);
     }
 
-    // get partitions
+    // fetch all partitions
     PartitionsTable partitionsTable = (PartitionsTable) MetadataTableUtils.createMetadataTableInstance(table,
         MetadataTableType.PARTITIONS);
-    CloseableIterable<FileScanTask> fileScanTasks = partitionsTable.newScan().planFiles();
-    DataTask dataTask = (DataTask) fileScanTasks.iterator().next();
+    CloseableIterator<FileScanTask> scanTaskIterator = partitionsTable.newScan().planFiles().iterator();
+
+    DataTask dataTask;
+    // partitioned table with none rows
+    if (!scanTaskIterator.hasNext()) {
+      return new InternalRow[0];
+    }
+    dataTask = scanTaskIterator.next().asDataTask();
     CloseableIterator<StructLike> partitionRows = dataTask.rows().iterator();
 
     Set<InternalRow> set = Sets.newHashSet();
@@ -377,7 +408,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     partitionRows.forEachRemaining(partitionStruct -> {
       StructLike row = partitionStruct.get(0, StructLike.class);
       for (int i = 0; i < names.length; ++i) {
-        Integer indexId = fieldToPosition.get(names[i]);
+        Integer indexId = nameToPosition.get(names[i]);
         Object value = row.get(indexId, Object.class);
         if (value instanceof String) {
           filterPartitionRow.update(i, UTF8String.fromString((String) value));
@@ -387,7 +418,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       }
       // match ident: none or equal
       if (names.length < 1 || filterPartitionRow.equals(ident)) {
-        InternalRow internalRow = constructPartitionRow(row);
+        InternalRow internalRow = constructPartitionRow(row, idToPartition);
         set.add(internalRow);
       }
     });
@@ -395,17 +426,39 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return set.toArray(new InternalRow[0]);
   }
 
-  private InternalRow constructPartitionRow(StructLike structLike) {
+  private InternalRow constructPartitionRow(StructLike structLike, Map<Integer, PartitionField> idToPartition) {
     GenericInternalRow partitionRow = new GenericInternalRow(structLike.size());
     for (int i = 0; i < structLike.size(); i++) {
       Object value = structLike.get(i, Object.class);
-      if (value instanceof String) {
-        partitionRow.update(i, UTF8String.fromString((String) value));
+      PartitionField field = idToPartition.get(i);
+      String transform = field.transform().toString();
+      if ("void".equals(transform) && value != null) {
+        // partition data physical type
+        Type type = (Type) structLike.getType(i);
+        // void data format
+        String valueStr = formatPartitionValue(field.name(), value, type);
+        partitionRow.update(i, UTF8String.fromString(valueStr));
       } else {
-        partitionRow.update(i, value);
+        if (value instanceof String) {
+          partitionRow.update(i, UTF8String.fromString((String) value));
+        } else {
+          partitionRow.update(i, value);
+        }
       }
     }
     return partitionRow;
+  }
+
+  private String formatPartitionValue(String fieldName, Object value, Type type) {
+    String valueStr = "";
+    if (type.typeId() == Type.TypeID.DATE) {
+      if (fieldName.endsWith("_day")) {
+        valueStr = DateFormatter.apply().format((Integer) value);
+      }
+    } else {
+      valueStr = value.toString();
+    }
+    return valueStr;
   }
 
   @Override

@@ -17,18 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.sql;
+package org.apache.iceberg.spark.extensions;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Test;
 
-public class TestPartitionSQL extends SparkCatalogTestBase {
+public class TestPartitionSQL extends SparkExtensionsTestBase {
 
   public TestPartitionSQL(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -146,5 +151,114 @@ public class TestPartitionSQL extends SparkCatalogTestBase {
     AssertHelpers.assertThrows("not support drop partition", UnsupportedOperationException.class,
         () -> sql("ALTER TABLE %s drop partition (age = 10, dt = '20210101')", tableName));
 
+  }
+
+  @Test
+  public void testShowPartitonWithDateEvolution() {
+
+    sql("CREATE TABLE %s (id bigint, age bigint, ts timestamp) USING iceberg PARTITIONED BY (days(ts))",
+        tableName);
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(),
+        sql("SHOW PARTITIONS %s", tableName));
+
+    append(tableName, "id bigint, age bigint, ts timestamp",
+        "{ \"id\": 1, \"age\": 10, \"ts\": \"1970-01-02 01:00:00\"}\n" +
+            "{ \"id\": 2, \"age\": 11, \"ts\": \"1970-01-02 09:00:00\"}");
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(
+            row("ts_day=1970-01-01"),
+            row("ts_day=1970-01-02")),
+        sql("SHOW PARTITIONS %s", tableName));
+
+    sql("ALTER TABLE %s drop partition field days(ts)", tableName);
+
+    sql("ALTER TABLE %s add partition field hours(ts)", tableName);
+
+    append(tableName, "id bigint, age bigint, ts timestamp",
+        "{ \"id\": 1, \"age\": 10, \"ts\": \"1970-01-02 01:00:00\"}\n" +
+            "{ \"id\": 2, \"age\": 11, \"ts\": \"1970-01-02 09:00:00\"}\n");
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(
+            row("ts_day=1970-01-01/ts_hour=null"),
+            row("ts_day=1970-01-02/ts_hour=null"),
+            row("ts_day=null/ts_hour=17"),
+            row("ts_day=null/ts_hour=25")),
+        sql("SHOW PARTITIONS %s", tableName));
+
+  }
+
+  @Test
+  public void testShowPartitonWithBucketEvolution() {
+    sql("CREATE TABLE %s (id bigint, age bigint, ts timestamp) USING iceberg PARTITIONED BY (bucket(2, id))",
+        tableName);
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(),
+        sql("SHOW PARTITIONS %s", tableName));
+
+    append(tableName, "id bigint, age bigint, ts timestamp",
+        "{ \"id\": 1, \"age\": 10, \"ts\": \"1970-01-02 01:00:00\"}\n" +
+            "{ \"id\": 2, \"age\": 11, \"ts\": \"1970-01-02 09:00:00\"}");
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(row("id_bucket=0")),
+        sql("SHOW PARTITIONS %s", tableName));
+
+    sql("ALTER TABLE %s drop partition field bucket(2, id)", tableName);
+
+    sql("ALTER TABLE %s add partition field bucket(4, id)", tableName);
+
+    append(tableName, "id bigint, age bigint, ts timestamp",
+        "{ \"id\": 3, \"age\": 10, \"ts\": \"1970-01-02 01:00:00\"}");
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(
+            row("id_bucket=0/id_bucket_4=null"),
+            row("id_bucket=null/id_bucket_4=3")),
+        sql("SHOW PARTITIONS %s", tableName));
+
+    sql("ALTER TABLE %s add partition field years(ts)", tableName);
+
+    append(tableName, "id bigint, age bigint, ts timestamp",
+        "{ \"id\": 4, \"age\": 10, \"ts\": \"1970-01-02 01:00:00\"}");
+
+    List<Object[]> sql1 = sql("show partitions %s", tableName);
+
+    assertEquals("result should have expected rows",
+        ImmutableList.of(
+            row("id_bucket=0/id_bucket_4=null/ts_year=null"),
+            row("id_bucket=null/id_bucket_4=2/ts_year=0"),
+            row("id_bucket=null/id_bucket_4=3/ts_year=null")),
+        sql("SHOW PARTITIONS %s", tableName));
+  }
+
+  protected void append(String table, String jsonData) {
+    append(table, null, jsonData);
+  }
+
+  protected void append(String table, String schema, String jsonData) {
+    try {
+      Dataset<Row> ds = toDS(schema, jsonData);
+      ds.coalesce(1).writeTo(table).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException("Failed to write data", e);
+    }
+  }
+
+  private Dataset<Row> toDS(String schema, String jsonData) {
+    List<String> jsonRows = Arrays.stream(jsonData.split("\n"))
+        .filter(str -> str.trim().length() > 0)
+        .collect(Collectors.toList());
+    Dataset<String> jsonDS = spark.createDataset(jsonRows, Encoders.STRING());
+
+    if (schema != null) {
+      return spark.read().schema(schema).json(jsonDS);
+    } else {
+      return spark.read().json(jsonDS);
+    }
   }
 }

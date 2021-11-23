@@ -30,4 +30,8 @@ public interface StructLike {
   <T> T get(int pos, Class<T> javaClass);
 
   <T> void set(int pos, T value);
+
+  default Object getType(int pos) {
+    return null;
+  }
 }

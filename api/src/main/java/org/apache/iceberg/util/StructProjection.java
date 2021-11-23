@@ -154,6 +154,19 @@ public class StructProjection implements StructLike {
   }
 
   @Override
+  public Object getType(int pos) {
+    if (struct == null) {
+      return null;
+    }
+    int structPos = positionMap[pos];
+    if (structPos != -1) {
+      return struct.getType(structPos);
+    } else {
+      return null;
+    }
+  }
+
+  @Override
   public <T> T get(int pos, Class<T> javaClass) {
     if (struct == null) {
       // Return a null struct when projecting a nested required field from an optional struct.
