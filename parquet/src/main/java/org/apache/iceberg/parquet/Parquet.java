@@ -306,6 +306,7 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
+            // TODO: add .withMaxBloomFilterBytes(bloomFilterMaxBytes) once ParquetWriter.Builder supports it
             .withBloomFilterEnabled(bloomFilterEnabled);
 
         new ColumnConfigParser()
