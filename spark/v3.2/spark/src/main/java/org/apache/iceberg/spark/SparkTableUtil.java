@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -647,7 +648,7 @@ public class SparkTableUtil {
     private final String format;
 
     public SparkPartition(Map<String, String> values, String uri, String format) {
-      this.values = ImmutableMap.copyOf(values);
+      this.values = new HashMap<>(values);
       this.uri = uri;
       this.format = format;
     }
