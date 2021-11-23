@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
@@ -400,6 +401,24 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
+  /**
+   * skip the AbstractConstraint comparison
+   * @param rawSchema
+   * @param newSchema
+   * @return
+   */
+  public boolean schemaCompare(TableSchema rawSchema, TableSchema newSchema){
+    UniqueConstraint rawPK = rawSchema.getPrimaryKey().orElse(null);
+    UniqueConstraint newPK = newSchema.getPrimaryKey().orElse(null);
+    if(rawPK == null && newPK != null || rawPK != null && newPK == null) return false;
+    boolean exp = rawSchema.getTableColumns().equals(newSchema.getTableColumns()) &&
+            rawSchema.getWatermarkSpecs().equals(newSchema.getWatermarkSpecs());
+    boolean exp2 = rawPK != null && newPK != null ? rawPK.getColumns().equals(newPK.getColumns())
+            && rawPK.getType().equals(newPK.getType()) : true;
+    return exp && exp2;
+  }
+
+
   @Override
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
@@ -422,7 +441,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
     // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
-    if (!table.getSchema().equals(newTable.getSchema())) {
+    if (!schemaCompare(table.getSchema(), newTable.getSchema())) {
       throw new UnsupportedOperationException("Altering schema is not supported yet.");
     }
 
