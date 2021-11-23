@@ -15,18 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import decimal
+import math
+import struct
 from base64 import b64encode
 from datetime import date, datetime, time
-import decimal
 from decimal import Decimal as PythonDecimal
-import math
-import mmh3
-from numpy import float32, float64, isnan, isinf
-import struct
 from typing import Any, Dict
 from typing import List as PythonList
 from typing import Optional, Tuple, Type, Union
 from uuid import UUID as PythonUUID
+
+import mmh3
+from numpy import float32, float64, isinf, isnan
+
 
 # intended for use inside this module only
 class IcebergMetaType(type):
@@ -176,10 +178,18 @@ class Number(PrimitiveType):
                 ctx.prec = self.precision
             op_f = getattr(self.value, op)
             try:
-                if op in ("__add__", "__sub__", "__div__", "__mul__",):
+                if op in (
+                    "__add__",
+                    "__sub__",
+                    "__div__",
+                    "__mul__",
+                ):
                     other = other.to(type(self))
                     return type(self)(op_f(other.value))
-                if op in ("__pow__", "__mod__",):
+                if op in (
+                    "__pow__",
+                    "__mod__",
+                ):
                     other = type(self)(other)
                     return type(self)(op_f(other.value))
                 if op in ("__lt__", "__eq__"):
@@ -491,14 +501,14 @@ class Double(Floating):
 
 class Boolean(PrimitiveType):
     """
-    `boolean` from https://iceberg.apache.org/#spec/#primitive-types
+        `boolean` from https://iceberg.apache.org/#spec/#primitive-types
 
-    Args:
-        value (bool): value the boolean will represent
+        Args:
+            value (bool): value the boolean will represent
 
-Examples:
-        >>>Boolean(True)
-        Boolean(value=True)
+    Examples:
+            >>>Boolean(True)
+            Boolean(value=True)
     """
 
     value: bool
@@ -565,7 +575,9 @@ class UUID(PrimitiveType):
     def __bytes__(self) -> bytes:
         v = int(self)
         return struct.pack(
-            ">QQ", (v >> 64) & 0xFFFFFFFFFFFFFFFF, v & 0xFFFFFFFFFFFFFFFF,
+            ">QQ",
+            (v >> 64) & 0xFFFFFFFFFFFFFFFF,
+            v & 0xFFFFFFFFFFFFFFFF,
         )
 
 
@@ -837,7 +849,9 @@ class generic_class(type):
                     f"{name}[{', '.join(f'{k}={repr(v)}' for k,v in kwargs.items())}]",
                 )
                 setattr(
-                    _Type, "__args__", attrs,
+                    _Type,
+                    "__args__",
+                    attrs,
                 )
                 type.__setattr__(
                     _Type,
@@ -863,11 +877,15 @@ class generic_class(type):
             _implemented = dict()
 
         setattr(
-            _Factory, "_get_generic", get_generic,
+            _Factory,
+            "_get_generic",
+            get_generic,
         )
 
         setattr(
-            _Factory, "__name__", name,
+            _Factory,
+            "__name__",
+            name,
         )
         type.__setattr__(_Factory, "_frozen_attrs", {"_get_generic", "_implemented"})
         cls.generics[name] = (_Factory, attribute_names)
@@ -1160,7 +1178,9 @@ def _struct():  # pragma: no cover
 
             setattr(_StructType, "__annotations__", types)
             setattr(
-                _StructType, "__name__", f"Struct{list(types)}",
+                _StructType,
+                "__name__",
+                f"Struct{list(types)}",
             )
             cls._implemented[types] = _StructType
             return _StructType
@@ -1192,10 +1212,14 @@ def _struct():  # pragma: no cover
             return cls(*fields)
 
     setattr(
-        Struct, "_get_generic", get_generic,
+        Struct,
+        "_get_generic",
+        get_generic,
     )
     setattr(
-        Struct, "__name__", "Struct",
+        Struct,
+        "__name__",
+        "Struct",
     )
     type.__setattr__(
         Struct, "_frozen_attrs", {"_get_generic", "_implemented", "_types"}
