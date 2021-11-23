@@ -401,20 +401,19 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
-  /**
-   * skip the AbstractConstraint comparison
-   * @param rawSchema
-   * @param newSchema
-   * @return
-   */
-  public boolean schemaCompare(TableSchema rawSchema, TableSchema newSchema){
+
+  // skip the AbstractConstraint comparison
+  public boolean schemaCompare(TableSchema rawSchema, TableSchema newSchema) {
     UniqueConstraint rawPK = rawSchema.getPrimaryKey().orElse(null);
     UniqueConstraint newPK = newSchema.getPrimaryKey().orElse(null);
-    if(rawPK == null && newPK != null || rawPK != null && newPK == null) return false;
+    if ((rawPK == null && newPK != null) || (rawPK != null && newPK == null)) {
+      return false;
+    }
     boolean exp = rawSchema.getTableColumns().equals(newSchema.getTableColumns()) &&
             rawSchema.getWatermarkSpecs().equals(newSchema.getWatermarkSpecs());
-    boolean exp2 = rawPK != null && newPK != null ? rawPK.getColumns().equals(newPK.getColumns())
-            && rawPK.getType().equals(newPK.getType()) : true;
+    boolean exp2 = rawPK != null && newPK != null ?
+            rawPK.getColumns().equals(newPK.getColumns()) && rawPK.getType().equals(newPK.getType())
+            : true;
     return exp && exp2;
   }
 

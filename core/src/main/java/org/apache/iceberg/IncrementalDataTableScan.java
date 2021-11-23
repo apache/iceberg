@@ -118,8 +118,8 @@ class IncrementalDataTableScan extends DataTableScan {
         snapshots.add(snapshot);
       } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
         throw new UnsupportedOperationException(
-            String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s]",
-                DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
+                String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s]",
+                        DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
       }
     }
     return snapshots;

@@ -66,7 +66,7 @@ class ScanContext implements Serializable {
       ConfigOptions.key("streaming").booleanType().defaultValue(false);
 
   private static final ConfigOption<Duration> MONITOR_INTERVAL =
-      ConfigOptions.key("monitor-interval").durationType().defaultValue(Duration.ofSeconds(10));
+      ConfigOptions.key("monitor-interval").durationType().defaultValue(Duration.ofSeconds(3));
 
   private final boolean caseSensitive;
   private final Long snapshotId;
