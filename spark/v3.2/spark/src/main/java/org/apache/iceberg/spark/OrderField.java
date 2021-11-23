@@ -22,9 +22,9 @@ package org.apache.iceberg.spark;
 import org.apache.iceberg.NullOrder;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
-import org.apache.spark.sql.connector.iceberg.expressions.NullOrdering;
-import org.apache.spark.sql.connector.iceberg.expressions.SortDirection;
-import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
+import org.apache.spark.sql.connector.expressions.NullOrdering;
+import org.apache.spark.sql.connector.expressions.SortDirection;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 
 class OrderField implements SortOrder {
   static OrderField column(String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {

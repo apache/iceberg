@@ -332,7 +332,7 @@ abstract class BaseFile<F>
       case 16:
         return sortOrderId;
       case 17:
-        return pos;
+        return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }

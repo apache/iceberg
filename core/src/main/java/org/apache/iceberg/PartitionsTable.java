@@ -117,6 +117,7 @@ public class PartitionsTable extends BaseMetadataTable {
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
         .caseSensitive(caseSensitive)
         .filterPartitions(partitionFilter)
+        .select(scan.colStats() ? DataTableScan.SCAN_WITH_STATS_COLUMNS : DataTableScan.SCAN_COLUMNS)
         .specsById(scan.table().specs())
         .ignoreDeleted();
 

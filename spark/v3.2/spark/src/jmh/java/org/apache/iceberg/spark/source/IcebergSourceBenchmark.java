@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -186,5 +187,9 @@ public abstract class IcebergSourceBenchmark {
       });
       restoreProperties.commit();
     }
+  }
+
+  protected FileFormat fileFormat() {
+    throw new UnsupportedOperationException("Unsupported file format");
   }
 }

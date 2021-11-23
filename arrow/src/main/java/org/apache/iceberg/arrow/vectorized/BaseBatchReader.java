@@ -42,7 +42,7 @@ public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
   }
 
   @Override
-  public final void setRowGroupInfo(
+  public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
     for (VectorizedArrowReader reader : readers) {
       if (reader != null) {

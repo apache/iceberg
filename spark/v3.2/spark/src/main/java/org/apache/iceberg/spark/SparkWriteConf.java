@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 
 import java.util.Locale;
 import java.util.Map;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -46,11 +47,13 @@ import org.apache.spark.sql.SparkSession;
  */
 public class SparkWriteConf {
 
+  private final Table table;
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
+    this.table = table;
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
@@ -93,7 +96,7 @@ public class SparkWriteConf {
   }
 
   public String overwriteMode() {
-    String overwriteMode = writeOptions.get("overwrite-mode");
+    String overwriteMode = writeOptions.get(SparkWriteOptions.OVERWRITE_MODE);
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;
   }
 
@@ -136,5 +139,55 @@ public class SparkWriteConf {
     });
 
     return extraSnapshotMetadata;
+  }
+
+  public String rewrittenFileSetId() {
+    return confParser.stringConf()
+        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)
+        .parseOptional();
+  }
+
+  public DistributionMode distributionMode() {
+    String defaultValue;
+    if (table.sortOrder().isSorted()) {
+      defaultValue = TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+    } else {
+      defaultValue = TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
+    }
+
+    String modeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
+        .defaultValue(defaultValue)
+        .parse();
+    return DistributionMode.fromName(modeName);
+  }
+
+  public DistributionMode deleteDistributionMode() {
+    return rowLevelCommandDistributionMode(TableProperties.DELETE_DISTRIBUTION_MODE);
+  }
+
+  public DistributionMode updateDistributionMode() {
+    return rowLevelCommandDistributionMode(TableProperties.UPDATE_DISTRIBUTION_MODE);
+  }
+
+  public DistributionMode mergeDistributionMode() {
+    return rowLevelCommandDistributionMode(TableProperties.MERGE_DISTRIBUTION_MODE);
+  }
+
+  private DistributionMode rowLevelCommandDistributionMode(String tableProperty) {
+    String modeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(tableProperty)
+        .parseOptional();
+
+    return modeName != null ? DistributionMode.fromName(modeName) : distributionMode();
+  }
+
+  public boolean useTableDistributionAndOrdering() {
+    return confParser.booleanConf()
+        .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
+        .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
+        .parse();
   }
 }

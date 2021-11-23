@@ -48,14 +48,20 @@ public class SparkReadConf {
 
   private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
+  private final SparkSession spark;
   private final Table table;
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
+    this.spark = spark;
     this.table = table;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
+  }
+
+  public boolean caseSensitive() {
+    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
   }
 
   public boolean localityEnabled() {
@@ -97,6 +103,19 @@ public class SparkReadConf {
         .parseOptional();
   }
 
+  public String fileScanTaskSetId() {
+    return confParser.stringConf()
+        .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID)
+        .parseOptional();
+  }
+
+  public boolean streamingSkipDeleteSnapshots() {
+    return confParser.booleanConf()
+        .option(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS)
+        .defaultValue(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS_DEFAULT)
+        .parse();
+  }
+
   public boolean parquetVectorizationEnabled() {
     return confParser.booleanConf()
         .option(SparkReadOptions.VECTORIZATION_ENABLED)
@@ -131,6 +150,12 @@ public class SparkReadConf {
         .parse();
   }
 
+  public Long splitSizeOption() {
+    return confParser.longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .parseOptional();
+  }
+
   public long splitSize() {
     return confParser.longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
@@ -139,12 +164,24 @@ public class SparkReadConf {
         .parse();
   }
 
+  public Integer splitLookbackOption() {
+    return confParser.intConf()
+        .option(SparkReadOptions.LOOKBACK)
+        .parseOptional();
+  }
+
   public int splitLookback() {
     return confParser.intConf()
         .option(SparkReadOptions.LOOKBACK)
         .tableProperty(TableProperties.SPLIT_LOOKBACK)
         .defaultValue(TableProperties.SPLIT_LOOKBACK_DEFAULT)
         .parse();
+  }
+
+  public Long splitOpenFileCostOption() {
+    return confParser.longConf()
+        .option(SparkReadOptions.FILE_OPEN_COST)
+        .parseOptional();
   }
 
   public long splitOpenFileCost() {
