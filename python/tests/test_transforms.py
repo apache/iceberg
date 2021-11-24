@@ -51,8 +51,8 @@ from iceberg.types import (
         (1, IntegerType, 1392991556),
         (34, IntegerType, 2017239379),
         (34, LongType, 2017239379),
-        (1, FloatType, -142385009),
-        (1, DoubleType, -142385009),
+        (1.0, FloatType, -142385009),
+        (1.0, DoubleType, -142385009),
         (17486, DateType, -653330422),
         (81068000000, TimeType, -662762989),
         (
@@ -71,26 +71,35 @@ from iceberg.types import (
             TimestamptzType,
             -2047944441,
         ),
+        (b"\x00\x01\x02\x03", BinaryType, -188683207),
+        (b"\x00\x01\x02\x03", FixedType(4), -188683207),
+        ("iceberg", StringType, 1210000089),
+        (UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"), UUIDType, 1488055340),
     ],
 )
 def test_spec_values_int(test_input, test_type, expected):
-    assert transforms.Bucket._FUNCTIONS_MAP[test_type][0](test_input) == expected
+    assert transforms.bucket(test_type, 8)._hash_func(test_input) == expected
 
 
 @pytest.mark.parametrize(
-    "test_input,test_type,scale_factor,expected",
+    "test_input,test_type,scale_factor,expected_hash,expected",
     [
-        (Decimal("14.20"), DecimalType(9, 2), Decimal(10) ** -2, 59),
+        (Decimal("14.20"), DecimalType(9, 2), Decimal(10) ** -2, -500754589, 59),
         (
             Decimal("137302769811943318102518958871258.37580"),
             DecimalType(38, 5),
             Decimal(10) ** -5,
+            -32334285,
             63,
         ),
     ],
 )
-def test_decimal_bucket(test_input, test_type, scale_factor, expected):
+def test_decimal_bucket(test_input, test_type, scale_factor, expected_hash, expected):
     getcontext().prec = 38
+    assert (
+        transforms.bucket(test_type, 100)._hash_func(test_input.quantize(scale_factor))
+        == expected_hash
+    )
     assert (
         transforms.bucket(test_type, 100).apply(test_input.quantize(scale_factor))
         == expected
@@ -227,11 +236,11 @@ def test_truncate_integer(type_var, input_var, expected):
 @pytest.mark.parametrize(
     "input_var,expected",
     [
-        (Decimal(12.34).quantize(Decimal(".01")), Decimal("12.30")),
-        (Decimal(12.30).quantize(Decimal(".01")), Decimal("12.30")),
-        (Decimal(12.20).quantize(Decimal(".01")), Decimal("12.20")),
-        (Decimal(0.05).quantize(Decimal(".01")), Decimal("0.00")),
-        (Decimal(-0.05).quantize(Decimal(".01")), Decimal("-0.10")),
+        (Decimal("12.34"), Decimal("12.30")),
+        (Decimal("12.30"), Decimal("12.30")),
+        (Decimal("12.29"), Decimal("12.20")),
+        (Decimal("0.05"), Decimal("0.00")),
+        (Decimal("-0.05"), Decimal("-0.10")),
     ],
 )
 def test_truncate_decimal(input_var, expected):
@@ -274,23 +283,24 @@ def test_bucket_method(type_var):
 
 
 @pytest.mark.parametrize(
-    "type_var,value,expected",
+    "type_var,value,expected_human_str,expected",
     [
-        (BinaryType, b"foo", "Zm9v"),
-        (DecimalType(8, 5), Decimal("14.20"), "14.20"),
-        (IntegerType, 123, "123"),
-        (LongType, 123, "123"),
-        (StringType, "foo", "foo"),
+        (BinaryType, b"foo", "Zm9v", b"f"),
+        (DecimalType(8, 5), Decimal("14.21"), "14.21", Decimal("14.21")),
+        (IntegerType, 123, "123", 123),
+        (LongType, 123, "123", 123),
+        (StringType, "foo", "foo", "f"),
     ],
 )
-def test_truncate_method(type_var, value, expected):
-    truncate_transform = transforms.truncate(type_var, 8)
+def test_truncate_method(type_var, value, expected_human_str, expected):
+    truncate_transform = transforms.truncate(type_var, 1)
     assert str(truncate_transform) == str(eval(repr(truncate_transform)))
     assert truncate_transform.can_transform(type_var)
     assert truncate_transform.result_type(type_var) == type_var
+    assert truncate_transform.to_human_string(value) == expected_human_str
+    assert truncate_transform.apply(value) == expected
     assert truncate_transform.to_human_string(None) == "null"
-    assert truncate_transform.to_human_string(value) == expected
-    assert truncate_transform.width == 8
+    assert truncate_transform.width == 1
     assert truncate_transform.apply(None) is None
     assert truncate_transform.preserves_order()
     assert truncate_transform.satisfies_order_of(truncate_transform)
@@ -522,5 +532,3 @@ def test_invalid_cases():
         transforms.bucket(BooleanType, 8)
     with pytest.raises(ValueError):
         transforms.truncate(UUIDType, 8)
-    with pytest.raises(ValueError):
-        transforms.Time(DateType, "hour")

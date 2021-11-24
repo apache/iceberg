@@ -24,6 +24,8 @@ import pytz
 
 _EPOCH = datetime.utcfromtimestamp(0)
 _EPOCH_YEAR = _EPOCH.year
+_EPOCH_MONTH = _EPOCH.month
+_EPOCH_DAY = _EPOCH.day
 
 
 def human_year(year_ordinal: int) -> str:
@@ -87,30 +89,47 @@ def truncate_decimal(value: Decimal, width: int) -> Decimal:
     return Decimal(f"{applied_value}e{value.as_tuple().exponent}")
 
 
-def diff_hour(date1: datetime):
-    return int((date1 - _EPOCH).total_seconds() / 3600)
-
-
-def diff_day(date1: datetime):
-    return (date1 - _EPOCH).days
-
-
-def diff_month(date1: datetime):
-    return (
-        (date1.year - _EPOCH.year) * 12
-        + (date1.month - _EPOCH.month)
-        - (1 if date1.day < _EPOCH.day else 0)
+def hours_for_ts(timestamp: int) -> int:
+    return int(
+        (datetime.utcfromtimestamp(timestamp / 1000000) - _EPOCH).total_seconds() / 3600
     )
 
 
-def diff_year(date1: datetime):
-    return (date1.year - _EPOCH.year) - (
+def days_for_ts(timestamp: int) -> int:
+    return (datetime.utcfromtimestamp(timestamp / 1000000) - _EPOCH).days
+
+
+def months_for_days(days: int) -> int:
+    dt = datetime.utcfromtimestamp(days * 86400)
+    return (
+        (dt.year - _EPOCH_YEAR) * 12
+        + (dt.month - _EPOCH_MONTH)
+        - (1 if dt.day < _EPOCH_DAY else 0)
+    )
+
+
+def months_for_ts(timestamp: int) -> int:
+    dt = datetime.utcfromtimestamp(timestamp / 1000000)
+    return (
+        (dt.year - _EPOCH_YEAR) * 12
+        + (dt.month - _EPOCH_MONTH)
+        - (1 if dt.day < _EPOCH_DAY else 0)
+    )
+
+
+def years_for_days(days: int) -> int:
+    dt = datetime.utcfromtimestamp(days * 86400)
+    return (dt.year - _EPOCH_YEAR) - (
         1
-        if date1.month < _EPOCH.month
-        or (date1.month == _EPOCH.month and date1.day < _EPOCH.day)
+        if dt.month < _EPOCH_MONTH or (dt.month == _EPOCH_MONTH and dt.day < _EPOCH_DAY)
         else 0
     )
 
 
-def to_string(value) -> str:
-    return str(value)
+def years_for_ts(timestamp: int) -> int:
+    dt = datetime.utcfromtimestamp(timestamp / 1000000)
+    return (dt.year - _EPOCH_YEAR) - (
+        1
+        if dt.month < _EPOCH_MONTH or (dt.month == _EPOCH_MONTH and dt.day < _EPOCH_DAY)
+        else 0
+    )
