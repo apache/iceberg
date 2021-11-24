@@ -69,6 +69,19 @@ Try to break long lines at the same semantic level to make code more readable.
   doSomething(
       new ArgumentClass(1, 2),
       3);
+
+  // BAD: arguments and chained methods mixed
+  SomeObject myNewObject = SomeObject.builder(schema, partitionSpec
+      sortOrder)
+      .withProperty("x", "1")
+      .build()
+
+  // GOOD: method calls at the same level, arguments indented
+  SomeObject myNewObject = SomeObject
+      .builder(schema, partitionSpec,
+          sortOrder)
+      .withProperty("x", "1")
+      .build()
 ```
 
 #### Method naming
