@@ -146,11 +146,19 @@ class PrimitiveType(IcebergType):
         return type(other) == type(self) and self.value == other.value
 
     def __bytes__(self) -> bytes:
-        return bytes(self.value)
+        return type(self).to_bytes(self.value)
+
+    @classmethod
+    def to_bytes(cls, value):
+        return bytes(value)
 
     def __hash__(self) -> int:
         """https://iceberg.apache.org/#spec/#appendix-b-32-bit-hash-requirements"""
-        return mmh3.hash(bytes(self))
+        return type(self).hash(self.value)
+
+    @classmethod
+    def hash(cls, value):
+        return mmh3.hash(cls.to_bytes(value))
 
     def to(self, _type: Type["PrimitiveType"], coerce: bool = False):
         if type(self).can_cast(_type) or coerce:
@@ -178,18 +186,10 @@ class Number(PrimitiveType):
                 ctx.prec = self.precision
             op_f = getattr(self.value, op)
             try:
-                if op in (
-                    "__add__",
-                    "__sub__",
-                    "__div__",
-                    "__mul__",
-                ):
+                if op in ("__add__", "__sub__", "__div__", "__mul__",):
                     other = other.to(type(self))
                     return type(self)(op_f(other.value))
-                if op in (
-                    "__pow__",
-                    "__mod__",
-                ):
+                if op in ("__pow__", "__mod__",):
                     other = type(self)(other)
                     return type(self)(op_f(other.value))
                 if op in ("__lt__", "__eq__"):
@@ -289,8 +289,9 @@ class Integral(Number):
 
         return self
 
-    def __bytes__(self) -> bytes:
-        return struct.pack("q", self.value)
+    @classmethod
+    def to_bytes(cls, value) -> bytes:
+        return struct.pack("q", value)
 
 
 class Floating(Number):
@@ -315,8 +316,9 @@ class Floating(Number):
         else:
             self.value = float_t(self.value)
 
-    def __bytes__(self) -> bytes:
-        return struct.pack("d", self.value)
+    @classmethod
+    def to_bytes(cls, value) -> bytes:
+        return struct.pack("d", value)
 
     def __repr__(self) -> str:
         ret = super().__repr__()
@@ -516,8 +518,9 @@ class Boolean(PrimitiveType):
     def __bool__(self):
         return self.value
 
-    def __bytes__(self) -> bytes:
-        return bytes(Integer(True))
+    @classmethod
+    def to_bytes(self, value) -> bytes:
+        return Integer.to_bytes(value)
 
     def __hash__(self) -> int:
         return super().__hash__()
@@ -543,8 +546,9 @@ class String(PrimitiveType):
 
     value: str
 
-    def __hash__(self) -> int:
-        return mmh3.hash(self.value)
+    @classmethod
+    def hash(cls, value):
+        return mmh3.hash(value)
 
 
 class UUID(PrimitiveType):
@@ -572,12 +576,11 @@ class UUID(PrimitiveType):
     def __int__(self) -> int:
         return self.value.int
 
-    def __bytes__(self) -> bytes:
-        v = int(self)
+    @classmethod
+    def to_bytes(cls, value) -> bytes:
+        v = int(value.int)
         return struct.pack(
-            ">QQ",
-            (v >> 64) & 0xFFFFFFFFFFFFFFFF,
-            v & 0xFFFFFFFFFFFFFFFF,
+            ">QQ", (v >> 64) & 0xFFFFFFFFFFFFFFFF, v & 0xFFFFFFFFFFFFFFFF,
         )
 
 
@@ -629,8 +632,15 @@ class Datetime(PrimitiveType):
         """
         return getattr(self.value, attr)
 
-    def __bytes__(self) -> bytes:
-        return struct.pack("q", int(self))
+    def __int__(self):
+        return type(self).to_int(self.value)
+
+    def __hash__(self) -> int:
+        return type(self).hash(int(self))
+
+    @classmethod
+    def to_bytes(cls, value: int) -> bytes:
+        return struct.pack("q", value)
 
 
 class Date(Datetime):
@@ -710,7 +720,7 @@ class Timestamp(Datetime):
 
     def __int__(self) -> int:
         """microseconds from epoch"""
-        return int(self.timestamp()) * 1000000
+        return int(self.value.timestamp()) * 1000000
 
 
 class Timestamptz(Timestamp):
@@ -849,9 +859,7 @@ class generic_class(type):
                     f"{name}[{', '.join(f'{k}={repr(v)}' for k,v in kwargs.items())}]",
                 )
                 setattr(
-                    _Type,
-                    "__args__",
-                    attrs,
+                    _Type, "__args__", attrs,
                 )
                 type.__setattr__(
                     _Type,
@@ -877,15 +885,11 @@ class generic_class(type):
             _implemented = dict()
 
         setattr(
-            _Factory,
-            "_get_generic",
-            get_generic,
+            _Factory, "_get_generic", get_generic,
         )
 
         setattr(
-            _Factory,
-            "__name__",
-            name,
+            _Factory, "__name__", name,
         )
         type.__setattr__(_Factory, "_frozen_attrs", {"_get_generic", "_implemented"})
         cls.generics[name] = (_Factory, attribute_names)
@@ -1071,15 +1075,17 @@ class _DecimalBase(Number):
             self.value = self.value.quantize(self._scale)
             object.__setattr__(self, "_neg", self.value < 0)
 
-    def unscale(self) -> int:
-        value_tuple = self.value.as_tuple()
+    @staticmethod
+    def _unscale(value) -> int:
+        value_tuple = value.as_tuple()
         return int(
             ("-" if value_tuple.sign else "")
             + "".join([str(d) for d in value_tuple.digits])
         )
 
-    def __bytes__(self) -> bytes:
-        unscaled_value = self.unscale()
+    @classmethod
+    def to_bytes(cls, value) -> bytes:
+        unscaled_value = _DecimalBase._unscale(value)
         number_of_bytes = int(math.ceil(unscaled_value.bit_length() / 8))
         return unscaled_value.to_bytes(length=number_of_bytes, byteorder="big")
 
@@ -1178,9 +1184,7 @@ def _struct():  # pragma: no cover
 
             setattr(_StructType, "__annotations__", types)
             setattr(
-                _StructType,
-                "__name__",
-                f"Struct{list(types)}",
+                _StructType, "__name__", f"Struct{list(types)}",
             )
             cls._implemented[types] = _StructType
             return _StructType
@@ -1212,14 +1216,10 @@ def _struct():  # pragma: no cover
             return cls(*fields)
 
     setattr(
-        Struct,
-        "_get_generic",
-        get_generic,
+        Struct, "_get_generic", get_generic,
     )
     setattr(
-        Struct,
-        "__name__",
-        "Struct",
+        Struct, "__name__", "Struct",
     )
     type.__setattr__(
         Struct, "_frozen_attrs", {"_get_generic", "_implemented", "_types"}
