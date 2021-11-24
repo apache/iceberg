@@ -469,8 +469,8 @@ def test_is_generic_type(type_, r1, r2, r3):
 @pytest.mark.parametrize(
     "order",
     [
-        Float("-inf")
-        < Float("-nan")
+        Float("-nan")
+        < Float("-inf")
         < Float(-4e10)
         < Float(-24)
         < Float("-0")
@@ -479,8 +479,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         < Float(4e10)
         < Float("nan")
         < Float("inf"),
-        Float("-inf")
-        <= Float("-nan")
+        Float("-nan")
+        <= Float("-inf")
         <= Float(-4e10)
         <= Float(-24)
         <= Float("-0")
@@ -489,8 +489,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         <= Float(4e10)
         <= Float("nan")
         <= Float("inf"),
-        Double("-inf")
-        < Double("-nan")
+        Double("-nan")
+        < Double("-inf")
         < Double(-4e10)
         < Double(-24)
         < Double("-0")
@@ -499,8 +499,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         < Double(4e10)
         < Double("nan")
         < Double("inf"),
-        Double("-inf")
-        <= Double("-nan")
+        Double("-nan")
+        <= Double("-inf")
         <= Double(-4e10)
         <= Double(-24)
         <= Double("-0")
@@ -509,8 +509,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         <= Double(4e10)
         <= Double("nan")
         <= Double("inf"),
-        not Float("-inf")
-        > Float("-nan")
+        not Float("-nan")
+        > Float("-inf")
         > Float(-4e10)
         > Float(-24)
         > Float("-0")
@@ -519,8 +519,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         > Float(4e10)
         > Float("nan")
         > Float("inf"),
-        not Float("-inf")
-        >= Float("-nan")
+        not Float("-nan")
+        >= Float("-inf")
         >= Float(-4e10)
         >= Float(-24)
         >= Float("-0")
@@ -529,8 +529,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         >= Float(4e10)
         >= Float("nan")
         >= Float("inf"),
-        not Double("-inf")
-        > Double("-nan")
+        not Double("-nan")
+        > Double("-inf")
         > Double(-4e10)
         > Double(-24)
         > Double("-0")
@@ -539,8 +539,8 @@ def test_is_generic_type(type_, r1, r2, r3):
         > Double(4e10)
         > Double("nan")
         > Double("inf"),
-        not Double("-inf")
-        >= Double("-nan")
+        not Double("-nan")
+        >= Double("-inf")
         >= Double(-4e10)
         >= Double(-24)
         >= Double("-0")
@@ -553,3 +553,10 @@ def test_is_generic_type(type_, r1, r2, r3):
 )
 def test_floating_sort_order(order):
     assert order
+
+
+def test_sort_order_fails():
+    with pytest.raises(TypeError):
+        Float(5) < Integer(6)
+    with pytest.raises(TypeError):
+        Float(5) < int

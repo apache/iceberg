@@ -186,10 +186,18 @@ class Number(PrimitiveType):
                 ctx.prec = self.precision
             op_f = getattr(self.value, op)
             try:
-                if op in ("__add__", "__sub__", "__div__", "__mul__",):
+                if op in (
+                    "__add__",
+                    "__sub__",
+                    "__div__",
+                    "__mul__",
+                ):
                     other = other.to(type(self))
                     return type(self)(op_f(other.value))
-                if op in ("__pow__", "__mod__",):
+                if op in (
+                    "__pow__",
+                    "__mod__",
+                ):
                     other = type(self)(other)
                     return type(self)(op_f(other.value))
                 if op in ("__lt__", "__eq__"):
@@ -251,8 +259,7 @@ class Number(PrimitiveType):
 
 
 class Integral(Number):
-    """
-    base class for integral types Integer, Long
+    """base class for integral types Integer, Long
 
     Note:
        for internal iceberg use only
@@ -295,8 +302,7 @@ class Integral(Number):
 
 
 class Floating(Number):
-    """
-    base class for floating types Float, Double
+    """base class for floating types Float, Double
 
     Note:
        for internal iceberg use only
@@ -366,10 +372,10 @@ class Floating(Number):
             ("nan", "nan"): False,
             ("-inf", "-inf"): False,
             ("value", "inf"): True,
-            ("-inf", "-nan"): True,
+            ("-inf", "-nan"): False,
             ("-nan", "-nan"): False,
             ("value", "-nan"): False,
-            ("-nan", "-inf"): False,
+            ("-nan", "-inf"): True,
             ("-inf", "inf"): True,
             ("-nan", "nan"): True,
             ("nan", "value"): False,
@@ -392,8 +398,7 @@ class Floating(Number):
 
 
 class Integer(Integral):
-    """
-    32-bit signed integers: `int` from https://iceberg.apache.org/#spec/#primitive-types
+    """32-bit signed integers: `int` from https://iceberg.apache.org/#spec/#primitive-types
 
 
     Args:
@@ -425,8 +430,7 @@ class Integer(Integral):
 
 
 class Long(Integral):
-    """
-    64-bit signed integers: `long` from https://iceberg.apache.org/#spec/#primitive-types
+    """64-bit signed integers: `long` from https://iceberg.apache.org/#spec/#primitive-types
 
 
     Args:
@@ -453,8 +457,7 @@ class Long(Integral):
 
 
 class Float(Floating):
-    """
-    32-bit IEEE 754 floating point: `float` from https://iceberg.apache.org/#spec/#primitive-types
+    """32-bit IEEE 754 floating point: `float` from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         value: value for which the float will represent
@@ -479,8 +482,7 @@ class Float(Floating):
 
 
 class Double(Floating):
-    """
-    64-bit IEEE 754 floating point: `double` from https://iceberg.apache.org/#spec/#primitive-types
+    """64-bit IEEE 754 floating point: `double` from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         value: value for which the double will represent
@@ -502,10 +504,9 @@ class Double(Floating):
 
 
 class Boolean(PrimitiveType):
-    """
-        `boolean` from https://iceberg.apache.org/#spec/#primitive-types
+    """`boolean` from https://iceberg.apache.org/#spec/#primitive-types
 
-        Args:
+    Args:
             value (bool): value the boolean will represent
 
     Examples:
@@ -530,8 +531,7 @@ class Boolean(PrimitiveType):
 
 
 class String(PrimitiveType):
-    """
-    Arbitrary-length character sequences Encoded with UTF-8: `string` from https://iceberg.apache.org/#spec/#primitive-types
+    """Arbitrary-length character sequences Encoded with UTF-8: `string` from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         value (str): value the string will represent
@@ -552,8 +552,7 @@ class String(PrimitiveType):
 
 
 class UUID(PrimitiveType):
-    """
-    Universally unique identifiers: `uuid` from https://iceberg.apache.org/#spec/#primitive-types
+    """Universally unique identifiers: `uuid` from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         value: value the uuid will represent
@@ -580,13 +579,14 @@ class UUID(PrimitiveType):
     def to_bytes(cls, value) -> bytes:
         v = int(value.int)
         return struct.pack(
-            ">QQ", (v >> 64) & 0xFFFFFFFFFFFFFFFF, v & 0xFFFFFFFFFFFFFFFF,
+            ">QQ",
+            (v >> 64) & 0xFFFFFFFFFFFFFFFF,
+            v & 0xFFFFFFFFFFFFFFFF,
         )
 
 
 class Binary(PrimitiveType):
-    """
-    Arbitrary-length byte array from  https://iceberg.apache.org/#spec/#primitive-types
+    """Arbitrary-length byte array from  https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         value (bytes): bytes to hold in binary buffer
@@ -606,13 +606,11 @@ class Binary(PrimitiveType):
 
 
 class Datetime(PrimitiveType):
-    """
-    base class for Date, Time, Timestamp, Timestamptz
+    """base class for Date, Time, Timestamp, Timestamptz
+
     Note:
        for internal iceberg use only
 
-    Examples:
-        Can be used in place of typing for all of Date, Time, Timestamp, Timestamptz
     """
 
     epoch: datetime = datetime.utcfromtimestamp(0)
@@ -644,8 +642,7 @@ class Datetime(PrimitiveType):
 
 
 class Date(Datetime):
-    """
-    `date` type from https://iceberg.apache.org/#spec/#primitive-types
+    """`date` type from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         *args: can pass a string formatted in the isoformat or several `int` for year, month, day
@@ -670,8 +667,7 @@ class Date(Datetime):
 
 
 class Time(Datetime):
-    """
-    `time` type from https://iceberg.apache.org/#spec/#primitive-types
+    """`time` type from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         *args: can pass a string formatted in the isoformat or several `int` for hour[, minute[, second[, microsecond]
@@ -698,8 +694,7 @@ class Time(Datetime):
 
 
 class Timestamp(Datetime):
-    """
-    `timestamp` type from https://iceberg.apache.org/#spec/#primitive-types
+    """`timestamp` type from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         *args: can pass a string formatted in the isoformat or several `int` for year, month, day[, hour[, minute[, second[, microsecond]]]]
@@ -724,8 +719,7 @@ class Timestamp(Datetime):
 
 
 class Timestamptz(Timestamp):
-    """
-    `timestamptz` type from https://iceberg.apache.org/#spec/#primitive-types
+    """`timestamptz` type from https://iceberg.apache.org/#spec/#primitive-types
 
     Args:
         *args: can pass a string formatted in the isoformat or several `int` for year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]]
@@ -766,8 +760,7 @@ class generic_class(type):
         doc: str = "",
         meta_doc: str = "",
     ):
-        """
-        facilitates generating generic type factories such as `List` e.g. `List[Integer]`
+        """facilitates generating generic type factories such as `List` e.g. `List[Integer]`
         in the spirit of builtin `type` e.g.:
             def Robot_init(self, name):
                 self.name = name
@@ -799,7 +792,9 @@ class generic_class(type):
 
             if len(attrs) > len(attributes):
                 raise TypeError(
-                    f'Too many generic parameters provided. Expected {len(attribute_names)} parameter(s) of subtypes of ({",".join(repr(i) for i in attribute_types)}). Provided {attrs}'
+                    f"""Too many generic parameters provided. Expected {len(attribute_names)} 
+                    parameter(s) of subtypes of ({",".join(repr(i) for i in attribute_types)}). 
+                    Provided {attrs}"""
                 )
 
             kwargs = dict(zip(attribute_names, attrs))
@@ -845,8 +840,7 @@ class generic_class(type):
                         else (_Factory,)
                     )
                 ):
-                    __doc__ = f"""
-                    Generic instance of {name} with generic attributes {kwargs}
+                    __doc__ = f"""Generic instance of {name} with generic attributes {kwargs}
 
                     {doc}
                     """
@@ -859,7 +853,9 @@ class generic_class(type):
                     f"{name}[{', '.join(f'{k}={repr(v)}' for k,v in kwargs.items())}]",
                 )
                 setattr(
-                    _Type, "__args__", attrs,
+                    _Type,
+                    "__args__",
+                    attrs,
                 )
                 type.__setattr__(
                     _Type,
@@ -885,47 +881,52 @@ class generic_class(type):
             _implemented = dict()
 
         setattr(
-            _Factory, "_get_generic", get_generic,
+            _Factory,
+            "_get_generic",
+            get_generic,
         )
 
         setattr(
-            _Factory, "__name__", name,
+            _Factory,
+            "__name__",
+            name,
         )
         type.__setattr__(_Factory, "_frozen_attrs", {"_get_generic", "_implemented"})
         cls.generics[name] = (_Factory, attribute_names)
         return _Factory
 
     def get_unspecified_generic_type(cls):
-        """
-        get the unspecified generic type of `cls` e.g. List for List[Integer]
+        """get the unspecified generic type of `cls` e.g. List for List[Integer]
 
         Args:
             cls: type to test
         """
         try:
             ret = [
-                g[0] for g in generic_class.generics.values() if _is_subclass(cls, g[0])
+                generic[0]
+                for generic in generic_class.generics.values()
+                if _is_subclass(cls, generic[0])
             ]
             return ret[0]
         except (TypeError, IndexError):
             raise TypeError(f"{cls} is not a generic nor specified generic IcebergType")
 
     def is_generic_type(cls, subtype: bool = False, subtype_only: bool = False):
-        """
-        Tell if `cls` is a generic IcebergType
+        """Tell if `cls` is a generic IcebergType
 
         Args:
             cls: type to test
             subtype: test if cls is a subtype e.g. List[Integer] is a subtype of List
-                subtype_only: return True only if type is not fully defined e.g. List and not List[Integer]
+            subtype_only(optional): return True only if type is not fully defined e.g. List and not List[Integer]
         """
         if subtype:
             return any(
-                _is_subclass(cls, g[0]) and (cls != g[0] if subtype_only else True)
-                for g in generic_class.generics.values()
+                _is_subclass(cls, generic[0])
+                and (cls != generic[0] if subtype_only else True)
+                for generic in generic_class.generics.values()
             )
 
-        return cls in [g[0] for g in generic_class.generics.values()]
+        return cls in [generic[0] for generic in generic_class.generics.values()]
 
 
 Instance = generic_class(
@@ -963,15 +964,13 @@ List = generic_class(
     "List",
     [("type", IcebergType)],
     _ListBase,
-    doc="""
-Note: see `List` for more details
+    doc="""Note: see `List` for more details
 
 Args:
     value (list): list of values of type of List e.g. Integers if List.type==Integer
 
 """,
-    meta_doc="""
-A list with elements of any data type: `list<E>` from https://iceberg.apache.org/#spec/#primitive-types
+    meta_doc="""A list with elements of any data type: `list<E>` from https://iceberg.apache.org/#spec/#primitive-types
 
 Args:
     type: type of elements contained in list
@@ -1004,15 +1003,13 @@ Map = generic_class(
     "Map",
     [("key_type", IcebergType), ("value_type", IcebergType)],
     _MapBase,
-    doc="""
-Note: see `Map` for more details
+    doc="""Note: see `Map` for more details
 
 Args:
     value (dict): dictionary of key, value pairs matching (key_type, value_type)
 
 """,
-    meta_doc="""
-A map with keys and values of any data type: `Map<K, V>` from https://iceberg.apache.org/#spec/#primitive-types
+    meta_doc="""A map with keys and values of any data type: `Map<K, V>` from https://iceberg.apache.org/#spec/#primitive-types
 
 Args:
     key_type: the type of the keys of the map
@@ -1033,15 +1030,13 @@ Fixed = generic_class(
     "Fixed",
     [("length", Instance[int])],
     Binary,
-    doc="""
-Note: see `Fixed` for more details
+    doc="""Note: see `Fixed` for more details
 
 Args:
     value: the value the fixed will represent
 
 """,
-    meta_doc="""
-Fixed-length byte array of length L: `Fixed(L)` from https://iceberg.apache.org/#spec/#primitive-types
+    meta_doc="""Fixed-length byte array of length L: `Fixed(L)` from https://iceberg.apache.org/#spec/#primitive-types
 
 Args:
     length (int): fixed length of the byte buffer
@@ -1103,15 +1098,13 @@ Decimal = generic_class(
     "Decimal",
     [("precision", Instance[int]), ("scale", Instance[int])],
     _DecimalBase,
-    doc="""
-Note: see `Decimal` for more details
+    doc="""Note: see `Decimal` for more details
 
 Args:
     value: the value the decimal will represent
 
     """,
-    meta_doc="""
-Fixed-point decimal; precision P, scale S: `decimal(P,S)` from https://iceberg.apache.org/#spec/#primitive-types
+    meta_doc="""Fixed-point decimal; precision P, scale S: `decimal(P,S)` from https://iceberg.apache.org/#spec/#primitive-types
 
 Args:
     precision (int): the number of digits in value
@@ -1138,9 +1131,7 @@ NestedField = generic_class(
         ("doc", Instance[str], ""),
     ],
     IcebergType,
-    meta_doc="""
-equivalent of `NestedField` type from Java implementation
-""",
+    meta_doc="""equivalent of `NestedField` type from Java implementation""",
 )
 
 
@@ -1156,7 +1147,7 @@ def _struct():  # pragma: no cover
 
         def __init__(self, *fields):
             if not len(fields) == len(self._types) or not all(
-                isinstance(f, t) for f, t in zip(fields, self._types)
+                isinstance(field, _type) for field, _type in zip(fields, self._types)
             ):
                 raise TypeError(
                     f"Must provide all generic parameters of matching types. Provided {self._types}. Provided {fields}"
@@ -1184,14 +1175,15 @@ def _struct():  # pragma: no cover
 
             setattr(_StructType, "__annotations__", types)
             setattr(
-                _StructType, "__name__", f"Struct{list(types)}",
+                _StructType,
+                "__name__",
+                f"Struct{list(types)}",
             )
             cls._implemented[types] = _StructType
             return _StructType
 
     class Struct(IcebergType):
-        """
-        A record with named fields of any data type: `struct` from https://iceberg.apache.org/#schemas/
+        """A record with named fields of any data type: `struct` from https://iceberg.apache.org/#schemas/
 
         Note: this type can infer it's own generics for convenience e.g. Struct(Integer(5), Long(6)) -> Struct[Integer, Long](Integer(value=5), Long(value=6))
 
@@ -1216,10 +1208,14 @@ def _struct():  # pragma: no cover
             return cls(*fields)
 
     setattr(
-        Struct, "_get_generic", get_generic,
+        Struct,
+        "_get_generic",
+        get_generic,
     )
     setattr(
-        Struct, "__name__", "Struct",
+        Struct,
+        "__name__",
+        "Struct",
     )
     type.__setattr__(
         Struct, "_frozen_attrs", {"_get_generic", "_implemented", "_types"}
