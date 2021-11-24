@@ -479,28 +479,7 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
-    PartitionSpec.checkCompatibility(spec(), newSchema);
-    SortOrder.checkCompatibility(sortOrder(), newSchema);
-    // rebuild all of the partition specs and sort orders for the new current schema
-    List<PartitionSpec> updatedSpecs = Lists.transform(specs, spec -> updateSpecSchema(newSchema, spec));
-    List<SortOrder> updatedSortOrders = Lists.transform(sortOrders, order -> updateSortOrderSchema(newSchema, order));
-
-    int newSchemaId = reuseOrCreateNewSchemaId(newSchema);
-    if (currentSchemaId == newSchemaId && newLastColumnId == lastColumnId) {
-      // the new spec and last column Id is already current and no change is needed
-      return this;
-    }
-
-    ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder().addAll(schemas);
-    if (!schemasById.containsKey(newSchemaId)) {
-      builder.add(new Schema(newSchemaId, newSchema.columns(), newSchema.identifierFieldIds()));
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), newLastColumnId,
-        newSchemaId, builder.build(), defaultSpecId, updatedSpecs, lastAssignedPartitionId,
-        defaultSortOrderId, updatedSortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).setCurrentSchema(newSchema, newLastColumnId).build();
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -1059,5 +1038,202 @@ public class TableMetadata implements Serializable {
       }
     }
     return newSchemaId;
+  }
+
+  private interface MetadataUpdate {
+    class AddSchema implements MetadataUpdate {
+      private final Schema schema;
+      private final int lastColumnId;
+
+      public AddSchema(Schema schema, int lastColumnId) {
+        this.schema = schema;
+        this.lastColumnId = lastColumnId;
+      }
+
+      public Schema schema() {
+        return schema;
+      }
+
+      public int lastColumnId() {
+        return lastColumnId;
+      }
+    }
+
+    class SetCurrentSchemaId implements MetadataUpdate {
+      private final int schemaId;
+
+      public SetCurrentSchemaId(int schemaId) {
+        this.schemaId = schemaId;
+      }
+
+      public int schemaId() {
+        return schemaId;
+      }
+    }
+  }
+
+  public static class Builder {
+    // used to track changes applied through the builder
+    private final List<MetadataUpdate> changes = Lists.newArrayList();
+
+    private Long lastUpdatedMillis = null;
+
+    private int formatVersion;
+    private String uuid;
+    private String location;
+    private long lastSequenceNumber;
+    private int lastColumnId;
+    private int currentSchemaId;
+    private List<Schema> schemas;
+    private int defaultSpecId;
+    private List<PartitionSpec> specs;
+    private int lastAssignedPartitionId;
+    private int defaultSortOrderId;
+    private List<SortOrder> sortOrders;
+    private Map<String, String> properties;
+    private long currentSnapshotId;
+    private List<Snapshot> snapshots;
+    private List<HistoryEntry> snapshotLog;
+    private String previousFileLocation;
+    private List<MetadataLogEntry> previousFiles;
+
+    // indexes for convenience
+    private final Map<Long, Snapshot> snapshotsById;
+    private final Map<Integer, Schema> schemasById;
+    private final Map<Integer, PartitionSpec> specsById;
+    private final Map<Integer, SortOrder> sortOrdersById;
+
+    public Builder(TableMetadata base) {
+      this.formatVersion = base.formatVersion;
+      this.uuid = base.uuid;
+      this.location = base.location;
+      this.lastSequenceNumber = base.lastSequenceNumber;
+      this.lastColumnId = base.lastColumnId;
+      this.currentSchemaId = base.currentSchemaId;
+      this.schemas = Lists.newArrayList(base.schemas);
+      this.defaultSpecId = base.defaultSpecId;
+      this.specs = Lists.newArrayList(base.specs);
+      this.lastAssignedPartitionId = base.lastAssignedPartitionId;
+      this.defaultSortOrderId = base.defaultSortOrderId;
+      this.sortOrders = Lists.newArrayList(base.sortOrders);
+      this.properties = Maps.newHashMap(base.properties);
+      this.currentSnapshotId = base.currentSnapshotId;
+      this.snapshots = Lists.newArrayList(base.snapshots);
+      this.snapshotLog = Lists.newArrayList(snapshotLog);
+      this.previousFileLocation = base.metadataFileLocation;
+      this.previousFiles = base.previousFiles;
+
+      this.snapshotsById = Maps.newHashMap(base.snapshotsById);
+      this.schemasById = Maps.newHashMap(base.schemasById);
+      this.specsById = Maps.newHashMap(base.specsById);
+      this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
+    }
+
+    public Builder setCurrentSchema(Schema newSchema, int lastColumnId) {
+      return setCurrentSchema(addSchemaInternal(newSchema, lastColumnId));
+    }
+
+    public Builder setCurrentSchema(int schemaId) {
+      Schema schema = schemasById.get(schemaId);
+      Preconditions.checkArgument(schema != null, "Cannot set current schema to unknown schema: %s", schemaId);
+
+      // rebuild all the partition specs and sort orders for the new current schema
+      this.specs = Lists.transform(specs, spec -> updateSpecSchema(schema, spec));
+      specsById.clear();
+      specsById.putAll(indexSpecs(specs));
+
+      this.sortOrders = Lists.transform(sortOrders, order -> updateSortOrderSchema(schema, order));
+      sortOrdersById.clear();
+      sortOrdersById.putAll(indexSortOrders(sortOrders));
+
+      this.currentSchemaId = schemaId;
+
+      changes.add(new MetadataUpdate.SetCurrentSchemaId(schemaId));
+
+      return this;
+    }
+
+    private Builder addSchema(Schema schema, int newLastColumnId) {
+      addSchemaInternal(schema, newLastColumnId);
+      return this;
+    }
+
+    public TableMetadata build() {
+      if (lastUpdatedMillis == null) {
+        this.lastUpdatedMillis = System.currentTimeMillis();
+      }
+
+      List<MetadataLogEntry> metadataHistory = addPreviousFile(previousFileLocation, lastUpdatedMillis);
+
+      return new TableMetadata(
+          null, formatVersion, uuid, location,
+          lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+          lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+          snapshots, snapshotLog, metadataHistory
+      );
+    }
+
+    private int addSchemaInternal(Schema schema, int newLastColumnId) {
+      Preconditions.checkArgument(newLastColumnId >= lastColumnId,
+          "Invalid last column ID: %s < %s (previous last column ID)", newLastColumnId, lastColumnId);
+
+      int newSchemaId = reuseOrCreateNewSchemaId(schema);
+      if (currentSchemaId == newSchemaId && newLastColumnId == lastColumnId) {
+        // the new spec and last column id is already current and no change is needed
+        return currentSchemaId;
+      }
+
+      this.lastColumnId = newLastColumnId;
+
+      Schema newSchema;
+      if (newSchemaId != schema.schemaId()) {
+        newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
+      } else {
+        newSchema = schema;
+      }
+
+      if (!schemasById.containsKey(newSchemaId)) {
+        schemas.add(newSchema);
+        schemasById.put(newSchema.schemaId(), newSchema);
+      }
+
+      changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+
+      return newSchemaId;
+    }
+
+    private int reuseOrCreateNewSchemaId(Schema newSchema) {
+      // if the schema already exists, use its id; otherwise use the highest id + 1
+      int newSchemaId = currentSchemaId;
+      for (Schema schema : schemas) {
+        if (schema.sameSchema(newSchema)) {
+          newSchemaId = schema.schemaId();
+          break;
+        } else if (schema.schemaId() >= newSchemaId) {
+          newSchemaId = schema.schemaId() + 1;
+        }
+      }
+      return newSchemaId;
+    }
+
+    private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis) {
+      if (previousFileLocation == null) {
+        return previousFiles;
+      }
+
+      int maxSize = Math.max(1, PropertyUtil.propertyAsInt(properties,
+          TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
+
+      List<MetadataLogEntry> newMetadataLog;
+      if (previousFiles.size() >= maxSize) {
+        int removeIndex = previousFiles.size() - maxSize + 1;
+        newMetadataLog = Lists.newArrayList(previousFiles.subList(removeIndex, previousFiles.size()));
+      } else {
+        newMetadataLog = Lists.newArrayList(previousFiles);
+      }
+      newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFileLocation));
+
+      return newMetadataLog;
+    }
   }
 }
