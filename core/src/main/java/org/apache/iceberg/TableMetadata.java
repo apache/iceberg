@@ -745,6 +745,13 @@ public class TableMetadata implements Serializable {
         snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), refs);
   }
 
+  public TableMetadata updateSnapshotReference(List<SnapshotReference> newRefs) {
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots,
+        snapshotLog, addPreviousFile(file, lastUpdatedMillis), newRefs, currentBranch);
+  }
+
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
         .withSpecId(partitionSpec.specId());
