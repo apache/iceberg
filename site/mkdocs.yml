@@ -75,6 +75,7 @@ nav:
     - Maintenance: maintenance.md
     - Performance: performance.md
     - Reliability: reliability.md
+    - Row-Level Deletes: row-level-deletes.md
   - Spark:
     - Getting Started: getting-started.md
     - Configuration: spark-configuration.md
