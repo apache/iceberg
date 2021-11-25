@@ -122,8 +122,6 @@ public class SnapshotReference {
     }
 
     public SnapshotReference build() {
-      ValidationException.check(snapshotId > 0, "Snapshot ID must be greater than 0");
-
       if (type.equals(SnapshotReferenceType.TAG)) {
         ValidationException.check(minSnapshotsToKeep == null,
             "TAG type snapshot reference does not support setting minSnapshotsToKeep");

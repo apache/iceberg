@@ -866,18 +866,20 @@ public class TableMetadata implements Serializable {
       schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
-    // exclude main branch reference because current snapshot ID is set to -1
-    ImmutableMap.Builder<String, SnapshotReference> newRefsBuilder = ImmutableMap.builder();
-    refs.entrySet().stream()
-        .filter(e -> !e.getKey().equals(MAIN_BRANCH))
-        .forEach(newRefsBuilder::put);
+    SnapshotReference mainBranch = SnapshotReference.builderFrom(refs.get(MAIN_BRANCH))
+        .snapshotId(-1)
+        .build();
+    Map<String, SnapshotReference> newRefs = new ImmutableMap.Builder<String, SnapshotReference>()
+        .putAll(refs())
+        .put(MAIN_BRANCH, mainBranch)
+        .build();
 
     TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
         specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(),
-        addPreviousFile(metadataFileLocation, lastUpdatedMillis, newProperties), newRefsBuilder.build());
+        addPreviousFile(metadataFileLocation, lastUpdatedMillis, newProperties), newRefs);
 
     if (formatVersion != newFormatVersion) {
       metadata = metadata.upgradeToFormatVersion(newFormatVersion);
@@ -1034,7 +1036,7 @@ public class TableMetadata implements Serializable {
               "Snapshot reference %s does not exist in the existing snapshots list", ref);
     }
 
-    if (!inputRefs.containsKey(MAIN_BRANCH) && currentSnapshotId != -1) {
+    if (!inputRefs.containsKey(MAIN_BRANCH)) {
       return new ImmutableMap.Builder<String, SnapshotReference>()
           .putAll(inputRefs)
           .put(MAIN_BRANCH, SnapshotReference.builderForBranch(currentSnapshotId).build())

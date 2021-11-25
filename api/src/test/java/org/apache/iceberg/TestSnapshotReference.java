@@ -78,11 +78,6 @@ public class TestSnapshotReference {
 
   @Test
   public void testTagBuildFailures() {
-    AssertHelpers.assertThrows("Snapshot ID must be greater than 0",
-        ValidationException.class,
-        "Snapshot ID must be greater than 0",
-        () -> SnapshotReference.builderForTag(-2L).build());
-
     AssertHelpers.assertThrows("Max reference age must be greater than 0 for tag",
         ValidationException.class,
         "Max reference age must be greater than 0",
