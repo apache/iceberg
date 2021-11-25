@@ -61,9 +61,8 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "List type must have element field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type listType = Types.list(list.getRepetition())
-        .element(elementType)
-        .named(list.getName());
+    GroupType repeatedElement = list.getType(0).asGroupType();
+    Type listType = list.withNewFields(repeatedElement.withNewFields(elementType));
 
     return field == null ? listType : listType.withId(field.id());
   }
@@ -74,10 +73,8 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "Map type must have both key field and value field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type mapType = Types.map(map.getRepetition())
-        .key(keyType)
-        .value(valueType)
-        .named(map.getName());
+    GroupType repeatedKeyValue = map.getType(0).asGroupType();
+    Type mapType = map.withNewFields(repeatedKeyValue.withNewFields(keyType, valueType));
 
     return field == null ? mapType : mapType.withId(field.id());
   }
