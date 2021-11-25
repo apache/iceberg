@@ -37,6 +37,7 @@ import org.apache.spark.sql.sources.IsNotNull;
 import org.apache.spark.sql.sources.IsNull;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
+import org.apache.spark.sql.sources.Not;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -130,5 +131,20 @@ public class TestSparkFilters {
 
     Assert.assertEquals("Generated date expression should be correct",
         rawExpression.toString(), dateExpression.toString());
+  }
+
+  @Test
+  public void testDoubleNegation() {
+    Not filter = Not.apply(Not.apply(In.apply("col", new Integer[]{1, 2})));
+    Expression converted = SparkFilters.convert(filter);
+    Assert.assertNull("Expression should not be converted", converted);
+  }
+
+  @Test
+  public void testNotIn() {
+    Not filter = Not.apply(In.apply("col", new Integer[]{1, 2}));
+    Expression actual = SparkFilters.convert(filter);
+    Expression expected = Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
+    Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
   }
 }
