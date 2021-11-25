@@ -1,28 +1,32 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg;
 
 import java.io.File;
 import java.util.List;
-import org.apache.iceberg.exceptions.ValidationException;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.apache.iceberg.Files.localInput;
 
 public class TestSnapshotReferenceUpdate extends TableTestBase {
 
@@ -39,61 +43,51 @@ public class TestSnapshotReferenceUpdate extends TableTestBase {
 
     this.metadataDir = new File(tableDir, "metadata");
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
-    SnapshotReference newBranchRef = SnapshotReference.builderFor(123, "testBranch",
+    SnapshotReference newBranchRef = SnapshotReference.builderFor(
+        123,
         SnapshotReferenceType.BRANCH)
-        .withMaxSnapshotAgeMs(1)
-        .withMinSnapshotsToKeep(1)
+        .maxSnapshotAgeMs(1L)
+        .minSnapshotsToKeep(1)
         .build();
-    SnapshotReference newTagRef = SnapshotReference.builderFor(123, "testTag",
+    SnapshotReference newTagRef = SnapshotReference.builderFor(
+        123,
         SnapshotReferenceType.TAG)
-        .withMaxSnapshotAgeMs(1)
+        .maxRefAgeMs(1L)
         .build();
     TableMetadata base = table.ops().current();
-    List<SnapshotReference> refs = Lists.newArrayList();
-    refs.add(newTagRef);
-    refs.add(newBranchRef);
+    Map<String, SnapshotReference> refs = Maps.newHashMap();
+    refs.put("testTag", newTagRef);
+    refs.put("testBranch", newBranchRef);
     List<Snapshot> branchSnapshot =
         Lists.newArrayList(new BaseSnapshot(table.ops().io(), 123, null, "file:/tmp/manifest1" +
             ".avro"));
-    TableMetadata newTableMetadata = new TableMetadata(localInput(metadataDir), base.formatVersion(), base.uuid(),
+    TableMetadata newTableMetadata = new TableMetadata(metadataDir.getAbsolutePath(), base.formatVersion(), base.uuid(),
         base.location(),
         base.lastSequenceNumber(), base.lastUpdatedMillis(), base.lastColumnId(), base.currentSchemaId(),
         base.schemas(), base.defaultSpecId(), base.specs(), base.lastAssignedPartitionId(),
         base.defaultSortOrderId(), base.sortOrders(), base.properties(), 123, branchSnapshot,
-        base.snapshotLog(), base.previousFiles(), refs, base.currentBranch());
+        base.snapshotLog(), base.previousFiles(), refs);
     table.ops().commit(base, newTableMetadata);
   }
 
   @Test
-  public void testRemoveSnapshotReference() {
+  public void testRemoveReference() {
     SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.removeSnapshotReference("testBranch");
+    updateSnapshotReference.removeReference("testBranch");
     updateSnapshotReference.commit();
     table.refresh();
-    Assert.assertNull(table.ops().current().ref("testBranch"));
+    Assert.assertNull(table.ops().current().refs().get("testBranch"));
   }
 
   @Test
-  public void testUpdateMaxSnapshotAgeMs() {
+  public void setRetention() {
     SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.updateMaxSnapshotAgeMs(2, "testBranch");
+    updateSnapshotReference.setRetention("testBranch", null, 2, 2L);
     updateSnapshotReference.commit();
     table.refresh();
-    Assert.assertEquals(table.ops().current().ref("testBranch").maxSnapshotAgeMs(), 2);
-  }
-
-  @Test
-  public void testUpdateMinSnapshotsToKeep() {
-    SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.updateMinSnapshotsToKeep(2, "testBranch");
-    updateSnapshotReference.commit();
-    table.refresh();
-    Assert.assertTrue(table.ops().current().ref("testBranch").minSnapshotsToKeep() == 2);
-
-    AssertHelpers.assertThrows(
-        "Check updateMinSnapshotsToKeep",
-        ValidationException.class, "TAG type snapshot reference does not support setting minSnapshotsToKeep",
-        () -> updateSnapshotReference.updateMinSnapshotsToKeep(2, "testTag"));
+    Assert.assertEquals(table.ops().current().refs().get("testBranch").maxSnapshotAgeMs().longValue(), 1);
+    Assert.assertEquals(table.ops().current().refs().get("testBranch").minSnapshotsToKeep().longValue(), 2);
+    Assert.assertEquals(table.ops().current().refs().get("testBranch").maxRefAgeMs().longValue(), 2);
   }
 
   @Test
@@ -102,22 +96,22 @@ public class TestSnapshotReferenceUpdate extends TableTestBase {
     updateSnapshotReference.updateName("testBranch", "newTestBranch");
     updateSnapshotReference.commit();
     table.refresh();
-    Assert.assertNull(table.ops().current().ref("testBranch"));
-    Assert.assertNotNull(table.ops().current().ref("newTestBranch"));
+    Assert.assertFalse(table.ops().current().refs().containsKey("testBranch"));
+    Assert.assertTrue(table.ops().current().refs().containsKey("newTestBranch"));
   }
 
   @Test
   public void testUpdateReference() {
-    SnapshotReference newTagRef = SnapshotReference.builderFor(123, "newTestTag",
-        SnapshotReferenceType.TAG)
-        .withMaxSnapshotAgeMs(1)
+    SnapshotReference newTagRef = SnapshotReference.builderFor(
+        123,
+        SnapshotReferenceType.BRANCH)
+        .maxSnapshotAgeMs(3L)
         .build();
-    SnapshotReference oldTagRef = table.ops().current().ref("testTag");
     SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.updateReference(oldTagRef, newTagRef);
+    updateSnapshotReference.updateReference("testBranch", "newTestBranch", newTagRef);
     updateSnapshotReference.commit();
     table.refresh();
-    Assert.assertNull(table.ops().current().ref("testTag"));
-    Assert.assertNotNull(table.ops().current().ref("newTestTag"));
+    Assert.assertFalse(table.ops().current().refs().containsKey("testBranch"));
+    Assert.assertTrue(table.ops().current().refs().containsKey("newTestBranch"));
   }
 }

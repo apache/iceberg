@@ -1,20 +1,25 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg;
 
-import java.util.List;
+import java.util.Map;
 
 /**
  * API for updating snapshot reference.
@@ -24,7 +29,7 @@ import java.util.List;
  * When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will be resolved by applying the pending changes to the new table metadata.
  */
-public interface UpdateSnapshotReference extends PendingUpdate<List<SnapshotReference>> {
+public interface UpdateSnapshotReference extends PendingUpdate<Map<String, SnapshotReference>> {
 
   /**
    * remove snapshotReference.
@@ -33,25 +38,19 @@ public interface UpdateSnapshotReference extends PendingUpdate<List<SnapshotRefe
    * @return this
    * @throws IllegalArgumentException If there is no such snapshot reference named name
    */
-  UpdateSnapshotReference removeSnapshotReference(String name);
-
-  /**
-   * Update maxSnapshotAgeMs of snapshotReference what will be search by referenceName and snapshotReferenceType.
-   *
-   * @param maxSnapshotAgeMs new maxSnapshotAgeMs for snapshot reference
-   * @param name    name of snapshot reference what will be update
-   * @return this
-   */
-  UpdateSnapshotReference updateMaxSnapshotAgeMs(long maxSnapshotAgeMs, String name);
+  UpdateSnapshotReference removeReference(String name);
 
   /**
    * Update minSnapshotsToKeep of snapshotReference what will be search by referenceName and snapshotReferenceType.
    *
-   * @param minSnapshotsToKeep new minSnapshotsToKeep for snapshot reference
-   * @param name               name of snapshot reference what will be update
+   * @param ageMs       new maxSnapshotAgeMs for snapshot reference. If null will not update.
+   * @param numToKeep   new minSnapshotsToKeep for snapshot reference. If null will not update.
+   * @param maxRefAgeMs new maxRefAgeMs for snapshot reference. If null will not update.
+   * @param name        name of snapshot reference what will be update
    * @return this
    */
-  UpdateSnapshotReference updateMinSnapshotsToKeep(Integer minSnapshotsToKeep, String name);
+
+  UpdateSnapshotReference setRetention(String name, Long ageMs, Integer numToKeep, Long maxRefAgeMs);
 
   /**
    * Update name of snapshotReference what will be search by referenceName and snapshotReferenceType.
@@ -65,9 +64,10 @@ public interface UpdateSnapshotReference extends PendingUpdate<List<SnapshotRefe
   /**
    * replace old snapshotReference by new snapshotReference
    *
-   * @param oldReference old reference
+   * @param oldName      old reference name
+   * @param newName      new reference name
    * @param newReference new reference
    * @return this
    */
-  UpdateSnapshotReference updateReference(SnapshotReference oldReference, SnapshotReference newReference);
+  UpdateSnapshotReference updateReference(String oldName, String newName, SnapshotReference newReference);
 }
