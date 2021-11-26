@@ -136,8 +136,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals("Should have the expected row key.",
         Sets.newHashSet(table.schema().findField("key").fieldId()),
         table.schema().identifierFieldIds());
-
+    sql("alter table tl SET ('write.format.default'='avro')");
     CatalogTable catalogTable = catalogTable("tl");
+
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
     Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
     Assert.assertEquals("Should have the expected columns",
