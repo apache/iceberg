@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.apache.iceberg.aliyun.oss;
+package org.apache.iceberg.aliyun;
 
+import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
 import org.apache.iceberg.aliyun.oss.mock.AliyunOSSMockRule;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -40,7 +41,7 @@ public class AliyunTestUtility {
   public static AliyunOSSTestRule initialize() {
     AliyunOSSTestRule testRule;
 
-    String implClass = systemEnv(ALIYUN_TEST_OSS_RULE_CLASS);
+    String implClass = System.getenv(ALIYUN_TEST_OSS_RULE_CLASS);
     if (!Strings.isNullOrEmpty(implClass)) {
       LOG.info("The initializing AliyunOSSTestRule implementation is: {}", implClass);
       try {
@@ -62,27 +63,23 @@ public class AliyunTestUtility {
     return testRule;
   }
 
-  public static String testOSSEndpoint() {
-    return systemEnv(ALIYUN_TEST_OSS_ENDPOINT);
+  public static String ossEndpoint() {
+    return System.getenv(ALIYUN_TEST_OSS_ENDPOINT);
   }
 
-  public static String testAccessKeyId() {
-    return systemEnv(ALIYUN_TEST_ACCESS_KEY_ID);
+  public static String accessKeyId() {
+    return System.getenv(ALIYUN_TEST_ACCESS_KEY_ID);
   }
 
-  public static String testAccessKeySecret() {
-    return systemEnv(ALIYUN_TEST_ACCESS_KEY_SECRET);
+  public static String accessKeySecret() {
+    return System.getenv(ALIYUN_TEST_ACCESS_KEY_SECRET);
   }
 
-  public static String testBucketName() {
-    return systemEnv(ALIYUN_TEST_BUCKET_NAME);
+  public static String bucketName() {
+    return System.getenv(ALIYUN_TEST_BUCKET_NAME);
   }
 
-  public static String testOssKeyPrefix() {
-    return systemEnv(ALIYUN_TEST_OSS_KEY_PREFIX);
-  }
-
-  private static String systemEnv(String name) {
-    return System.getenv(name);
+  public static String ossKeyPrefix() {
+    return System.getenv(ALIYUN_TEST_OSS_KEY_PREFIX);
   }
 }

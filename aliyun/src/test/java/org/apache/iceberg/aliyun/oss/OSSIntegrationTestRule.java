@@ -21,10 +21,11 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
-import com.aliyun.oss.model.ListObjectsRequest;
+import com.aliyun.oss.model.ListObjectsV2Request;
+import com.aliyun.oss.model.ListObjectsV2Result;
 import com.aliyun.oss.model.OSSObjectSummary;
-import com.aliyun.oss.model.ObjectListing;
 import java.util.UUID;
+import org.apache.iceberg.aliyun.AliyunTestUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -51,11 +52,11 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
 
   @Override
   public void start() {
-    endpoint = AliyunTestUtility.testOSSEndpoint();
-    accessKey = AliyunTestUtility.testAccessKeyId();
-    accessSecret = AliyunTestUtility.testAccessKeySecret();
-    testBucketName = AliyunTestUtility.testBucketName();
-    keyPrefix = AliyunTestUtility.testOssKeyPrefix();
+    endpoint = AliyunTestUtility.ossEndpoint();
+    accessKey = AliyunTestUtility.accessKeyId();
+    accessSecret = AliyunTestUtility.accessKeySecret();
+    testBucketName = AliyunTestUtility.bucketName();
+    keyPrefix = AliyunTestUtility.ossKeyPrefix();
     if (keyPrefix == null) {
       keyPrefix = String.format("iceberg-oss-testing-%s", UUID.randomUUID());
     }
@@ -86,14 +87,20 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
 
   @Override
   public void tearDownBucket(String bucket) {
-    ObjectListing objectListing = ossClient().listObjects(
-        new ListObjectsRequest(bucket)
-            .withPrefix(keyPrefix)
-    );
+    int maxKeys = 200;
+    String nextContinuationToken = null;
+    ListObjectsV2Result objectListingResult;
+    do {
+      ListObjectsV2Request listObjectsV2Request = new ListObjectsV2Request(bucket)
+          .withMaxKeys(maxKeys).withPrefix(keyPrefix).withContinuationToken(nextContinuationToken);
+      objectListingResult = ossClient().listObjectsV2(listObjectsV2Request);
 
-    for (OSSObjectSummary s : objectListing.getObjectSummaries()) {
-      ossClient().deleteObject(bucket, s.getKey());
-    }
+      for (OSSObjectSummary s : objectListingResult.getObjectSummaries()) {
+        ossClient().deleteObject(bucket, s.getKey());
+      }
+
+      nextContinuationToken = objectListingResult.getNextContinuationToken();
+    } while (objectListingResult.isTruncated());
   }
 
   private OSS ossClient() {

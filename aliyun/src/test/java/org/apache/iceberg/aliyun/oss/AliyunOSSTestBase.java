@@ -20,6 +20,7 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import org.apache.iceberg.aliyun.AliyunTestUtility;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.After;
 import org.junit.Before;
