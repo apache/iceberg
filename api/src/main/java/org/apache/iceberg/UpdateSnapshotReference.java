@@ -45,12 +45,21 @@ public interface UpdateSnapshotReference extends PendingUpdate<Map<String, Snaps
    *
    * @param ageMs       new maxSnapshotAgeMs for snapshot reference. If null will not update.
    * @param numToKeep   new minSnapshotsToKeep for snapshot reference. If null will not update.
+   * @param name        name of snapshot reference what will be update
+   * @return this
+   */
+
+  UpdateSnapshotReference setBranchRetention(String name, Long ageMs, Integer numToKeep);
+
+  /**
+   * Update minSnapshotsToKeep of snapshotReference what will be search by referenceName and snapshotReferenceType.
+   *
    * @param maxRefAgeMs new maxRefAgeMs for snapshot reference. If null will not update.
    * @param name        name of snapshot reference what will be update
    * @return this
    */
 
-  UpdateSnapshotReference setRetention(String name, Long ageMs, Integer numToKeep, Long maxRefAgeMs);
+  UpdateSnapshotReference setMaxRefAgeMs(String name, Long maxRefAgeMs);
 
   /**
    * Update name of snapshotReference what will be search by referenceName and snapshotReferenceType.

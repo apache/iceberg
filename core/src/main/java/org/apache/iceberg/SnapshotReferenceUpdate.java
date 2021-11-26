@@ -71,7 +71,7 @@ public class SnapshotReferenceUpdate implements UpdateSnapshotReference {
   }
 
   @Override
-  public UpdateSnapshotReference setRetention(String name, Long ageMs, Integer numToKeep, Long maxRefAgeMs) {
+  public UpdateSnapshotReference setBranchRetention(String name, Long ageMs, Integer numToKeep) {
     ValidationException.check(name != null, "Snapshot reference name can't be null");
     SnapshotReference baseReference = base.refs().get(name);
     ValidationException.check(baseReference != null, "Can't find snapshot reference named %s", name);
@@ -82,10 +82,30 @@ public class SnapshotReferenceUpdate implements UpdateSnapshotReference {
 
     Long newAgeMs = ageMs == null ? baseReference.maxSnapshotAgeMs() : ageMs;
     Integer newNumToKeep = numToKeep == null ? baseReference.minSnapshotsToKeep() : numToKeep;
-    Long newMaxRefAgeMs = maxRefAgeMs == null ? baseReference.maxRefAgeMs() : maxRefAgeMs;
 
     builder.maxSnapshotAgeMs(newAgeMs);
     builder.minSnapshotsToKeep(newNumToKeep);
+
+    SnapshotReference newRef = builder.build();
+
+    update.put(name, newRef);
+    removals.add(name);
+
+    return this;
+  }
+
+  @Override
+  public UpdateSnapshotReference setMaxRefAgeMs(String name, Long maxRefAgeMs) {
+    ValidationException.check(name != null, "Snapshot reference name can't be null");
+    SnapshotReference baseReference = base.refs().get(name);
+    ValidationException.check(baseReference != null, "Can't find snapshot reference named %s", name);
+
+    SnapshotReference.Builder builder = SnapshotReference.builderFor(
+            baseReference.snapshotId(),
+            baseReference.type());
+
+    Long newMaxRefAgeMs = maxRefAgeMs == null ? baseReference.maxRefAgeMs() : maxRefAgeMs;
+
     builder.maxRefAgeMs(newMaxRefAgeMs);
 
     SnapshotReference newRef = builder.build();

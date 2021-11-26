@@ -80,13 +80,21 @@ public class TestSnapshotReferenceUpdate extends TableTestBase {
   }
 
   @Test
-  public void setRetention() {
+  public void testSetBranchRetention() {
     SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.setRetention("testBranch", null, 2, 2L);
+    updateSnapshotReference.setBranchRetention("testBranch", null, 2);
     updateSnapshotReference.commit();
     table.refresh();
     Assert.assertEquals(table.ops().current().refs().get("testBranch").maxSnapshotAgeMs().longValue(), 1);
     Assert.assertEquals(table.ops().current().refs().get("testBranch").minSnapshotsToKeep().longValue(), 2);
+  }
+
+  @Test
+  public void testSetMaxRefAgeMs() {
+    SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
+    updateSnapshotReference.setMaxRefAgeMs("testBranch", 2L);
+    updateSnapshotReference.commit();
+    table.refresh();
     Assert.assertEquals(table.ops().current().refs().get("testBranch").maxRefAgeMs().longValue(), 2);
   }
 
