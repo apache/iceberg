@@ -129,6 +129,27 @@ public class PartitionSpec implements Serializable {
     return Types.StructType.of(structFields);
   }
 
+  public Types.StructType maxPartitionType(Map<Integer, PartitionSpec> specs) {
+    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
+
+    int position = 0;
+    for (int i = 0; i < specs.size(); i++) {
+      PartitionSpec partitionSpec = specs.get(i);
+      List<PartitionField> pfields = partitionSpec.fields();
+      for (int j = position; j < pfields.size(); j += 1) {
+        PartitionField field = pfields.get(j);
+        if (!"void".equals(field.transform().toString())) {
+          Type sourceType = schema.findType(field.sourceId());
+          Type resultType = field.transform().getResultType(sourceType);
+          structFields.add(
+              Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+          ++position;
+        }
+      }
+    }
+    return Types.StructType.of(structFields);
+  }
+
   public Class<?>[] javaClasses() {
     if (lazyJavaClasses == null) {
       synchronized (this) {

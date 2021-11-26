@@ -46,7 +46,7 @@ public class PartitionsTable extends BaseMetadataTable {
     super(ops, table, name);
 
     this.schema = new Schema(
-        Types.NestedField.required(1, "partition", table.spec().partitionType()),
+        Types.NestedField.required(1, "partition", table.spec().maxPartitionType(table.specs())),
         Types.NestedField.required(2, "record_count", Types.LongType.get()),
         Types.NestedField.required(3, "file_count", Types.IntegerType.get())
     );
@@ -96,7 +96,7 @@ public class PartitionsTable extends BaseMetadataTable {
   private static Iterable<Partition> partitions(StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
 
-    PartitionMap partitions = new PartitionMap(scan.table().spec().partitionType());
+    PartitionMap partitions = new PartitionMap(scan.table().spec().maxPartitionType(scan.table().specs()));
     for (FileScanTask task : tasks) {
       partitions.get(task.file().partition()).update(task.file());
     }
