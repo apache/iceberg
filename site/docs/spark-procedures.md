@@ -209,16 +209,16 @@ Erase all snapshots older than the current timestamp but retain the last 5 snaps
 CALL hive_prod.system.expire_snapshots(table => 'db.sample', older_than => now(), retain_last => 5)
 ```
 
-### `delete_orphan_files`
+### `remove_orphan_files`
 
-Used to delete files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
+Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
 
 #### Usage
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to clean |
-| `older_than`  | ️   | timestamp | Delete orphan files created before this timestamp (Defaults to 3 days ago) |
+| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
 | `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 
@@ -230,18 +230,15 @@ Used to delete files which are not referenced in any metadata files of an Iceber
 
 #### Examples
 
-List all the files that are candidates for removal by performing a dry run of the `delete_orphan_files` command on this table without actually removing them:
+List all the files that are candidates for removal by performing a dry run of the `remove_orphan_files` command on this table without actually removing them:
 ```sql
-CALL catalog_name.system.delete_orphan_files(table => 'db.sample', dry_run => true)
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => true)
 ```
 
 Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
 ```sql
-CALL catalog_name.system.delete_orphan_files(table => 'db.sample', location => 'tablelocation/data')
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
 ```
-
-**Note** this call procedure was previously called as 'remove_orphan_files'.
-To avoid breaking changes, we still support that method. It will internally use the same procedure.
 
 ### `rewrite_manifests`
 

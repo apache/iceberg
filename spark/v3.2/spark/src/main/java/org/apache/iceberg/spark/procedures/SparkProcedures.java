@@ -46,9 +46,6 @@ public class SparkProcedures {
     mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);
     mapBuilder.put("cherrypick_snapshot", CherrypickSnapshotProcedure::builder);
     mapBuilder.put("rewrite_manifests", RewriteManifestsProcedure::builder);
-    mapBuilder.put("delete_orphan_files", DeleteOrphanFilesProcedure::builder);
-    // To avoid a breaking change,
-    // we are supporting both 'delete_orphan_files' and 'remove_orphan_files' even though they use same procedure.
     mapBuilder.put("remove_orphan_files", DeleteOrphanFilesProcedure::builder);
     mapBuilder.put("expire_snapshots", ExpireSnapshotsProcedure::builder);
     mapBuilder.put("migrate", MigrateTableProcedure::builder);
