@@ -111,6 +111,11 @@ public class CatalogUtil {
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
+    Tasks.foreach(Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((manifest, exc) -> LOG.warn("Delete failed for previous metadata file: {}", manifest, exc))
+        .run(io::deleteFile);
+
     Tasks.foreach(metadata.metadataFileLocation())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
