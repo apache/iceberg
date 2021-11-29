@@ -73,7 +73,7 @@ public class TestSnapshotReferenceUpdate extends TableTestBase {
   @Test
   public void testRemoveReference() {
     SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.removeReference("testBranch");
+    updateSnapshotReference.removeRef("testBranch");
     updateSnapshotReference.commit();
     table.refresh();
     Assert.assertNull(table.ops().current().refs().get("testBranch"));
@@ -92,7 +92,7 @@ public class TestSnapshotReferenceUpdate extends TableTestBase {
   @Test
   public void testSetMaxRefAgeMs() {
     SnapshotReferenceUpdate updateSnapshotReference = new SnapshotReferenceUpdate(table.ops());
-    updateSnapshotReference.setMaxRefAgeMs("testBranch", 2L);
+    updateSnapshotReference.setRefLifetime("testBranch", 2L);
     updateSnapshotReference.commit();
     table.refresh();
     Assert.assertEquals(table.ops().current().refs().get("testBranch").maxRefAgeMs().longValue(), 2);

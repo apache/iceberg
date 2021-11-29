@@ -20,14 +20,13 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import org.apache.iceberg.exceptions.CommitFailedException;
 
 /**
  * API for updating snapshot reference.
  * <p>
- * Apply returns the updated snapshot reference as a {@link SnapshotReference} for validation.
- * <p>
  * When committing, these changes will be applied to the current table metadata. Commit conflicts
- * will be resolved by applying the pending changes to the new table metadata.
+ * will not be resolved and will result in a {@link CommitFailedException}.
  */
 public interface UpdateSnapshotReference extends PendingUpdate<Map<String, SnapshotReference>> {
 
@@ -38,31 +37,29 @@ public interface UpdateSnapshotReference extends PendingUpdate<Map<String, Snaps
    * @return this
    * @throws IllegalArgumentException If there is no such snapshot reference named name
    */
-  UpdateSnapshotReference removeReference(String name);
+  UpdateSnapshotReference removeRef(String name);
 
   /**
-   * Update minSnapshotsToKeep of snapshotReference what will be search by referenceName and snapshotReferenceType.
+   * Update branch retention what will be search by referenceName.
    *
-   * @param ageMs       new maxSnapshotAgeMs for snapshot reference. If null will not update.
-   * @param numToKeep   new minSnapshotsToKeep for snapshot reference. If null will not update.
-   * @param name        name of snapshot reference what will be update
+   * @param ageMs     For `branch` type only, a positive number for the max age of snapshots to keep in a branch while expiring snapshots, default to the value of table property `history.expire.max-snapshot-age-ms` when evaluated
+   * @param numToKeep For `branch` type only, a positive number for the minimum number of snapshots to keep in a branch while expiring snapshots, default to the value of table property `history.expire.min-snapshots-to-keep` when evaluated
+   * @param name      name of snapshot reference what will be update
    * @return this
    */
-
   UpdateSnapshotReference setBranchRetention(String name, Long ageMs, Integer numToKeep);
 
   /**
-   * Update minSnapshotsToKeep of snapshotReference what will be search by referenceName and snapshotReferenceType.
+   * Update refLifetime of snapshotReference what will be search by referenceName.
    *
-   * @param maxRefAgeMs new maxRefAgeMs for snapshot reference. If null will not update.
+   * @param maxRefAgeMs For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires.
    * @param name        name of snapshot reference what will be update
    * @return this
    */
-
-  UpdateSnapshotReference setMaxRefAgeMs(String name, Long maxRefAgeMs);
+  UpdateSnapshotReference setRefLifetime(String name, Long maxRefAgeMs);
 
   /**
-   * Update name of snapshotReference what will be search by referenceName and snapshotReferenceType.
+   * Update name of snapshotReference what will be search by referenceName.
    *
    * @param oldName old name of snapshot reference
    * @param name    new name for snapshot reference
@@ -71,7 +68,7 @@ public interface UpdateSnapshotReference extends PendingUpdate<Map<String, Snaps
   UpdateSnapshotReference updateName(String oldName, String name);
 
   /**
-   * replace old snapshotReference by new snapshotReference
+   * replace old snapshotReference by new snapshotReference.
    *
    * @param oldName      old reference name
    * @param newName      new reference name

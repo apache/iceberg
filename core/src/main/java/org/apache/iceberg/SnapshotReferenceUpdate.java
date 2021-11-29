@@ -59,7 +59,7 @@ public class SnapshotReferenceUpdate implements UpdateSnapshotReference {
   }
 
   @Override
-  public UpdateSnapshotReference removeReference(String name) {
+  public UpdateSnapshotReference removeRef(String name) {
     ValidationException.check(name != null, "Snapshot reference name can't be null");
     ValidationException.check(base.refs().containsKey(name), "Can't find snapshot reference named %s", name);
     ValidationException.check(!removals.contains(name), "Update multiple properties for snapshot reference should use" +
@@ -95,7 +95,7 @@ public class SnapshotReferenceUpdate implements UpdateSnapshotReference {
   }
 
   @Override
-  public UpdateSnapshotReference setMaxRefAgeMs(String name, Long maxRefAgeMs) {
+  public UpdateSnapshotReference setRefLifetime(String name, Long maxRefAgeMs) {
     ValidationException.check(name != null, "Snapshot reference name can't be null");
     SnapshotReference baseReference = base.refs().get(name);
     ValidationException.check(baseReference != null, "Can't find snapshot reference named %s", name);
