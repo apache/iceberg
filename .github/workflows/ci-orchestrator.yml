@@ -52,4 +52,3 @@ jobs:
         uses: apache/iceberg/.github/workflows/hive-ci-workflow.yml@master
       - if: ${{ matrix.workflox == 'spark' }}
         uses: apache/iceberg/.github/workflows/spark-ci-workflow.yml@master
-      - if: ${{ matrix.workflow == '
