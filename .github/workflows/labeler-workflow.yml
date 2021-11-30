@@ -17,17 +17,18 @@
 # under the License.
 #
 
-name: "Run License Check"
-on: pull_request
+name: "Pull Request Labeler Workflow"
+on: pull_request_target
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  rat:
+  triage:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - run: |
-        dev/check-license
+    - uses: actions/labeler@v2
+      with:
+        repo-token: "${{ secrets.GITHUB_TOKEN }}"
+        sync-labels: true

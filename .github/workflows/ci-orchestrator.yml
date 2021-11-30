@@ -36,7 +36,14 @@ concurrency:
 
 
 jobs:
+  initial-actions:
+    name: "Initial CI Actions"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: apache/iceberg/.github/workflows/labeler-workflow.yml@master
+      - uses: apache/iceberg/.github/workflows/license-check-workflow.yml@master
   ci-orchestrator:
+    needs: ["initial-actions"]
     if: ${{ !github.event.pull_request.draft }}  # Don't run in a draft.
     runs-on: ubuntu-latest
     strategy:
