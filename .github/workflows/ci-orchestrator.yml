@@ -25,16 +25,32 @@ on:
       - opened
       - reopened
       - ready_for_review
-      - synchronize # Synchronize represents any kind of push or change to head ref on an open PR.
+      # Synchronize represents any kind of push or change to head ref on an open PR.
+      - synchronize
 
 concurrency:
   group: ${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  call-flink-workflow:
-    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}  # Don't run in a draft.
-    uses: apache/iceberg/.github/workflows/flink-ci-workflow.yml@master
-  call-spark-workflow:
-    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
-    uses: apache/iceberg/.github/workflows/spark-ci-workflow.yml@master
+  ci-orchestrator:
+    if: ${{ !github.event.pull_request.draft }}  # Don't run in a draft.
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 8  # Arbitrary - change or remove.
+      matrix:
+        # TODO - Can we just use several `uses` without this and still abort parallel runs if one fails early?
+        workflow: ['flink', 'spark']
+        # TODO - Or, if we use just the above, can we delegate the rest of the strategy to each called workflow file?
+        jvm: [8, 11]
+        flink: ["1.12", "1.13"]
+        spark: ["2.4", "3.0", "3.1"]
+    steps:
+      - uses: apache/iceberg/.github/workflows/flink-ci-workflow.yml@master
+        if: ${{ matrix.workflow == 'flink' }}
+        with:
+          # TODO - Are these needed?
+          jvm: jvm
+          flink: flink
+      - if: ${{ matrix.workflox == 'spark' }}
+        uses: apache/iceberg/.github/workflows/spark-ci-workflow.yml@master
