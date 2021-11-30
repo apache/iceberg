@@ -37,6 +37,15 @@ on:
     - 'python_legacy/**'
     - 'site/**'
   pull_request:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      # Synchronize represents any kind of push or change to head ref on an open PR.
+      # Will remove `push` and save that _strictly_ for the master branch and then use
+      # synchronize for normal PR purposes instead so that every push to a random non-PR branch
+      # doesn't run workflows.
+      # - synchronize
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'
