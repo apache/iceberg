@@ -113,7 +113,7 @@ public class CatalogUtil {
 
     Tasks.foreach(Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
         .noRetry().suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for previous metadata file: {}", manifest, exc))
+        .onFailure((metadataFile, exc) -> LOG.warn("Delete failed for previous metadata file: {}", metadataFile, exc))
         .run(io::deleteFile);
 
     Tasks.foreach(metadata.metadataFileLocation())
