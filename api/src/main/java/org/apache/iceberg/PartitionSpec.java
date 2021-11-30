@@ -22,7 +22,11 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -315,7 +319,7 @@ public class PartitionSpec implements Serializable {
   public static class Builder {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
-    private final Set<String> partitionNamesAndTransform = new HashSet<>();
+    private final Set<String> partitionNameAndTransform = Sets.newHashSet();
     private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
@@ -347,9 +351,9 @@ public class PartitionSpec implements Serializable {
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
       String nameAndTransform = name + "_" + transformName;
-      Preconditions.checkArgument(!partitionNamesAndTransform.contains(nameAndTransform),
+      Preconditions.checkArgument(!partitionNameAndTransform.contains(nameAndTransform),
           "Cannot use partition name more than once: %s", name);
-      partitionNamesAndTransform.add(nameAndTransform);
+      partitionNameAndTransform.add(nameAndTransform);
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
