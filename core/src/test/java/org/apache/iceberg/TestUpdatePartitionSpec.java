@@ -606,7 +606,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testRemoveAndUpdate() {
+  public void testRemoveAndUpdateWithIdentity() {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
             .identity("ts")
             .identity("category")
@@ -662,6 +662,36 @@ public class TestUpdatePartitionSpec extends TableTestBase {
               updated.fields().get(1).transform().toString());
       Assert.assertEquals("Should match expected field transform", "identity",
               updated.fields().get(2).transform().toString());
+    }
+  }
+
+  @Test
+  public void testRemoveAndUpdateWithDifferentTransformation() {
+    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+            .month("ts", "ts_transformed")
+            .build();
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
+            .removeField("ts_transformed")
+            .addField("ts_transformed", day("ts"))
+            .apply();
+
+    if (formatVersion == 1) {
+      Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(1).name());
+
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "day",
+              updated.fields().get(1).transform().toString());
+    } else {
+      Assert.assertEquals("Should match expected spec field size", 1, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field transform", "day",
+              updated.fields().get(0).transform().toString());
     }
   }
 
