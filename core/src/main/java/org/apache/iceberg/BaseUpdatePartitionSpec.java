@@ -235,23 +235,19 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       if (!deletes.contains(field.fieldId())) {
         String newName = renames.get(field.name());
         if (newName != null) {
-          System.out.println("adding(1) " + field.name());
           builder.add(field.sourceId(), field.fieldId(), newName, field.transform());
         } else {
-          System.out.println("adding(2) " + field.name());
           builder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
         }
       } else if (formatVersion < 2) {
         // field IDs were not required for v1 and were assigned sequentially in each partition spec starting at 1,000.
         // to maintain consistent field ids across partition specs in v1 tables, any partition field that is removed
         // must be replaced with a null transform. null values are always allowed in partition data.
-        System.out.println("adding(3) " + field.name() + " with id " + field.fieldId());
         builder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
       }
     }
 
     for (PartitionField newField : adds) {
-      System.out.println("adding field " + newField.name() + " with id " + newField.fieldId());
       builder.add(newField.sourceId(), newField.fieldId(), newField.name(), newField.transform());
     }
 
