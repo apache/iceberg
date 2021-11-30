@@ -36,11 +36,10 @@ concurrency:
 
 
 jobs:
-  initial-actions:
-    name: "Initial CI Actions"
+  labeler:
+    uses: kbendick/iceberg/.github/workflows/labeler-workflow.yml@master
     runs-on: ubuntu-latest
     steps:
-      - uses: kbendick/iceberg/.github/workflows/labeler-workflow.yml@master
       - uses: kbendick/iceberg/.github/workflows/license-check-workflow.yml@master
   ci-orchestrator:
     needs: ["initial-actions"]
