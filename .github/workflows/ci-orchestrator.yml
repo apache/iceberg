@@ -48,11 +48,13 @@ jobs:
       matrix:
         # Putting each of the workflows into a matrix gives us automatic cancelling of
         # failed workflows for free.
-        workflow: ['flink', 'hive', 'spark']
+        workflow: ['flink', 'hive', 'java', 'spark']
     steps:
       - if: ${{ matrix.workflow == 'flink' }}
         uses: kbendick/iceberg/.github/workflows/flink-ci-workflow.yml@master
       - if: ${{ matrix.workflow == 'hive' }}
         uses: kbendick/iceberg/.github/workflows/hive-ci-workflow.yml@master
+      - if: ${{ matrix.workflow == 'java' }}
+        uses: kbendick/iceberg/.github/workflows/java-ci-workflow.yml@master
       - if: ${{ matrix.workflox == 'spark' }}
         uses: kbendick/iceberg/.github/workflows/spark-ci-workflow.yml@master

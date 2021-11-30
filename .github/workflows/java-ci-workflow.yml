@@ -17,26 +17,9 @@
 # under the License.
 #
 
-name: "Java CI"
+name: "Java CI Workflow"
 on:
-  push:
-    paths-ignore:
-    - '.github/workflows/python-ci.yml'
-    - '.github/workflows/spark-ci.yml'
-    - '.github/workflows/flink-ci.yml'
-    - '.github/workflows/hive-ci.yml'
-    - '.github/workflows/cancel-duplicate-workflow-runs.yml'
-    - '.gitignore'
-    - 'dev/**'
-    - 'python/**'
-    - 'python_legacy/**'
-    - 'site/**'
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - ready_for_review
-      - synchronize
+  workflow_call:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'
@@ -51,7 +34,6 @@ on:
 
 jobs:
   core-tests:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
