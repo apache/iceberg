@@ -608,18 +608,61 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRemoveAndUpdate() {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
-            .identity("category")
             .identity("ts")
+            .identity("category")
             .identity("id")
             .build();
-    new BaseUpdatePartitionSpec(formatVersion, expected)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
             .removeField("ts")
             .removeField("category")
             .removeField("id")
             .addField("ts")
-            .addField("id")
             .addField("category")
+            .addField("id")
             .apply();
+
+    if (formatVersion == 1) {
+      Assert.assertEquals("Should match expected spec field size", 6, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field name", "category",
+              updated.fields().get(1).name());
+      Assert.assertEquals("Should match expected field name", "id",
+              updated.fields().get(2).name());
+      Assert.assertEquals("Should match expected field name", "ts",
+              updated.fields().get(3).name());
+      Assert.assertEquals("Should match expected field name", "category",
+              updated.fields().get(4).name());
+      Assert.assertEquals("Should match expected field name", "id",
+              updated.fields().get(5).name());
+
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(1).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(2).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "identity",
+              updated.fields().get(3).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "identity",
+              updated.fields().get(4).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "identity",
+              updated.fields().get(5).transform().toString());
+    } else {
+      Assert.assertEquals("Should match expected spec field size", 3, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field name", "category",
+              updated.fields().get(1).name());
+      Assert.assertEquals("Should match expected field name", "id",
+              updated.fields().get(2).name());
+      Assert.assertEquals("Should match expected field transform", "identity",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "identity",
+              updated.fields().get(1).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "identity",
+              updated.fields().get(2).transform().toString());
+    }
   }
 
   private static int id(String name) {
