@@ -42,6 +42,14 @@ on:
       - 'python_legacy/**'
       - 'site/**'
 
+# Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time.defaults:
+# This can be used to remove the "Cancel Duplicates" CI.
+#
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#concurrency
+concurrency:
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
   flink-tests:
     if: ${{ !github.event.pull_request.draft }} # Don't run in a draft.
