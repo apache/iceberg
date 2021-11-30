@@ -62,7 +62,6 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @RunWith(Parameterized.class)
 public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {

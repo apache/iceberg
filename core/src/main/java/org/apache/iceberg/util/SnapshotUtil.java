@@ -106,6 +106,7 @@ public class SnapshotUtil {
    * and finds the oldest ancestor snapshot after or equal to the timestamp in milliseconds.
    * @return null if there is no current snapshot in the table,
    * else the oldest ancestor snapshot after or equal to the timestamp in milliseconds.
+   * If there is no qualify snapshot, returns the oldest ancestor instead
    */
   public static Snapshot oldestAncestorAfter(Table table, Long timestampMillis) {
     Snapshot current = table.currentSnapshot();
@@ -116,13 +117,13 @@ public class SnapshotUtil {
 
     for (Snapshot snapshot : currentAncestors(table)) {
       if (snapshot.timestampMillis() < timestamp) {
-        break;
+        return current;
       }
 
       current = snapshot;
     }
 
-    return current;
+    return oldestAncestor(table);
   }
 
   /**

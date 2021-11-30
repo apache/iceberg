@@ -88,7 +88,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
-    this.fromTimestamp = readConf.fromTimestamp();
+    this.fromTimestamp = readConf.streamFromTimestamp();
 
     InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
@@ -115,7 +115,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public InputPartition[] planInputPartitions(Offset start, Offset end) {
     Preconditions.checkArgument(end instanceof StreamingOffset, "Invalid end offset: %s is not a StreamingOffset", end);
     Preconditions.checkArgument(
-            start instanceof StreamingOffset, "Invalid start offset: %s is not a StreamingOffset", start);
+        start instanceof StreamingOffset, "Invalid start offset: %s is not a StreamingOffset", start);
 
     if (end.equals(StreamingOffset.START_OFFSET)) {
       return new InputPartition[0];
@@ -127,18 +127,18 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     List<FileScanTask> fileScanTasks = planFiles(startOffset, endOffset);
 
     CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-            CloseableIterable.withNoopClose(fileScanTasks),
-            splitSize);
+        CloseableIterable.withNoopClose(fileScanTasks),
+        splitSize);
     List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(
-            TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+        TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
     InputPartition[] readTasks = new InputPartition[combinedScanTasks.size()];
 
     Tasks.range(readTasks.length)
-            .stopOnFailure()
-            .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-            .run(index -> readTasks[index] = new ReadTask(
-                    combinedScanTasks.get(index), tableBroadcast, expectedSchema,
-                    caseSensitive, localityPreferred));
+        .stopOnFailure()
+        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
+        .run(index -> readTasks[index] = new ReadTask(
+            combinedScanTasks.get(index), tableBroadcast, expectedSchema,
+            caseSensitive, localityPreferred));
 
     return readTasks;
   }
@@ -169,8 +169,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
-            new StreamingOffset(SnapshotUtil.oldestAncestorAfter(table, fromTimestamp).snapshotId(), 0, false) :
-            startOffset;
+        new StreamingOffset(SnapshotUtil.oldestAncestorAfter(table, fromTimestamp).snapshotId(), 0, false) :
+        startOffset;
 
     StreamingOffset currentOffset = null;
 
@@ -188,9 +188,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       }
 
       MicroBatch latestMicroBatch = MicroBatches.from(table.snapshot(currentOffset.snapshotId()), table.io())
-              .caseSensitive(caseSensitive)
-              .specsById(table.specs())
-              .generate(currentOffset.position(), Long.MAX_VALUE, currentOffset.shouldScanAllFiles());
+          .caseSensitive(caseSensitive)
+          .specsById(table.specs())
+          .generate(currentOffset.position(), Long.MAX_VALUE, currentOffset.shouldScanAllFiles());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
@@ -201,10 +201,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
     Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
-            "Cannot process delete snapshot: %s", snapshot.snapshotId());
+        "Cannot process delete snapshot: %s", snapshot.snapshotId());
     Preconditions.checkState(
-            op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
-            "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
+        op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
+        "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
     return op.equals(DataOperations.APPEND);
   }
 
@@ -253,7 +253,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       StreamingOffset offset = StreamingOffset.START_OFFSET;
       if (isStreamNotEmpty(table)) {
         offset = isFutureStartTime(table, fromTimestamp) ? initialFutureStartOffset(table) :
-                new StreamingOffset(SnapshotUtil.oldestAncestorAfter(table, fromTimestamp).snapshotId(), 0, false);
+            new StreamingOffset(SnapshotUtil.oldestAncestorAfter(table, fromTimestamp).snapshotId(), 0, false);
       }
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
@@ -269,7 +269,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         writer.flush();
       } catch (IOException ioException) {
         throw new UncheckedIOException(
-                String.format("Failed writing offset to: %s", initialOffsetLocation), ioException);
+            String.format("Failed writing offset to: %s", initialOffsetLocation), ioException);
       }
     }
 
@@ -278,7 +278,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         return StreamingOffset.fromJson(in);
       } catch (IOException ioException) {
         throw new UncheckedIOException(
-                String.format("Failed reading offset from: %s", initialOffsetLocation), ioException);
+            String.format("Failed reading offset from: %s", initialOffsetLocation), ioException);
       }
     }
   }
