@@ -473,7 +473,8 @@ public class PartitionSpec implements Serializable {
     public Builder alwaysNull(String sourceName, String targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       Transform<?, Void> transform = Transforms.alwaysNull();
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform.dedupName()); // can duplicate a source column name
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(),
+              transform.dedupName()); // can duplicate a source column name
       fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform));
       return this;
     }
