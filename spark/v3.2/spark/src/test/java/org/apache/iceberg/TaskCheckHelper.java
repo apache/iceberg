@@ -82,6 +82,10 @@ public final class TaskCheckHelper {
         expected.splitOffsets(), actual.splitOffsets());
     Assert.assertEquals("Should match the serialized record offsets",
         expected.keyMetadata(), actual.keyMetadata());
+
+    Assert.fail(
+        "Failing this test purposefully to check if failures in the spark CI DAG will fail jobs in the Flink CI DAG"
+    );
   }
 
   private static List<FileScanTask> getFileScanTasksInFilePathOrder(BaseCombinedScanTask task) {
