@@ -22,11 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.AbstractMap;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -319,7 +315,7 @@ public class PartitionSpec implements Serializable {
   public static class Builder {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
-    private final Map<String, Integer> partitionNamesToFieldId = Maps.newHashMap();
+    private final Set<String> partitionNamesAndTransform = new HashSet<>();
     private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
@@ -332,11 +328,11 @@ public class PartitionSpec implements Serializable {
       return lastAssignedFieldId.incrementAndGet();
     }
 
-    private void checkAndAddPartitionName(String name) {
-      checkAndAddPartitionName(name, null);
+    private void checkAndAddPartitionName(String name, String transformName) {
+      checkAndAddPartitionName(name, null, transformName);
     }
 
-    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
+    private void checkAndAddPartitionName(String name, Integer sourceColumnId, String transformName) {
       Types.NestedField schemaField = schema.findField(name);
       if (sourceColumnId != null) {
         // for identity transform case we allow  conflicts between partition and schema field name as
@@ -350,10 +346,10 @@ public class PartitionSpec implements Serializable {
       }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
-      Preconditions.checkArgument(!partitionNamesToFieldId.containsKey(name) ||
-                      partitionNamesToFieldId.get(name).equals(sourceColumnId),
+      String nameAndTransform = name + "_" + transformName;
+      Preconditions.checkArgument(!partitionNamesAndTransform.contains(nameAndTransform),
           "Cannot use partition name more than once: %s", name);
-      partitionNamesToFieldId.put(name, sourceColumnId);
+      partitionNamesAndTransform.add(nameAndTransform);
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
@@ -378,7 +374,7 @@ public class PartitionSpec implements Serializable {
 
     Builder identity(String sourceName, String targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId());
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), "identity");
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type()));
       checkForRedundantPartitions(field);
@@ -391,7 +387,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder year(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "year");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year(sourceColumn.type()));
@@ -405,7 +401,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder month(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "month");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month(sourceColumn.type()));
@@ -419,7 +415,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder day(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "day");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day(sourceColumn.type()));
@@ -433,7 +429,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder hour(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "hour");
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour(sourceColumn.type()));
@@ -447,7 +443,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "bucket_" + numBuckets);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets)));
@@ -459,7 +455,7 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder truncate(String sourceName, int width, String targetName) {
-      checkAndAddPartitionName(targetName);
+      checkAndAddPartitionName(targetName, "truncate_" + width);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(sourceColumn.type(), width)));
@@ -472,8 +468,9 @@ public class PartitionSpec implements Serializable {
 
     public Builder alwaysNull(String sourceName, String targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId()); // can duplicate a source column name
-      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
+      Transform<?, Void> transform = Transforms.alwaysNull();
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform.dedupName()); // can duplicate a source column name
+      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform));
       return this;
     }
 
@@ -493,7 +490,7 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
-      checkAndAddPartitionName(name, sourceId);
+      checkAndAddPartitionName(name, sourceId, transform.dedupName());
       fields.add(new PartitionField(sourceId, fieldId, name, transform));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
