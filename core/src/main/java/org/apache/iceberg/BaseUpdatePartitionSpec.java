@@ -133,7 +133,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Pair<Integer, String> validationKey = Pair.of(sourceTransform.first(), sourceTransform.second().toString());
 
     PartitionField existing = transformToField.get(validationKey);
-    Preconditions.checkArgument(existing == null,
+    Preconditions.checkArgument(existing == null || deletes.contains(existing.fieldId()),
         "Cannot add duplicate partition field %s=%s, conflicts with %s", name, term, existing);
 
     PartitionField added = transformToAddedField.get(validationKey);
@@ -151,7 +151,8 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     transformToAddedField.put(validationKey, newField);
 
     PartitionField existingField = nameToField.get(newField.name());
-    if (existingField != null) {
+
+    if (existingField != null && !deletes.contains(existingField.fieldId())) {
       if (isVoidTransform(existingField)) {
         // rename the old deleted field that is being replaced by the new field
         renameField(existingField.name(), existingField.name() + "_" + existingField.fieldId());
@@ -234,19 +235,23 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       if (!deletes.contains(field.fieldId())) {
         String newName = renames.get(field.name());
         if (newName != null) {
+          System.out.println("adding(1) " + field.name());
           builder.add(field.sourceId(), field.fieldId(), newName, field.transform());
         } else {
+          System.out.println("adding(2) " + field.name());
           builder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
         }
       } else if (formatVersion < 2) {
         // field IDs were not required for v1 and were assigned sequentially in each partition spec starting at 1,000.
         // to maintain consistent field ids across partition specs in v1 tables, any partition field that is removed
         // must be replaced with a null transform. null values are always allowed in partition data.
+        System.out.println("adding(3) " + field.name() + " with id " + field.fieldId());
         builder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
       }
     }
 
     for (PartitionField newField : adds) {
+      System.out.println("adding field " + newField.name() + " with id " + newField.fieldId());
       builder.add(newField.sourceId(), newField.fieldId(), newField.name(), newField.transform());
     }
 

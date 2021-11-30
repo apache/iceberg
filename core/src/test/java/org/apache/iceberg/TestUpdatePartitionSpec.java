@@ -477,15 +477,6 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testAddDeletedField() {
-    AssertHelpers.assertThrows("Should fail adding a duplicate field",
-        IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-            .removeField("shard")
-            .addField(bucket("id", 16))); // duplicates shard
-  }
-
-  @Test
   public void testAddDuplicateByName() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
@@ -612,6 +603,23 @@ public class TestUpdatePartitionSpec extends TableTestBase {
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
+  }
+
+  @Test
+  public void testRemoveAndUpdate() {
+    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+            .identity("category")
+            .identity("ts")
+            .identity("id")
+            .build();
+    new BaseUpdatePartitionSpec(formatVersion, expected)
+            .removeField("ts")
+            .removeField("category")
+            .removeField("id")
+            .addField("ts")
+            .addField("id")
+            .addField("category")
+            .apply();
   }
 
   private static int id(String name) {
