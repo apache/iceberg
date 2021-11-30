@@ -34,15 +34,13 @@ concurrency:
   group: ${{ github.head_ref }}
   cancel-in-progress: true
 
-
 jobs:
   labeler:
     uses: kbendick/iceberg/.github/workflows/labeler-workflow.yml@master
-    runs-on: ubuntu-latest
-    steps:
-      - uses: kbendick/iceberg/.github/workflows/license-check-workflow.yml@master
+  licenese-check:
+    uses: kbendick/iceberg/.github/workflows/license-check-workflow.yml@master
   ci-orchestrator:
-    needs: ["initial-actions"]
+    needs: ["labeler", "license-check"]
     if: ${{ !github.event.pull_request.draft }}  # Don't run in a draft.
     runs-on: ubuntu-latest
     strategy:
