@@ -40,8 +40,8 @@ jobs:
     name: "Initial CI Actions"
     runs-on: ubuntu-latest
     steps:
-      - uses: apache/iceberg/.github/workflows/labeler-workflow.yml@master
-      - uses: apache/iceberg/.github/workflows/license-check-workflow.yml@master
+      - uses: kbendick/iceberg/.github/workflows/labeler-workflow.yml@master
+      - uses: kbendick/iceberg/.github/workflows/license-check-workflow.yml@master
   ci-orchestrator:
     needs: ["initial-actions"]
     if: ${{ !github.event.pull_request.draft }}  # Don't run in a draft.
@@ -54,8 +54,8 @@ jobs:
         workflow: ['flink', 'hive', 'spark']
     steps:
       - if: ${{ matrix.workflow == 'flink' }}
-        uses: apache/iceberg/.github/workflows/flink-ci-workflow.yml@master
+        uses: kbendick/iceberg/.github/workflows/flink-ci-workflow.yml@master
       - if: ${{ matrix.workflow == 'hive' }}
-        uses: apache/iceberg/.github/workflows/hive-ci-workflow.yml@master
+        uses: kbendick/iceberg/.github/workflows/hive-ci-workflow.yml@master
       - if: ${{ matrix.workflox == 'spark' }}
-        uses: apache/iceberg/.github/workflows/spark-ci-workflow.yml@master
+        uses: kbendick/iceberg/.github/workflows/spark-ci-workflow.yml@master
