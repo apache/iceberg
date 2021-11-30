@@ -40,12 +40,14 @@ on:
       - 'python/**'
       - 'python_legacy/**'
       - 'site/**'
+    # TODO - These could be passed to the matrix to allow for users to select
+    #        just one to run.... probably overkill for now.
     inputs:
       flink:
-        required: true
+        required: false
         type: string
       jvm:
-        required: true
+        required: false
         type: number
 
 jobs:
