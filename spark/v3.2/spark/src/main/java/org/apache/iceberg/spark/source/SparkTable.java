@@ -53,8 +53,6 @@ import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.connector.iceberg.catalog.SupportsMerge;
-import org.apache.spark.sql.connector.iceberg.write.MergeBuilder;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
@@ -66,15 +64,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.DELETE_MODE;
-import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.MERGE_MODE;
-import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
-
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsMerge, SupportsMetadataColumns {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -207,26 +198,6 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
-  }
-
-  @Override
-  public MergeBuilder newMergeBuilder(String operation, LogicalWriteInfo info) {
-    String mode = getRowLevelOperationMode(operation);
-    ValidationException.check(mode.equals("copy-on-write"), "Unsupported mode for %s: %s", operation, mode);
-    return new SparkMergeBuilder(sparkSession(), icebergTable, operation, info);
-  }
-
-  private String getRowLevelOperationMode(String operation) {
-    Map<String, String> props = icebergTable.properties();
-    if (operation.equalsIgnoreCase("delete")) {
-      return props.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
-    } else if (operation.equalsIgnoreCase("update")) {
-      return props.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
-    } else if (operation.equalsIgnoreCase("merge")) {
-      return props.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
-    } else {
-      throw new IllegalArgumentException("Unsupported operation: " + operation);
-    }
   }
 
   @Override
