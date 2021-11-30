@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.GreaterThan;
@@ -134,8 +135,8 @@ public class TestSparkFilters {
   }
 
   @Test
-  public void testDoubleNegation() {
-    Not filter = Not.apply(Not.apply(In.apply("col", new Integer[]{1, 2})));
+  public void testNestedInInsideNot() {
+    Not filter = Not.apply(And.apply(EqualTo.apply("col1", 1), In.apply("col2", new Integer[]{1, 2})));
     Expression converted = SparkFilters.convert(filter);
     Assert.assertNull("Expression should not be converted", converted);
   }
