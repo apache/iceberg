@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: "Hive CI"
+name: "Hive CI - OLD"
 on:
   pull_request:
     types:

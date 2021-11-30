@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: "Flink CI"
+name: "Flink CI - Old"
 on:
   pull_request:
     types:
