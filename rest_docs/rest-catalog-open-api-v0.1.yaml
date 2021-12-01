@@ -201,7 +201,9 @@ paths:
       tags:
         - Catalog API
       summary: Rename a table from its current name to a new name
-      description: Rename a table within the same catalog
+      description:
+        Rename a table from one identifier to another. It's valid to move a table
+        across namespaces, but the server implementation doesn't need to support it.
       operationId: renameTable
       requestBody:
         description: Current table identifier to rename and new table identifier to rename to
@@ -215,6 +217,9 @@ paths:
           description: OK
         '401':
           description: Unauthorized
+        '406':
+          # UnsupportedOperationException
+          description: Not Acceptable
         # Not using 404 as 404 is very hard to monitor.
         # There's no way to tell by monitoring returned response codes
         # if a client made a valid request but the table didn't exist,
