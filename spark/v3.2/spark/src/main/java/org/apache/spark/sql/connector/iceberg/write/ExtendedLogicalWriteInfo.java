@@ -27,12 +27,12 @@ import org.apache.spark.sql.types.StructType;
  */
 public interface ExtendedLogicalWriteInfo extends LogicalWriteInfo {
   /**
-   * the schema of the input metadata from Spark to data source.
+   * The schema of the input metadata from Spark to data source.
    */
   StructType metadataSchema();
 
   /**
-   * the schema of the ID columns from Spark to data source.
+   * The schema of the ID columns from Spark to data source.
    */
   StructType rowIdSchema();
 }
