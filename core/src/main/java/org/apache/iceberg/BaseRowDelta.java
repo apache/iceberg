@@ -31,7 +31,6 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
-  private boolean caseSensitive = true;
 
   BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -67,7 +66,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
   @Override
   public RowDelta caseSensitive(boolean isCaseSensitive) {
-    this.caseSensitive = isCaseSensitive;
+    caseSensitiveBinding(isCaseSensitive);
     return this;
   }
 
@@ -111,11 +110,11 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
       }
 
       if (validateNewDataFiles) {
-        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
+        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter);
       }
 
       if (validateNewDeleteFiles) {
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
+        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter);
       }
     }
   }
