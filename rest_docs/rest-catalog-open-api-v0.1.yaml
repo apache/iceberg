@@ -251,27 +251,6 @@ paths:
         required: true
         schema:
           type: string
-    get:
-      tags:
-        - Catalog API
-      summary: Load the metadata properties for a namespace
-      operationId: loadNamespaceMetadata
-      description: Return all stored metadata properties for a given namespace
-      responses:
-        '200':
-          description: OK
-          content:
-            application:
-              schema:
-                $ref: '#/components/schemas/GetNamespaceResponse'
-        '417':
-          description: Namespace not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41701 }'
     put:
       tags:
         - Catalog API
@@ -362,6 +341,27 @@ paths:
         required: true
         schema:
           type: string
+    get:
+      tags:
+        - Catalog API
+      summary: Load the metadata properties for a namespace
+      operationId: loadNamespaceMetadata
+      description: Return all stored metadata properties for a given namespace
+      responses:
+        '200':
+          description: OK
+          content:
+            application:
+              schema:
+                $ref: '#/components/schemas/GetNamespaceResponse'
+        '417':
+          description: Namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41701 }'
     post:
       tags:
         - Catalog API
@@ -396,13 +396,6 @@ paths:
           description: Unauthorized
 components:
   schemas:
-    CommitTableRequest:
-      type: object
-      properties:
-        tableIdentifier:
-          $ref: '#/components/schemas/TableIdentifier'
-        metadataJson:
-          type: string
     TableIdentifier:
       type: object
       required:
@@ -414,16 +407,8 @@ components:
             type: string
           nullable: false  # Note this is ignored
         name:
-          pattern: \S
           type: string
           nullable: false
-    CommitTableResponse:
-      type: object
-      properties:
-        metadataLocation:
-          type: string
-        metadataJson:
-          type: string
     RemovePropertiesRequest:
       type: object
       properties:
@@ -434,25 +419,6 @@ components:
           type: array
           items:
             type: string
-    Catalog:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique identifier for this catalog
-        name:
-          type: string
-        location:
-          type: string
-          description: Warehouse location for this catalog or URI of metastore or other identifying location
-        properties:
-          type: object
-          description: Additional catalog level properties
-          default: {}
-      required:
-        - name
-        - properties
     CreateNamespaceRequest:
       type: object
       properties:
