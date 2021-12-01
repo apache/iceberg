@@ -66,7 +66,7 @@ paths:
     parameters:
       - name: namespace
         in: path
-        description: Namespace the table is in
+        description: A namespace identifier
         required: true
         schema:
           type: string
@@ -164,6 +164,7 @@ paths:
         - name: namespace
           in: path
           required: true
+          description: A namespace identifier
           schema:
             type: string
         - name: table
@@ -179,7 +180,7 @@ paths:
   /v1/namespaces/{namespace}/tables:
     parameters:
       - name: namespace
-        description: Namespace under which to list tables.
+        description: A namespace identifier under which to list tables
         in: path
         required: true
         schema:
@@ -195,32 +196,6 @@ paths:
       summary: List all table identifiers underneath a given namespace
       description: Return all table identifiers under this namespace
       operationId: listTables
-      parameters:
-        - name: namespace
-          description: Namespace under which to list tables.
-          in: path
-          required: true
-          schema:
-            type: string
-          examples:
-            singlepart_namespace:
-              value: "accounting"
-            multipart_namespace:
-              value: "accounting.tax"
-        # TODO - There's a much more native way to handle pagination
-        - name: limit
-          description: number of values to return in one request
-          in: query
-          required: false
-          schema:
-            type: integer
-          example: 10
-        - name: offset
-          description: Place in the response to continue from if paginating
-          in: query
-          required: false
-          schema:
-            type: integer
       responses:
         '200':
           description: OK
@@ -373,7 +348,6 @@ paths:
               schema:
                 type: object
                 example: '{ data: { success: true }, error: { } }'
-  # TODO - Pagination
   /v1/namespaces:
     parameters:
       - name: parent
@@ -411,7 +385,7 @@ paths:
       tags:
         - Catalog API
       summary: Create a namespace
-      description: Create a namespace, with an optional set of properties. The server might also add properties.
+      description: Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
       operationId: createNamespace
       requestBody:
         content:
