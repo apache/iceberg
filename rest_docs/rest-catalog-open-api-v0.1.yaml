@@ -224,7 +224,7 @@ paths:
     put:
       tags:
         - Catalog API
-      summary: Rename a table from its current name to a new name within the same catalog
+      summary: Rename a table from its current name to a new name
       description: Rename a table within the same catalog
       operationId: renameTable
       requestBody:
