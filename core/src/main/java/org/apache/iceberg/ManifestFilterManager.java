@@ -288,18 +288,19 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     try (ManifestReader<F> reader = newManifestReader(manifest)) {
+      PartitionSpec spec = reader.spec();
+      PartitionAndMetricsEvaluator evaluator = new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
+
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
-      ExpressionEvaluator deleteEvaluator = new ExpressionEvaluator(tableSchema, reader.spec(), deleteExpression);
-
-      boolean hasDeletedFiles = manifestHasDeletedFiles(deleteEvaluator, reader);
+      boolean hasDeletedFiles = manifestHasDeletedFiles(evaluator, reader);
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
 
-      return filterManifestWithDeletedFiles(deleteEvaluator, manifest, reader);
+      return filterManifestWithDeletedFiles(evaluator, manifest, reader);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
@@ -340,7 +341,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   @SuppressWarnings("CollectionUndefinedEquality")
-  private boolean manifestHasDeletedFiles(ExpressionEvaluator deleteEvaluator, ManifestReader<F> reader) {
+  private boolean manifestHasDeletedFiles(PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
     boolean hasDeletedFiles = false;
     for (ManifestEntry<F> entry : reader.liveEntries()) {
@@ -348,9 +349,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       boolean fileDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
           (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
-      if (fileDelete || deleteEvaluator.rowsMightMatch(file)) {
+      if (fileDelete || evaluator.rowsMightMatch(file)) {
         ValidationException.check(
-            fileDelete || deleteEvaluator.rowsMustMatch(file),
+            fileDelete || evaluator.rowsMustMatch(file),
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 
@@ -365,7 +366,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
-  private ManifestFile filterManifestWithDeletedFiles(ExpressionEvaluator deleteEvaluator,
+  private ManifestFile filterManifestWithDeletedFiles(PartitionAndMetricsEvaluator evaluator,
                                                       ManifestFile manifest, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
     // when this point is reached, there is at least one file that will be deleted in the
@@ -382,9 +383,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               dropPartitions.contains(file.specId(), file.partition()) ||
               (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
           if (entry.status() != ManifestEntry.Status.DELETED) {
-            if (fileDelete || deleteEvaluator.rowsMightMatch(file)) {
+            if (fileDelete || evaluator.rowsMightMatch(file)) {
               ValidationException.check(
-                  fileDelete || deleteEvaluator.rowsMustMatch(file),
+                  fileDelete || evaluator.rowsMustMatch(file),
                   "Cannot delete file where some, but not all, rows match filter %s: %s",
                   this.deleteExpression, file.path());
 
@@ -428,13 +429,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   // an evaluator that checks whether rows in a file may/must match a given expression
   // this class first partially evaluates the provided expression using the partition tuple
   // and then checks the remaining part of the expression using metrics evaluators
-  private class ExpressionEvaluator {
+  private class PartitionAndMetricsEvaluator {
     private final Schema tableSchema;
     private final ResidualEvaluator residualEvaluator;
     private final StructLikeMap<Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator>> metricsEvaluators;
 
     // TODO: support case sensitive flags
-    ExpressionEvaluator(Schema tableSchema, PartitionSpec spec, Expression expr) {
+    PartitionAndMetricsEvaluator(Schema tableSchema, PartitionSpec spec, Expression expr) {
       this.tableSchema = tableSchema;
       this.residualEvaluator = ResidualEvaluator.of(spec, expr, true);
       this.metricsEvaluators = StructLikeMap.create(spec.partitionType());
@@ -453,10 +454,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     private Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator> metricsEvaluators(F file) {
-      // this logic depends on ResidualEvaluator that behaves in the following way
+      // ResidualEvaluator removes predicates in the expression using strict/inclusive projections
       // if strict projection returns true -> the pred would return true -> replace the pred with true
       // if inclusive projection returns false -> the pred would return false -> replace the pred with false
-      // otherwise, keep the original predicate and try evaluating it using metrics
+      // otherwise, keep the original predicate and proceed to other predicates in the expression
+      // in other words, ResidualEvaluator returns a part of the expression that needs to be evaluated
+      // for rows in the given partition using metrics
       return metricsEvaluators.computeIfAbsent(file.partition(), partition -> {
         Expression residual = residualEvaluator.residualFor(partition);
         InclusiveMetricsEvaluator inclusive = new InclusiveMetricsEvaluator(tableSchema, residual);

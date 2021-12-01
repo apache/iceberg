@@ -34,6 +34,35 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestDeleteFiles extends TableTestBase {
+
+  private static final DataFile DATA_FILE_BUCKET_0_IDS_0_2 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-1.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+      ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+                null, // no nan value counts
+                ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+      ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
+      ))
+      .build();
+
+  private static final DataFile DATA_FILE_BUCKET_0_IDS_8_10 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-2.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=0")
+      .withMetrics(new Metrics(5L,
+          null, // no column sizes
+          ImmutableMap.of(1, 5L, 2, 5L), // value count
+          ImmutableMap.of(1, 0L, 2, 0L), // null count
+          null, // no nan value counts
+          ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
+          ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+      ))
+      .build();
+
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] { 1, 2 };
@@ -153,47 +182,17 @@ public class TestDeleteFiles extends TableTestBase {
 
   @Test
   public void testDeleteSomeFilesByRowFilterWithoutPartitionPredicates() {
-    PartitionSpec spec = table.spec();
-
-    DataFile firstDataFile = DataFiles.builder(spec)
-        .withPath("/path/to/data-1.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
-        .withMetrics(new Metrics(5L,
-            null, // no column sizes
-            ImmutableMap.of(1, 5L, 2, 5L), // value count
-            ImmutableMap.of(1, 0L, 2, 0L), // null count
-            null, // no nan value counts
-            ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-            ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
-        ))
-        .build();
-
-    DataFile secondDataFile = DataFiles.builder(spec)
-        .withPath("/path/to/data-2.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
-        .withMetrics(new Metrics(5L,
-            null, // no column sizes
-            ImmutableMap.of(1, 5L, 2, 5L), // value count
-            ImmutableMap.of(1, 0L, 2, 0L), // null count
-            null, // no nan value counts
-            ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
-            ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
-        ))
-        .build();
-
     // add both data files
     table.newFastAppend()
-        .appendFile(firstDataFile)
-        .appendFile(secondDataFile)
+        .appendFile(DATA_FILE_BUCKET_0_IDS_0_2)
+        .appendFile(DATA_FILE_BUCKET_0_IDS_8_10)
         .commit();
 
     Snapshot initialSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
     validateManifestEntries(initialSnapshot.allManifests().get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
-        files(firstDataFile, secondDataFile),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.ADDED, Status.ADDED));
 
     // delete the second one using a metrics filter (no partition filter)
@@ -205,53 +204,23 @@ public class TestDeleteFiles extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
     validateManifestEntries(deleteSnapshot.allManifests().get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
-        files(firstDataFile, secondDataFile),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.EXISTING, Status.DELETED));
   }
 
   @Test
   public void testDeleteSomeFilesByRowFilterWithCombinedPredicates() {
-    PartitionSpec spec = table.spec();
-
-    DataFile firstDataFile = DataFiles.builder(spec)
-        .withPath("/path/to/data-1.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
-        .withMetrics(new Metrics(5L,
-            null, // no column sizes
-            ImmutableMap.of(1, 5L, 2, 5L), // value count
-            ImmutableMap.of(1, 0L, 2, 0L), // null count
-            null, // no nan value counts
-            ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-            ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
-        ))
-        .build();
-
-    DataFile secondDataFile = DataFiles.builder(spec)
-        .withPath("/path/to/data-2.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
-        .withMetrics(new Metrics(5L,
-            null, // no column sizes
-            ImmutableMap.of(1, 5L, 2, 5L), // value count
-            ImmutableMap.of(1, 0L, 2, 0L), // null count
-            null, // no nan value counts
-            ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
-            ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
-        ))
-        .build();
-
     // add both data files
     table.newFastAppend()
-        .appendFile(firstDataFile)
-        .appendFile(secondDataFile)
+        .appendFile(DATA_FILE_BUCKET_0_IDS_0_2)
+        .appendFile(DATA_FILE_BUCKET_0_IDS_8_10)
         .commit();
 
     Snapshot initialSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
     validateManifestEntries(initialSnapshot.allManifests().get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
-        files(firstDataFile, secondDataFile),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.ADDED, Status.ADDED));
 
     // delete the second one using a filter that relies on metrics and partition data
@@ -266,7 +235,7 @@ public class TestDeleteFiles extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
     validateManifestEntries(deleteSnapshot.allManifests().get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
-        files(firstDataFile, secondDataFile),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.EXISTING, Status.DELETED));
   }
 
@@ -299,7 +268,7 @@ public class TestDeleteFiles extends TableTestBase {
             .commit());
   }
 
-  private ByteBuffer longToBuffer(long value) {
+  private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
 }
