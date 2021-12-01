@@ -824,6 +824,84 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
+## createNamespace
+
+<a id="opIdcreateNamespace"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X POST http://127.0.0.1:1080/v1/namespaces \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`POST /v1/namespaces`
+
+*Create a namespace*
+
+Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
+
+> Body parameter
+
+```json
+{
+  "namespace": [
+    "string"
+  ],
+  "properties": "{ owner: \"Hank Bendickson\" }"
+}
+```
+
+<h3 id="createnamespace-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
+|» namespace|body|[string]|false|individual levels of the namespace|
+|» properties|body|object|false|Configuration properties for the namespace|
+
+> Example responses
+
+> 409 Response
+
+```json
+"{ error: { message: \"Namespace already exists\", type: \"AlreadyExistsException\", code: 40901 }"
+```
+
+<h3 id="createnamespace-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Namespace already exists|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
 ## loadNamespaceMetadata
 
 <a id="opIdloadNamespaceMetadata"></a>
@@ -833,7 +911,7 @@ BearerAuth
 ```shell
 # You can also use wget
 curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace} \
-  -H 'Accept: application' \
+  -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
@@ -871,6 +949,18 @@ Return all stored metadata properties for a given namespace
 
 > 200 Response
 
+```json
+{
+  "namespace": {
+    "empty": true
+  },
+  "properties": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
 > 412 Response
 
 ```json
@@ -883,75 +973,6 @@ Return all stored metadata properties for a given namespace
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
 |412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## createNamespace
-
-<a id="opIdcreateNamespace"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/namespaces/{namespace} \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`POST /v1/namespaces/{namespace}`
-
-*Create a namespace*
-
-Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
-
-> Body parameter
-
-```json
-{
-  "namespace": [
-    "string"
-  ],
-  "properties": "{ owner: \"Hank Bendickson\" }"
-}
-```
-
-<h3 id="createnamespace-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
-|» namespace|body|[string]|false|individual levels of the namespace|
-|» properties|body|object|false|Configuration properties for the namespace|
-|namespace|path|string|true|none|
-
-<h3 id="createnamespace-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:

@@ -316,13 +316,6 @@ paths:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
 
   /v1/namespaces:
-    parameters:
-      - name: parent
-        in: query
-        description: Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.
-        required: false
-        schema:
-          type: string
     get:
       tags:
         - Catalog API
@@ -332,6 +325,14 @@ paths:
         For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into
         `GET /v1/namespaces?parent=a` and must return Namepace.of("a","b").
       operationId: listNamespaces
+      parameters:
+        - name: parent
+          in: query
+          description: Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.
+          required: false
+          schema:
+            type: string
+          example: ?parent=accounting.tax
       responses:
         '200':
           description: OK
@@ -341,34 +342,6 @@ paths:
                 $ref: '#/components/schemas/ListNamespacesResponse'
         '401':
           description: Unauthorized
-  /v1/namespaces/{namespace}:
-    parameters:
-      - name: namespace
-        in: path
-        required: true
-        schema:
-          type: string
-    get:
-      tags:
-        - Catalog API
-      summary: Load the metadata properties for a namespace
-      operationId: loadNamespaceMetadata
-      description: Return all stored metadata properties for a given namespace
-      responses:
-        '200':
-          description: OK
-          content:
-            application:
-              schema:
-                $ref: '#/components/schemas/GetNamespaceResponse'
-        '412':
-          description: Namespace not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
     post:
       tags:
         - Catalog API
@@ -386,6 +359,42 @@ paths:
           description: OK
         '401':
           description: Unauthorized
+        '409':
+          description: Namespace already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NamespaceAlreadyExistsError'
+              example:
+                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
+  /v1/namespaces/{namespace}:
+    parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - Catalog API
+      summary: Load the metadata properties for a namespace
+      operationId: loadNamespaceMetadata
+      description: Return all stored metadata properties for a given namespace
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetNamespaceResponse'
+        '412':
+          description: Namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
     delete:
       tags:
         - Catalog API
@@ -647,7 +656,7 @@ components:
         {
           message: "The given table does not exist",
           type: "NoSuchTableException",
-          code: 40101
+          code: 41201
         }
 
   securitySchemes:
