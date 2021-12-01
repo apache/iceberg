@@ -273,9 +273,14 @@ public interface Table {
   Transaction newTransaction();
 
   /**
-   * Returns a {@link FileIO} to read and write table data and metadata files.
+   * Returns a {@link FileIO} to read and write table data files.
    */
   FileIO io();
+
+  /**
+   * Returns a {@link FileIO} to read and write table metadata files.
+   */
+  default FileIO metaIO() { return io(); }
 
   /**
    * Returns an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data files.

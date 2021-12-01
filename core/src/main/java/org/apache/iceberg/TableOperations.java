@@ -66,9 +66,14 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * Returns a {@link FileIO} to read and write table data and metadata files.
+   * Returns a {@link FileIO} to read and write table data files.
    */
   FileIO io();
+
+  /**
+   * Returns a {@link FileIO} to read and write table metadata files.
+   */
+  default FileIO metaIO() { return io(); }
 
   /**
    * Returns a {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data files.
