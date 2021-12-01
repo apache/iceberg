@@ -251,19 +251,19 @@ paths:
         required: true
         schema:
           type: string
-    put:
+    post:
       tags:
         - Catalog API
-      summary: Add or overwrite properties to an existing namespace
-      operationId: setNamespaceProperties
+      summary: Set a collection of properties on a namespace
+      operationId: setProperties
       description:
-        Adds propertiess for a namespace. This will overwrite any existing properties,
-        and merge with the others.
+        Set a collection of properties on a namespace in the catalog.
+        Properties that are not in the given map are not modified or removed by this call.
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RemovePropertiesRequest'
+              $ref: '#/components/schemas/SetPropertiesRequest'
         required: true
       responses:
         '200':
@@ -288,26 +288,6 @@ paths:
                 $ref: '#/components/schemas/NamespaceAlreadyExistsError'
               example:
                 '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
-    post:
-      tags:
-        - Catalog API
-      summary: Overwrite a namespace's properties with a new set of properties
-      description: Set properties on a namespace
-      operationId: setProperties
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SetPropertiesRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                example: '{ data: { success: true }, error: { } }'
   /v1/namespaces:
     parameters:
       - name: parent
@@ -354,14 +334,14 @@ paths:
             application:
               schema:
                 $ref: '#/components/schemas/GetNamespaceResponse'
-        '417':
+        '412':
           description: Namespace not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41701 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
     post:
       tags:
         - Catalog API
