@@ -196,7 +196,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateTableResponse'
-    put:
+  /v1/tables/renameTable:
+    post:
       tags:
         - Catalog API
       summary: Rename a table from its current name to a new name
