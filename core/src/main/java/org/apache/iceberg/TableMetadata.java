@@ -484,78 +484,11 @@ public class TableMetadata implements Serializable {
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
-    Schema schema = schema();
-
-    PartitionSpec.checkCompatibility(newPartitionSpec, schema);
-    ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(newPartitionSpec),
-        "Spec does not use sequential IDs that are required in v1: %s", newPartitionSpec);
-
-    // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
-    int newDefaultSpecId = INITIAL_SPEC_ID;
-    for (PartitionSpec spec : specs) {
-      if (newPartitionSpec.compatibleWith(spec)) {
-        newDefaultSpecId = spec.specId();
-        break;
-      } else if (newDefaultSpecId <= spec.specId()) {
-        newDefaultSpecId = spec.specId() + 1;
-      }
-    }
-
-    if (defaultSpecId == newDefaultSpecId) {
-      // the new spec is already current and no change is needed
-      return this;
-    }
-
-    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
-        .addAll(specs);
-    if (!specsById.containsKey(newDefaultSpecId)) {
-      // get a fresh spec to ensure the spec ID is set to the new default
-      builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, newDefaultSpecId,
-        builder.build(), Math.max(lastAssignedPartitionId, newPartitionSpec.lastAssignedFieldId()),
-        defaultSortOrderId, sortOrders, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).setDefaultPartitionSpec(newPartitionSpec).build();
   }
 
   public TableMetadata replaceSortOrder(SortOrder newOrder) {
-    Schema schema = schema();
-    SortOrder.checkCompatibility(newOrder, schema);
-
-    // determine the next order id
-    int newOrderId = INITIAL_SORT_ORDER_ID;
-    for (SortOrder order : sortOrders) {
-      if (order.sameOrder(newOrder)) {
-        newOrderId = order.orderId();
-        break;
-      } else if (newOrderId <= order.orderId()) {
-        newOrderId = order.orderId() + 1;
-      }
-    }
-
-    if (newOrderId == defaultSortOrderId) {
-      return this;
-    }
-
-    ImmutableList.Builder<SortOrder> builder = ImmutableList.builder();
-    builder.addAll(sortOrders);
-
-    if (!sortOrdersById.containsKey(newOrderId)) {
-      if (newOrder.isUnsorted()) {
-        newOrderId = SortOrder.unsorted().orderId();
-        builder.add(SortOrder.unsorted());
-      } else {
-        // rebuild the sort order using new column ids
-        builder.add(freshSortOrder(newOrderId, schema, newOrder));
-      }
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).setDefaultSortOrder(newOrder).build();
   }
 
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
@@ -1000,10 +933,10 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    class SetCurrentSchemaId implements MetadataUpdate {
+    class SetCurrentSchema implements MetadataUpdate {
       private final int schemaId;
 
-      public SetCurrentSchemaId(int schemaId) {
+      public SetCurrentSchema(int schemaId) {
         this.schemaId = schemaId;
       }
 
@@ -1012,15 +945,63 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    class AddSnapshot implements MetadataUpdate {
-      private final long snapshotId;
+    class AddPartitionSpec implements MetadataUpdate {
+      private final PartitionSpec spec;
 
-      public AddSnapshot(long snapshotId) {
-        this.snapshotId = snapshotId;
+      public AddPartitionSpec(PartitionSpec spec) {
+        this.spec = spec;
       }
 
-      public long snapshotId() {
-        return snapshotId;
+      public PartitionSpec spec() {
+        return spec;
+      }
+    }
+
+    class SetDefaultPartitionSpec implements MetadataUpdate {
+      private final int specId;
+
+      public SetDefaultPartitionSpec(int schemaId) {
+        this.specId = schemaId;
+      }
+
+      public int specId() {
+        return specId;
+      }
+    }
+
+    class AddSortOrder implements MetadataUpdate {
+      private final SortOrder sortOrder;
+
+      public AddSortOrder(SortOrder sortOrder) {
+        this.sortOrder = sortOrder;
+      }
+
+      public SortOrder spec() {
+        return sortOrder;
+      }
+    }
+
+    class SetDefaultSortOrder implements MetadataUpdate {
+      private final int sortOrderId;
+
+      public SetDefaultSortOrder(int sortOrderId) {
+        this.sortOrderId = sortOrderId;
+      }
+
+      public int sortOrderId() {
+        return sortOrderId;
+      }
+    }
+
+    class AddSnapshot implements MetadataUpdate {
+      private final Snapshot snapshot;
+
+      public AddSnapshot(Snapshot snapshot) {
+        this.snapshot = snapshot;
+      }
+
+      public Snapshot snapshot() {
+        return snapshot;
       }
     }
 
@@ -1136,13 +1117,48 @@ public class TableMetadata implements Serializable {
 
       this.currentSchemaId = schemaId;
 
-      changes.add(new MetadataUpdate.SetCurrentSchemaId(schemaId));
+      changes.add(new MetadataUpdate.SetCurrentSchema(schemaId));
 
       return this;
     }
 
     public Builder addSchema(Schema schema, int newLastColumnId) {
       addSchemaInternal(schema, newLastColumnId);
+      return this;
+    }
+
+    public Builder setDefaultPartitionSpec(PartitionSpec spec) {
+      int specId = addPartitionSpecInternal(spec);
+      if (defaultSpecId == specId) {
+        // the new spec is already current and no change is needed
+        return this;
+      }
+
+      this.defaultSpecId = specId;
+      changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
+
+      return this;
+    }
+
+    public Builder addPartitionSpec(PartitionSpec spec) {
+      addPartitionSpecInternal(spec);
+      return this;
+    }
+
+    public Builder setDefaultSortOrder(SortOrder order) {
+      int sortOrderId = addSortOrderInternal(order);
+      if (sortOrderId == defaultSortOrderId) {
+        return this;
+      }
+
+      this.defaultSortOrderId = sortOrderId;
+      changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
+
+      return this;
+    }
+
+    public Builder addSortOrder(SortOrder order) {
+      addSortOrderInternal(order);
       return this;
     }
 
@@ -1160,13 +1176,13 @@ public class TableMetadata implements Serializable {
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.snapshotId(), snapshot);
-      changes.add(new MetadataUpdate.AddSnapshot(snapshot.snapshotId()));
+      changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
       return this;
     }
 
     public Builder setCurrentSnapshot(Snapshot snapshot) {
-      // TODO: make sure the API makes sense with the timestamp
+      addSnapshot(snapshot);
       setCurrentSnapshot(snapshot, snapshot.timestampMillis());
       return this;
     }
@@ -1215,26 +1231,27 @@ public class TableMetadata implements Serializable {
           "Invalid last column ID: %s < %s (previous last column ID)", newLastColumnId, lastColumnId);
 
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
-      if (currentSchemaId == newSchemaId && newLastColumnId == lastColumnId) {
+      boolean schemaAdded = schemasById.containsKey(newSchemaId);
+      if (schemaAdded && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
-        return currentSchemaId;
+        return newSchemaId;
       }
 
       this.lastColumnId = newLastColumnId;
 
-      Schema newSchema;
-      if (newSchemaId != schema.schemaId()) {
-        newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
-      } else {
-        newSchema = schema;
-      }
+      if (!schemaAdded) {
+        Schema newSchema;
+        if (newSchemaId != schema.schemaId()) {
+          newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
+        } else {
+          newSchema = schema;
+        }
 
-      if (!schemasById.containsKey(newSchemaId)) {
         schemas.add(newSchema);
         schemasById.put(newSchema.schemaId(), newSchema);
-      }
 
-      changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+        changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+      }
 
       return newSchemaId;
     }
@@ -1253,7 +1270,91 @@ public class TableMetadata implements Serializable {
       return newSchemaId;
     }
 
+    private int addPartitionSpecInternal(PartitionSpec spec) {
+      int newSpecId = reuseOrCreateNewSpecId(spec);
+      if (specsById.containsKey(newSpecId)) {
+        return newSpecId;
+      }
+
+      Schema schema = schemasById.get(currentSchemaId);
+      PartitionSpec.checkCompatibility(spec, schema);
+      ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(spec),
+          "Spec does not use sequential IDs that are required in v1: %s", spec);
+
+      PartitionSpec newSpec = freshSpec(newSpecId, schema, spec);
+      this.lastAssignedPartitionId = Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId());
+      specs.add(newSpec);
+      specsById.put(newSpecId, newSpec);
+
+      changes.add(new MetadataUpdate.AddPartitionSpec(newSpec));
+
+      return newSpecId;
+    }
+
+    private int reuseOrCreateNewSpecId(PartitionSpec newSpec) {
+      // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
+      int newSpecId = INITIAL_SPEC_ID;
+      for (PartitionSpec spec : specs) {
+        if (newSpec.compatibleWith(spec)) {
+          newSpecId = spec.specId();
+          break;
+        } else if (newSpecId <= spec.specId()) {
+          newSpecId = spec.specId() + 1;
+        }
+      }
+
+      return newSpecId;
+    }
+
+    private int addSortOrderInternal(SortOrder order) {
+      int newOrderId = reuseOrCreateNewSortOrderId(order);
+      if (sortOrdersById.containsKey(newOrderId)) {
+        return newOrderId;
+      }
+
+      Schema schema = schemasById.get(currentSchemaId);
+      SortOrder.checkCompatibility(order, schema);
+
+      SortOrder newOrder;
+      if (order.isUnsorted()) {
+        newOrder = SortOrder.unsorted();
+      } else {
+        // rebuild the sort order using new column ids
+        newOrder = freshSortOrder(newOrderId, schema, order);
+      }
+
+      sortOrders.add(newOrder);
+      sortOrdersById.put(newOrderId, newOrder);
+
+      changes.add(new MetadataUpdate.AddSortOrder(newOrder));
+
+      return newOrderId;
+    }
+
+    private int reuseOrCreateNewSortOrderId(SortOrder newOrder) {
+      if (newOrder.isUnsorted()) {
+        return SortOrder.unsorted().orderId();
+      }
+
+      // determine the next order id
+      int newOrderId = INITIAL_SORT_ORDER_ID;
+      for (SortOrder order : sortOrders) {
+        if (order.sameOrder(newOrder)) {
+          newOrderId = order.orderId();
+          break;
+        } else if (newOrderId <= order.orderId()) {
+          newOrderId = order.orderId() + 1;
+        }
+      }
+
+      return newOrderId;
+    }
+
     private void setCurrentSnapshot(Snapshot snapshot, long currentTimestampMillis) {
+      if (currentSnapshotId == snapshot.snapshotId()) {
+        return;
+      }
+
       ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
           "Last sequence number %s is less than existing snapshot sequence number %s",
           lastSequenceNumber, snapshot.sequenceNumber());
