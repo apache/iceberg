@@ -77,7 +77,7 @@ paths:
             value: "accounting.tax"
       - name: table
         in: path
-        description: Name of the table to load
+        description: A table name
         required: true
         schema:
           type: string
