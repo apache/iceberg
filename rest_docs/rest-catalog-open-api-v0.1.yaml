@@ -218,8 +218,7 @@ paths:
         '401':
           description: Unauthorized
         '406':
-          # UnsupportedOperationException
-          description: Not Acceptable
+          description: Not Acceptable (Unsupported Operation)
         # Not using 404 as 404 is very hard to monitor.
         # There's no way to tell by monitoring returned response codes
         # if a client made a valid request but the table didn't exist,
@@ -272,22 +271,47 @@ paths:
             'application/json':
               schema:
                 type: boolean
-        '417':
+        '412':
           description: Namespace not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41701 }'
-        '409':
-          description: Namespace already exists
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
+    delete:
+      tags:
+        - Catalog API
+      summary: Remove a set of property keys from a namespace in the catalog
+      operationId: removeProperties
+      description:
+        Remove a set of property keys from a namespace in the catalog.
+        Properties that are not in the given set are not modified or removed by this call.
+        Server implementations are not required to support namespace properties.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemovePropertiesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
           content:
-            applicaton/json:
+            'application/json':
               schema:
-                $ref: '#/components/schemas/NamespaceAlreadyExistsError'
+                type: boolean
+        '406':
+          description: Not Acceptable (Unsupported Operation)
+        '412':
+          description: Namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
+
   /v1/namespaces:
     parameters:
       - name: parent
@@ -396,7 +420,7 @@ components:
           type: string
         properties:
           uniqueItems: true
-          type: array
+          type: object
           items:
             type: string
     CreateNamespaceRequest:
