@@ -77,9 +77,10 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
   private Iterable<InternalRow> rows;
   private Iterable<InternalRow> positionDeleteRows;
-  private PartitionSpec unpartitionedSpec;
+  private PartitionSpec unPartitionedSpec;
   private PartitionSpec partitionedSpec;
 
+  @SuppressWarnings("MissingOverride")
   protected abstract FileFormat fileFormat();
 
   @Setup
@@ -93,8 +94,8 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     this.positionDeleteRows = RandomData.generateSpark(DeleteSchemaUtil.pathPosSchema(), NUM_ROWS, 0L);
 
-    this.unpartitionedSpec = table().specs().get(0);
-    Preconditions.checkArgument(unpartitionedSpec.isUnpartitioned());
+    this.unPartitionedSpec = table().specs().get(0);
+    Preconditions.checkArgument(unPartitionedSpec.isUnpartitioned());
     this.partitionedSpec = table().specs().get(1);
   }
 
@@ -141,7 +142,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     try (ClusteredDataWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : rows) {
-        closeableWriter.write(row, unpartitionedSpec, null);
+        closeableWriter.write(row, unPartitionedSpec, null);
       }
     }
 
@@ -158,11 +159,11 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
     Schema writeSchema = table().schema();
     StructType sparkWriteType = SparkSchemaUtil.convert(writeSchema);
     SparkAppenderFactory appenders = SparkAppenderFactory.builderFor(table(), writeSchema, sparkWriteType)
-        .spec(unpartitionedSpec)
+        .spec(unPartitionedSpec)
         .build();
 
     TaskWriter<InternalRow> writer = new UnpartitionedWriter<>(
-        unpartitionedSpec, fileFormat(), appenders,
+            unPartitionedSpec, fileFormat(), appenders,
         fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
 
     try (TaskWriter<InternalRow> closableWriter = writer) {
@@ -338,7 +339,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         String path = row.getString(0);
         long pos = row.getLong(1);
         positionDelete.set(path, pos, null);
-        closeableWriter.write(positionDelete, unpartitionedSpec, null);
+        closeableWriter.write(positionDelete, unPartitionedSpec, null);
       }
     }
 
