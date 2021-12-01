@@ -496,12 +496,6 @@ components:
       properties:
         identifier:
           $ref: '#/components/schemas/TableIdentifier'
-        tableLocation:
-          type: string
-          description: "Path of of the table just before the standard \
-            metadata / data folders. This is useful in cases where a different location
-            provider might be used"
-          example: s3://bucket/prod/accounting.db/monthly_sales
         metadataLocation:
           type: string
           description: "Location of the most current primary metadata file for the table"
@@ -511,7 +505,7 @@ components:
           description: "Stringified JSON representing the tables metadata"
           example:
             "TODO"
-        accessToken:
+        tableToken:
           type: string
     SetPropertiesRequest:
       type: object
