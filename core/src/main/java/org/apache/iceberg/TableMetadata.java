@@ -559,46 +559,11 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
-    ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
-        "Cannot add snapshot with sequence number %s older than last sequence number %s",
-        snapshot.sequenceNumber(), lastSequenceNumber);
-
-    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
-        .addAll(snapshots)
-        .add(snapshot)
-        .build();
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId,
-        currentSchemaId, schemas, defaultSpecId, specs, lastAssignedPartitionId,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, newSnapshots, snapshotLog,
-        addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).addSnapshot(snapshot).build();
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
-    // there can be operations (viz. rollback, cherrypick) where an existing snapshot could be replacing current
-    if (snapshotsById.containsKey(snapshot.snapshotId())) {
-      return setCurrentSnapshotTo(snapshot);
-    }
-
-    ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
-        "Cannot add snapshot with sequence number %s older than last sequence number %s",
-        snapshot.sequenceNumber(), lastSequenceNumber);
-
-    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
-        .addAll(snapshots)
-        .add(snapshot)
-        .build();
-    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-        .addAll(snapshotLog)
-        .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
-        .build();
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId,
-        currentSchemaId, schemas, defaultSpecId, specs, lastAssignedPartitionId,
-        defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), newSnapshots, newSnapshotLog,
-        addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).addSnapshot(snapshot).setCurrentSnapshot(snapshot).build();
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -631,30 +596,6 @@ public class TableMetadata implements Serializable {
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
         ImmutableList.copyOf(newSnapshotLog), addPreviousFile(metadataFileLocation, lastUpdatedMillis));
-  }
-
-  private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
-    ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
-        "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
-    ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
-        "Last sequence number %s is less than existing snapshot sequence number %s",
-        lastSequenceNumber, snapshot.sequenceNumber());
-
-    if (currentSnapshotId == snapshot.snapshotId()) {
-      // change is a noop
-      return this;
-    }
-
-    long nowMillis = System.currentTimeMillis();
-    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-        .addAll(snapshotLog)
-        .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
-        .build();
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, nowMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), snapshots,
-        newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
   }
 
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
@@ -885,27 +826,11 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata updateLocation(String newLocation) {
-    return new TableMetadata(null, formatVersion, uuid, newLocation,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).setLocation(newLocation).build();
   }
 
   public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
-    Preconditions.checkArgument(newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
-        "Cannot upgrade table to unsupported format version: v%s (supported: v%s)",
-        newFormatVersion, SUPPORTED_TABLE_FORMAT_VERSION);
-    Preconditions.checkArgument(newFormatVersion >= formatVersion,
-        "Cannot downgrade v%s table to v%s", formatVersion, newFormatVersion);
-
-    if (newFormatVersion == formatVersion) {
-      return this;
-    }
-
-    return new TableMetadata(null, newFormatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    return new Builder(this).upgradeFormatVersion(newFormatVersion).build();
   }
 
   private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis) {
@@ -934,6 +859,8 @@ public class TableMetadata implements Serializable {
   }
 
   private static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
+    PartitionSpec.checkCompatibility(partitionSpec, schema);
+
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
         .withSpecId(partitionSpec.specId());
 
@@ -946,6 +873,8 @@ public class TableMetadata implements Serializable {
   }
 
   private static SortOrder updateSortOrderSchema(Schema schema, SortOrder sortOrder) {
+    SortOrder.checkCompatibility(sortOrder, schema);
+
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(sortOrder.orderId());
 
     // add all of the fields to the builder. IDs should not change.
@@ -1041,6 +970,18 @@ public class TableMetadata implements Serializable {
   }
 
   private interface MetadataUpdate {
+    class UpgradeFormatVersion implements MetadataUpdate {
+      private final int formatVersion;
+
+      public UpgradeFormatVersion(int formatVersion) {
+        this.formatVersion = formatVersion;
+      }
+
+      public int formatVersion() {
+        return formatVersion;
+      }
+    }
+
     class AddSchema implements MetadataUpdate {
       private final Schema schema;
       private final int lastColumnId;
@@ -1070,6 +1011,30 @@ public class TableMetadata implements Serializable {
         return schemaId;
       }
     }
+
+    class AddSnapshot implements MetadataUpdate {
+      private final long snapshotId;
+
+      public AddSnapshot(long snapshotId) {
+        this.snapshotId = snapshotId;
+      }
+
+      public long snapshotId() {
+        return snapshotId;
+      }
+    }
+
+    class SetCurrentSnapshotId implements MetadataUpdate {
+      private final long snapshotId;
+
+      public SetCurrentSnapshotId(long snapshotId) {
+        this.snapshotId = snapshotId;
+      }
+
+      public long snapshotId() {
+        return snapshotId;
+      }
+    }
   }
 
   public static class Builder {
@@ -1078,6 +1043,7 @@ public class TableMetadata implements Serializable {
 
     private Long lastUpdatedMillis = null;
 
+    private TableMetadata base;
     private int formatVersion;
     private String uuid;
     private String location;
@@ -1104,6 +1070,7 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, SortOrder> sortOrdersById;
 
     public Builder(TableMetadata base) {
+      this.base = base;
       this.formatVersion = base.formatVersion;
       this.uuid = base.uuid;
       this.location = base.location;
@@ -1119,7 +1086,7 @@ public class TableMetadata implements Serializable {
       this.properties = Maps.newHashMap(base.properties);
       this.currentSnapshotId = base.currentSnapshotId;
       this.snapshots = Lists.newArrayList(base.snapshots);
-      this.snapshotLog = Lists.newArrayList(snapshotLog);
+      this.snapshotLog = Lists.newArrayList(base.snapshotLog);
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
 
@@ -1129,11 +1096,32 @@ public class TableMetadata implements Serializable {
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
     }
 
+    public Builder upgradeFormatVersion(int newFormatVersion) {
+      Preconditions.checkArgument(newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
+          "Cannot upgrade table to unsupported format version: v%s (supported: v%s)",
+          newFormatVersion, SUPPORTED_TABLE_FORMAT_VERSION);
+      Preconditions.checkArgument(newFormatVersion >= formatVersion,
+          "Cannot downgrade v%s table to v%s", formatVersion, newFormatVersion);
+
+      if (newFormatVersion == formatVersion) {
+        return this;
+      }
+
+      this.formatVersion = newFormatVersion;
+      changes.add(new MetadataUpdate.UpgradeFormatVersion(newFormatVersion));
+
+      return this;
+    }
+
     public Builder setCurrentSchema(Schema newSchema, int lastColumnId) {
       return setCurrentSchema(addSchemaInternal(newSchema, lastColumnId));
     }
 
     public Builder setCurrentSchema(int schemaId) {
+      if (currentSchemaId == schemaId) {
+        return this;
+      }
+
       Schema schema = schemasById.get(schemaId);
       Preconditions.checkArgument(schema != null, "Cannot set current schema to unknown schema: %s", schemaId);
 
@@ -1153,12 +1141,61 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private Builder addSchema(Schema schema, int newLastColumnId) {
+    public Builder addSchema(Schema schema, int newLastColumnId) {
       addSchemaInternal(schema, newLastColumnId);
       return this;
     }
 
+    public Builder addSnapshot(Snapshot snapshot) {
+      if (snapshotsById.containsKey(snapshot.snapshotId())) {
+        // change is a noop
+        return this;
+      }
+
+      ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
+          "Cannot add snapshot with sequence number %s older than last sequence number %s",
+          snapshot.sequenceNumber(), lastSequenceNumber);
+
+      this.lastUpdatedMillis = snapshot.timestampMillis();
+      this.lastSequenceNumber = snapshot.sequenceNumber();
+      snapshots.add(snapshot);
+      snapshotsById.put(snapshot.snapshotId(), snapshot);
+      changes.add(new MetadataUpdate.AddSnapshot(snapshot.snapshotId()));
+
+      return this;
+    }
+
+    public Builder setCurrentSnapshot(Snapshot snapshot) {
+      // TODO: make sure the API makes sense with the timestamp
+      setCurrentSnapshot(snapshot, snapshot.timestampMillis());
+      return this;
+    }
+
+    private Builder setCurrentSnapshot(long snapshotId) {
+      if (currentSnapshotId == snapshotId) {
+        // change is a noop
+        return this;
+      }
+
+      Snapshot snapshot = snapshotsById.get(snapshotId);
+      ValidationException.check(snapshot != null,
+          "Cannot set current snapshot to unknown: %s", snapshotId);
+
+      setCurrentSnapshot(snapshot, System.currentTimeMillis());
+
+      return this;
+    }
+
+    private Builder setLocation(String newLocation) {
+      this.location = newLocation;
+      return this;
+    }
+
     public TableMetadata build() {
+      if (changes.isEmpty()) {
+        return base;
+      }
+
       if (lastUpdatedMillis == null) {
         this.lastUpdatedMillis = System.currentTimeMillis();
       }
@@ -1214,6 +1251,17 @@ public class TableMetadata implements Serializable {
         }
       }
       return newSchemaId;
+    }
+
+    private void setCurrentSnapshot(Snapshot snapshot, long currentTimestampMillis) {
+      ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
+          "Last sequence number %s is less than existing snapshot sequence number %s",
+          lastSequenceNumber, snapshot.sequenceNumber());
+
+      this.lastUpdatedMillis = currentTimestampMillis;
+      this.currentSnapshotId = snapshot.snapshotId();
+      snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, snapshot.snapshotId()));
+      changes.add(new MetadataUpdate.SetCurrentSnapshotId(snapshot.snapshotId()));
     }
 
     private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis) {
