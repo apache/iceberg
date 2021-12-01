@@ -41,17 +41,18 @@ paths:
       summary: List all catalog configuration settings
       operationId: getConfig
       description:
-        All REST catalogs will be initialized by calling this route. This route
-        will return at least the minimum necessary metadata to initialize the
-        catalog. Optionally, it can also include server-side specific overrides.
-        For example, it might also include information used to initialize this catalog
-        such as the details of the Http connection pooling, etc. This route might
-        also advertise information about operations that are not implemented
-        so that the catalog can eagerly throw or go about another way of performing
-        the desired action.
+        All REST catalog clients will first call this route to get some configuration provided by the server.
+        This route will return any server specified default configuration values for the catalog, such as
+        configuration values used to setup the catalog for usage with Spark (e.g. vectorization-enabled).
+
+        Users should be able to override these values with client specified values.
+
+        The server might be able to request that the client use its value over a value that has been
+        configured in the client application. How and if it will do that is an open question, and thus
+        not currently specified in this documents schema.
       responses:
         default:
-          description: Server-Specific Configuration Overrides
+          description: Server-Specific Configuration Values (or Overrides)
           content:
             application/json:
               schema:
