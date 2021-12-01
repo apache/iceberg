@@ -258,6 +258,7 @@ paths:
       description:
         Set a collection of properties on a namespace in the catalog.
         Properties that are not in the given map are not modified or removed by this call.
+        Server implementations are not required to support namespace properties.
       requestBody:
         content:
           application/json:
@@ -271,6 +272,8 @@ paths:
             'application/json':
               schema:
                 type: boolean
+        '406':
+          description: Not Acceptable (Unsupported Operation)
         '412':
           description: Namespace not found
           content:

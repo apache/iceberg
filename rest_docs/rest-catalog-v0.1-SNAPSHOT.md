@@ -69,7 +69,9 @@ System.out.println(response.toString());
 
 *List all catalog configuration settings*
 
-All REST catalogs will be initialized by calling this route. This route will return at least the minimum necessary metadata to initialize the catalog. Optionally, it can also include server-side specific overrides. For example, it might also include information used to initialize this catalog such as the details of the Http connection pooling, etc. This route might also advertise information about operations that are not implemented so that the catalog can eagerly throw or go about another way of performing the desired action.
+All REST catalog clients will first call this route to get some configuration provided by the server. This route will return any server specified default configuration values for the catalog, such as configuration values used to setup the catalog for usage with Spark (e.g. vectorization-enabled).
+Users should be able to override these values with client specified values.
+The server might be able to request that the client use its value over a value that has been configured in the client application. How and if it will do that is an open question, and thus not currently specified in this documents schema.
 
 > Example responses
 
@@ -88,7 +90,7 @@ All REST catalogs will be initialized by calling this route. This route will ret
 |---|---|---|---|
 |400|[Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)|Unknown Error|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|default|Default|Server-Specific Configuration Overrides|[IcebergConfiguration](#schemaicebergconfiguration)|
+|default|Default|Server-Specific Configuration Values (or Overrides)|[IcebergConfiguration](#schemaicebergconfiguration)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -136,8 +138,8 @@ System.out.println(response.toString());
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|namespace|path|string|true|Namespace the table is in|
-|table|path|string|true|Name of the table to load|
+|namespace|path|string|true|A namespace identifier|
+|table|path|string|true|A table name|
 
 > Example responses
 
@@ -177,93 +179,6 @@ System.out.println(response.toString());
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetTableResponse](#schemagettableresponse)|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 |412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|NoSuchTableException|[NoSuchTableError](#schemanosuchtableerror)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## commitTable
-
-<a id="opIdcommitTable"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table} \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table}");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("PUT");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`PUT /v1/namespaces/{namespace}/tables/{table}`
-
-*Commit an in progress create (or replace) table transaction*
-
-Commit a pending create (or replace) table transaction, e.g. for doCommit.
-
-> Body parameter
-
-```json
-{
-  "tableIdentifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "metadataJson": "string"
-}
-```
-
-<h3 id="committable-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[CommitTableRequest](#schemacommittablerequest)|true|none|
-|» tableIdentifier|body|[TableIdentifier](#schematableidentifier)|false|none|
-|»» namespace|body|[string]|true|none|
-|»» name|body|string|false|none|
-|» metadataJson|body|string|false|none|
-|namespace|path|string|true|Namespace the table is in|
-|table|path|string|true|Name of the table to load|
-
-> Example responses
-
-> 200 Response
-
-```json
-{
-  "metadataLocation": "string",
-  "metadataJson": "string"
-}
-```
-
-<h3 id="committable-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[CommitTableResponse](#schemacommittableresponse)|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|[IcebergResponseObject](#schemaicebergresponseobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -312,8 +227,8 @@ Remove a table from the catalog
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
 |purgeRequested|query|boolean|false|Whether the user requested to purge the underlying table's data and metadata|
-|namespace|path|string|true|Namespace the table is in|
-|table|path|string|true|Name of the table to load|
+|namespace|path|string|true|A namespace identifier|
+|table|path|string|true|A table name|
 
 > Example responses
 
@@ -374,7 +289,7 @@ Check if a table exists within a given namespace. Returns the standard response 
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|namespace|path|string|true|none|
+|namespace|path|string|true|A namespace identifier|
 |table|path|string|true|none|
 
 <h3 id="tableexists-responses">Responses</h3>
@@ -430,9 +345,7 @@ Return all table identifiers under this namespace
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|namespace|path|string|true|Namespace under which to list tables.|
-|limit|query|integer|false|number of values to return in one request|
-|offset|query|integer|false|Place in the response to continue from if paginating|
+|namespace|path|string|true|A namespace identifier under which to list tables|
 
 > Example responses
 
@@ -548,7 +461,7 @@ System.out.println(response.toString());
 |»» **additionalProperties**|body|string|false|none|
 |» metadataJson|body|string|false|none|
 |» commit|body|boolean|false|none|
-|namespace|path|string|true|Namespace under which to list tables.|
+|namespace|path|string|true|A namespace identifier under which to list tables|
 
 > Example responses
 
@@ -588,7 +501,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
+curl -X POST http://127.0.0.1:1080/v1/tables/renameTable \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -596,9 +509,9 @@ curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables");
+URL obj = new URL("http://127.0.0.1:1080/v1/tables/renameTable");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("PUT");
+con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
 BufferedReader in = new BufferedReader(
     new InputStreamReader(con.getInputStream()));
@@ -612,11 +525,11 @@ System.out.println(response.toString());
 
 ```
 
-`PUT /v1/namespaces/{namespace}/tables`
+`POST /v1/tables/renameTable`
 
-*Rename a table from its current name to a new name within the same catalog*
+*Rename a table from its current name to a new name*
 
-Rename a table within the same catalog
+Rename a table from one identifier to another. It's valid to move a table across namespaces, but the server implementation doesn't need to support it.
 
 > Body parameter
 
@@ -646,7 +559,6 @@ Rename a table within the same catalog
 |»» namespace|body|[string]|true|none|
 |»» name|body|string|false|none|
 |» destinationTableIdentifier|body|[TableIdentifier](#schematableidentifier)|false|none|
-|namespace|path|string|true|Namespace under which to list tables.|
 
 > Example responses
 
@@ -668,160 +580,9 @@ Rename a table within the same catalog
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
 |409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|The new table identifier, the to table rename to, already exists.|[TableAlreadyExistsError](#schematablealreadyexistserror)|
 |412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Table to rename from does not exist|[NoSuchTableError](#schemanosuchtableerror)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## loadNamespaceMetadata
-
-<a id="opIdloadNamespaceMetadata"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
-  -H 'Accept: application' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/properties");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("GET");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`GET /v1/namespaces/{namespace}/properties`
-
-*Load the metadata properties for a namespace*
-
-Return all stored metadata properties for a given namespace
-
-<h3 id="loadnamespacemetadata-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-> 417 Response
-
-```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41701 }"
-```
-
-<h3 id="loadnamespacemetadata-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
-|417|[Expectation Failed](https://tools.ietf.org/html/rfc7231#section-6.5.14)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## setNamespaceProperties
-
-<a id="opIdsetNamespaceProperties"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/properties");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("PUT");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`PUT /v1/namespaces/{namespace}/properties`
-
-*Add or overwrite properties to an existing namespace*
-
-Adds propertiess for a namespace. This will overwrite any existing properties, and merge with the others.
-
-> Body parameter
-
-```json
-{
-  "namespace": "string",
-  "properties": [
-    "string"
-  ]
-}
-```
-
-<h3 id="setnamespaceproperties-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[RemovePropertiesRequest](#schemaremovepropertiesrequest)|true|none|
-|» namespace|body|string|false|none|
-|» properties|body|[string]|false|none|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-```json
-true
-```
-
-> 409 Response
-
-> 417 Response
-
-```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41701 }"
-```
-
-<h3 id="setnamespaceproperties-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
-|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Namespace already exists|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
-|417|[Expectation Failed](https://tools.ietf.org/html/rfc7231#section-6.5.14)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -862,9 +623,9 @@ System.out.println(response.toString());
 
 `POST /v1/namespaces/{namespace}/properties`
 
-*Overwrite a namespace's properties with a new set of properties*
+*Set a collection of properties on a namespace*
 
-Set properties on a namespace
+Set a collection of properties on a namespace in the catalog. Properties that are not in the given map are not modified or removed by this call. Server implementations are not required to support namespace properties.
 
 > Body parameter
 
@@ -889,16 +650,105 @@ Set properties on a namespace
 > 200 Response
 
 ```json
-"{ data: { success: true }, error: { } }"
+true
+```
+
+> 412 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41201 }"
 ```
 
 <h3 id="setproperties-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|Inline|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
+|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 
-<h3 id="setproperties-responseschema">Response Schema</h3>
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
+## removeProperties
+
+<a id="opIdremoveProperties"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X DELETE http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/properties");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("DELETE");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`DELETE /v1/namespaces/{namespace}/properties`
+
+*Remove a set of property keys from a namespace in the catalog*
+
+Remove a set of property keys from a namespace in the catalog. Properties that are not in the given set are not modified or removed by this call. Server implementations are not required to support namespace properties.
+
+> Body parameter
+
+```json
+{
+  "namespace": "string",
+  "properties": {}
+}
+```
+
+<h3 id="removeproperties-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|body|body|[RemovePropertiesRequest](#schemaremovepropertiesrequest)|true|none|
+|» namespace|body|string|false|none|
+|» properties|body|object|false|none|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+true
+```
+
+> 412 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41201 }"
+```
+
+<h3 id="removeproperties-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
+|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -974,6 +824,71 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
+## loadNamespaceMetadata
+
+<a id="opIdloadNamespaceMetadata"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace} \
+  -H 'Accept: application' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`GET /v1/namespaces/{namespace}`
+
+*Load the metadata properties for a namespace*
+
+Return all stored metadata properties for a given namespace
+
+<h3 id="loadnamespacemetadata-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+> 412 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41201 }"
+```
+
+<h3 id="loadnamespacemetadata-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
+|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
 ## createNamespace
 
 <a id="opIdcreateNamespace"></a>
@@ -1009,7 +924,7 @@ System.out.println(response.toString());
 
 *Create a namespace*
 
-Create a namespace, with an optional set of properties. The server might also add properties.
+Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
 
 > Body parameter
 
@@ -1106,33 +1021,6 @@ BearerAuth
 
 # Schemas
 
-<h2 id="tocS_CommitTableRequest">CommitTableRequest</h2>
-<!-- backwards compatibility -->
-<a id="schemacommittablerequest"></a>
-<a id="schema_CommitTableRequest"></a>
-<a id="tocScommittablerequest"></a>
-<a id="tocscommittablerequest"></a>
-
-```json
-{
-  "tableIdentifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "metadataJson": "string"
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|tableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
-|metadataJson|string|false|none|none|
-
 <h2 id="tocS_TableIdentifier">TableIdentifier</h2>
 <!-- backwards compatibility -->
 <a id="schematableidentifier"></a>
@@ -1157,28 +1045,6 @@ BearerAuth
 |namespace|[string]|true|none|none|
 |name|string|false|none|none|
 
-<h2 id="tocS_CommitTableResponse">CommitTableResponse</h2>
-<!-- backwards compatibility -->
-<a id="schemacommittableresponse"></a>
-<a id="schema_CommitTableResponse"></a>
-<a id="tocScommittableresponse"></a>
-<a id="tocscommittableresponse"></a>
-
-```json
-{
-  "metadataLocation": "string",
-  "metadataJson": "string"
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|metadataLocation|string|false|none|none|
-|metadataJson|string|false|none|none|
-
 <h2 id="tocS_RemovePropertiesRequest">RemovePropertiesRequest</h2>
 <!-- backwards compatibility -->
 <a id="schemaremovepropertiesrequest"></a>
@@ -1189,32 +1055,6 @@ BearerAuth
 ```json
 {
   "namespace": "string",
-  "properties": [
-    "string"
-  ]
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|namespace|string|false|none|none|
-|properties|[string]|false|none|none|
-
-<h2 id="tocS_Catalog">Catalog</h2>
-<!-- backwards compatibility -->
-<a id="schemacatalog"></a>
-<a id="schema_Catalog"></a>
-<a id="tocScatalog"></a>
-<a id="tocscatalog"></a>
-
-```json
-{
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "location": "string",
   "properties": {}
 }
 
@@ -1224,10 +1064,8 @@ BearerAuth
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|id|string(uuid)|false|none|Unique identifier for this catalog|
-|name|string|true|none|none|
-|location|string|false|none|Warehouse location for this catalog or URI of metastore or other identifying location|
-|properties|object|true|none|Additional catalog level properties|
+|namespace|string|false|none|none|
+|properties|object|false|none|none|
 
 <h2 id="tocS_CreateNamespaceRequest">CreateNamespaceRequest</h2>
 <!-- backwards compatibility -->
