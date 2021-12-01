@@ -106,31 +106,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchTableError'
-    put:
-      tags:
-        - Catalog API
-      summary: Commit an in progress create (or replace) table transaction
-      operationId: commitTable
-      description: Commit a pending create (or replace) table transaction, e.g. for doCommit.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CommitTableRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CommitTableResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
     delete:
       tags:
         - Catalog API
