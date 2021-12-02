@@ -282,7 +282,7 @@ paths:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
-    delete:
+    put:
       tags:
         - Catalog API
       summary: Remove a set of property keys from a namespace in the catalog
