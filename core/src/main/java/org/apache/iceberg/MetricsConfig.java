@@ -43,6 +43,9 @@ public final class MetricsConfig implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
   private static final Joiner DOT = Joiner.on('.');
 
+  private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(),
+          MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
+
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
 
@@ -52,7 +55,7 @@ public final class MetricsConfig implements Serializable {
   }
 
   public static MetricsConfig getDefault() {
-    return new MetricsConfig(ImmutableMap.of(), MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
+    return DEFAULT;
   }
 
   static Map<String, String> updateProperties(Map<String, String> props, List<String> deletedColumns,
