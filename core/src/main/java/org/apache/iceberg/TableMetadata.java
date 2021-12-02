@@ -500,35 +500,8 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
-    List<Snapshot> filtered = Lists.newArrayListWithExpectedSize(snapshots.size());
-    for (Snapshot snapshot : snapshots) {
-      // keep the current snapshot and any snapshots that do not match the removeIf condition
-      if (snapshot.snapshotId() == currentSnapshotId || !removeIf.test(snapshot)) {
-        filtered.add(snapshot);
-      }
-    }
-
-    // update the snapshot log
-    Set<Long> validIds = Sets.newHashSet(Iterables.transform(filtered, Snapshot::snapshotId));
-    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
-    for (HistoryEntry logEntry : snapshotLog) {
-      if (validIds.contains(logEntry.snapshotId())) {
-        // copy the log entries that are still valid
-        newSnapshotLog.add(logEntry);
-      } else {
-        // any invalid entry causes the history before it to be removed. otherwise, there could be
-        // history gaps that cause time-travel queries to produce incorrect results. for example,
-        // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
-        // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
-        // and t3 when in fact s2 was the current snapshot.
-        newSnapshotLog.clear();
-      }
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
-        ImmutableList.copyOf(newSnapshotLog), addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+    List<Snapshot> toRemove = snapshots.stream().filter(removeIf).collect(Collectors.toList());
+    return new Builder(this).removeSnapshots(toRemove).build();
   }
 
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
@@ -1005,6 +978,18 @@ public class TableMetadata implements Serializable {
       }
     }
 
+    class RemoveSnapshot implements MetadataUpdate {
+      private final long snapshotId;
+
+      public RemoveSnapshot(long snapshotId) {
+        this.snapshotId = snapshotId;
+      }
+
+      public long snapshotId() {
+        return snapshotId;
+      }
+    }
+
     class SetCurrentSnapshotId implements MetadataUpdate {
       private final long snapshotId;
 
@@ -1094,11 +1079,8 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder setCurrentSchema(Schema newSchema, int lastColumnId) {
-      return setCurrentSchema(addSchemaInternal(newSchema, lastColumnId));
-    }
-
-    public Builder setCurrentSchema(int schemaId) {
+    public Builder setCurrentSchema(Schema newSchema, int newLastColumnId) {
+      int schemaId = addSchemaInternal(newSchema, newLastColumnId);
       if (currentSchemaId == schemaId) {
         return this;
       }
@@ -1202,6 +1184,26 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder removeSnapshots(List<Snapshot> snapshotsToRemove) {
+      Set<Long> idsToRemove = snapshotsToRemove.stream()
+          .map(Snapshot::snapshotId)
+          .filter(id -> currentSnapshotId != id) // don't remove the current snapshot
+          .collect(Collectors.toSet());
+
+      List<Snapshot> retainedSnapshots = Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
+      for (Snapshot snapshot : snapshots) {
+        if (idsToRemove.contains(snapshot.snapshotId())) {
+          changes.add(new MetadataUpdate.RemoveSnapshot(snapshot.snapshotId()));
+        } else {
+          retainedSnapshots.add(snapshot);
+        }
+      }
+
+      this.snapshots = retainedSnapshots;
+
+      return this;
+    }
+
     private Builder setLocation(String newLocation) {
       this.location = newLocation;
       return this;
@@ -1218,11 +1220,28 @@ public class TableMetadata implements Serializable {
 
       List<MetadataLogEntry> metadataHistory = addPreviousFile(previousFileLocation, lastUpdatedMillis);
 
+      // update the snapshot log
+      Set<Long> validIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
+      List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+      for (HistoryEntry logEntry : snapshotLog) {
+        if (validIds.contains(logEntry.snapshotId())) {
+          // copy the log entries that are still valid
+          newSnapshotLog.add(logEntry);
+        } else {
+          // any invalid entry causes the history before it to be removed. otherwise, there could be
+          // history gaps that cause time-travel queries to produce incorrect results. for example,
+          // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
+          // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
+          // and t3 when in fact s2 was the current snapshot.
+          newSnapshotLog.clear();
+        }
+      }
+
       return new TableMetadata(
           null, formatVersion, uuid, location,
           lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
           lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-          snapshots, snapshotLog, metadataHistory
+          snapshots, newSnapshotLog, metadataHistory
       );
     }
 
@@ -1231,27 +1250,27 @@ public class TableMetadata implements Serializable {
           "Invalid last column ID: %s < %s (previous last column ID)", newLastColumnId, lastColumnId);
 
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
-      boolean schemaAdded = schemasById.containsKey(newSchemaId);
-      if (schemaAdded && newLastColumnId == lastColumnId) {
+      boolean schemaFound = schemasById.containsKey(newSchemaId);
+      if (schemaFound && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
         return newSchemaId;
       }
 
       this.lastColumnId = newLastColumnId;
 
-      if (!schemaAdded) {
-        Schema newSchema;
-        if (newSchemaId != schema.schemaId()) {
-          newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
-        } else {
-          newSchema = schema;
-        }
+      Schema newSchema;
+      if (newSchemaId != schema.schemaId()) {
+        newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
+      } else {
+        newSchema = schema;
+      }
 
+      if (!schemaFound) {
         schemas.add(newSchema);
         schemasById.put(newSchema.schemaId(), newSchema);
-
-        changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
       }
+
+      changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
 
       return newSchemaId;
     }
@@ -1261,8 +1280,7 @@ public class TableMetadata implements Serializable {
       int newSchemaId = currentSchemaId;
       for (Schema schema : schemas) {
         if (schema.sameSchema(newSchema)) {
-          newSchemaId = schema.schemaId();
-          break;
+          return schema.schemaId();
         } else if (schema.schemaId() >= newSchemaId) {
           newSchemaId = schema.schemaId() + 1;
         }
@@ -1296,8 +1314,7 @@ public class TableMetadata implements Serializable {
       int newSpecId = INITIAL_SPEC_ID;
       for (PartitionSpec spec : specs) {
         if (newSpec.compatibleWith(spec)) {
-          newSpecId = spec.specId();
-          break;
+          return spec.specId();
         } else if (newSpecId <= spec.specId()) {
           newSpecId = spec.specId() + 1;
         }
@@ -1340,8 +1357,7 @@ public class TableMetadata implements Serializable {
       int newOrderId = INITIAL_SORT_ORDER_ID;
       for (SortOrder order : sortOrders) {
         if (order.sameOrder(newOrder)) {
-          newOrderId = order.orderId();
-          break;
+          return order.orderId();
         } else if (newOrderId <= order.orderId()) {
           newOrderId = order.orderId() + 1;
         }
