@@ -22,8 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -507,17 +505,24 @@ public class TableMetadata implements Serializable {
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
     ValidationException.check(rawProperties != null, "Cannot set properties to null");
     Map<String, String> newProperties = unreservedProperties(rawProperties);
-    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
-        snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis, newProperties));
 
-    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
-    if (formatVersion != newFormatVersion) {
-      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    Set<String> removed = Sets.newHashSet(properties.keySet());
+    Map<String, String> updated = Maps.newHashMap();
+    for (Map.Entry<String, String> entry : newProperties.entrySet()) {
+      removed.remove(entry.getKey());
+      String current = properties.get(entry.getKey());
+      if (current == null || !current.equals(entry.getValue())) {
+        updated.put(entry.getKey(), entry.getValue());
+      }
     }
 
-    return metadata;
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
+
+    return new Builder(this)
+        .setProperties(updated)
+        .removeProperties(removed)
+        .upgradeFormatVersion(newFormatVersion)
+        .build();
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -661,74 +666,27 @@ public class TableMetadata implements Serializable {
     AtomicInteger newLastColumnId = new AtomicInteger(lastColumnId);
     Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, schema(), newLastColumnId::incrementAndGet);
 
-    // determine the next spec id
-    OptionalInt maxSpecId = specs.stream().mapToInt(PartitionSpec::specId).max();
-    int nextSpecId = maxSpecId.orElse(TableMetadata.INITIAL_SPEC_ID) + 1;
-
     // rebuild the partition spec using the new column ids
-    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
+    PartitionSpec freshSpec = freshSpec(INITIAL_SPEC_ID, freshSchema, updatedPartitionSpec);
 
     // reassign partition field ids with existing partition specs in the table
-    AtomicInteger lastPartitionId = new AtomicInteger(lastAssignedPartitionId);
-    PartitionSpec newSpec = reassignPartitionIds(freshSpec, lastPartitionId::incrementAndGet);
-
-    // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
-    int specId = specs.stream()
-        .filter(newSpec::compatibleWith)
-        .findFirst()
-        .map(PartitionSpec::specId)
-        .orElse(nextSpecId);
-
-    ImmutableList.Builder<PartitionSpec> specListBuilder = ImmutableList.<PartitionSpec>builder().addAll(specs);
-    if (!specsById.containsKey(specId)) {
-      specListBuilder.add(newSpec);
-    }
-
-    // determine the next order id
-    OptionalInt maxOrderId = sortOrders.stream().mapToInt(SortOrder::orderId).max();
-    int nextOrderId = maxOrderId.isPresent() ? maxOrderId.getAsInt() + 1 : INITIAL_SORT_ORDER_ID;
+    PartitionSpec newSpec = reassignPartitionIds(
+        freshSpec, new AtomicInteger(lastAssignedPartitionId)::incrementAndGet);
 
     // rebuild the sort order using new column ids
-    int freshSortOrderId = updatedSortOrder.isUnsorted() ? updatedSortOrder.orderId() : nextOrderId;
-    SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, updatedSortOrder);
-
-    // if the order already exists, use the same ID. otherwise, use the fresh order ID
-    Optional<SortOrder> sameSortOrder = sortOrders.stream()
-        .filter(sortOrder -> sortOrder.sameOrder(freshSortOrder))
-        .findAny();
-    int orderId = sameSortOrder.map(SortOrder::orderId).orElse(freshSortOrderId);
-
-    ImmutableList.Builder<SortOrder> sortOrdersBuilder = ImmutableList.<SortOrder>builder().addAll(sortOrders);
-    if (!sortOrdersById.containsKey(orderId)) {
-      sortOrdersBuilder.add(freshSortOrder);
-    }
-
-    Map<String, String> newProperties = Maps.newHashMap();
-    newProperties.putAll(this.properties);
-    newProperties.putAll(unreservedProperties(updatedProperties));
+    SortOrder freshSortOrder = freshSortOrder(INITIAL_SORT_ORDER_ID, freshSchema, updatedSortOrder);
 
     // check if there is format version override
     int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
-    // determine the next schema id
-    int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);
-    ImmutableList.Builder<Schema> schemasBuilder = ImmutableList.<Schema>builder().addAll(schemas);
-
-    if (!schemasById.containsKey(freshSchemaId)) {
-      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
-    }
-
-    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
-        lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
-        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
-        orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
-        -1, snapshots, ImmutableList.of(), addPreviousFile(metadataFileLocation, lastUpdatedMillis, newProperties));
-
-    if (formatVersion != newFormatVersion) {
-      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
-    }
-
-    return metadata;
+    return new Builder(this)
+        .upgradeFormatVersion(newFormatVersion)
+        .setCurrentSchema(freshSchema, newLastColumnId.get())
+        .setDefaultPartitionSpec(newSpec)
+        .setDefaultSortOrder(freshSortOrder)
+        .setLocation(newLocation)
+        .setProperties(unreservedProperties(updatedProperties))
+        .build();
   }
 
   public TableMetadata updateLocation(String newLocation) {
@@ -1001,17 +959,52 @@ public class TableMetadata implements Serializable {
         return snapshotId;
       }
     }
+
+    class SetProperties implements MetadataUpdate {
+      private final Map<String, String> updated;
+
+      public SetProperties(Map<String, String> updated) {
+        this.updated = updated;
+      }
+
+      public Map<String, String> updated() {
+        return updated;
+      }
+    }
+
+    class RemoveProperties implements MetadataUpdate {
+      private final Set<String> removed;
+
+      public RemoveProperties(Set<String> removed) {
+        this.removed = removed;
+      }
+
+      public Set<String> removed() {
+        return removed;
+      }
+    }
+
+    class SetLocation implements MetadataUpdate {
+      private final String location;
+
+      public SetLocation(String location) {
+        this.location = location;
+      }
+
+      public String location() {
+        return location;
+      }
+    }
   }
 
   public static class Builder {
     // used to track changes applied through the builder
     private final List<MetadataUpdate> changes = Lists.newArrayList();
 
-    private Long lastUpdatedMillis = null;
-
-    private TableMetadata base;
+    private final TableMetadata base;
     private int formatVersion;
     private String uuid;
+    private Long lastUpdatedMillis;
     private String location;
     private long lastSequenceNumber;
     private int lastColumnId;
@@ -1025,9 +1018,11 @@ public class TableMetadata implements Serializable {
     private Map<String, String> properties;
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
-    private List<HistoryEntry> snapshotLog;
-    private String previousFileLocation;
-    private List<MetadataLogEntry> previousFiles;
+
+    // handled in build
+    private final List<HistoryEntry> snapshotLog;
+    private final String previousFileLocation;
+    private final List<MetadataLogEntry> previousFiles;
 
     // indexes for convenience
     private final Map<Long, Snapshot> snapshotsById;
@@ -1039,6 +1034,7 @@ public class TableMetadata implements Serializable {
       this.base = base;
       this.formatVersion = base.formatVersion;
       this.uuid = base.uuid;
+      this.lastUpdatedMillis = null;
       this.location = base.location;
       this.lastSequenceNumber = base.lastSequenceNumber;
       this.lastColumnId = base.lastColumnId;
@@ -1052,6 +1048,7 @@ public class TableMetadata implements Serializable {
       this.properties = Maps.newHashMap(base.properties);
       this.currentSnapshotId = base.currentSnapshotId;
       this.snapshots = Lists.newArrayList(base.snapshots);
+
       this.snapshotLog = Lists.newArrayList(base.snapshotLog);
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
@@ -1204,8 +1201,36 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private Builder setLocation(String newLocation) {
+    public Builder setProperties(Map<String, String> updated) {
+      if (updated.isEmpty()) {
+        return this;
+      }
+
+      properties.putAll(updated);
+      changes.add(new MetadataUpdate.SetProperties(updated));
+
+      return this;
+    }
+
+    public Builder removeProperties(Set<String> removed) {
+      if (removed.isEmpty()) {
+        return this;
+      }
+
+      removed.forEach(properties::remove);
+      changes.add(new MetadataUpdate.RemoveProperties(removed));
+
+      return this;
+    }
+
+    public Builder setLocation(String newLocation) {
+      if (!location.equals(newLocation)) {
+        return this;
+      }
+
       this.location = newLocation;
+      changes.add(new MetadataUpdate.SetLocation(newLocation));
+
       return this;
     }
 
@@ -1221,10 +1246,9 @@ public class TableMetadata implements Serializable {
       List<MetadataLogEntry> metadataHistory = addPreviousFile(previousFileLocation, lastUpdatedMillis);
 
       // update the snapshot log
-      Set<Long> validIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
       List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
       for (HistoryEntry logEntry : snapshotLog) {
-        if (validIds.contains(logEntry.snapshotId())) {
+        if (snapshotsById.containsKey(logEntry.snapshotId())) {
           // copy the log entries that are still valid
           newSnapshotLog.add(logEntry);
         } else {
