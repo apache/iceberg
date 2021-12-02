@@ -68,6 +68,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     super(catalogName, baseNamepace);
   }
 
+  @Override
   @Before
   public void before() {
     super.before();

@@ -85,6 +85,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     return tEnv;
   }
 
+  @Override
   @Before
   public void before() {
     super.before();
@@ -93,6 +94,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     sql("USE %s", DATABASE);
   }
 
+  @Override
   @After
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE);

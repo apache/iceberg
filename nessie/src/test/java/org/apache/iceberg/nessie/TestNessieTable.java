@@ -77,12 +77,14 @@ public class TestNessieTable extends BaseTestIceberg {
     super(BRANCH);
   }
 
+  @Override
   @BeforeEach
   public void beforeEach() throws IOException {
     super.beforeEach();
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 
+  @Override
   @AfterEach
   public void afterEach() throws Exception {
     // drop the table data

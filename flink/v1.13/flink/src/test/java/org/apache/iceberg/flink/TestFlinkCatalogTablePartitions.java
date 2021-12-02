@@ -65,6 +65,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     config.put(CACHE_ENABLED, String.valueOf(cacheEnabled));
   }
 
+  @Override
   @Before
   public void before() {
     super.before();
