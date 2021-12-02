@@ -59,7 +59,9 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
 
   @After
   public void afterFile() {
-    fileIO.close();
+    if (fileIO != null) {
+      fileIO.close();
+    }
   }
 
   @Test
