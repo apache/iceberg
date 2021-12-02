@@ -20,7 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -173,7 +172,7 @@ class Deserializer {
           return null;
         }
 
-        Map<Object, Object> result = new HashMap<>();
+        Map<Object, Object> result = Maps.newHashMap();
         MapObjectInspector mapObjectInspector = (MapObjectInspector) pair.sourceInspector();
 
         for (Map.Entry<?, ?> entry : mapObjectInspector.getMap(o).entrySet()) {

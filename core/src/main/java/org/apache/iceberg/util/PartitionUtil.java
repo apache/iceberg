@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -28,6 +27,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -49,7 +49,7 @@ public class PartitionUtil {
     StructLike partitionData = task.file().partition();
 
     // use java.util.HashMap because partition data may contain null values
-    Map<Integer, Object> idToConstant = new HashMap<>();
+    Map<Integer, Object> idToConstant = Maps.newHashMap();
 
     // add _file
     idToConstant.put(

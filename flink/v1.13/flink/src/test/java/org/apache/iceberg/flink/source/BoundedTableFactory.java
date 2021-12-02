@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.source;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,10 +45,11 @@ import org.apache.flink.types.RowKind;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class BoundedTableFactory implements DynamicTableSourceFactory {
   private static final AtomicInteger DATA_SET_ID = new AtomicInteger(0);
-  private static final Map<String, List<List<Row>>> DATA_SETS = new HashMap<>();
+  private static final Map<String, List<List<Row>>> DATA_SETS = Maps.newHashMap();
 
   private static final ConfigOption<String> DATA_ID = ConfigOptions.key("data-id").stringType().noDefaultValue();
 
