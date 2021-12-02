@@ -1,4 +1,4 @@
-org.slf4j:* = 1.7.25
+org.slf4j:* = 1.7.32
 org.apache.avro:avro = 1.10.1
 org.apache.calcite:* = 1.10.0
 org.apache.flink:* = 1.12.5
