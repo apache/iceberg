@@ -562,6 +562,12 @@ project(':iceberg-nessie') {
   }
 }
 
+project(':iceberg-crypto') {
+  dependencies {
+    compile project(':iceberg-core')
+  }
+}
+
 @Memoized
 boolean versionFileExists() {
   return file('version.txt').exists()
