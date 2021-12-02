@@ -661,11 +661,6 @@ public class TableMetadata implements Serializable {
         "Last sequence number %s is less than existing snapshot sequence number %s",
         lastSequenceNumber, snapshot.sequenceNumber());
 
-    if (currentSnapshotId == snapshot.snapshotId()) {
-      // change is a noop
-      return this;
-    }
-
     long nowMillis = System.currentTimeMillis();
     List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
         .addAll(snapshotLog)
@@ -673,7 +668,7 @@ public class TableMetadata implements Serializable {
         .build();
 
     return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, nowMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastSequenceNumber, nowMillis, lastColumnId, snapshot.schemaId(), schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), snapshots,
         newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
   }
