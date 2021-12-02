@@ -232,6 +232,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
 
+    // merge flinkCheckpointInfo from previousSummary into currentSummary when rewrite datafiles
+    mergeFlinkCheckpointInfo(builder, previousSummary, summary);
+
     // copy all summary properties from the implementation
     builder.putAll(summary);
 
@@ -445,6 +448,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
+    }
+  }
+
+  private static void mergeFlinkCheckpointInfo(ImmutableMap.Builder<String, String> summaryBuilder,
+                                               Map<String, String> previousSummary,
+                                               Map<String, String> currentSummary) {
+    if (!currentSummary.containsKey(SnapshotSummary.FLINK_JOB_ID) &&
+            previousSummary.containsKey(SnapshotSummary.FLINK_JOB_ID)) {
+      summaryBuilder.put(SnapshotSummary.FLINK_JOB_ID, previousSummary.get(SnapshotSummary.FLINK_JOB_ID));
+    }
+    if (!currentSummary.containsKey(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID) &&
+            previousSummary.containsKey(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID)) {
+      summaryBuilder.put(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID,
+              previousSummary.get(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID));
     }
   }
 
