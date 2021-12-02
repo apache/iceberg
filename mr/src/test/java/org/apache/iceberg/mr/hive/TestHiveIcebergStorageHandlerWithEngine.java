@@ -758,7 +758,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     String insert = testTables.getInsertQuery(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, identifier, false);
     shell.executeStatement(insert);
     String stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
-    Assert.assertEquals("{\"BASIC_STATS\":\"true\"}", stats);
+    Assert.assertTrue(stats.startsWith("{\"BASIC_STATS\":\"true\"")); // it's followed by column stats in Hive3
 
     // Create a Catalog where the KEEP_HIVE_STATS is false
     shell.metastore().hiveConf().set(ConfigProperties.KEEP_HIVE_STATS, StatsSetupConst.FALSE);
@@ -774,7 +774,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // insert some data again using Hive catalog, and check the stats are back
     shell.executeStatement(insert);
     stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
-    Assert.assertEquals("{\"BASIC_STATS\":\"true\"}", stats);
+    Assert.assertTrue(stats.startsWith("{\"BASIC_STATS\":\"true\"")); // it's followed by column stats in Hive3
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
