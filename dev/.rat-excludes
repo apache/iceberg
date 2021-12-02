@@ -24,3 +24,5 @@ gradle/*
 package-list
 sitemap.xml
 derby.log
+rest_docs/*
+

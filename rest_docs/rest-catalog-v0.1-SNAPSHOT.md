@@ -243,6 +243,7 @@ true
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|202|[Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3)|Accepted - for use if purgeRequested is implemented as an asynchronous action.|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -475,10 +476,9 @@ System.out.println(response.toString());
     ],
     "name": "string"
   },
-  "tableLocation": "s3://bucket/prod/accounting.db/monthly_sales",
   "metadataLocation": "s3://bucket/prod/accounting.db/monthly_sales/metadata/00001-0d4ef14f-ef7d-43e7-9af-5f4ad40a1103.metadata.json",
   "metadataJson": "TODO",
-  "accessToken": "string"
+  "tableToken": "string"
 }
 ```
 
@@ -680,7 +680,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
+curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -690,7 +690,7 @@ curl -X DELETE http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
 ```java
 URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/properties");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("DELETE");
+con.setRequestMethod("PUT");
 int responseCode = con.getResponseCode();
 BufferedReader in = new BufferedReader(
     new InputStreamReader(con.getInputStream()));
@@ -704,7 +704,7 @@ System.out.println(response.toString());
 
 ```
 
-`DELETE /v1/namespaces/{namespace}/properties`
+`PUT /v1/namespaces/{namespace}/properties`
 
 *Remove a set of property keys from a namespace in the catalog*
 
@@ -1273,10 +1273,9 @@ BearerAuth
     ],
     "name": "string"
   },
-  "tableLocation": "s3://bucket/prod/accounting.db/monthly_sales",
   "metadataLocation": "s3://bucket/prod/accounting.db/monthly_sales/metadata/00001-0d4ef14f-ef7d-43e7-9af-5f4ad40a1103.metadata.json",
   "metadataJson": "TODO",
-  "accessToken": "string"
+  "tableToken": "string"
 }
 
 ```
@@ -1286,10 +1285,9 @@ BearerAuth
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |identifier|[TableIdentifier](#schematableidentifier)|false|none|none|
-|tableLocation|string|false|none|Path of of the table just before the standard metadata / data folders. This is useful in cases where a different location provider might be used|
 |metadataLocation|string|false|none|Location of the most current primary metadata file for the table|
 |metadataJson|string|false|none|Stringified JSON representing the tables metadata|
-|accessToken|string|false|none|none|
+|tableToken|string|false|none|none|
 
 <h2 id="tocS_SetPropertiesRequest">SetPropertiesRequest</h2>
 <!-- backwards compatibility -->

@@ -128,6 +128,8 @@ paths:
               schema:
                 type: boolean
                 description: true if the table was dropped and false if the table did not exist
+        '202':
+          description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
     head:
       tags:
         - Catalog API
