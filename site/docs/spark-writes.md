@@ -70,6 +70,12 @@ ON t.id = s.id                -- condition to find updates for target rows
 WHEN ...                      -- updates
 ```
 
+!!! Warning 
+    For the above USING (SELECT ...) part, please note that the format of the information after SELECT is as follows: USING (SELECT 1 AS id,'updateVal' AS name) s
+The specific meaning is as follows:
+- Modify the name value of the target table to updateVal according to the id.
+- If the order of the name field in the table is not the second field, the fields between name and id must be completed in the order of the Schema column of the table, otherwise the data storage part will be misaligned.
+
 Updates to rows in the target table are listed using `WHEN MATCHED ... THEN ...`. Multiple `MATCHED` clauses can be added with conditions that determine when each match should be applied. The first matching expression is used.
 
 ```sql
