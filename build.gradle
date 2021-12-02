@@ -555,8 +555,10 @@ project(':iceberg-nessie') {
     testImplementation "org.projectnessie:nessie-jaxrs-testextension"
     // Need to "pull in" el-api explicitly :(
     testImplementation "jakarta.el:jakarta.el-api"
+    testImplementation 'org.assertj:assertj-core'
 
     compileOnly "org.apache.hadoop:hadoop-common"
+    testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
