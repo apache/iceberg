@@ -374,6 +374,7 @@ abstract class TestTables {
       );
     }
 
+    @Override
     public String locationForCreateTableSQL(TableIdentifier identifier) {
       return "LOCATION '" + warehouseLocation + TestTables.tablePath(identifier) + "' ";
     }
@@ -455,23 +456,27 @@ abstract class TestTables {
 
   enum TestTableType {
     HADOOP_TABLE {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
         return new HadoopTestTables(conf, temporaryFolder);
       }
     },
     HADOOP_CATALOG {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
           throws IOException {
         return new HadoopCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     CUSTOM_CATALOG {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
           throws IOException {
         return new CustomCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     HIVE_CATALOG {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
         return new HiveTestTables(conf, temporaryFolder, catalogName);
       }

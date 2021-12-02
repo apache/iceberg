@@ -111,6 +111,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     return tEnv;
   }
 
+  @Override
   @Before
   public void before() {
     super.before();
@@ -121,6 +122,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }
 
+  @Override
   @After
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);

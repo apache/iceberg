@@ -147,36 +147,43 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     }
   }
 
+  @Override
   @Test
   @Ignore
   public void testArray() {
   }
 
+  @Override
   @Test
   @Ignore
   public void testArrayOfStructs() {
   }
 
+  @Override
   @Test
   @Ignore
   public void testMap() {
   }
 
+  @Override
   @Test
   @Ignore
   public void testNumericMapKey() {
   }
 
+  @Override
   @Test
   @Ignore
   public void testComplexMapKey() {
   }
 
+  @Override
   @Test
   @Ignore
   public void testMapOfStructs() {
   }
 
+  @Override
   @Test
   @Ignore
   public void testMixedTypes() {

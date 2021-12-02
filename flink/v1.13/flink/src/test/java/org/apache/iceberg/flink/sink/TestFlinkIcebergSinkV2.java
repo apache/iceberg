@@ -113,6 +113,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     this.partitioned = partitioned;
   }
 
+  @Override
   @Before
   public void setupTable() throws IOException {
     this.tableDir = temp.newFolder();
