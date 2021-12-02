@@ -30,7 +30,6 @@ import java.io.InputStream;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
-import org.apache.iceberg.aliyun.AliyunTestUtility;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.After;
@@ -42,7 +41,7 @@ import org.junit.Test;
 public class TestLocalAliyunOSS {
 
   @ClassRule
-  public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunTestUtility.initialize();
+  public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunOSSMockRule.builder().silent().build();
 
   private final OSS oss = OSS_TEST_RULE.createOSSClient();
   private final String bucketName = OSS_TEST_RULE.testBucketName();

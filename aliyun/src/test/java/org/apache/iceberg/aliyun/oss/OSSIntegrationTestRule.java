@@ -66,6 +66,7 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
   public void stop() {
     if (lazyClient != null) {
       lazyClient.shutdown();
+      lazyClient = null;
     }
   }
 
