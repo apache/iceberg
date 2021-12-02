@@ -17,20 +17,19 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.iceberg.read;
+package org.apache.spark.sql.connector.iceberg.write;
 
-import java.util.Set;
-import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.connector.write.WriteBuilder;
 
 /**
- * A mix-in interface for Scan. Data sources can implement this interface if they support dynamic
- * file filters.
+ * An interface for building delta writes.
  */
-public interface SupportsFileFilter extends Scan {
+public interface DeltaWriteBuilder extends WriteBuilder {
   /**
-   * Filters this scan to query only selected files.
-   *
-   * @param locations file locations
+   * Returns a logical delta write.
    */
-  void filterFiles(Set<String> locations);
+  @Override
+  default DeltaWrite build() {
+    throw new UnsupportedOperationException("Not implemented: build");
+  }
 }

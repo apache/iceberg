@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -39,10 +38,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter;
 import org.apache.spark.sql.connector.read.Statistics;
 
-class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
+class SparkMergeScan extends SparkBatchScan {
 
   private final Table table;
   private final boolean ignoreResiduals;
@@ -87,16 +85,6 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
       return new Stats(0L, 0L);
     }
     return super.estimateStatistics();
-  }
-
-  @Override
-  public void filterFiles(Set<String> locations) {
-    // invalidate cached tasks to trigger split planning again
-    tasks = null;
-    filteredLocations = locations;
-    files = files().stream()
-        .filter(file -> filteredLocations.contains(file.file().path().toString()))
-        .collect(Collectors.toList());
   }
 
   // should be accessible to the write
