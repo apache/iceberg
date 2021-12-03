@@ -38,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
@@ -125,7 +124,7 @@ public class TableMetadata implements Serializable {
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
-        ImmutableList.of(), ImmutableList.of());
+        ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -239,6 +238,7 @@ public class TableMetadata implements Serializable {
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
+  private final List<MetadataUpdate> changes;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(String metadataFileLocation,
@@ -259,7 +259,8 @@ public class TableMetadata implements Serializable {
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
-                List<MetadataLogEntry> previousFiles) {
+                List<MetadataLogEntry> previousFiles,
+                List<MetadataUpdate> changes) {
     Preconditions.checkArgument(specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
     Preconditions.checkArgument(formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
@@ -268,6 +269,8 @@ public class TableMetadata implements Serializable {
         "UUID is required in format v%s", formatVersion);
     Preconditions.checkArgument(formatVersion > 1 || lastSequenceNumber == 0,
         "Sequence number must be 0 in v1: %s", lastSequenceNumber);
+    Preconditions.checkArgument(metadataFileLocation == null || changes.isEmpty(),
+        "Cannot create TableMetadata with a metadata location and changes");
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -288,6 +291,9 @@ public class TableMetadata implements Serializable {
     this.snapshots = snapshots;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
+
+    // changes are carried through until metadata is read from a file
+    this.changes = changes;
 
     this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
     this.schemasById = indexSchemas();
@@ -473,7 +479,8 @@ public class TableMetadata implements Serializable {
       return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
           lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
           lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties,
-          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis),
+          changes);
     }
   }
 
@@ -526,25 +533,6 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
-  public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
-    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
-    for (HistoryEntry logEntry : snapshotLog) {
-      if (!snapshotIds.contains(logEntry.snapshotId())) {
-        // copy the log entries that are still valid
-        newSnapshotLog.add(logEntry);
-      }
-    }
-
-    ValidationException.check(currentSnapshotId < 0 || // not set
-            Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
-        "Cannot set invalid snapshot log: latest entry is not the current snapshot");
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
-  }
-
   /**
    * Returns an updated {@link TableMetadata} with the current-snapshot-ID set to the given
    * snapshot-ID and the snapshot-log reset to contain only the snapshot with the given snapshot-ID.
@@ -567,7 +555,7 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshotId,
-        snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+        snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
   }
 
   public TableMetadata withCurrentSchema(int schemaId) {
@@ -578,7 +566,7 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
   }
 
   public TableMetadata withDefaultSortOrder(int sortOrderId) {
@@ -589,7 +577,7 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, sortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
   }
 
   public TableMetadata withDefaultSpec(int specId) {
@@ -600,7 +588,7 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, specId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
   }
 
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
@@ -825,7 +813,7 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private interface MetadataUpdate {
+  private interface MetadataUpdate extends Serializable {
     class UpgradeFormatVersion implements MetadataUpdate {
       private final int formatVersion;
 
@@ -940,10 +928,10 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    class SetCurrentSnapshotId implements MetadataUpdate {
+    class SetCurrentSnapshot implements MetadataUpdate {
       private final long snapshotId;
 
-      public SetCurrentSnapshotId(long snapshotId) {
+      public SetCurrentSnapshot(long snapshotId) {
         this.snapshotId = snapshotId;
       }
 
@@ -990,9 +978,6 @@ public class TableMetadata implements Serializable {
   }
 
   public static class Builder {
-    // used to track changes applied through the builder
-    private final List<MetadataUpdate> changes = Lists.newArrayList();
-
     private final TableMetadata base;
     private int formatVersion;
     private String uuid;
@@ -1001,15 +986,17 @@ public class TableMetadata implements Serializable {
     private long lastSequenceNumber;
     private int lastColumnId;
     private int currentSchemaId;
-    private List<Schema> schemas;
+    private final List<Schema> schemas;
     private int defaultSpecId;
     private List<PartitionSpec> specs;
     private int lastAssignedPartitionId;
     private int defaultSortOrderId;
     private List<SortOrder> sortOrders;
-    private Map<String, String> properties;
+    private final Map<String, String> properties;
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
+    private final List<MetadataUpdate> changes;
+    private final int startingChangeCount;
 
     // handled in build
     private final List<HistoryEntry> snapshotLog;
@@ -1040,6 +1027,8 @@ public class TableMetadata implements Serializable {
       this.properties = Maps.newHashMap(base.properties);
       this.currentSnapshotId = base.currentSnapshotId;
       this.snapshots = Lists.newArrayList(base.snapshots);
+      this.changes = Lists.newArrayList(base.changes);
+      this.startingChangeCount = changes.size();
 
       this.snapshotLog = Lists.newArrayList(base.snapshotLog);
       this.previousFileLocation = base.metadataFileLocation;
@@ -1231,7 +1220,7 @@ public class TableMetadata implements Serializable {
     }
 
     public TableMetadata build() {
-      if (changes.isEmpty()) {
+      if (changes.size() == startingChangeCount) {
         return base;
       }
 
@@ -1245,10 +1234,34 @@ public class TableMetadata implements Serializable {
 
       List<MetadataLogEntry> metadataHistory = addPreviousFile(previousFileLocation, base.lastUpdatedMillis());
 
+      // find intermediate snapshots to suppress incorrect entries in the snapshot log.
+      //
+      // transactions can create snapshots that are never the current snapshot because several changes are combined
+      // by the transaction into one table metadata update. when each intermediate snapshot is added to table metadata,
+      // it is added to the snapshot log, assuming that it will be the current snapshot. when there are multiple
+      // snapshot updates, the log must be corrected by suppressing the intermediate snapshot entries.
+      //
+      // a snapshot is an intermediate snapshot if it was added but is not the current snapshot.
+      Set<Long> addedSnapshotIds = Sets.newHashSet();
+      Set<Long> intermediateSnapshotIds = Sets.newHashSet();
+      for (MetadataUpdate update : changes) {
+        if (update instanceof MetadataUpdate.AddSnapshot) {
+          // adds must always come before set current snapshot
+          MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
+          addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
+        } else if (update instanceof MetadataUpdate.SetCurrentSnapshot) {
+          long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
+          if (addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
+            intermediateSnapshotIds.add(snapshotId);
+          }
+        }
+      }
+
       // update the snapshot log
       List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
       for (HistoryEntry logEntry : snapshotLog) {
-        if (snapshotsById.containsKey(logEntry.snapshotId())) {
+        long snapshotId = logEntry.snapshotId();
+        if (snapshotsById.containsKey(snapshotId) && !intermediateSnapshotIds.contains(snapshotId)) {
           // copy the log entries that are still valid
           newSnapshotLog.add(logEntry);
         } else {
@@ -1261,11 +1274,16 @@ public class TableMetadata implements Serializable {
         }
       }
 
+      if (snapshotsById.get(currentSnapshotId) != null) {
+        ValidationException.check(Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
+            "Cannot set invalid snapshot log: latest entry is not the current snapshot");
+      }
+
       return new TableMetadata(
           null, formatVersion, uuid, location,
           lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
           lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-          snapshots, newSnapshotLog, metadataHistory
+          snapshots, newSnapshotLog, metadataHistory, changes
       );
     }
 
@@ -1408,7 +1426,7 @@ public class TableMetadata implements Serializable {
       this.lastUpdatedMillis = currentTimestampMillis;
       this.currentSnapshotId = snapshot.snapshotId();
       snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, snapshot.snapshotId()));
-      changes.add(new MetadataUpdate.SetCurrentSnapshotId(snapshot.snapshotId()));
+      changes.add(new MetadataUpdate.SetCurrentSnapshot(snapshot.snapshotId()));
     }
 
     private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis) {

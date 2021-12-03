@@ -29,6 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -190,9 +191,30 @@ public class TestTables {
             throw new CommitFailedException("Injected failure");
           }
           Integer version = VERSIONS.get(tableName);
+          // remove changes from the committed metadata
+          this.current = new TableMetadata(
+              updatedMetadata.metadataFileLocation(),
+              updatedMetadata.formatVersion(),
+              updatedMetadata.uuid(),
+              updatedMetadata.location(),
+              updatedMetadata.lastSequenceNumber(),
+              updatedMetadata.lastUpdatedMillis(),
+              updatedMetadata.lastColumnId(),
+              updatedMetadata.currentSchemaId(),
+              updatedMetadata.schemas(),
+              updatedMetadata.defaultSpecId(),
+              updatedMetadata.specs(),
+              updatedMetadata.lastAssignedPartitionId(),
+              updatedMetadata.defaultSortOrderId(),
+              updatedMetadata.sortOrders(),
+              updatedMetadata.properties(),
+              updatedMetadata.currentSnapshot().snapshotId(),
+              updatedMetadata.snapshots(),
+              updatedMetadata.snapshotLog(),
+              updatedMetadata.previousFiles(),
+              ImmutableList.of());
           VERSIONS.put(tableName, version == null ? 0 : version + 1);
-          METADATA.put(tableName, updatedMetadata);
-          this.current = updatedMetadata;
+          METADATA.put(tableName, current);
         } else {
           throw new CommitFailedException(
               "Commit failed: table was updated at %d", current.lastUpdatedMillis());
