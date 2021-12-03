@@ -40,7 +40,7 @@ public class AliyunProperties implements Serializable {
    * For more information about how to obtain an AccessKey pair, see:
    * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
-  public static final String ACCESS_KEY_ID = "access.key.id";
+  public static final String CLIENT_ACCESS_KEY_ID = "client.access-key-id";
 
   /**
    * Aliyun uses an AccessKey pair, which includes an AccessKey ID and an AccessKey secret to implement symmetric
@@ -50,7 +50,7 @@ public class AliyunProperties implements Serializable {
    * For more information about how to obtain an AccessKey pair, see:
    * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
-  public static final String ACCESS_KEY_SECRET = "access.key.secret";
+  public static final String CLIENT_SECRET_ACCESS_KEY = "client.secret-access-key";
 
   /**
    * The implementation class of {@link AliyunClientFactory} to customize Aliyun client configurations.
@@ -66,7 +66,7 @@ public class AliyunProperties implements Serializable {
 
   private final String ossEndpoint;
   private final String accessKeyId;
-  private final String accessKeySecret;
+  private final String secretAccessKey;
   private final String ossStagingDirectory;
 
   public AliyunProperties() {
@@ -76,8 +76,8 @@ public class AliyunProperties implements Serializable {
   public AliyunProperties(Map<String, String> properties) {
     // OSS endpoint, accessKeyId, accessKeySecret.
     this.ossEndpoint = properties.get(OSS_ENDPOINT);
-    this.accessKeyId = properties.get(ACCESS_KEY_ID);
-    this.accessKeySecret = properties.get(ACCESS_KEY_SECRET);
+    this.accessKeyId = properties.get(CLIENT_ACCESS_KEY_ID);
+    this.secretAccessKey = properties.get(CLIENT_SECRET_ACCESS_KEY);
 
     this.ossStagingDirectory = PropertyUtil.propertyAsString(properties, OSS_STAGING_DIRECTORY,
         System.getProperty("java.io.tmpdir"));
@@ -91,8 +91,8 @@ public class AliyunProperties implements Serializable {
     return accessKeyId;
   }
 
-  public String accessKeySecret() {
-    return accessKeySecret;
+  public String secretAccessKey() {
+    return secretAccessKey;
   }
 
   public String ossStagingDirectory() {
