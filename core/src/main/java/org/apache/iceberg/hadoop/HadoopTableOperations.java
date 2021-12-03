@@ -154,7 +154,7 @@ public class HadoopTableOperations implements TableOperations {
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
     // this rename operation is the atomic commit operation
-    renameToFinal(fs, tempMetadataFile, finalMetadataFile);
+    renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
