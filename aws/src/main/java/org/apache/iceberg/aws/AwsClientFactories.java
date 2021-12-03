@@ -23,6 +23,7 @@ import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -49,17 +50,15 @@ public class AwsClientFactories {
   }
 
   public static AwsClientFactory from(Map<String, String> properties) {
-    if (properties.containsKey(AwsProperties.CLIENT_FACTORY)) {
-      return loadClientFactory(properties.get(AwsProperties.CLIENT_FACTORY), properties);
-    } else {
-      return defaultFactory();
-    }
+    String factoryImpl = PropertyUtil.propertyAsString(
+        properties, AwsProperties.CLIENT_FACTORY, DefaultAwsClientFactory.class.getName());
+    return loadClientFactory(factoryImpl, properties);
   }
 
   private static AwsClientFactory loadClientFactory(String impl, Map<String, String> properties) {
     DynConstructors.Ctor<AwsClientFactory> ctor;
     try {
-      ctor = DynConstructors.builder(AwsClientFactory.class).impl(impl).buildChecked();
+      ctor = DynConstructors.builder(AwsClientFactory.class).hiddenImpl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
           "Cannot initialize AwsClientFactory, missing no-arg constructor: %s", impl), e);
@@ -130,7 +129,7 @@ public class AwsClientFactories {
     }
   }
 
-  private static AwsCredentialsProvider credentialsProvider(
+  static AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {
       if (sessionToken == null) {
