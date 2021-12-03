@@ -472,16 +472,12 @@ public class TableMetadata implements Serializable {
     return previousFiles;
   }
 
+  public List<MetadataUpdate> changes() {
+    return changes;
+  }
+
   public TableMetadata withUUID() {
-    if (uuid != null) {
-      return this;
-    } else {
-      return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
-          lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-          lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties,
-          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis),
-          changes);
-    }
+    return new Builder(this).assignUUID().build();
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
@@ -655,12 +651,11 @@ public class TableMetadata implements Serializable {
     AtomicInteger newLastColumnId = new AtomicInteger(lastColumnId);
     Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, schema(), newLastColumnId::incrementAndGet);
 
-    // rebuild the partition spec using the new column ids
-    PartitionSpec freshSpec = freshSpec(INITIAL_SPEC_ID, freshSchema, updatedPartitionSpec);
-
-    // reassign partition field ids with existing partition specs in the table
-    PartitionSpec newSpec = reassignPartitionIds(
-        freshSpec, new AtomicInteger(lastAssignedPartitionId)::incrementAndGet);
+    // rebuild the partition spec using the new column ids and reassign partition field ids to align with existing
+    // partition specs in the table
+    PartitionSpec freshSpec = reassignPartitionIds(
+        freshSpec(INITIAL_SPEC_ID, freshSchema, updatedPartitionSpec),
+        new AtomicInteger(lastAssignedPartitionId)::incrementAndGet);
 
     // rebuild the sort order using new column ids
     SortOrder freshSortOrder = freshSortOrder(INITIAL_SORT_ORDER_ID, freshSchema, updatedSortOrder);
@@ -672,7 +667,7 @@ public class TableMetadata implements Serializable {
         .upgradeFormatVersion(newFormatVersion)
         .removeSnapshots(snapshots) // TODO: replace table should preserve snapshot history
         .setCurrentSchema(freshSchema, newLastColumnId.get())
-        .setDefaultPartitionSpec(newSpec)
+        .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(newLocation)
         .setProperties(unreservedProperties(updatedProperties))
@@ -685,31 +680,6 @@ public class TableMetadata implements Serializable {
 
   public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
     return new Builder(this).upgradeFormatVersion(newFormatVersion).build();
-  }
-
-  private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis) {
-    return addPreviousFile(previousFileLocation, timestampMillis, properties);
-  }
-
-  private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis,
-                                                 Map<String, String> updatedProperties) {
-    if (previousFileLocation == null) {
-      return previousFiles;
-    }
-
-    int maxSize = Math.max(1, PropertyUtil.propertyAsInt(updatedProperties,
-            TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
-
-    List<MetadataLogEntry> newMetadataLog;
-    if (previousFiles.size() >= maxSize) {
-      int removeIndex = previousFiles.size() - maxSize + 1;
-      newMetadataLog = Lists.newArrayList(previousFiles.subList(removeIndex, previousFiles.size()));
-    } else {
-      newMetadataLog = Lists.newArrayList(previousFiles);
-    }
-    newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFileLocation));
-
-    return newMetadataLog;
   }
 
   private static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
@@ -814,6 +784,18 @@ public class TableMetadata implements Serializable {
   }
 
   private interface MetadataUpdate extends Serializable {
+    class AssignUUID implements MetadataUpdate {
+      private final String uuid;
+
+      public AssignUUID(String uuid) {
+        this.uuid = uuid;
+      }
+
+      public String uuid() {
+        return uuid;
+      }
+    }
+
     class UpgradeFormatVersion implements MetadataUpdate {
       private final int formatVersion;
 
@@ -1038,6 +1020,15 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap(base.schemasById);
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
+    }
+
+    public Builder assignUUID() {
+      if (uuid == null) {
+        this.uuid = UUID.randomUUID().toString();
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
     }
 
     public Builder upgradeFormatVersion(int newFormatVersion) {
