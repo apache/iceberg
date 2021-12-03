@@ -153,16 +153,6 @@ public class HadoopTableOperations implements TableOperations {
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
-    try {
-      if (fs.exists(finalMetadataFile)) {
-        throw new CommitFailedException(
-            "Version %d already exists: %s", nextVersion, finalMetadataFile);
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e,
-          "Failed to check if next version exists: %s", finalMetadataFile);
-    }
-
     // this rename operation is the atomic commit operation
     renameToFinal(fs, tempMetadataFile, finalMetadataFile);
 
@@ -355,10 +345,14 @@ public class HadoopTableOperations implements TableOperations {
    * @param src the source file
    * @param dst the destination file
    */
-  private void renameToFinal(FileSystem fs, Path src, Path dst) {
+  private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
     try {
       HadoopTableOperations.lock.lock();
-      if (fs.exists(dst) || !fs.rename(src, dst)) {
+      if (fs.exists(dst)) {
+        throw new CommitFailedException(
+                "Version %d already exists: %s", nextVersion, dst);
+      }
+      if (!fs.rename(src, dst)) {
         CommitFailedException cfe = new CommitFailedException(
             "Failed to commit changes using rename: %s", dst);
         RuntimeException re = tryDelete(src);
