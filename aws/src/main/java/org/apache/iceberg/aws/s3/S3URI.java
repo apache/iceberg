@@ -54,14 +54,11 @@ class S3URI {
 
     this.location = location;
     String [] schemeSplit = location.split(SCHEME_DELIM, -1);
-    ValidationException.check(schemeSplit.length == 2,
-        "Invalid S3 URI, cannot determine scheme: %s", location);
+    ValidationException.check(schemeSplit.length == 2, "Invalid S3 URI, cannot determine scheme: %s", location);
 
     String [] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
-    ValidationException.check(authoritySplit.length == 2,
-        "Invalid S3 URI, cannot determine bucket: %s", location);
-    ValidationException.check(!authoritySplit[1].trim().isEmpty(),
-        "Invalid S3 URI, path is empty: %s", location);
+    ValidationException.check(authoritySplit.length == 2, "Invalid S3 URI, cannot determine bucket: %s", location);
+    ValidationException.check(!authoritySplit[1].trim().isEmpty(), "Invalid S3 URI, path is empty: %s", location);
     this.bucket = authoritySplit[0];
 
     // Strip query and fragment if they exist
