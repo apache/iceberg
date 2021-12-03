@@ -20,10 +20,16 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.utils.LogicalTypeParser;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,6 +38,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK;
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_ROWTIME;
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_EXPR;
 
 /**
  * Converter between Flink types and Iceberg type.
@@ -149,7 +160,7 @@ public class FlinkSchemaUtil {
    * @param schema iceberg schema to convert.
    * @return Flink TableSchema.
    */
-  public static TableSchema toSchema(Schema schema) {
+  public static TableSchema toSchema(Schema schema, Map<String, String> properties) {
     TableSchema.Builder builder = TableSchema.builder();
 
     // Add columns.
@@ -167,9 +178,48 @@ public class FlinkSchemaUtil {
 
         columns.add(columnName);
       }
+      final int watermarkCount =
+              properties.keySet().stream()
+                      .filter(
+                              (k) ->
+                                      k.startsWith(WATERMARK)
+                                              && k.endsWith('.' + WATERMARK_ROWTIME))
+                      .mapToInt((k) -> 1)
+                      .sum();
+      if (watermarkCount > 0) {
+        for (int i = 0; i < watermarkCount; i++) {
+          final String rowtimeKey = WATERMARK + '.' + i + '.' + WATERMARK_ROWTIME;
+          final String exprKey = WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_EXPR;
+          final String typeKey =
+                  WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_DATA_TYPE;
+          final String rowtime =
+                  optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
+          final String exprString =
+                  optionalGet(exprKey, properties).orElseThrow(exceptionSupplier(exprKey));
+          final String typeString =
+                  optionalGet(typeKey, properties).orElseThrow(exceptionSupplier(typeKey));
+          final DataType exprType =
+                  TypeConversions.fromLogicalToDataType(LogicalTypeParser.parse(typeString));
+          builder.watermark(rowtime, exprString, exprType);
+        }
+      }
       builder.primaryKey(columns.toArray(new String[0]));
     }
 
     return builder.build();
+  }
+
+    private static Optional<String> optionalGet(String key, Map<String, String> properties) {
+      return Optional.ofNullable(properties.get(key));
+    }
+
+  private static Supplier<TableException> exceptionSupplier(String key) {
+    return () -> {
+      throw new TableException(
+              "Property with key '"
+                      + key
+                      + "' could not be found. "
+                      + "This is a bug because the validation logic should have checked that before.");
+    };
   }
 }
