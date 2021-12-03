@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -99,8 +98,8 @@ public class TestFilterFiles {
   }
 
   private void testFilterFiles(Table table) {
-    Map<Integer, ByteBuffer> lowerBounds = new HashMap<>();
-    Map<Integer, ByteBuffer> upperBounds = new HashMap<>();
+    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     lowerBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
@@ -125,8 +124,8 @@ public class TestFilterFiles {
   }
 
   private void testCaseInsensitiveFilterFiles(Table table) {
-    Map<Integer, ByteBuffer> lowerBounds = new HashMap<>();
-    Map<Integer, ByteBuffer> upperBounds = new HashMap<>();
+    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     lowerBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 

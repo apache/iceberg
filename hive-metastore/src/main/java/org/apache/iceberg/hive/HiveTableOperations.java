@@ -24,7 +24,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -69,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -337,7 +337,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         Integer.MAX_VALUE,
         null,
         Collections.emptyList(),
-        new HashMap<>(),
+        Maps.newHashMap(),
         null,
         null,
         TableType.EXTERNAL_TABLE.toString());
@@ -350,7 +350,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                                      Set<String> obsoleteProps, boolean hiveEngineEnabled,
                                      Map<String, String> summary) {
     Map<String, String> parameters = Optional.ofNullable(tbl.getParameters())
-        .orElseGet(HashMap::new);
+        .orElseGet(Maps::newHashMap);
 
     // push all Iceberg table properties into HMS
     icebergTableProps.forEach((key, value) -> {
