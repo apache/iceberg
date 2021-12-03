@@ -151,8 +151,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     return new OverwriteByFilter(overwriteExpr);
   }
 
-  BatchWrite asCopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
-    return new CopyOnWriteMergeWrite(scan, isolationLevel);
+  BatchWrite asCopyOnWriteOperation(SparkCopyOnWriteScan scan, IsolationLevel isolationLevel) {
+    return new CopyOnWriteOperation(scan, isolationLevel);
   }
 
   BatchWrite asRewrite(String fileSetID) {
@@ -303,11 +303,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
   }
 
-  private class CopyOnWriteMergeWrite extends BaseBatchWrite {
-    private final SparkMergeScan scan;
+  private class CopyOnWriteOperation extends BaseBatchWrite {
+    private final SparkCopyOnWriteScan scan;
     private final IsolationLevel isolationLevel;
 
-    private CopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
+    private CopyOnWriteOperation(SparkCopyOnWriteScan scan, IsolationLevel isolationLevel) {
       this.scan = scan;
       this.isolationLevel = isolationLevel;
     }

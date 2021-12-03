@@ -17,21 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.catalyst.plans.logical
 
-import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.catalyst.expressions.Expression
 
-public class TestCopyOnWriteDelete extends TestDelete {
-
-  public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
-  }
-
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
-  }
+trait RowLevelCommand extends Command with SupportsSubquery {
+  def condition: Option[Expression]
+  def rewritePlan: Option[LogicalPlan]
+  def withNewRewritePlan(newRewritePlan: LogicalPlan): RowLevelCommand
 }

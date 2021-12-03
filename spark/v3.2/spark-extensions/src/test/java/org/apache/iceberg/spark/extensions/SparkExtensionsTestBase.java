@@ -20,6 +20,8 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
@@ -33,6 +35,8 @@ import org.junit.BeforeClass;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
+
+  private static final Random RANDOM = ThreadLocalRandom.current();
 
   public SparkExtensionsTestBase(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -52,6 +56,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .config("spark.sql.shuffle.partitions", "4")
         .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
+        .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
         .enableHiveSupport()
         .getOrCreate();
 

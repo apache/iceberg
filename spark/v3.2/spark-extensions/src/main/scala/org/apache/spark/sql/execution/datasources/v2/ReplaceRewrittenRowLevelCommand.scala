@@ -17,21 +17,18 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.execution.datasources.v2
 
-import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
+import org.apache.spark.sql.catalyst.rules.Rule
 
-public class TestCopyOnWriteDelete extends TestDelete {
-
-  public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
-  }
-
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
+/**
+ * Replaces operations such as DELETE and MERGE with the corresponding rewrite plans.
+ */
+object ReplaceRewrittenRowLevelCommand extends Rule[LogicalPlan] {
+  override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
+    case c: RowLevelCommand if c.rewritePlan.isDefined =>
+      c.rewritePlan.get
   }
 }

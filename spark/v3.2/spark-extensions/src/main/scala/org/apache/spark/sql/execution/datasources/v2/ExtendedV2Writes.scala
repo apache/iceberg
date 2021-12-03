@@ -25,10 +25,12 @@ import org.apache.spark.sql.catalyst.plans.logical.AppendData
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.OverwriteByExpression
 import org.apache.spark.sql.catalyst.plans.logical.OverwritePartitionsDynamic
+import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
+import org.apache.spark.sql.connector.write.ExtendedLogicalWriteInfoImpl
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite
 import org.apache.spark.sql.connector.write.SupportsOverwrite
 import org.apache.spark.sql.connector.write.SupportsTruncate
@@ -38,6 +40,7 @@ import org.apache.spark.sql.errors.QueryExecutionErrors
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.sources.AlwaysTrue
 import org.apache.spark.sql.sources.Filter
+import org.apache.spark.sql.types.StructType
 
 /**
  * A rule that is inspired by V2Writes in Spark but supports Iceberg transforms.
@@ -48,7 +51,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
     case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) if isIcebergRelation(r) =>
-      val writeBuilder = newWriteBuilder(r.table, query, options)
+      val writeBuilder = newWriteBuilder(r.table, query.schema, options)
       val write = writeBuilder.build()
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       a.copy(write = Some(write), query = newQuery)
@@ -65,7 +68,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       }.toArray
 
       val table = r.table
-      val writeBuilder = newWriteBuilder(table, query, options)
+      val writeBuilder = newWriteBuilder(table, query.schema, options)
       val write = writeBuilder match {
         case builder: SupportsTruncate if isTruncate(filters) =>
           builder.truncate().build()
@@ -81,7 +84,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
     case o @ OverwritePartitionsDynamic(r: DataSourceV2Relation, query, options, _, None)
         if isIcebergRelation(r) =>
       val table = r.table
-      val writeBuilder = newWriteBuilder(table, query, options)
+      val writeBuilder = newWriteBuilder(table, query.schema, options)
       val write = writeBuilder match {
         case builder: SupportsDynamicOverwrite =>
           builder.overwriteDynamicPartitions().build()
@@ -90,6 +93,13 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       }
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       o.copy(write = Some(write), query = newQuery)
+
+    case rd @ ReplaceData(r: DataSourceV2Relation, query, _, None) =>
+      val rowSchema = StructType.fromAttributes(rd.dataInput)
+      val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
+      val write = writeBuilder.build()
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
   }
 
   private def isTruncate(filters: Array[Filter]): Boolean = {
@@ -98,13 +108,16 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
 
   private def newWriteBuilder(
       table: Table,
-      query: LogicalPlan,
-      writeOptions: Map[String, String]): WriteBuilder = {
-
-    val info = LogicalWriteInfoImpl(
+      rowSchema: StructType,
+      writeOptions: Map[String, String],
+      rowIdSchema: StructType = null,
+      metadataSchema: StructType = null): WriteBuilder = {
+    val info = ExtendedLogicalWriteInfoImpl(
       queryId = UUID.randomUUID().toString,
-      query.schema,
-      writeOptions.asOptions)
+      rowSchema,
+      writeOptions.asOptions,
+      rowIdSchema,
+      metadataSchema)
     table.asWritable.newWriteBuilder(info)
   }
 }

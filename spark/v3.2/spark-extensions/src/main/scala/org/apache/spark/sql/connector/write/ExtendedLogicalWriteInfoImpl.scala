@@ -17,21 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.connector.write
 
-import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-public class TestCopyOnWriteDelete extends TestDelete {
-
-  public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
-  }
-
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
-  }
-}
+private[sql] case class ExtendedLogicalWriteInfoImpl(
+    queryId: String,
+    schema: StructType,
+    options: CaseInsensitiveStringMap,
+    rowIdSchema: StructType = null,
+    metadataSchema: StructType = null) extends ExtendedLogicalWriteInfo

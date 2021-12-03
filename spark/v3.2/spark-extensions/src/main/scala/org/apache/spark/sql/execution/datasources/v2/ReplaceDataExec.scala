@@ -17,21 +17,24 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.execution.datasources.v2
 
-import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.catalyst.expressions.AttributeSet
+import org.apache.spark.sql.connector.write.Write
+import org.apache.spark.sql.execution.SparkPlan
 
-public class TestCopyOnWriteDelete extends TestDelete {
+/**
+ * Physical plan node to replace data in existing tables.
+ */
+case class ReplaceDataExec(
+    query: SparkPlan,
+    refreshCache: () => Unit,
+    write: Write) extends V2ExistingTableWriteExec {
 
-  public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
-  }
+  override lazy val references: AttributeSet = query.outputSet
+  override lazy val stringArgs: Iterator[Any] = Iterator(query, write)
 
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
+  override protected def withNewChildInternal(newChild: SparkPlan): ReplaceDataExec = {
+    copy(query = newChild)
   }
 }
