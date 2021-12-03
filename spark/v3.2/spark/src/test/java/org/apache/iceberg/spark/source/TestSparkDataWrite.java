@@ -197,7 +197,7 @@ public class TestSparkDataWrite {
     File location = new File(parent, "test");
 
     HadoopTables tables = new HadoopTables(CONF);
-    HashMap properties = new HashMap<String, String>();
+    HashMap<String, String> properties = new HashMap<>();
     properties.put(TableProperties.COMMIT_NUM_RETRIES, "1000");
     Table table = tables.create(SCHEMA, null, properties, location.toString());
 
