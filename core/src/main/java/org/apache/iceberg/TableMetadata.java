@@ -1095,10 +1095,26 @@ public class TableMetadata implements Serializable {
       }
 
       return new TableMetadata(
-          null, formatVersion, uuid, location,
-          lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-          lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-          snapshots, newSnapshotLog, metadataHistory, changes
+          null,
+          formatVersion,
+          uuid,
+          location,
+          lastSequenceNumber,
+          lastUpdatedMillis,
+          lastColumnId,
+          currentSchemaId,
+          ImmutableList.copyOf(schemas),
+          defaultSpecId,
+          ImmutableList.copyOf(specs),
+          lastAssignedPartitionId,
+          defaultSortOrderId,
+          ImmutableList.copyOf(sortOrders),
+          ImmutableMap.copyOf(properties),
+          currentSnapshotId,
+          ImmutableList.copyOf(snapshots),
+          ImmutableList.copyOf(newSnapshotLog),
+          ImmutableList.copyOf(metadataHistory),
+          ImmutableList.copyOf(changes)
       );
     }
 
