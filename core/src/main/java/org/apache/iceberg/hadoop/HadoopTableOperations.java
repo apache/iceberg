@@ -25,6 +25,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -355,7 +357,8 @@ public class HadoopTableOperations implements TableOperations {
    */
   private void renameToFinal(FileSystem fs, Path src, Path dst) {
     try {
-      if (!fs.rename(src, dst)) {
+      HadoopTableOperations.lock.lock();
+      if (fs.exists(dst) || !fs.rename(src, dst)) {
         CommitFailedException cfe = new CommitFailedException(
             "Failed to commit changes using rename: %s", dst);
         RuntimeException re = tryDelete(src);
@@ -372,6 +375,8 @@ public class HadoopTableOperations implements TableOperations {
         cfe.addSuppressed(re);
       }
       throw cfe;
+    } finally {
+      HadoopTableOperations.lock.unlock();
     }
   }
 
@@ -429,4 +434,6 @@ public class HadoopTableOperations implements TableOperations {
     }
     return newMetadata;
   }
+
+  public static Lock lock = new ReentrantLock();
 }
