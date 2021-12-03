@@ -430,9 +430,11 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     File dir = temp.newFolder();
     dir.delete();
 
-    Table tableWithHighRetries = TABLES.create(SCHEMA, SPEC, new HashMap<String, String>(){
-      {put(TableProperties.COMMIT_NUM_RETRIES, "1000");}
-    },dir.toURI().toString());
+    Table tableWithHighRetries = TABLES.create(SCHEMA, SPEC, new HashMap<String, String>() {
+      {
+        put(TableProperties.COMMIT_NUM_RETRIES, "1000");
+      }
+    }, dir.toURI().toString());
     int threadsCount = 30;
     Thread[] threads = new Thread[threadsCount];
     for (int i = 0; i < threadsCount; i++) {
@@ -443,7 +445,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
       try {
         t.join();
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        // intentionally swallow to check result later
       }
     });
     tableWithHighRetries.refresh();
