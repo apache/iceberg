@@ -264,8 +264,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
 
       if (!keepHiveStats) {
-        StatsSetupConst.setBasicStatsState(tbl.getParameters(), StatsSetupConst.FALSE);
-        StatsSetupConst.clearColumnStatsState(tbl.getParameters());
+        tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
       }
 
       try {

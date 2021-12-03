@@ -769,7 +769,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     nonHiveTestTables.appendIcebergTable(shell.getHiveConf(), nonHiveTable, fileFormat, null,
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
-    Assert.assertEquals("{}", stats);
+    Assert.assertNull(stats);
 
     // insert some data again using Hive catalog, and check the stats are back
     shell.executeStatement(insert);
