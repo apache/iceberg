@@ -347,7 +347,7 @@ public class HadoopTableOperations implements TableOperations {
    */
   private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
     try {
-      HadoopTableOperations.lock.lock();
+      HadoopTableOperations.releaseLock.lock();
       if (fs.exists(dst)) {
         throw new CommitFailedException(
                 "Version %d already exists: %s", nextVersion, dst);
@@ -370,7 +370,7 @@ public class HadoopTableOperations implements TableOperations {
       }
       throw cfe;
     } finally {
-      HadoopTableOperations.lock.unlock();
+      HadoopTableOperations.releaseLock.unlock();
     }
   }
 
@@ -429,5 +429,5 @@ public class HadoopTableOperations implements TableOperations {
     return newMetadata;
   }
 
-  public static Lock lock = new ReentrantLock();
+  private static Lock releaseLock = new ReentrantLock();
 }

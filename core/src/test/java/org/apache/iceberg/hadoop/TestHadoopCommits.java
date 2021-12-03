@@ -424,7 +424,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testConcurrentUpdate() throws Exception {
+  public void testConcurrentAppend() throws Exception {
     assertTrue("Should create v1 metadata",
             version(1).exists() && version(1).isFile());
     File dir = temp.newFolder();
