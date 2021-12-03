@@ -498,7 +498,7 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
-    return new Builder(this).addSnapshot(snapshot).setCurrentSnapshot(snapshot).build();
+    return new Builder(this).setCurrentSnapshot(snapshot).build();
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
