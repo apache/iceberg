@@ -529,64 +529,6 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
-  /**
-   * Returns an updated {@link TableMetadata} with the current-snapshot-ID set to the given
-   * snapshot-ID and the snapshot-log reset to contain only the snapshot with the given snapshot-ID.
-   *
-   * @param snapshotId ID of a snapshot that must exist, or {@code -1L} to remove the current snapshot
-   *                   and return an empty snapshot log.
-   * @return {@link TableMetadata} with updated {@link #currentSnapshotId} and {@link #snapshotLog}
-   */
-  public TableMetadata withCurrentSnapshotOnly(long snapshotId) {
-    if ((currentSnapshotId == -1L && snapshotId == -1L && snapshots.isEmpty()) ||
-        (currentSnapshotId == snapshotId && snapshots.size() == 1)) {
-      return this;
-    }
-    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
-    if (snapshotId != -1L) {
-      Snapshot snapshot = snapshotsById.get(snapshotId);
-      Preconditions.checkArgument(snapshot != null, "Non-existent snapshot");
-      newSnapshotLog.add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshotId));
-    }
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshotId,
-        snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
-  }
-
-  public TableMetadata withCurrentSchema(int schemaId) {
-    if (currentSchemaId == schemaId) {
-      return this;
-    }
-    Preconditions.checkArgument(schemasById.containsKey(schemaId), "Non-existent schema");
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
-  }
-
-  public TableMetadata withDefaultSortOrder(int sortOrderId) {
-    if (defaultSortOrderId == sortOrderId) {
-      return this;
-    }
-    Preconditions.checkArgument(sortOrdersById.containsKey(sortOrderId), "Non-existent sort-order");
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, sortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
-  }
-
-  public TableMetadata withDefaultSpec(int specId) {
-    if (defaultSpecId == specId) {
-      return this;
-    }
-    Preconditions.checkArgument(specsById.containsKey(specId), "Non-existent partition spec");
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, specId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis), ImmutableList.of());
-  }
-
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
         .withSpecId(partitionSpec.specId());
@@ -783,6 +725,10 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
+  public static Builder buildFrom(TableMetadata base) {
+    return new Builder(base);
+  }
+
   public static class Builder {
     private final TableMetadata base;
     private int formatVersion;
@@ -801,8 +747,11 @@ public class TableMetadata implements Serializable {
     private final Map<String, String> properties;
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
+
+    // change tracking
     private final List<MetadataUpdate> changes;
     private final int startingChangeCount;
+    private boolean discardChanges = false;
 
     // handled in build
     private final List<HistoryEntry> snapshotLog;
@@ -815,7 +764,7 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, PartitionSpec> specsById;
     private final Map<Integer, SortOrder> sortOrdersById;
 
-    public Builder(TableMetadata base) {
+    private Builder(TableMetadata base) {
       this.base = base;
       this.formatVersion = base.formatVersion;
       this.uuid = base.uuid;
@@ -873,7 +822,11 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setCurrentSchema(Schema newSchema, int newLastColumnId) {
-      int schemaId = addSchemaInternal(newSchema, newLastColumnId);
+      setCurrentSchema(addSchemaInternal(newSchema, newLastColumnId));
+      return this;
+    }
+
+    public Builder setCurrentSchema(int schemaId) {
       if (currentSchemaId == schemaId) {
         return this;
       }
@@ -905,7 +858,11 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setDefaultPartitionSpec(PartitionSpec spec) {
-      int specId = addPartitionSpecInternal(spec);
+      setDefaultPartitionSpec(addPartitionSpecInternal(spec));
+      return this;
+    }
+
+    public Builder setDefaultPartitionSpec(int specId) {
       if (defaultSpecId == specId) {
         // the new spec is already current and no change is needed
         return this;
@@ -923,7 +880,11 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setDefaultSortOrder(SortOrder order) {
-      int sortOrderId = addSortOrderInternal(order);
+      setDefaultSortOrder(addSortOrderInternal(order));
+      return this;
+    }
+
+    public Builder setDefaultSortOrder(int sortOrderId) {
       if (sortOrderId == defaultSortOrderId) {
         return this;
       }
@@ -964,7 +925,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private Builder setCurrentSnapshot(long snapshotId) {
+    public Builder setCurrentSnapshot(long snapshotId) {
       if (currentSnapshotId == snapshotId) {
         // change is a noop
         return this;
@@ -1034,8 +995,13 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder discardChanges() {
+      this.discardChanges = true;
+      return this;
+    }
+
     public TableMetadata build() {
-      if (changes.size() == startingChangeCount) {
+      if (changes.size() == startingChangeCount && !(discardChanges && changes.size() > 0)) {
         return base;
       }
 
@@ -1114,7 +1080,7 @@ public class TableMetadata implements Serializable {
           ImmutableList.copyOf(snapshots),
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
-          ImmutableList.copyOf(changes)
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes)
       );
     }
 

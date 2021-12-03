@@ -192,31 +192,7 @@ public class TestTables {
           }
           Integer version = VERSIONS.get(tableName);
           // remove changes from the committed metadata
-          if (updatedMetadata.changes().isEmpty()) {
-            this.current = updatedMetadata;
-          } else {
-            this.current = new TableMetadata(
-                updatedMetadata.metadataFileLocation(),
-                updatedMetadata.formatVersion(),
-                updatedMetadata.uuid(),
-                updatedMetadata.location(),
-                updatedMetadata.lastSequenceNumber(),
-                updatedMetadata.lastUpdatedMillis(),
-                updatedMetadata.lastColumnId(),
-                updatedMetadata.currentSchemaId(),
-                updatedMetadata.schemas(),
-                updatedMetadata.defaultSpecId(),
-                updatedMetadata.specs(),
-                updatedMetadata.lastAssignedPartitionId(),
-                updatedMetadata.defaultSortOrderId(),
-                updatedMetadata.sortOrders(),
-                updatedMetadata.properties(),
-                updatedMetadata.currentSnapshot() != null ? updatedMetadata.currentSnapshot().snapshotId() : -1,
-                updatedMetadata.snapshots(),
-                updatedMetadata.snapshotLog(),
-                updatedMetadata.previousFiles(),
-                ImmutableList.of());
-          }
+          this.current = TableMetadata.buildFrom(updatedMetadata).discardChanges().build();
           VERSIONS.put(tableName, version == null ? 0 : version + 1);
           METADATA.put(tableName, current);
         } else {
