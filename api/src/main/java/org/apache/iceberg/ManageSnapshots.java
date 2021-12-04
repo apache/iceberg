@@ -76,7 +76,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    * @param snapshotId a snapshotId whose changes to apply
    * @return this for method chaining
    * @throws IllegalArgumentException If the table has no snapshot with the given id
-   * @throws DuplicateWAPCommitException In case of a WAP workflow and if the table has has a duplicate commit with same
+   * @throws DuplicateWAPCommitException In case of a WAP workflow and if the table has a duplicate commit with same
    * wapId
    */
   ManageSnapshots cherrypick(long snapshotId);

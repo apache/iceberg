@@ -22,7 +22,6 @@ package org.apache.iceberg.hive;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -34,6 +33,7 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -48,6 +48,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -413,7 +414,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     catalog.dropTable(TABLE_IDENTIFIER);
 
     // Enabled by table property - also check that the hive-conf is ignored
-    Map<String, String> tableProperties = new HashMap<>();
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "false");
 
@@ -432,6 +433,21 @@ public class HiveTableTest extends HiveTableBaseTest {
     hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
+  }
+
+  @Test
+  public void testMissingMetadataWontCauseHang() {
+    catalog.loadTable(TABLE_IDENTIFIER);
+
+    File realLocation = new File(metadataLocation(TABLE_NAME));
+    File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
+
+    Assert.assertTrue(realLocation.renameTo(fakeLocation));
+    AssertHelpers.assertThrows(
+            "HiveTableOperations shouldn't hang indefinitely when a missing metadata file is encountered",
+            NotFoundException.class,
+            () -> catalog.loadTable(TABLE_IDENTIFIER));
+    Assert.assertTrue(fakeLocation.renameTo(realLocation));
   }
 
   private void assertHiveEnabled(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean expected) {

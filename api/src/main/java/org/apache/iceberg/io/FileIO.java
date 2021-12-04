@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Closeable;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -29,7 +30,7 @@ import java.util.Map;
  * must be serializable because various clients of Spark tables may initialize this once and pass
  * it off to a separate module that would then interact with the streams.
  */
-public interface FileIO extends Serializable {
+public interface FileIO extends Serializable, Closeable {
 
   /**
    * Get a {@link InputFile} instance to read bytes from the file at the given path.
@@ -65,5 +66,15 @@ public interface FileIO extends Serializable {
    * @param properties catalog properties
    */
   default void initialize(Map<String, String> properties) {
+  }
+
+  /**
+   * Close File IO to release underlying resources.
+   * <p>
+   * Calling this method is only required when this FileIO instance is no longer expected to be used,
+   * and the resources it holds need to be explicitly released to avoid resource leaks.
+   */
+  @Override
+  default void close() {
   }
 }

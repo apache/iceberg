@@ -189,6 +189,21 @@
             <property name="illegalPkgs" value="com.google.common"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
         </module>
+        <module name="IllegalImport">
+            <property name="id" value="GuavaClassesInAssertJ"/>
+            <property name="illegalPkgs" value="org.assertj.core.util"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="GuavaClassesInArrow"/>
+            <property name="illegalPkgs" value="org.apache.arrow.util"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="GuavaClassesInParquet"/>
+            <property name="illegalClasses" value="org.apache.parquet.Preconditions"/>
+            <message key="import.illegal" value="Use Preconditions from bundled-guava module instead."/>
+        </module>
         <module name="IllegalInstantiation"> <!-- Java Coding Guidelines: Never instantiate primitive types -->
             <property name="classes" value="java.lang.Boolean"/>
             <property name="classes" value="java.lang.Byte"/>
@@ -352,6 +367,10 @@
             <property name="message" value="Prefer Guava''s [CharStreams,Files,Resources].toString to avoid charset/stream closing issues."/>
         </module>
         <module name="RegexpSinglelineJava">
+            <property name="format" value="\bIOUtils\.copy\("/>
+            <property name="message" value="Prefer Guava''s ByteStreams.copy to avoid charset/stream closing issues."/>
+        </module>
+        <module name="RegexpSinglelineJava">
             <property name="format" value="static enum"/>
             <property name="message" value="Redundant ''static'' modifier."/>
         </module>
@@ -392,7 +411,6 @@
             <message key="name.invalidPattern" value="Type name ''{0}'' must match pattern ''{1}''."/>
         </module>
         <module name="TypecastParenPad"/> <!-- Java Style Guide: Horizontal whitespace -->
-        <module name="UnnecessaryParentheses"/>
         <module name="UnusedImports"> <!-- Java Style Guide: No unused imports -->
             <property name="processJavadoc" value="true"/>
         </module>
@@ -420,7 +438,7 @@
           <property name="max" value="12"/>
         </module>
         <module name="JavadocMethod"> <!-- Java Style Guide: Where Javadoc is used -->
-            <property name="scope" value="public"/>
+            <property name="accessModifiers" value="public"/>
             <property name="allowMissingParamTags" value="true"/>
             <property name="allowMissingReturnTag" value="true"/>
             <property name="allowedAnnotations" value="Override, Test"/>

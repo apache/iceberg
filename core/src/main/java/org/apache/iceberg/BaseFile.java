@@ -235,45 +235,48 @@ abstract class BaseFile<F>
         this.format = FileFormat.valueOf(value.toString());
         return;
       case 3:
-        this.partitionData = (PartitionData) value;
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 4:
-        this.recordCount = (Long) value;
+        this.partitionData = (PartitionData) value;
         return;
       case 5:
-        this.fileSizeInBytes = (Long) value;
+        this.recordCount = (Long) value;
         return;
       case 6:
-        this.columnSizes = (Map<Integer, Long>) value;
+        this.fileSizeInBytes = (Long) value;
         return;
       case 7:
-        this.valueCounts = (Map<Integer, Long>) value;
+        this.columnSizes = (Map<Integer, Long>) value;
         return;
       case 8:
-        this.nullValueCounts = (Map<Integer, Long>) value;
+        this.valueCounts = (Map<Integer, Long>) value;
         return;
       case 9:
-        this.nanValueCounts = (Map<Integer, Long>) value;
+        this.nullValueCounts = (Map<Integer, Long>) value;
         return;
       case 10:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.nanValueCounts = (Map<Integer, Long>) value;
         return;
       case 11:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 12:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 13:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 14:
-        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
         return;
       case 15:
-        this.sortOrderId = (Integer) value;
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 16:
+        this.sortOrderId = (Integer) value;
+        return;
+      case 17:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -301,33 +304,35 @@ abstract class BaseFile<F>
       case 2:
         return format != null ? format.toString() : null;
       case 3:
-        return partitionData;
+        return partitionSpecId;
       case 4:
-        return recordCount;
+        return partitionData;
       case 5:
-        return fileSizeInBytes;
+        return recordCount;
       case 6:
-        return columnSizes;
+        return fileSizeInBytes;
       case 7:
-        return valueCounts;
+        return columnSizes;
       case 8:
-        return nullValueCounts;
+        return valueCounts;
       case 9:
-        return nanValueCounts;
+        return nullValueCounts;
       case 10:
-        return lowerBounds;
+        return nanValueCounts;
       case 11:
-        return upperBounds;
+        return lowerBounds;
       case 12:
-        return keyMetadata();
+        return upperBounds;
       case 13:
-        return splitOffsets();
+        return keyMetadata();
       case 14:
-        return equalityFieldIds();
+        return splitOffsets();
       case 15:
-        return sortOrderId;
+        return equalityFieldIds();
       case 16:
-        return pos;
+        return sortOrderId;
+      case 17:
+        return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -442,6 +447,7 @@ abstract class BaseFile<F>
         .add("content", content.toString().toLowerCase(Locale.ROOT))
         .add("file_path", filePath)
         .add("file_format", format)
+        .add("spec_id", specId())
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)

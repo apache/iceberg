@@ -20,12 +20,16 @@
 
 package org.apache.iceberg.types;
 
+import java.util.Set;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 
@@ -103,6 +107,326 @@ public class TestTypeUtil {
         Sets.newHashSet(sourceSchema.findField("a").fieldId()), actualSchema.identifierFieldIds());
   }
 
+  @Test
+  public void testProject() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Schema expectedTop = new Schema(
+        Lists.newArrayList(
+            required(11, "A", Types.IntegerType.get())));
+
+    Schema actualTop = TypeUtil.project(schema, Sets.newHashSet(11));
+    Assert.assertEquals(expectedTop.asStruct(), actualTop.asStruct());
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get())))));
+
+    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(10, 12, 13));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+        Lists.newArrayList(
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(11, 12, 15, 17));
+    Schema actualDepthTwoChildren = TypeUtil.project(schema, Sets.newHashSet(11, 17));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwoChildren.asStruct());
+  }
+
+  @Test
+  public void testProjectNaturallyEmpty() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(20, "empty", Types.StructType.of())
+                ))))));
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of())));
+
+    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(12));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of())))));
+
+    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(12, 15));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+
+    Schema expectedDepthThree =  new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(20, "empty", Types.StructType.of())
+                ))))));
+
+    Schema actualDepthThree = TypeUtil.project(schema, Sets.newHashSet(12, 15, 20));
+    Schema actualDepthThreeChildren = TypeUtil.project(schema, Sets.newHashSet(20));
+    Assert.assertEquals(expectedDepthThree.asStruct(), actualDepthThree.asStruct());
+    Assert.assertEquals(expectedDepthThree.asStruct(), actualDepthThreeChildren.asStruct());
+  }
+
+  @Test
+  public void testProjectEmpty() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+            )))));
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of())));
+
+    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(12));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of())))));
+
+    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(12, 15));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+  }
+
+  @Test
+  public void testSelect() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Schema expectedTop = new Schema(
+        Lists.newArrayList(
+            required(11, "A", Types.IntegerType.get())));
+
+    Schema actualTop = TypeUtil.select(schema, Sets.newHashSet(11));
+    Assert.assertEquals(expectedTop.asStruct(), actualTop.asStruct());
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get())))))));
+
+    Schema actualDepthOne = TypeUtil.select(schema, Sets.newHashSet(10, 12));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+        Lists.newArrayList(
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Schema actualDepthTwo = TypeUtil.select(schema, Sets.newHashSet(11, 17));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+  }
+
+  @Test
+  public void testProjectMap() {
+    // We can't partially project keys because it changes key equality
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "map", Types.MapType.ofRequired(13, 14,
+                Types.StructType.of(
+                    optional(100, "x", Types.IntegerType.get()),
+                    optional(101, "y", Types.IntegerType.get())),
+                Types.StructType.of(
+                    required(200, "z", Types.IntegerType.get()),
+                    optional(201, "innerMap", Types.MapType.ofOptional(202, 203,
+                        Types.IntegerType.get(),
+                        Types.StructType.of(
+                            required(300, "foo", Types.IntegerType.get()),
+                            required(301, "bar", Types.IntegerType.get())))))))));
+
+    Assert.assertThrows("Cannot project maps explicitly", IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(12)));
+
+    Assert.assertThrows("Cannot project maps explicitly", IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(201)));
+
+    Schema expectedTopLevel = new Schema(
+        Lists.newArrayList(required(10, "a", Types.IntegerType.get())));
+    Schema actualTopLevel = TypeUtil.project(schema, Sets.newHashSet(10));
+    Assert.assertEquals(expectedTopLevel.asStruct(), actualTopLevel.asStruct());
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(12, "map", Types.MapType.ofRequired(13, 14,
+                Types.StructType.of(
+                    optional(100, "x", Types.IntegerType.get()),
+                    optional(101, "y", Types.IntegerType.get())),
+                Types.StructType.of()))));
+    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14, 100, 101));
+    Schema actualDepthOneNoKeys = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOneNoKeys.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+            Lists.newArrayList(
+                required(10, "a", Types.IntegerType.get()),
+                required(12, "map", Types.MapType.ofRequired(13, 14,
+                    Types.StructType.of(
+                        optional(100, "x", Types.IntegerType.get()),
+                        optional(101, "y", Types.IntegerType.get())),
+                    Types.StructType.of(
+                        required(200, "z", Types.IntegerType.get()),
+                        optional(201, "innerMap", Types.MapType.ofOptional(202, 203,
+                            Types.IntegerType.get(),
+                            Types.StructType.of())))))));
+    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14, 100, 101, 200, 202, 203));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+  }
+
+  @Test
+  public void testGetProjectedIds() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(35, "emptyStruct", Types.StructType.of()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Set<Integer> expectedIds = Sets.newHashSet(10, 11, 35, 12, 13, 14, 15, 16, 17);
+    Set<Integer> actualIds = TypeUtil.getProjectedIds(schema);
+
+    Assert.assertEquals(expectedIds, actualIds);
+  }
+
+  @Test
+  public void testProjectListNested() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(12, "list", Types.ListType.ofRequired(13,
+                Types.ListType.ofRequired(14,
+                    Types.MapType.ofRequired(15, 16,
+                        IntegerType.get(),
+                        Types.StructType.of(
+                            required(17, "x", Types.IntegerType.get()),
+                            required(18, "y", Types.IntegerType.get())
+                        )))))));
+
+    AssertHelpers.assertThrows("Cannot explicitly project List",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(12))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project List",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(13))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project Map",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(14))
+    );
+
+    Schema expected = new Schema(
+        Lists.newArrayList(
+            required(12, "list", Types.ListType.ofRequired(13,
+                Types.ListType.ofRequired(14,
+                    Types.MapType.ofRequired(15, 16,
+                        IntegerType.get(),
+                        Types.StructType.of()))))));
+
+    Schema actual = TypeUtil.project(schema, Sets.newHashSet(16));
+    Assert.assertEquals(expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testProjectMapNested() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(12, "map", Types.MapType.ofRequired(13, 14,
+                Types.IntegerType.get(),
+                Types.MapType.ofRequired(15, 16,
+                    Types.IntegerType.get(),
+                    Types.ListType.ofRequired(17,
+                      Types.StructType.of(
+                          required(18, "x", Types.IntegerType.get()),
+                          required(19, "y", Types.IntegerType.get())
+                      )))))));
+
+
+    AssertHelpers.assertThrows("Cannot explicitly project Map",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(12))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project Map",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(14))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project List",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(16))
+    );
+
+    Schema expected = new Schema(
+        Lists.newArrayList(
+            required(12, "map", Types.MapType.ofRequired(13, 14,
+                Types.IntegerType.get(),
+                Types.MapType.ofRequired(15, 16,
+                    Types.IntegerType.get(),
+                    Types.ListType.ofRequired(17,
+                        Types.StructType.of()))))));
+
+    Schema actual = TypeUtil.project(schema, Sets.newHashSet(17));
+    Assert.assertEquals(expected.asStruct(), actual.asStruct());
+  }
+
   @Test(expected = IllegalArgumentException.class)
   public void testReassignIdsIllegalArgumentException() {
     Schema schema = new Schema(
@@ -127,5 +451,35 @@ public class TestTypeUtil {
         );
 
     TypeUtil.indexByName(Types.StructType.of(nestedType));
+  }
+
+  @Test
+  public void testSelectNot() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get())
+            ))));
+
+    Schema expectedNoPrimitive = new Schema(
+        Lists.newArrayList(
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get())
+            ))));
+
+    Schema actualNoPrimitve = TypeUtil.selectNot(schema, Sets.newHashSet(1));
+    Assert.assertEquals(expectedNoPrimitive.asStruct(), actualNoPrimitve.asStruct());
+
+    // Expected legacy behavior is to completely remove structs if their elements are removed
+    Schema expectedNoStructElements = new Schema(required(1, "id", Types.LongType.get()));
+    Schema actualNoStructElements = TypeUtil.selectNot(schema, Sets.newHashSet(3, 4));
+    Assert.assertEquals(expectedNoStructElements.asStruct(), actualNoStructElements.asStruct());
+
+    // Expected legacy behavior is to ignore selectNot on struct elements.
+    Schema actualNoStruct = TypeUtil.selectNot(schema, Sets.newHashSet(2));
+    Assert.assertEquals(schema.asStruct(), actualNoStruct.asStruct());
   }
 }

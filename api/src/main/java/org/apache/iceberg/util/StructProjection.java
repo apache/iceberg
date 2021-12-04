@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 
 public class StructProjection implements StructLike {
@@ -39,7 +42,7 @@ public class StructProjection implements StructLike {
    */
   public static StructProjection create(Schema schema, Set<Integer> ids) {
     StructType structType = schema.asStruct();
-    return new StructProjection(structType, TypeUtil.select(structType, ids));
+    return new StructProjection(structType, TypeUtil.project(structType, ids));
   }
 
   /**
@@ -55,12 +58,30 @@ public class StructProjection implements StructLike {
     return new StructProjection(dataSchema.asStruct(), projectedSchema.asStruct());
   }
 
+  /**
+   * Creates a projecting wrapper for {@link StructLike} rows.
+   * <p>
+   * This projection allows missing fields and does not work with repeated types like lists and maps.
+   *
+   * @param structType type of rows wrapped by this projection
+   * @param projectedStructType result type of the projected rows
+   * @return a wrapper to project rows
+   */
+  public static StructProjection createAllowMissing(StructType structType, StructType projectedStructType) {
+    return new StructProjection(structType, projectedStructType, true);
+  }
+
   private final StructType type;
   private final int[] positionMap;
   private final StructProjection[] nestedProjections;
   private StructLike struct;
 
   private StructProjection(StructType structType, StructType projection) {
+    this(structType, projection, false);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private StructProjection(StructType structType, StructType projection, boolean allowMissing) {
     this.type = projection;
     this.positionMap = new int[projection.fields().size()];
     this.nestedProjections = new StructProjection[projection.fields().size()];
@@ -82,15 +103,41 @@ public class StructProjection implements StructLike {
                   dataField.type().asStructType(), projectedField.type().asStructType());
               break;
             case MAP:
+              MapType projectedMap = projectedField.type().asMapType();
+              MapType originalMap = dataField.type().asMapType();
+
+              boolean keyProjectable = !projectedMap.keyType().isNestedType() ||
+                  projectedMap.keyType().equals(originalMap.keyType());
+              boolean valueProjectable = !projectedMap.valueType().isNestedType() ||
+                  projectedMap.valueType().equals(originalMap.valueType());
+              Preconditions.checkArgument(keyProjectable && valueProjectable,
+                  "Cannot project a partial map key or value struct. Trying to project %s out of %s",
+                  projectedField, dataField);
+
+              nestedProjections[pos] = null;
+              break;
             case LIST:
-              throw new IllegalArgumentException(String.format("Cannot project list or map field: %s", projectedField));
+              ListType projectedList = projectedField.type().asListType();
+              ListType originalList = dataField.type().asListType();
+
+              boolean elementProjectable = !projectedList.elementType().isNestedType() ||
+                  projectedList.elementType().equals(originalList.elementType());
+              Preconditions.checkArgument(elementProjectable,
+                  "Cannot project a partial list element struct. Trying to project %s out of %s",
+                  projectedField, dataField);
+
+              nestedProjections[pos] = null;
+              break;
             default:
               nestedProjections[pos] = null;
           }
         }
       }
 
-      if (!found) {
+      if (!found && projectedField.isOptional() && allowMissing) {
+        positionMap[pos] = -1;
+        nestedProjections[pos] = null;
+      } else if (!found) {
         throw new IllegalArgumentException(String.format("Cannot find field %s in %s", projectedField, structType));
       }
     }
@@ -108,11 +155,23 @@ public class StructProjection implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    if (nestedProjections[pos] != null) {
-      return javaClass.cast(nestedProjections[pos].wrap(struct.get(positionMap[pos], StructLike.class)));
+    if (struct == null) {
+      // Return a null struct when projecting a nested required field from an optional struct.
+      // See more details in issue #2738.
+      return null;
     }
 
-    return struct.get(positionMap[pos], javaClass);
+    int structPos = positionMap[pos];
+
+    if (nestedProjections[pos] != null) {
+      return javaClass.cast(nestedProjections[pos].wrap(struct.get(structPos, StructLike.class)));
+    }
+
+    if (structPos != -1) {
+      return struct.get(structPos, javaClass);
+    } else {
+      return null;
+    }
   }
 
   @Override

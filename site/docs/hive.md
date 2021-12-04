@@ -56,7 +56,7 @@ To enable Hive support globally for an application, set `iceberg.engine.hive.ena
 For example, setting this in the `hive-site.xml` loaded by Spark will enable the storage handler for all tables created by Spark.
 
 !!! Warning
-    When using Hive with Tez in `0.11.x` releases, you also have to disable vectorization (`hive.vectorized.execution.enabled=false`)
+    Starting with Apache Iceberg `0.11.0`, when using Hive with Tez you also have to disable vectorization (`hive.vectorized.execution.enabled=false`).
 
 #### Table property configuration
 
@@ -98,8 +98,8 @@ To globally register different catalogs, set the following Hadoop configurations
 
 | Config Key                                    | Description                                            |
 | --------------------------------------------- | ------------------------------------------------------ |
-| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive` or `hadoop`                    |
-| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is null |
+| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive`, `hadoop`, or left unset if using a custom catalog  |
+| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is empty |
 | iceberg.catalog.<catalog_name\>.<key\>        | any config key and value pairs for the catalog         |
 
 Here are some examples using Hive CLI:

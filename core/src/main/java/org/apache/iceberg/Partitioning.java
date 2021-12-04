@@ -19,9 +19,21 @@
 
 package org.apache.iceberg;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
 
 public class Partitioning {
   private Partitioning() {
@@ -176,5 +188,81 @@ public class Partitioning {
       // do nothing for alwaysNull, it doesn't need to be added to the sort
       return null;
     }
+  }
+
+  /**
+   * Builds a common partition type for all specs in a table.
+   * <p>
+   * Whenever a table has multiple specs, the partition type is a struct containing
+   * all columns that have ever been a part of any spec in the table.
+   *
+   * @param table a table with one or many specs
+   * @return the constructed common partition type
+   */
+  public static StructType partitionType(Table table) {
+    // we currently don't know the output type of unknown transforms
+    List<Transform<?, ?>> unknownTransforms = collectUnknownTransforms(table);
+    ValidationException.check(unknownTransforms.isEmpty(),
+        "Cannot build table partition type, unknown transforms: %s", unknownTransforms);
+
+    if (table.specs().size() == 1) {
+      return table.spec().partitionType();
+    }
+
+    Map<Integer, PartitionField> fieldMap = Maps.newHashMap();
+    List<NestedField> structFields = Lists.newArrayList();
+
+    // sort the spec IDs in descending order to pick up the most recent field names
+    List<Integer> specIds = table.specs().keySet().stream()
+        .sorted(Collections.reverseOrder())
+        .collect(Collectors.toList());
+
+    for (Integer specId : specIds) {
+      PartitionSpec spec = table.specs().get(specId);
+
+      for (PartitionField field : spec.fields()) {
+        int fieldId = field.fieldId();
+        PartitionField existingField = fieldMap.get(fieldId);
+
+        if (existingField == null) {
+          fieldMap.put(fieldId, field);
+          NestedField structField = spec.partitionType().field(fieldId);
+          structFields.add(structField);
+        } else {
+          // verify the fields are compatible as they may conflict in v1 tables
+          ValidationException.check(equivalentIgnoringNames(field, existingField),
+              "Conflicting partition fields: ['%s', '%s']",
+              field, existingField);
+        }
+      }
+    }
+
+    List<NestedField> sortedStructFields = structFields.stream()
+        .sorted(Comparator.comparingInt(NestedField::fieldId))
+        .collect(Collectors.toList());
+    return StructType.of(sortedStructFields);
+  }
+
+  private static List<Transform<?, ?>> collectUnknownTransforms(Table table) {
+    List<Transform<?, ?>> unknownTransforms = Lists.newArrayList();
+
+    table.specs().values().forEach(spec -> {
+      spec.fields().stream()
+          .map(PartitionField::transform)
+          .filter(transform -> transform instanceof UnknownTransform)
+          .forEach(unknownTransforms::add);
+    });
+
+    return unknownTransforms;
+  }
+
+  private static boolean equivalentIgnoringNames(PartitionField field, PartitionField anotherField) {
+    return field.fieldId() == anotherField.fieldId() &&
+        field.sourceId() == anotherField.sourceId() &&
+        compatibleTransforms(field.transform(), anotherField.transform());
+  }
+
+  private static boolean compatibleTransforms(Transform<?, ?> t1, Transform<?, ?> t2) {
+    return t1.equals(t2) || t1.equals(Transforms.alwaysNull()) || t2.equals(Transforms.alwaysNull());
   }
 }

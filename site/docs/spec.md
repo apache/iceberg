@@ -19,15 +19,25 @@
 
 This is a specification for the Iceberg table format that is designed to manage a large, slow-changing collection of files in a distributed file system or key-value store as a table.
 
+## Format Versioning
+
+Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
+
+The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
+
 #### Version 1: Analytic Data Tables
 
-**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
+Version 1 of the Iceberg spec defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
+
+All version 1 data and metadata files are valid after upgrading a table to version 2. [Appendix E](#version-2) documents how to default version 2 fields when reading version 1 metadata.
 
 #### Version 2: Row-level Deletes
 
-The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
+Version 2 of the Iceberg spec adds row-level updates and deletes for analytic tables with immutable files.
 
-The primary goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
+
+In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
 
 ## Goals
@@ -202,6 +212,24 @@ Columns in Iceberg data files are selected by field id. The table schema's colum
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
+Tables may also define a property `schema.name-mapping.default` with a JSON name mapping containing a list of field mapping objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
+
+* `names`: A required list of 0 or more names for a field. 
+* `field-id`: An optional Iceberg field ID used when a field's name is present in `names`
+* `fields`: An optional list of field mappings for child field of structs, maps, and lists.
+
+Field mapping fields are constrained by the following rules:
+
+* A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. 
+* Each child field should be defined with their own field mapping under `fields`. 
+* Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
+* Fields which exist only in the Iceberg schema and not in imported data files may use an empty `names` list.
+* Fields that exist in imported files but not in the Iceberg schema may omit `field-id`.
+* List types should contain a mapping in `fields` for `element`. 
+* Map types should contain mappings in `fields` for `key` and `value`. 
+* Struct types should contain mappings in `fields` for their child fields.
+
+For details on serialization, see [Appendix C](#name-mapping-serialization).
 
 #### Identifier Field IDs
 
@@ -222,6 +250,9 @@ The set of metadata columns is:
 |-----------------------------|---------------|-------------|
 | **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
 | **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
+| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
+| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
+| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
 | **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
 | **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
@@ -253,7 +284,7 @@ Partition specs capture the transform from table data to partition values. This 
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `date`      |
-| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`                                                                                        | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
@@ -548,7 +579,7 @@ Table metadata consists of the following fields:
 
 | v1         | v2         | Field | Description |
 | ---------- | ---------- | ----- | ----------- |
-| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version. |
 | _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
 | _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
@@ -977,6 +1008,27 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`default-sort-order-id`**|`JSON int`|`0`|
 
 
+### Name Mapping Serialization
+
+Name mapping is serialized as a list of field mapping JSON Objects which are serialized as follows
+
+|Field mapping field|JSON representation|Example|
+|--- |--- |--- |
+|**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
+|**`field_id`**|`JSON int`|`1`|
+|**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
+
+Example
+```json
+[ { "field-id": 1, "names": ["id", "record_id"] },
+   { "field-id": 2, "names": ["data"] },
+   { "field-id": 3, "names": ["location"], "fields": [
+       { "field-id": 4, "names": ["latitude", "lat"] },
+       { "field-id": 5, "names": ["longitude", "long"] }
+     ] } ]
+```
+
+
 ## Appendix D: Single-value serialization
 
 This serialization scheme is for storing single values as individual binary values in the lower and upper bounds maps of manifest files.
@@ -1002,7 +1054,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`map`**                    | Not supported                                                                                                |
 
 
-## Format version changes
+## Appendix E: Format version changes
 
 ### Version 2
 

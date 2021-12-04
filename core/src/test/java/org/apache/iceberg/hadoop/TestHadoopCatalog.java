@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -57,11 +58,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableBuilder() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Table table = catalog.buildTable(tableIdent, SCHEMA)
+    Table table = hadoopCatalog().buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
         .withProperties(null)
         .withProperty("key1", "value1")
@@ -76,9 +74,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableTxnBuilder() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Transaction txn = catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(null)
@@ -92,9 +88,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testReplaceTxnBuilder() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
     Transaction createTxn = catalog.buildTable(tableIdent, SCHEMA)
@@ -131,9 +125,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testTableBuilderWithLocation() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
     AssertHelpers.assertThrows("Should reject a custom location",
@@ -151,11 +143,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableDefaultSortOrder() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC);
+    Table table = hadoopCatalog().createTable(tableIdent, SCHEMA, SPEC);
 
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 0, sortOrder.orderId());
@@ -164,14 +153,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateTableCustomSortOrder() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     SortOrder order = SortOrder.builderFor(SCHEMA)
         .asc("id", NULLS_FIRST)
         .build();
-    Table table = catalog.buildTable(tableIdent, SCHEMA)
+    Table table = hadoopCatalog().buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
         .withSortOrder(order)
         .create();
@@ -187,14 +173,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testBasicCatalog() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
-    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
     catalog.dropTable(testTable);
@@ -203,9 +187,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateAndDropTableWithoutNamespace() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
 
     TableIdentifier testTable = TableIdentifier.of("tbl");
     Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
@@ -214,7 +196,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertEquals("hadoop.tbl", table.name());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
-    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
     catalog.dropTable(testTable);
@@ -223,14 +205,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testDropTable() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
-    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
     catalog.dropTable(testTable);
@@ -238,10 +218,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testDropNonIcebergTable() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+    // testing with non existent directory
+    Assert.assertFalse(catalog.dropTable(testTable));
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
+    fs.mkdirs(new Path(metaLocation));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    Assert.assertFalse(catalog.dropTable(testTable));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
   public void testRenameTable() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     AssertHelpers.assertThrows("should throw exception", UnsupportedOperationException.class,
@@ -253,9 +247,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testListTables() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
 
     TableIdentifier tbl1 = TableIdentifier.of("db", "tbl1");
     TableIdentifier tbl2 = TableIdentifier.of("db", "tbl2");
@@ -284,9 +276,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCallingLocationProviderWhenNoCurrentMetadata() throws IOException {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
 
     TableIdentifier tableIdent = TableIdentifier.of("ns1", "ns2", "table1");
     Transaction create = catalog.newCreateTableTransaction(tableIdent, SCHEMA);
@@ -299,9 +289,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateNamespace() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
 
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
@@ -310,12 +301,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         catalog.createNamespace(t.namespace(), meta)
     );
 
-    String metaLocation1 = warehousePath + "/" + "db/ns1/ns2";
-    FileSystem fs1 = Util.getFs(new Path(metaLocation1), conf);
+    String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
+    FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
     Assert.assertTrue(fs1.isDirectory(new Path(metaLocation1)));
 
-    String metaLocation2 = warehousePath + "/" + "db/ns2/ns3";
-    FileSystem fs2 = Util.getFs(new Path(metaLocation2), conf);
+    String metaLocation2 = warehouseLocation + "/" + "db/ns2/ns3";
+    FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
     Assert.assertTrue(fs2.isDirectory(new Path(metaLocation2)));
 
     AssertHelpers.assertThrows("Should fail to create when namespace already exist: " + tbl1.namespace(),
@@ -327,9 +318,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testListNamespace() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
 
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
@@ -372,9 +361,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testLoadNamespaceMeta() throws IOException {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
 
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
@@ -394,9 +381,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testNamespaceExists() throws IOException {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
 
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
@@ -414,9 +399,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testAlterNamespaceMeta() throws IOException {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     AssertHelpers.assertThrows("Should fail to change namespace", UnsupportedOperationException.class,
         "Cannot set namespace properties db.db2.ns2 : setProperties is not supported", () -> {
           catalog.setProperties(Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test"));
@@ -425,9 +408,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testDropNamespace() throws IOException {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
     Namespace namespace1 = Namespace.of("db");
     Namespace namespace2 = Namespace.of("db", "ns1");
 
@@ -449,8 +433,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertTrue(catalog.dropTable(tbl2));
     Assert.assertTrue(catalog.dropNamespace(namespace2));
     Assert.assertTrue(catalog.dropNamespace(namespace1));
-    String metaLocation = warehousePath + "/" + "db";
-    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    String metaLocation = warehouseLocation + "/" + "db";
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
   }
 
@@ -533,9 +517,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testTableName() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)

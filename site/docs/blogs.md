@@ -19,6 +19,23 @@
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Using Flink CDC to synchronize data from MySQL sharding tables and build real-time data lake](https://ververica.github.io/flink-cdc-connectors/master/content/quickstart/build-real-time-data-lake-tutorial.html)
+**Date**: 11 November 2021, **Company**: Ververica, Alibaba Could
+**Author**: [Yuxia Luo](https://github.com/luoyuxia), [Jark Wu](https://github.com/wuchong), [Zheng Hu](https://www.linkedin.com/in/zheng-hu-37017683/)
+
+### [Metadata Indexing in Iceberg](https://tabular.io/blog/iceberg-metadata-indexing/)
+**Date**: 10 October 2021, **Company**: Tabular
+**Author**: [Ryan Blue](https://www.linkedin.com/in/rdblue/)
+
+### [Using Debezium to Create a Data Lake with Apache Iceberg](https://debezium.io/blog/2021/10/20/using-debezium-create-data-lake-with-apache-iceberg/)
+**Date**: October 20th, 2021, **Company**: Memiiso Community
+**Author**: [Ismail Simsek](https://www.linkedin.com/in/ismailsimsek/)
+
+### [How to Analyze CDC Data in Iceberg Data Lake Using Flink](https://www.alibabacloud.com/blog/how-to-analyze-cdc-data-in-iceberg-data-lake-using-flink_597838)
+**Date**: June 15, 2021, **Company**: Alibaba Cloud Community
+
+**Author**: [Li Jinsong](https://www.linkedin.com/in/%E5%8A%B2%E6%9D%BE-%E6%9D%8E-48b54b101/), [Hu Zheng](https://www.linkedin.com/in/zheng-hu-37017683/), [Yang Weihai](https://www.linkedin.com/in/weihai-yang-697a16224/), [Peidan Li](https://www.linkedin.com/in/peidian-li-18938820a/)
+
 ### [Apache Iceberg: An Architectural Look Under the Covers](https://www.dremio.com/apache-iceberg-an-architectural-look-under-the-covers/)
 **Date**: July 6th, 2021, **Company**: Dremio
 
@@ -33,6 +50,21 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Date**: Jun 8th, 2021, **Company**: Tencent
 
 **Author** [Shu (Simon Su) Su](https://www.linkedin.com/in/shu-su-62944994/)
+
+### [Trino on Ice III: Iceberg Concurrency Model, Snapshots, and the Iceberg Spec](https://blog.starburst.io/trino-on-ice-iii-iceberg-concurrency-model-snapshots-and-the-iceberg-spec)
+**Date**: May 25th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Trino on Ice II: In-Place Table Evolution and Cloud Compatibility with Iceberg](https://blog.starburst.io/trino-on-ice-ii-in-place-table-evolution-and-cloud-compatibility-with-iceberg)
+**Date**: May 11th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Trino On Ice I: A Gentle Introduction To Iceberg](https://blog.starburst.io/trino-on-ice-i-a-gentle-introduction-to-iceberg)
+**Date**: Apr 27th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
 
 ### [Apache Iceberg: A Different Table Design for Big Data](https://thenewstack.io/apache-iceberg-a-different-table-design-for-big-data/)
 **Date**: Feb 1st, 2021, **Company**: thenewstack.io
