@@ -168,6 +168,33 @@ public class FlinkSchemaUtil {
       builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
     }
 
+    // Add watermark
+    final int watermarkCount =
+            properties.keySet().stream()
+                    .filter(
+                            (k) ->
+                                    k.startsWith(WATERMARK)
+                                            && k.endsWith('.' + WATERMARK_ROWTIME))
+                    .mapToInt((k) -> 1)
+                    .sum();
+    if (watermarkCount > 0) {
+      for (int i = 0; i < watermarkCount; i++) {
+        final String rowtimeKey = WATERMARK + '.' + i + '.' + WATERMARK_ROWTIME;
+        final String exprKey = WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_EXPR;
+        final String typeKey =
+                WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_DATA_TYPE;
+        final String rowtime =
+                optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
+        final String exprString =
+                optionalGet(exprKey, properties).orElseThrow(exceptionSupplier(exprKey));
+        final String typeString =
+                optionalGet(typeKey, properties).orElseThrow(exceptionSupplier(typeKey));
+        final DataType exprType =
+                TypeConversions.fromLogicalToDataType(LogicalTypeParser.parse(typeString));
+        builder.watermark(rowtime, exprString, exprType);
+      }
+    }
+
     // Add primary key.
     Set<Integer> identifierFieldIds = schema.identifierFieldIds();
     if (!identifierFieldIds.isEmpty()) {
@@ -177,31 +204,6 @@ public class FlinkSchemaUtil {
         Preconditions.checkNotNull(columnName, "Cannot find field with id %s in schema %s", identifierFieldId, schema);
 
         columns.add(columnName);
-      }
-      final int watermarkCount =
-              properties.keySet().stream()
-                      .filter(
-                              (k) ->
-                                      k.startsWith(WATERMARK)
-                                              && k.endsWith('.' + WATERMARK_ROWTIME))
-                      .mapToInt((k) -> 1)
-                      .sum();
-      if (watermarkCount > 0) {
-        for (int i = 0; i < watermarkCount; i++) {
-          final String rowtimeKey = WATERMARK + '.' + i + '.' + WATERMARK_ROWTIME;
-          final String exprKey = WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_EXPR;
-          final String typeKey =
-                  WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_DATA_TYPE;
-          final String rowtime =
-                  optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
-          final String exprString =
-                  optionalGet(exprKey, properties).orElseThrow(exceptionSupplier(exprKey));
-          final String typeString =
-                  optionalGet(typeKey, properties).orElseThrow(exceptionSupplier(typeKey));
-          final DataType exprType =
-                  TypeConversions.fromLogicalToDataType(LogicalTypeParser.parse(typeString));
-          builder.watermark(rowtime, exprString, exprType);
-        }
       }
       builder.primaryKey(columns.toArray(new String[0]));
     }
