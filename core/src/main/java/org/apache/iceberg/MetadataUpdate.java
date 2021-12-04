@@ -154,13 +154,13 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class SetCurrentSnapshot implements MetadataUpdate {
-    private final long snapshotId;
+    private final Long snapshotId;
 
-    public SetCurrentSnapshot(long snapshotId) {
+    public SetCurrentSnapshot(Long snapshotId) {
       this.snapshotId = snapshotId;
     }
 
-    public long snapshotId() {
+    public Long snapshotId() {
       return snapshotId;
     }
   }

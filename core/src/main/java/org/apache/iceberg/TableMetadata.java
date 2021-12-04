@@ -607,7 +607,7 @@ public class TableMetadata implements Serializable {
 
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)
-        .removeSnapshots(snapshots) // TODO: replace table should preserve snapshot history
+        .setCurrentSnapshot(null)
         .setCurrentSchema(freshSchema, newLastColumnId.get())
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
@@ -901,7 +901,7 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder addSnapshot(Snapshot snapshot) {
-      if (snapshotsById.containsKey(snapshot.snapshotId())) {
+      if (snapshot == null || snapshotsById.containsKey(snapshot.snapshotId())) {
         // change is a noop
         return this;
       }
@@ -921,7 +921,7 @@ public class TableMetadata implements Serializable {
 
     public Builder setCurrentSnapshot(Snapshot snapshot) {
       addSnapshot(snapshot);
-      setCurrentSnapshot(snapshot, snapshot.timestampMillis());
+      setCurrentSnapshot(snapshot, null);
       return this;
     }
 
@@ -1162,10 +1162,11 @@ public class TableMetadata implements Serializable {
       return newOrderId;
     }
 
-    private void setCurrentSnapshot(Snapshot snapshot, long currentTimestampMillis) {
+    private void setCurrentSnapshot(Snapshot snapshot, Long currentTimestampMillis) {
       if (snapshot == null) {
         this.currentSnapshotId = -1;
         snapshotLog.clear();
+        changes.add(new MetadataUpdate.SetCurrentSnapshot(null));
         return;
       }
 
@@ -1177,7 +1178,7 @@ public class TableMetadata implements Serializable {
           "Last sequence number %s is less than existing snapshot sequence number %s",
           lastSequenceNumber, snapshot.sequenceNumber());
 
-      this.lastUpdatedMillis = currentTimestampMillis;
+      this.lastUpdatedMillis = currentTimestampMillis != null ? currentTimestampMillis : snapshot.timestampMillis();
       this.currentSnapshotId = snapshot.snapshotId();
       snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, snapshot.snapshotId()));
       changes.add(new MetadataUpdate.SetCurrentSnapshot(snapshot.snapshotId()));
@@ -1219,8 +1220,8 @@ public class TableMetadata implements Serializable {
           MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
           addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
         } else if (update instanceof MetadataUpdate.SetCurrentSnapshot) {
-          long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
-          if (addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
+          Long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
+          if (snapshotId != null && addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
             intermediateSnapshotIds.add(snapshotId);
           }
         }
