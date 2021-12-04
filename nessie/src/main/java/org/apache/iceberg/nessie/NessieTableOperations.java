@@ -79,8 +79,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
-  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
-      int numRetries) {
+  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry, int numRetries) {
     super.refreshFromMetadataLocation(newLocation, shouldRetry, numRetries, this::loadTableMetadata);
   }
 

@@ -985,7 +985,7 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setLocation(String newLocation) {
-      if (location != null && !location.equals(newLocation)) {
+      if (location != null && location.equals(newLocation)) {
         return this;
       }
 
@@ -1013,52 +1013,9 @@ public class TableMetadata implements Serializable {
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
 
-      List<MetadataLogEntry> metadataHistory = addPreviousFile(previousFileLocation, base.lastUpdatedMillis());
-
-      // find intermediate snapshots to suppress incorrect entries in the snapshot log.
-      //
-      // transactions can create snapshots that are never the current snapshot because several changes are combined
-      // by the transaction into one table metadata update. when each intermediate snapshot is added to table metadata,
-      // it is added to the snapshot log, assuming that it will be the current snapshot. when there are multiple
-      // snapshot updates, the log must be corrected by suppressing the intermediate snapshot entries.
-      //
-      // a snapshot is an intermediate snapshot if it was added but is not the current snapshot.
-      Set<Long> addedSnapshotIds = Sets.newHashSet();
-      Set<Long> intermediateSnapshotIds = Sets.newHashSet();
-      for (MetadataUpdate update : changes) {
-        if (update instanceof MetadataUpdate.AddSnapshot) {
-          // adds must always come before set current snapshot
-          MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
-          addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
-        } else if (update instanceof MetadataUpdate.SetCurrentSnapshot) {
-          long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
-          if (addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
-            intermediateSnapshotIds.add(snapshotId);
-          }
-        }
-      }
-
-      // update the snapshot log
-      List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
-      for (HistoryEntry logEntry : snapshotLog) {
-        long snapshotId = logEntry.snapshotId();
-        if (snapshotsById.containsKey(snapshotId) && !intermediateSnapshotIds.contains(snapshotId)) {
-          // copy the log entries that are still valid
-          newSnapshotLog.add(logEntry);
-        } else {
-          // any invalid entry causes the history before it to be removed. otherwise, there could be
-          // history gaps that cause time-travel queries to produce incorrect results. for example,
-          // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
-          // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
-          // and t3 when in fact s2 was the current snapshot.
-          newSnapshotLog.clear();
-        }
-      }
-
-      if (snapshotsById.get(currentSnapshotId) != null) {
-        ValidationException.check(Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
-            "Cannot set invalid snapshot log: latest entry is not the current snapshot");
-      }
+      List<MetadataLogEntry> metadataHistory = addPreviousFile(
+          previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
+      List<HistoryEntry> newSnapshotLog = updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
 
       return new TableMetadata(
           null,
@@ -1226,7 +1183,9 @@ public class TableMetadata implements Serializable {
       changes.add(new MetadataUpdate.SetCurrentSnapshot(snapshot.snapshotId()));
     }
 
-    private List<MetadataLogEntry> addPreviousFile(String previousFileLocation, long timestampMillis) {
+    private static List<MetadataLogEntry> addPreviousFile(
+        List<MetadataLogEntry> previousFiles, String previousFileLocation, long timestampMillis,
+        Map<String, String> properties) {
       if (previousFileLocation == null) {
         return previousFiles;
       }
@@ -1244,6 +1203,68 @@ public class TableMetadata implements Serializable {
       newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFileLocation));
 
       return newMetadataLog;
+    }
+
+    /**
+     * Finds intermediate snapshots that have not been committed as the current snapshot.
+     *
+     * @return a set of snapshot ids for all added snapshots that were later replaced as the current snapshot in changes
+     */
+    private static Set<Long> intermediateSnapshotIdSet(List<MetadataUpdate> changes, long currentSnapshotId) {
+      Set<Long> addedSnapshotIds = Sets.newHashSet();
+      Set<Long> intermediateSnapshotIds = Sets.newHashSet();
+      for (MetadataUpdate update : changes) {
+        if (update instanceof MetadataUpdate.AddSnapshot) {
+          // adds must always come before set current snapshot
+          MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
+          addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
+        } else if (update instanceof MetadataUpdate.SetCurrentSnapshot) {
+          long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
+          if (addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
+            intermediateSnapshotIds.add(snapshotId);
+          }
+        }
+      }
+
+      return intermediateSnapshotIds;
+    }
+
+    private static List<HistoryEntry> updateSnapshotLog(
+        List<HistoryEntry> snapshotLog, Map<Long, Snapshot> snapshotsById, long currentSnapshotId,
+        List<MetadataUpdate> changes) {
+      // find intermediate snapshots to suppress incorrect entries in the snapshot log.
+      //
+      // transactions can create snapshots that are never the current snapshot because several changes are combined
+      // by the transaction into one table metadata update. when each intermediate snapshot is added to table metadata,
+      // it is added to the snapshot log, assuming that it will be the current snapshot. when there are multiple
+      // snapshot updates, the log must be corrected by suppressing the intermediate snapshot entries.
+      //
+      // a snapshot is an intermediate snapshot if it was added but is not the current snapshot.
+      Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
+
+      // update the snapshot log
+      List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+      for (HistoryEntry logEntry : snapshotLog) {
+        long snapshotId = logEntry.snapshotId();
+        if (snapshotsById.containsKey(snapshotId) && !intermediateSnapshotIds.contains(snapshotId)) {
+          // copy the log entries that are still valid
+          newSnapshotLog.add(logEntry);
+        } else {
+          // any invalid entry causes the history before it to be removed. otherwise, there could be
+          // history gaps that cause time-travel queries to produce incorrect results. for example,
+          // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
+          // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
+          // and t3 when in fact s2 was the current snapshot.
+          newSnapshotLog.clear();
+        }
+      }
+
+      if (snapshotsById.get(currentSnapshotId) != null) {
+        ValidationException.check(Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
+            "Cannot set invalid snapshot log: latest entry is not the current snapshot");
+      }
+
+      return newSnapshotLog;
     }
   }
 }
