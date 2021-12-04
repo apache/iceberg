@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -189,6 +190,56 @@ public class TestSparkDataWrite {
     List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
+  }
+
+  @Test
+  public void testConcurrentAppend() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    Map<String, String> properties = new HashMap<>();
+    properties.put(TableProperties.COMMIT_NUM_RETRIES, "1000");
+    Table table = tables.create(SCHEMA, null, properties, location.toString());
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    int threadsCount = 10;
+    Thread[] threads = new Thread[threadsCount];
+    for (int i = 0; i < threadsCount; i++) {
+      threads[i] = new Thread(() -> {
+        try {
+          df.select("id", "data").write()
+              .format("iceberg")
+              .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+              .mode(SaveMode.Append)
+              .save(location.toString());
+        } catch (Exception e) {
+          // intentionally swallow to check result later
+        }
+      });
+      threads[i].start();
+    }
+    Arrays.stream(threads).forEach(t -> {
+      try {
+        t.join();
+      } catch (InterruptedException e) {
+        // intentionally swallow to check result later
+      }
+    });
+    table.refresh();
+    Assert.assertEquals(threadsCount, Lists.newArrayList(table.snapshots()).size());
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", 3 * threadsCount, actual.size());
   }
 
   @Test

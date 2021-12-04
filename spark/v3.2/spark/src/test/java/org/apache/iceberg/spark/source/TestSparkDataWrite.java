@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -197,7 +198,7 @@ public class TestSparkDataWrite {
     File location = new File(parent, "test");
 
     HadoopTables tables = new HadoopTables(CONF);
-    HashMap<String, String> properties = new HashMap<>();
+    Map<String, String> properties = new HashMap<>();
     properties.put(TableProperties.COMMIT_NUM_RETRIES, "1000");
     Table table = tables.create(SCHEMA, null, properties, location.toString());
 
@@ -219,7 +220,7 @@ public class TestSparkDataWrite {
                   .mode(SaveMode.Append)
                   .save(location.toString());
         } catch (Exception e) {
-          e.printStackTrace();
+          // intentionally swallow to check result later
         }
       });
       threads[i].start();
@@ -228,7 +229,7 @@ public class TestSparkDataWrite {
       try {
         t.join();
       } catch (InterruptedException e) {
-        e.printStackTrace();
+        // intentionally swallow to check result later
       }
     });
     table.refresh();
