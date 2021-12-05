@@ -28,8 +28,10 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.KryoHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveTableBaseTest;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -48,6 +50,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -370,6 +373,26 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           .as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
       Assert.assertEquals("Data should match", spacedRecords, results);
+    }
+
+    @Test
+    public void testSparkPartitionKryoSerialization() throws IOException {
+      Map<String, String> values = ImmutableMap.of("id", "2");
+      String uri = "s3://bucket/table/data/id=2";
+      SparkPartition sparkPartition = new SparkPartition(values, uri, format.toString());
+
+      SparkPartition deserialized = KryoHelpers.roundTripSerialize(sparkPartition);
+      Assertions.assertThat(sparkPartition).isEqualTo(deserialized);
+    }
+
+    @Test
+    public void testSparkPartitionJavaSerialization() throws IOException, ClassNotFoundException {
+      Map<String, String> values = ImmutableMap.of("id", "2");
+      String uri = "s3://bucket/table/data/id=2";
+      SparkPartition sparkPartition = new SparkPartition(values, uri, format.toString());
+
+      SparkPartition deserialized = TestHelpers.roundTripSerialize(sparkPartition);
+      Assertions.assertThat(sparkPartition).isEqualTo(deserialized);
     }
   }
 
