@@ -713,6 +713,64 @@ public class TableMetadata implements Serializable {
         snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
   }
 
+  /**
+   * Returns an updated {@link TableMetadata} with the current-snapshot-ID set to the given
+   * snapshot-ID and the snapshot-log reset to contain only the snapshot with the given snapshot-ID.
+   *
+   * @param snapshotId ID of a snapshot that must exist, or {@code -1L} to remove the current snapshot
+   *                   and return an empty snapshot log.
+   * @return {@link TableMetadata} with updated {@link #currentSnapshotId} and {@link #snapshotLog}
+   */
+  public TableMetadata withCurrentSnapshotOnly(long snapshotId) {
+    if ((currentSnapshotId == -1L && snapshotId == -1L && snapshots.isEmpty()) ||
+        (currentSnapshotId == snapshotId && snapshots.size() == 1)) {
+      return this;
+    }
+    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+    if (snapshotId != -1L) {
+      Snapshot snapshot = snapshotsById.get(snapshotId);
+      Preconditions.checkArgument(snapshot != null, "Non-existent snapshot");
+      newSnapshotLog.add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshotId));
+    }
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshotId,
+        snapshots, newSnapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+  }
+
+  public TableMetadata withCurrentSchema(int schemaId) {
+    if (currentSchemaId == schemaId) {
+      return this;
+    }
+    Preconditions.checkArgument(schemasById.containsKey(schemaId), "Non-existent schema");
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+  }
+
+  public TableMetadata withDefaultSortOrder(int sortOrderId) {
+    if (defaultSortOrderId == sortOrderId) {
+      return this;
+    }
+    Preconditions.checkArgument(sortOrdersById.containsKey(sortOrderId), "Non-existent sort-order");
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, sortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+  }
+
+  public TableMetadata withDefaultSpec(int specId) {
+    if (defaultSpecId == specId) {
+      return this;
+    }
+    Preconditions.checkArgument(specsById.containsKey(specId), "Non-existent partition spec");
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, specId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(metadataFileLocation, lastUpdatedMillis));
+  }
+
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
         .withSpecId(partitionSpec.specId());

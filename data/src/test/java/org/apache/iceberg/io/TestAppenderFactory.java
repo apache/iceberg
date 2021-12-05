@@ -83,6 +83,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     this.partitioned = partitioned;
   }
 
+  @Override
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();

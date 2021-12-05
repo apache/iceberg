@@ -17,29 +17,17 @@
  * under the License.
  */
 
-package org.apache.hadoop.hive.ql.exec.vector;
+package org.apache.spark.sql.execution.datasources
 
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkFilters
+import org.apache.spark.sql.catalyst.expressions.Expression
 
-/**
- * Copied here from Hive for compatibility
- */
-@SuppressWarnings("VisibilityModifier")
-public class VectorizedSupport {
-  public enum Support {
-    DECIMAL_64;
+object SparkExpressionConverter {
 
-    final String lowerCaseName;
-    Support() {
-      this.lowerCaseName = name().toLowerCase();
-    }
-
-    public static final Map<String, Support> nameToSupportMap = Maps.newHashMap();
-    static {
-      for (Support support : values()) {
-        nameToSupportMap.put(support.lowerCaseName, support);
-      }
-    }
+  def convertToIcebergExpression(sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
+    // Currently, it is a double conversion as we are converting Spark expression to Spark filter
+    // and then converting Spark filter to Iceberg expression.
+    // But these two conversions already exist and well tested. So, we are going with this approach.
+    SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
   }
 }

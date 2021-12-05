@@ -94,6 +94,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
   }
 
+  @Override
   @Before
   public void setupTable() throws IOException {
     flinkManifestFolder = temp.newFolder();

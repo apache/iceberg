@@ -62,6 +62,7 @@ public class TestSplitPlanning extends TableTestBase {
     super(formatVersion);
   }
 
+  @Override
   @Before
   public void setupTable() throws IOException {
     File tableDir = temp.newFolder();

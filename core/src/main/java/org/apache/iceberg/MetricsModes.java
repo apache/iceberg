@@ -56,6 +56,11 @@ public class MetricsModes {
     throw new IllegalArgumentException("Invalid metrics mode: " + mode);
   }
 
+  /**
+   * A metrics calculation mode.
+   * <p>
+   * Implementations must be immutable.
+   */
   public interface MetricsMode extends Serializable {
   }
 

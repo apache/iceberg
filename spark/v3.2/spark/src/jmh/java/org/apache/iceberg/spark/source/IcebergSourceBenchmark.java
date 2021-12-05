@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
@@ -30,6 +29,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -132,7 +132,7 @@ public abstract class IcebergSourceBenchmark {
   protected void withSQLConf(Map<String, String> conf, Action action) {
     SQLConf sqlConf = SQLConf.get();
 
-    Map<String, String> currentConfValues = new HashMap<>();
+    Map<String, String> currentConfValues = Maps.newHashMap();
     conf.keySet().forEach(confKey -> {
       if (sqlConf.contains(confKey)) {
         String currentConfValue = sqlConf.getConfString(confKey);
@@ -162,7 +162,7 @@ public abstract class IcebergSourceBenchmark {
 
   protected void withTableProperties(Map<String, String> props, Action action) {
     Map<String, String> tableProps = table.properties();
-    Map<String, String> currentPropValues = new HashMap<>();
+    Map<String, String> currentPropValues = Maps.newHashMap();
     props.keySet().forEach(propKey -> {
       if (tableProps.containsKey(propKey)) {
         String currentPropValue = tableProps.get(propKey);
