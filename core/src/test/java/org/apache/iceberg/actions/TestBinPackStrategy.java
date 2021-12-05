@@ -139,6 +139,20 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
+  public void testGroupingMinInputFilesNoop() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+            BinPackStrategy.MIN_INPUT_FILES, Integer.toString(1)
+    ));
+
+    Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1);
+
+    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
+
+    Assert.assertEquals("Should plan 0 groups, as 1 minInputFile should be treated as NOOP",
+            0, Iterables.size(grouped));
+  }
+
+  @Test
   public void testGroupWithLargeFileMinInputFiles() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
         BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
