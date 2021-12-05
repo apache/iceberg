@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.sources.And;
 import org.apache.spark.sql.sources.EqualNullSafe;
 import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.GreaterThan;
@@ -37,6 +38,7 @@ import org.apache.spark.sql.sources.IsNotNull;
 import org.apache.spark.sql.sources.IsNull;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
+import org.apache.spark.sql.sources.Not;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -130,5 +132,20 @@ public class TestSparkFilters {
 
     Assert.assertEquals("Generated date expression should be correct",
         rawExpression.toString(), dateExpression.toString());
+  }
+
+  @Test
+  public void testNestedInInsideNot() {
+    Not filter = Not.apply(And.apply(EqualTo.apply("col1", 1), In.apply("col2", new Integer[]{1, 2})));
+    Expression converted = SparkFilters.convert(filter);
+    Assert.assertNull("Expression should not be converted", converted);
+  }
+
+  @Test
+  public void testNotIn() {
+    Not filter = Not.apply(In.apply("col", new Integer[]{1, 2}));
+    Expression actual = SparkFilters.convert(filter);
+    Expression expected = Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
+    Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
   }
 }

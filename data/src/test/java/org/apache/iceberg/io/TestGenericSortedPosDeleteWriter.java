@@ -74,6 +74,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
+  @Override
   @Before
   public void setupTable() throws IOException {
     this.tableDir = temp.newFolder();

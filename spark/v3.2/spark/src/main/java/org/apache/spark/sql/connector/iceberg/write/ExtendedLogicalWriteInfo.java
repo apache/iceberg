@@ -19,24 +19,20 @@
 
 package org.apache.spark.sql.connector.iceberg.write;
 
-import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.connector.write.WriteBuilder;
+import org.apache.spark.sql.connector.write.LogicalWriteInfo;
+import org.apache.spark.sql.types.StructType;
 
 /**
- * An interface for building a scan and a write for a row-level operation.
+ * A class that holds logical write information not covered by LogicalWriteInfo in Spark.
  */
-public interface MergeBuilder {
+public interface ExtendedLogicalWriteInfo extends LogicalWriteInfo {
   /**
-   * Creates a scan builder for a row-level operation.
-   *
-   * @return a scan builder
+   * The schema of the input metadata from Spark to data source.
    */
-  ScanBuilder asScanBuilder();
+  StructType metadataSchema();
 
   /**
-   * Creates a write builder for a row-level operation.
-   *
-   * @return a write builder
+   * The schema of the ID columns from Spark to data source.
    */
-  WriteBuilder asWriteBuilder();
+  StructType rowIdSchema();
 }

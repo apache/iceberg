@@ -118,11 +118,13 @@ class BaseFileScanTask implements FileScanTask {
       this.parentScanTask = parentScanTask;
       this.targetSplitSize = targetSplitSize;
       this.splitSizes = new ArrayList<>(offsets.size());
-      int lastIndex = offsets.size() - 1;
-      for (int index = 0; index < lastIndex; index++) {
-        splitSizes.add(offsets.get(index + 1) - offsets.get(index));
+      if (offsets.size() > 0) {
+        int lastIndex = offsets.size() - 1;
+        for (int index = 0; index < lastIndex; index++) {
+          splitSizes.add(offsets.get(index + 1) - offsets.get(index));
+        }
+        splitSizes.add(parentScanTask.length() - offsets.get(lastIndex));
       }
-      splitSizes.add(parentScanTask.length() - offsets.get(lastIndex));
     }
 
     @Override

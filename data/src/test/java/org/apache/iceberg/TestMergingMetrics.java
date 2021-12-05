@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,6 +34,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -156,9 +156,9 @@ public abstract class TestMergingMetrics<T> {
     List<Record> recordList = RandomGenericData.generate(SCHEMA, 5, 250L);
     FileAppender<T> appender = writeAndGetAppender(recordList);
 
-    Map<Types.NestedField, AtomicReference<Number>> expectedUpperBounds = new HashMap<>();
-    Map<Types.NestedField, AtomicReference<Number>> expectedLowerBounds = new HashMap<>();
-    Map<Types.NestedField, AtomicLong> expectedNaNCount = new HashMap<>();
+    Map<Types.NestedField, AtomicReference<Number>> expectedUpperBounds = Maps.newHashMap();
+    Map<Types.NestedField, AtomicReference<Number>> expectedLowerBounds = Maps.newHashMap();
+    Map<Types.NestedField, AtomicLong> expectedNaNCount = Maps.newHashMap();
 
     populateExpectedValues(recordList, expectedUpperBounds, expectedLowerBounds, expectedNaNCount);
 
