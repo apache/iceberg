@@ -647,6 +647,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assert.assertEquals(HiveIcebergInputFormat.class.getName(), hmsTable.getSd().getInputFormat());
     Assert.assertEquals(HiveIcebergOutputFormat.class.getName(), hmsTable.getSd().getOutputFormat());
     Assert.assertEquals(HiveIcebergSerDe.class.getName(), hmsTable.getSd().getSerdeInfo().getSerializationLib());
+    // Add 1 second delay to reflect DDL_TIME change in HMS
+    Thread.sleep(1000);
 
     // Add two new properties to the Iceberg table and update an existing one
     icebergTable.updateProperties()
@@ -671,6 +673,10 @@ public class TestHiveIcebergStorageHandlerNoScan {
       String newSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
       Assert.assertEquals(hmsParams.get(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP), prevSnapshot);
       Assert.assertEquals(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP), newSnapshot);
+      // tableProperties contains fields from initial table creation
+      String createdAtTime = tableProperties.getProperty(hive_metastoreConstants.DDL_TIME);
+      String updatedTime = hmsParams.get(hive_metastoreConstants.DDL_TIME);
+      Assert.assertTrue(Long.parseLong(createdAtTime) < Long.parseLong(updatedTime));
     } else {
       Assert.assertEquals(8, hmsParams.size());
     }
