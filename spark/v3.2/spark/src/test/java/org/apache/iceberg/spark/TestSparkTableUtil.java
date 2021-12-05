@@ -28,8 +28,7 @@ import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-public class TestSparkPartitionSerialization {
-
+public class TestSparkTableUtil {
   @Test
   public void testSparkPartitionOKryoSerialization() throws IOException {
     Map<String, String> values = ImmutableMap.of("id", "2");
@@ -38,7 +37,6 @@ public class TestSparkPartitionSerialization {
     SparkPartition sparkPartition = new SparkPartition(values, uri, format);
 
     SparkPartition deserialized = KryoHelpers.roundTripSerialize(sparkPartition);
-
     Assertions.assertThat(sparkPartition).isEqualTo(deserialized);
   }
 
