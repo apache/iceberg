@@ -647,7 +647,7 @@ public class SparkTableUtil {
     private final String format;
 
     public SparkPartition(Map<String, String> values, String uri, String format) {
-      this.values = Map.newHashMap(values);
+      this.values = Maps.newHashMap(values);
       this.uri = uri;
       this.format = format;
     }
