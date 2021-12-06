@@ -425,7 +425,7 @@ components:
         properties:
           type: object
           description: Configuration properties for the namespace
-          example: '{ owner: "Hank Bendickson" }'
+          example: '{ "owner": "Hank Bendickson" }'
     RenameTableRequest:
       type: object
       properties:
