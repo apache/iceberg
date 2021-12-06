@@ -162,6 +162,7 @@ List all namespaces at a certain level, optionally starting from a given parent 
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListNamespacesResponse](#schemalistnamespacesresponse)|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (Parent namespace does not exist)|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -213,7 +214,7 @@ Create a namespace, with an optional set of properties. The server might also ad
   "namespace": [
     "string"
   ],
-  "properties": "{ owner: \"Hank Bendickson\" }"
+  "properties": "{ \"owner\": \"Hank Bendickson\" }"
 }
 ```
 
@@ -230,7 +231,13 @@ Create a namespace, with an optional set of properties. The server might also ad
 > 409 Response
 
 ```json
-"{ error: { message: \"Namespace already exists\", type: \"AlreadyExistsException\", code: 40901 }"
+{
+  "error": {
+    "message": "Namespace already exists",
+    "type": "AlreadyExistsException",
+    "code": 409
+  }
+}
 ```
 
 <h3 id="createnamespace-responses">Responses</h3>
@@ -308,7 +315,14 @@ Return all stored metadata properties for a given namespace
 > 404 Response
 
 ```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
+{
+  "data": {},
+  "error": {
+    "message": "Namespace does not exist",
+    "type": "NoSuchNamespaceException",
+    "code": 404
+  }
+}
 ```
 
 <h3 id="loadnamespacemetadata-responses">Responses</h3>
@@ -316,7 +330,7 @@ Return all stored metadata properties for a given namespace
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -332,7 +346,6 @@ BearerAuth
 ```shell
 # You can also use wget
 curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace} \
-  -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
@@ -366,24 +379,13 @@ Check if a namespace exists.
 |---|---|---|---|---|
 |namespace|path|string|true|none|
 
-> Example responses
-
-> 200 Response
-
-```json
-{
-  "data": {
-    "exists": false
-  }
-}
-```
-
 <h3 id="namespaceexists-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK - Namesapce exists|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -449,15 +451,16 @@ System.out.println(response.toString());
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
 BearerAuth
 </aside>
 
-## setProperties
+## setProperties _ removeProperties
 
-<a id="opIdsetProperties"></a>
+<a id="opIdsetProperties / removeProperties"></a>
 
 > Code samples
 
@@ -489,26 +492,29 @@ System.out.println(response.toString());
 
 `POST /namespaces/{namespace}/properties`
 
-*Set a collection of properties on a namespace*
+*Set or remove properties on a namespace*
 
-Set a collection of properties on a namespace in the catalog. Properties that are not in the given map are not modified or removed by this call. Server implementations are not required to support namespace properties.
+Set and/or remove a collection or properties on a namespae. The request body specifies a list of properties `toRemove` and a map of key value pairs `toUpsert`.
+Properties that are not in the request are not modified or removed by this call. Server implementations are not required to support namespace properties.
 
 > Body parameter
 
 ```json
 {
-  "namespace": "string",
-  "properties": {}
+  "toRemove": "[ \"department\", \"access_group\" ]",
+  "toUpdate": {
+    "owner": "Hank Bendickson"
+  }
 }
 ```
 
-<h3 id="setproperties-parameters">Parameters</h3>
+<h3 id="setproperties-_-removeproperties-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|body|body|[SetPropertiesRequest](#schemasetpropertiesrequest)|true|none|
-|» namespace|body|string|false|none|
-|» properties|body|object|false|none|
+|body|body|[UpdatePropertiesRequest](#schemaupdatepropertiesrequest)|true|none|
+|» toRemove|body|[string]|false|none|
+|» toUpdate|body|object|false|none|
 |namespace|path|string|true|none|
 
 > Example responses
@@ -517,105 +523,38 @@ Set a collection of properties on a namespace in the catalog. Properties that ar
 
 ```json
 {
-  "updated": true
+  "data": {
+    "updated": [
+      "owner"
+    ],
+    "removed": [
+      "foo"
+    ],
+    "notPresent": [
+      "bar"
+    ]
+  }
 }
 ```
 
 > 404 Response
 
 ```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
+{
+  "error": {
+    "message": "Namespace does not exist",
+    "type": "NoSuchNamespaceException",
+    "code": 404
+  }
+}
 ```
 
-<h3 id="setproperties-responses">Responses</h3>
+<h3 id="setproperties-_-removeproperties-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[SetPropertiesResponse](#schemasetpropertiesresponse)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[UpdatePropertiesResponse](#schemaupdatepropertiesresponse)|
 |404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## removeProperties
-
-<a id="opIdremoveProperties"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X PUT http://127.0.0.1:1080/namespaces/{namespace}/properties \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("PUT");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`PUT /namespaces/{namespace}/properties`
-
-*Remove a set of property keys from a namespace in the catalog*
-
-Remove a set of property keys from a namespace in the catalog. Properties that are not in the given set are not modified or removed by this call. Server implementations are not required to support namespace properties.
-
-> Body parameter
-
-```json
-{
-  "namespace": "string",
-  "properties": {}
-}
-```
-
-<h3 id="removeproperties-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[RemovePropertiesRequest](#schemaremovepropertiesrequest)|true|none|
-|» namespace|body|string|false|none|
-|» properties|body|object|false|none|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-```json
-true
-```
-
-> 404 Response
-
-```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
-```
-
-<h3 id="removeproperties-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (No Such Namespace)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
 
 <aside class="warning">
@@ -683,11 +622,18 @@ Return all table identifiers under this namespace
 }
 ```
 
+> 404 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 404 }"
+```
+
 <h3 id="listtables-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListTablesResponse](#schemalisttablesresponse)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -768,7 +714,6 @@ BearerAuth
 ```shell
 # You can also use wget
 curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
-  -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
@@ -803,41 +748,13 @@ Check if a table exists within a given namespace. Returns the standard Iceberg r
 |namespace|path|string|true|A namespace identifier|
 |table|path|string|true|A table name|
 
-> Example responses
-
-> OK
-
-```json
-{
-  "data": {
-    "exists": true
-  }
-}
-```
-
-```json
-"{ \"data\": { \"exists: false } }"
-```
-
-> 404 Response
-
-```json
-{
-  "error": {
-    "message": "The namespace does not exist",
-    "type": "NoSuchTableException",
-    "code": 40401
-  }
-}
-```
-
 <h3 id="tableexists-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK - Table Exists|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|[IcebergResponseObject](#schemaicebergresponseobject)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -916,17 +833,35 @@ Rename a table from one identifier to another. It's valid to move a table across
 > Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))
 
 ```json
-"{ error: { message: \"Table does not exist\", type: \"NoSuchTableException\", code: 40402 }"
+{
+  "error": {
+    "message": "Table does not exist",
+    "type": "NoSuchTableException",
+    "code": 404
+  }
+}
 ```
 
 ```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNameSpaceException\", code: 40401 }"
+{
+  "error": {
+    "message": "Namespace does not exist",
+    "type": "NoSuchNameSpaceException",
+    "code": 404
+  }
+}
 ```
 
 > 409 Response
 
 ```json
-"{ error: { message: \"Tale already exists\", type: \"AlreadyExistsException\", code: 40902 }"
+{
+  "error": {
+    "message": "Tale already exists",
+    "type": "AlreadyExistsException",
+    "code": 409
+  }
+}
 ```
 
 <h3 id="renametable-responses">Responses</h3>
@@ -972,28 +907,6 @@ BearerAuth
 |namespace|[string]|true|none|none|
 |name|string|false|none|none|
 
-<h2 id="tocS_RemovePropertiesRequest">RemovePropertiesRequest</h2>
-<!-- backwards compatibility -->
-<a id="schemaremovepropertiesrequest"></a>
-<a id="schema_RemovePropertiesRequest"></a>
-<a id="tocSremovepropertiesrequest"></a>
-<a id="tocsremovepropertiesrequest"></a>
-
-```json
-{
-  "namespace": "string",
-  "properties": {}
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|namespace|string|false|none|none|
-|properties|object|false|none|none|
-
 <h2 id="tocS_CreateNamespaceRequest">CreateNamespaceRequest</h2>
 <!-- backwards compatibility -->
 <a id="schemacreatenamespacerequest"></a>
@@ -1006,7 +919,7 @@ BearerAuth
   "namespace": [
     "string"
   ],
-  "properties": "{ owner: \"Hank Bendickson\" }"
+  "properties": "{ \"owner\": \"Hank Bendickson\" }"
 }
 
 ```
@@ -1050,17 +963,19 @@ BearerAuth
 |sourceTableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
 |destinationTableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
 
-<h2 id="tocS_SetPropertiesRequest">SetPropertiesRequest</h2>
+<h2 id="tocS_UpdatePropertiesRequest">UpdatePropertiesRequest</h2>
 <!-- backwards compatibility -->
-<a id="schemasetpropertiesrequest"></a>
-<a id="schema_SetPropertiesRequest"></a>
-<a id="tocSsetpropertiesrequest"></a>
-<a id="tocssetpropertiesrequest"></a>
+<a id="schemaupdatepropertiesrequest"></a>
+<a id="schema_UpdatePropertiesRequest"></a>
+<a id="tocSupdatepropertiesrequest"></a>
+<a id="tocsupdatepropertiesrequest"></a>
 
 ```json
 {
-  "namespace": "string",
-  "properties": {}
+  "toRemove": "[ \"department\", \"access_group\" ]",
+  "toUpdate": {
+    "owner": "Hank Bendickson"
+  }
 }
 
 ```
@@ -1069,30 +984,40 @@ BearerAuth
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|namespace|string|false|none|none|
-|properties|object|false|none|none|
+|toRemove|[string]|false|none|none|
+|toUpdate|object|false|none|none|
 
-<h2 id="tocS_SetPropertiesResponse">SetPropertiesResponse</h2>
+<h2 id="tocS_UpdatePropertiesResponse">UpdatePropertiesResponse</h2>
 <!-- backwards compatibility -->
-<a id="schemasetpropertiesresponse"></a>
-<a id="schema_SetPropertiesResponse"></a>
-<a id="tocSsetpropertiesresponse"></a>
-<a id="tocssetpropertiesresponse"></a>
+<a id="schemaupdatepropertiesresponse"></a>
+<a id="schema_UpdatePropertiesResponse"></a>
+<a id="tocSupdatepropertiesresponse"></a>
+<a id="tocsupdatepropertiesresponse"></a>
 
 ```json
 {
-  "updated": true
+  "updated": [
+    "string"
+  ],
+  "removed": [
+    "string"
+  ],
+  "notPresent": [
+    "string"
+  ]
 }
 
 ```
 
-JSON data response on a successful set properties call.
+JSON data response for a synchronous update properties request.
 
 ### Properties
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|updated|boolean|false|none|true if the set properties request was accepted and is reflected on the server|
+|updated|[string]|false|none|none|
+|removed|[string]|false|none|List of properties that were removed (and not updated)|
+|notPresent|[string]|false|none|none|
 
 <h2 id="tocS_ListNamespacesResponse">ListNamespacesResponse</h2>
 <!-- backwards compatibility -->
@@ -1195,28 +1120,6 @@ Reference to one or more levels of a namespace
 |---|---|---|---|---|
 |identifiers|[[TableIdentifier](#schematableidentifier)]|false|none|none|
 
-<h2 id="tocS_TableMetadata">TableMetadata</h2>
-<!-- backwards compatibility -->
-<a id="schematablemetadata"></a>
-<a id="schema_TableMetadata"></a>
-<a id="tocStablemetadata"></a>
-<a id="tocstablemetadata"></a>
-
-```json
-{
-  "currentSnapshotTo": {
-    "currentSnapshotTo": {}
-  }
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|currentSnapshotTo|[TableMetadata](#schematablemetadata)|false|none|none|
-
 <h2 id="tocS_IcebergConfiguration">IcebergConfiguration</h2>
 <!-- backwards compatibility -->
 <a id="schemaicebergconfiguration"></a>
@@ -1251,8 +1154,8 @@ Server-provided configuration for the catalog.
 ```json
 {
   "message": "string",
-  "type": "string",
-  "code": "40401, Table not found vs 40402, Namespace not found.",
+  "type": "NoSuchNamespaceException",
+  "code": 404,
   "metadata": {}
 }
 
@@ -1274,8 +1177,8 @@ Namespace provided in the request does not exist
 ```json
 {
   "message": "string",
-  "type": "string",
-  "code": "40401, Table not found vs 40402, Namespace not found.",
+  "type": "NoSuchNamespaceException",
+  "code": 404,
   "metadata": {}
 }
 
@@ -1297,8 +1200,8 @@ Namespace provided in the request already exists
 ```json
 {
   "message": "string",
-  "type": "string",
-  "code": "40401, Table not found vs 40402, Namespace not found.",
+  "type": "NoSuchNamespaceException",
+  "code": 404,
   "metadata": {}
 }
 
@@ -1320,8 +1223,8 @@ The given table identifier does not exist
 ```json
 {
   "message": "string",
-  "type": "string",
-  "code": "40401, Table not found vs 40402, Namespace not found.",
+  "type": "NoSuchNamespaceException",
+  "code": 404,
   "metadata": {}
 }
 
@@ -1382,8 +1285,8 @@ JSON data payload returned in a successful response body
 ```json
 {
   "message": "string",
-  "type": "string",
-  "code": "40401, Table not found vs 40402, Namespace not found.",
+  "type": "NoSuchNamespaceException",
+  "code": 404,
   "metadata": {}
 }
 
@@ -1396,7 +1299,7 @@ JSON error payload returned in a response with further details on the error
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |message|string|true|none|Human-readable error message|
-|type|string|true|none|Machine-type of the error, such as an exception class|
-|code|integer|false|none|Application specific error code, to disambiguage amongst subclasses of HTTP responses|
+|type|string|true|none|Internal type of the error, such as an exception class|
+|code|integer|false|none|HTTP response code|
 |metadata|object¦null|false|none|Additional metadata to accompany this error, such as server side stack traces or user instructions|
 

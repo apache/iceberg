@@ -89,6 +89,8 @@ paths:
                 $ref: '#/components/schemas/ListNamespacesResponse'
         '401':
           description: Unauthorized
+        '404':
+          description: Not Found (Parent namespace does not exist)
     post:
       tags:
         - Catalog API
@@ -113,7 +115,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NamespaceAlreadyExistsError'
               example:
-                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 409 }'
+                { "error": { "message": "Namespace already exists", "type": "AlreadyExistsException", code: 409 } }
 
   /namespaces/{namespace}:
     parameters:
@@ -140,9 +142,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
+                $ref: '#/components/schemas/IcebergResponseObject'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
+                { "data": {}, "error": { "message": "Namespace does not exist", "type": "NoSuchNamespaceException", code: 404 } }
     head:
       tags:
         - Catalog API
@@ -185,69 +187,48 @@ paths:
     post:
       tags:
         - Catalog API
-      summary: Set a collection of properties on a namespace
-      operationId: setProperties
+      summary: Set or remove properties on a namespace
+      operationId: setProperties / removeProperties
       description:
-        Set a collection of properties on a namespace in the catalog.
-        Properties that are not in the given map are not modified or removed by this call.
+        Set and/or remove a collection or properties on a namespae.
+        The request body specifies a list of properties `toRemove` and a map
+        of key value pairs `toUpsert`.
+
+        Properties that are not in the request are not modified or removed by this call.
         Server implementations are not required to support namespace properties.
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SetPropertiesRequest'
+              $ref: '#/components/schemas/UpdatePropertiesRequest'
+            example:
+              { "toRemove": [ "foo", "bar" ], "toUpdate": { "owner": "Raoul" } }
         required: true
       responses:
-        '200':
+        200:
           description: OK
           content:
             'application/json':
               schema:
                 # This is an IcebergResponseObject<SetPropertiesResponse>, in that it uses the standard wrapper.
-                $ref: '#/components/schemas/SetPropertiesResponse'
-                example: '{ "data": { "updated": true }, "error": null }'
-        '406':
-          description: Not Acceptable (Unsupported Operation)
-        '404':
+                $ref: '#/components/schemas/UpdatePropertiesResponse'
+              example: {
+                "data": {
+                  "updated": [ "owner" ],
+                  "removed": [ "foo" ],
+                  "notPresent": [ "bar" ]
+                }
+              }
+        404:
           description: Not Found (NoSuchNamespaceException)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
-    put:
-      tags:
-        - Catalog API
-      summary: Remove a set of property keys from a namespace in the catalog
-      operationId: removeProperties
-      description:
-        Remove a set of property keys from a namespace in the catalog.
-        Properties that are not in the given set are not modified or removed by this call.
-        Server implementations are not required to support namespace properties.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RemovePropertiesRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            'application/json':
-              schema:
-                type: boolean
-        '406':
+                { "error": { "message": "Namespace does not exist", "type": "NoSuchNamespaceException", "code": 404 } }
+        406:
           description: Not Acceptable (Unsupported Operation)
-        '404':
-          description: Not Found (No Such Namespace)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
 
   /namespaces/{namespace}/tables:
     parameters:
@@ -276,8 +257,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
         '404':
-          description: Not Found (NamespaceNotFound)
-          example: '{ "error": { "
+          description: Not Found (NoSuchNamespaceException)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergResponseObject'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
 
   /namespaces/{namespace}/tables/{table}:
     parameters:
@@ -374,10 +360,10 @@ paths:
               examples:
                 table_to_rename_does_not_exist:
                   value:
-                    '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 404 }'
+                    '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 404 } }'
                 namespace_to_rename_to_does_not_exist:
                   value:
-                    '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 404 }'
+                    '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 404 } }'
         '406':
           description: Not Acceptable (UnsupportedOperationException)
         '409':
@@ -387,7 +373,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TableAlreadyExistsError'
               example:
-                '{ error: { message: "Tale already exists", type: "AlreadyExistsException", code: 409 }'
+                '{ "error": { "message": "Tale already exists", "type": "AlreadyExistsException", code: 409 } }'
 
 components:
   schemas:
@@ -404,16 +390,6 @@ components:
         name:
           type: string
           nullable: false
-    RemovePropertiesRequest:
-      type: object
-      properties:
-        namespace:
-          type: string
-        properties:
-          uniqueItems: true
-          type: object
-          items:
-            type: string
     CreateNamespaceRequest:
       type: object
       properties:
@@ -433,20 +409,44 @@ components:
           $ref: '#/components/schemas/TableIdentifier'
         destinationTableIdentifier:
           $ref: '#/components/schemas/TableIdentifier'
-    SetPropertiesRequest:
+    UpdatePropertiesRequest:
       type: object
       properties:
-        namespace:
-          type: string
-        properties:
+        toRemove:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+          example: '[ "department", "access_group" ]'
+        toUpdate:
+          uniqueItems: true
           type: object
-    SetPropertiesResponse:
+          items:
+            type: string
+          example: { "owner": "Hank Bendickson" }
+    UpdatePropertiesResponse:
       type: object
-      description: JSON data response on a successful set properties call.
+      description: JSON data response for a synchronous update properties request.
       properties:
         updated:
-          type: boolean
-          description: true if the set properties request was accepted and is reflected on the server
+          type: array
+          items:
+            type: string
+            description: List of property keys that were added or udpated
+        removed:
+          type: array
+          items:
+            type: string
+          description: List of properties that were removed (and not updated)
+        notPresent:
+          type: array
+          items:
+            type: string
+            description:
+              List of properties requested for removal that were not found
+              in the namespace's properties.
+              Represents a partial success response.
+              Server's do not need to implement this.
     ListNamespacesResponse:
       type: object
       properties:
@@ -476,11 +476,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableIdentifier'
-    TableMetadata:
-      type: object
-      properties:
-        currentSnapshotTo:
-          $ref: '#/components/schemas/TableMetadata'
     IcebergConfiguration:
       type: object
       description: "Server-provided configuration for the catalog."
