@@ -227,6 +227,7 @@ public class TestEvaluator {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, startsWith("s", "abc"));
     Assert.assertTrue("abc startsWith abc should be true", evaluator.eval(TestHelpers.Row.of("abc")));
+    Assert.assertFalse("xabc startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("xabc")));
     Assert.assertFalse("Abc startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("Abc")));
     Assert.assertFalse("a startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("a")));
     Assert.assertTrue("abcd startsWith abc should be true", evaluator.eval(TestHelpers.Row.of("abcd")));
@@ -237,6 +238,7 @@ public class TestEvaluator {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, notStartsWith("s", "abc"));
     Assert.assertFalse("abc notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abc")));
+    Assert.assertTrue("xabc notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("xabc")));
     Assert.assertTrue("Abc notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("Abc")));
     Assert.assertTrue("a notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("a")));
     Assert.assertFalse("abcde notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abcde")));
