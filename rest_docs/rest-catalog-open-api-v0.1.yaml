@@ -160,6 +160,81 @@ paths:
         '401':
           description: Unauthorized
 
+
+  /namespaces/{namespace}/properties:
+    parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags:
+        - Catalog API
+      summary: Set a collection of properties on a namespace
+      operationId: setProperties
+      description:
+        Set a collection of properties on a namespace in the catalog.
+        Properties that are not in the given map are not modified or removed by this call.
+        Server implementations are not required to support namespace properties.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPropertiesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                # This is an IcebergResponseObject<SetPropertiesResponse>, in that it uses the standard wrapper.
+                type: SetPropertiesResponse
+                example: '{ "data": { "updated": true }, "error": null }'
+        '406':
+          description: Not Acceptable (Unsupported Operation)
+        '404':
+          description: Not Found (NoSuchNamespaceException)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+    put:
+      tags:
+        - Catalog API
+      summary: Remove a set of property keys from a namespace in the catalog
+      operationId: removeProperties
+      description:
+        Remove a set of property keys from a namespace in the catalog.
+        Properties that are not in the given set are not modified or removed by this call.
+        Server implementations are not required to support namespace properties.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemovePropertiesRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            'application/json':
+              schema:
+                type: boolean
+        '406':
+          description: Not Acceptable (Unsupported Operation)
+        '404':
+          description: Not Found (No Such Namespace)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+
   /namespaces/{namespace}/tables/{table}:
     parameters:
       - name: namespace
@@ -322,77 +397,6 @@ paths:
                 $ref: '#/components/schemas/TableAlreadyExistsError'
               example:
                 '{ error: { message: "Tale already exists", type: "AlreadyExistsException", code: 40902 }'
-  /namespaces/{namespace}/properties:
-    parameters:
-      - name: namespace
-        in: path
-        required: true
-        schema:
-          type: string
-    post:
-      tags:
-        - Catalog API
-      summary: Set a collection of properties on a namespace
-      operationId: setProperties
-      description:
-        Set a collection of properties on a namespace in the catalog.
-        Properties that are not in the given map are not modified or removed by this call.
-        Server implementations are not required to support namespace properties.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SetPropertiesRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            'application/json':
-              schema:
-                type: boolean
-        '406':
-          description: Not Acceptable (Unsupported Operation)
-        '404':
-          description: Not Found (NoSuchNamespaceException)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
-    put:
-      tags:
-        - Catalog API
-      summary: Remove a set of property keys from a namespace in the catalog
-      operationId: removeProperties
-      description:
-        Remove a set of property keys from a namespace in the catalog.
-        Properties that are not in the given set are not modified or removed by this call.
-        Server implementations are not required to support namespace properties.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RemovePropertiesRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            'application/json':
-              schema:
-                type: boolean
-        '406':
-          description: Not Acceptable (Unsupported Operation)
-        '404':
-          description: Not Found (No Such Namespace)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
 
 components:
   schemas:
@@ -458,6 +462,14 @@ components:
           type: string
         properties:
           type: object
+    SetPropertiesResponse:
+      type: object
+      description: JSON data response on a successful set properties call.
+      properties:
+        updated:
+          type: boolean
+          description: true if the set properties request was accepted and is reflected on the server
+          required: true
     ListNamespacesResponse:
       type: object
       properties:
