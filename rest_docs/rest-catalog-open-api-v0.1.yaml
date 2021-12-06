@@ -209,9 +209,11 @@ paths:
                   - $ref: '#/components/schemas/NoSuchNamespaceError'
               examples:
                 table_to_rename_does_not_exist:
-                  '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 40402 }'
+                  value:
+                    '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 40402 }'
                 namespace_to_rename_to_does_not_exist:
-                  '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 40401 }'
+                  value:
+                    '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 40401 }'
         '406':
           description: Not Acceptable (UnsupportedOperationException)
         '409':

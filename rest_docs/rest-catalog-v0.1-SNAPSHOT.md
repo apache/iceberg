@@ -450,11 +450,11 @@ Rename a table from one identifier to another. It's valid to move a table across
 > Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))
 
 ```json
-{}
+"{ error: { message: \"Table does not exist\", type: \"NoSuchTableException\", code: 40402 }"
 ```
 
 ```json
-{}
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNameSpaceException\", code: 40401 }"
 ```
 
 > 409 Response
