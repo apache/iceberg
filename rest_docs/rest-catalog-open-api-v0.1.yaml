@@ -154,7 +154,8 @@ paths:
           content:
             application/json:
               schema:
-                type: boolean
+                type: IcebergResponseObject
+                example: '{ "data": { "dropped": true } }'
         # TODO - Not empty exception, No such namespace exception
         '401':
           description: Unauthorized
