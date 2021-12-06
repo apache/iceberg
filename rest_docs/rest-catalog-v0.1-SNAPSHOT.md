@@ -323,6 +323,73 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
+## namespaceExists
+
+<a id="opIdnamespaceExists"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace} \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("HEAD");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`HEAD /namespaces/{namespace}`
+
+*Check if a namespace exists*
+
+Check if a namespace exists.
+
+<h3 id="namespaceexists-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+{
+  "data": {
+    "exists": false
+  }
+}
+```
+
+<h3 id="namespaceexists-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
 ## dropNamespace
 
 <a id="opIddropNamespace"></a>
@@ -556,22 +623,22 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
-## loadTable
+## listTables
 
-<a id="opIdloadTable"></a>
+<a id="opIdlistTables"></a>
 
 > Code samples
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
+curl -X GET http://127.0.0.1:1080/namespaces/{namespace}/tables \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -587,16 +654,17 @@ System.out.println(response.toString());
 
 ```
 
-`GET /namespaces/{namespace}/tables/{table}`
+`GET /namespaces/{namespace}/tables`
 
-*Load a given table from a given namespace*
+*List all table identifiers underneath a given namespace*
 
-<h3 id="loadtable-parameters">Parameters</h3>
+Return all table identifiers under this namespace
+
+<h3 id="listtables-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-|namespace|path|string|true|A namespace identifier|
-|table|path|string|true|A table name|
+|namespace|path|string|true|A namespace identifier under which to list tables|
 
 > Example responses
 
@@ -604,40 +672,22 @@ System.out.println(response.toString());
 
 ```json
 {
-  "identifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "location": "string",
-  "metadataLocation": "string",
-  "metadataJson": "string",
-  "schema": {
-    "aliases": {
-      "property1": 0,
-      "property2": 0
+  "identifiers": [
+    {
+      "namespace": [
+        "string"
+      ],
+      "name": "string"
     }
-  },
-  "partitionSpec": {
-    "unpartitioned": true
-  },
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  }
+  ]
 }
 ```
 
-<h3 id="loadtable-responses">Responses</h3>
+<h3 id="listtables-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetTableResponse](#schemagettableresponse)|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchTableException | NoSuchNamespaceException)|Inline|
-
-<h3 id="loadtable-responseschema">Response Schema</h3>
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListTablesResponse](#schemalisttablesresponse)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -718,6 +768,7 @@ BearerAuth
 ```shell
 # You can also use wget
 curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
+  -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
@@ -743,92 +794,50 @@ System.out.println(response.toString());
 
 *Check if a table exists*
 
-Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will throw a NoSuchTableException if not present.
+Check if a table exists within a given namespace. Returns the standard Iceberg response data wrapper with exists set to `true` when found, `false` if not found. If the namespace for the table does not exist, returns a 404 NoSuchNamespaceException.
 
 <h3 id="tableexists-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
 |namespace|path|string|true|A namespace identifier|
-|table|path|string|true|none|
+|table|path|string|true|A table name|
+
+> Example responses
+
+> OK
+
+```json
+{
+  "data": {
+    "exists": true
+  }
+}
+```
+
+```json
+"{ \"data\": { \"exists: false } }"
+```
+
+> 404 Response
+
+```json
+{
+  "error": {
+    "message": "The namespace does not exist",
+    "type": "NoSuchTableException",
+    "code": 40401
+  }
+}
+```
 
 <h3 id="tableexists-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchTableException)|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## listTables
-
-<a id="opIdlistTables"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces/{namespace}/tables \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("GET");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`GET /namespaces/{namespace}/tables`
-
-*List all table identifiers underneath a given namespace*
-
-Return all table identifiers under this namespace
-
-<h3 id="listtables-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|namespace|path|string|true|A namespace identifier under which to list tables|
-
-> Example responses
-
-> 200 Response
-
-```json
-{
-  "identifiers": [
-    {
-      "namespace": [
-        "string"
-      ],
-      "name": "string"
-    }
-  ]
-}
-```
-
-<h3 id="listtables-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListTablesResponse](#schemalisttablesresponse)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|[IcebergResponseObject](#schemaicebergresponseobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -1041,50 +1050,6 @@ BearerAuth
 |sourceTableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
 |destinationTableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
 
-<h2 id="tocS_PartitionSpec">PartitionSpec</h2>
-<!-- backwards compatibility -->
-<a id="schemapartitionspec"></a>
-<a id="schema_PartitionSpec"></a>
-<a id="tocSpartitionspec"></a>
-<a id="tocspartitionspec"></a>
-
-```json
-{
-  "unpartitioned": true
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|unpartitioned|boolean|false|none|none|
-
-<h2 id="tocS_Schema">Schema</h2>
-<!-- backwards compatibility -->
-<a id="schemaschema"></a>
-<a id="schema_Schema"></a>
-<a id="tocSschema"></a>
-<a id="tocsschema"></a>
-
-```json
-{
-  "aliases": {
-    "property1": 0,
-    "property2": 0
-  }
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|aliases|object|false|none|none|
-|» **additionalProperties**|integer(int32)|false|none|none|
-
 <h2 id="tocS_SetPropertiesRequest">SetPropertiesRequest</h2>
 <!-- backwards compatibility -->
 <a id="schemasetpropertiesrequest"></a>
@@ -1229,54 +1194,6 @@ Reference to one or more levels of a namespace
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |identifiers|[[TableIdentifier](#schematableidentifier)]|false|none|none|
-
-<h2 id="tocS_GetTableResponse">GetTableResponse</h2>
-<!-- backwards compatibility -->
-<a id="schemagettableresponse"></a>
-<a id="schema_GetTableResponse"></a>
-<a id="tocSgettableresponse"></a>
-<a id="tocsgettableresponse"></a>
-
-```json
-{
-  "identifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "location": "string",
-  "metadataLocation": "string",
-  "metadataJson": "string",
-  "schema": {
-    "aliases": {
-      "property1": 0,
-      "property2": 0
-    }
-  },
-  "partitionSpec": {
-    "unpartitioned": true
-  },
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  }
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|identifier|[TableIdentifier](#schematableidentifier)|false|none|none|
-|location|string|false|none|none|
-|metadataLocation|string|false|none|none|
-|metadataJson|string|false|none|none|
-|schema|[Schema](#schemaschema)|false|none|none|
-|partitionSpec|[PartitionSpec](#schemapartitionspec)|false|none|none|
-|properties|object|false|none|none|
-|» **additionalProperties**|string|false|none|none|
 
 <h2 id="tocS_TableMetadata">TableMetadata</h2>
 <!-- backwards compatibility -->
