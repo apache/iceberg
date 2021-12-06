@@ -27,7 +27,7 @@ info:
   version: 1.0.0
   description:
     Defines the specification for the first version of the REST Catalog API. Implementations should support both Iceberg table specs v1 and v2, with priority given to v2.
-# TODO - Add ServerVariable so that users can configure this themselves.
+# TODO - Add ServerVariable so user's can control the routes and ports etc and have mutli-env etc.
 servers:
   - url: http://127.0.0.1:1080
     description: URL Used for Mock-Server Unit Tests
@@ -61,6 +61,102 @@ paths:
         "400":
           description: Unknown Error
         "401":
+          description: Unauthorized
+  /namespaces:
+    get:
+      tags:
+        - Catalog API
+      summary: List namespaces, optionally providing a parent namespace to list underneaath
+      description:
+        List all namespaces at a certain level, optionally starting from a given parent namespace.
+        For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into
+        `GET /namespaces?parent=a` and must return Namepace.of("a","b").
+      operationId: listNamespaces
+      parameters:
+        - name: parent
+          in: query
+          description: Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.
+          required: false
+          schema:
+            type: string
+          example: ?parent=accounting.tax
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListNamespacesResponse'
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Catalog API
+      summary: Create a namespace
+      description: Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
+      operationId: createNamespace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNamespaceRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '409':
+          description: Conflict (AlreadyExistsException)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NamespaceAlreadyExistsError'
+              example:
+                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
+
+  /namespaces/{namespace}:
+    parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - Catalog API
+      summary: Load the metadata properties for a namespace
+      operationId: loadNamespaceMetadata
+      description: Return all stored metadata properties for a given namespace
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetNamespaceResponse'
+        '404':
+          description: Not Found (NoSuchNamespaceException)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+    delete:
+      tags:
+        - Catalog API
+      summary: Drop a namespace from the catalog. Namespace must be empty.
+      operationId: dropNamespace
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: boolean
+        # TODO - Not empty exception, No such namespace exception
+        '401':
           description: Unauthorized
 
   /namespaces/{namespace}/tables/{table}:
@@ -297,101 +393,6 @@ paths:
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
 
-  /namespaces:
-    get:
-      tags:
-        - Catalog API
-      summary: List namespaces, optionally providing a parent namespace to list underneaath
-      description:
-        List all namespaces at a certain level, optionally starting from a given parent namespace.
-        For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into
-        `GET /namespaces?parent=a` and must return Namepace.of("a","b").
-      operationId: listNamespaces
-      parameters:
-        - name: parent
-          in: query
-          description: Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.
-          required: false
-          schema:
-            type: string
-          example: ?parent=accounting.tax
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListNamespacesResponse'
-        '401':
-          description: Unauthorized
-    post:
-      tags:
-        - Catalog API
-      summary: Create a namespace
-      description: Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
-      operationId: createNamespace
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateNamespaceRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-        '401':
-          description: Unauthorized
-        '409':
-          description: Conflict (AlreadyExistsException)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NamespaceAlreadyExistsError'
-              example:
-                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
-  /namespaces/{namespace}:
-    parameters:
-      - name: namespace
-        in: path
-        required: true
-        schema:
-          type: string
-    get:
-      tags:
-        - Catalog API
-      summary: Load the metadata properties for a namespace
-      operationId: loadNamespaceMetadata
-      description: Return all stored metadata properties for a given namespace
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GetNamespaceResponse'
-        '404':
-          description: Not Found (NoSuchNamespaceException)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
-    delete:
-      tags:
-        - Catalog API
-      summary: Drop a namespace from the catalog. Namespace must be empty.
-      operationId: dropNamespace
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: boolean
-        # TODO - Not empty exception, No such namespace exception
-        '401':
-          description: Unauthorized
 components:
   schemas:
     TableIdentifier:
