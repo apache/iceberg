@@ -170,7 +170,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergResponseObject'
-              example: '{ "data": { "dropped": true } }'
+              example: { "data": { "dropped": true } }
         '401':
           description: Unauthorized
         '404':
@@ -191,8 +191,8 @@ paths:
       operationId: setProperties / removeProperties
       description:
         Set and/or remove a collection or properties on a namespae.
-        The request body specifies a list of properties `toRemove` and a map
-        of key value pairs `toUpsert`.
+        The request body specifies a list of properties to remove and a map
+        of key value pairs to update.
 
         Properties that are not in the request are not modified or removed by this call.
         Server implementations are not required to support namespace properties.
@@ -224,7 +224,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
+                $ref: '#/components/schemas/IcebergResponseObject'
               example:
                 { "error": { "message": "Namespace does not exist", "type": "NoSuchNamespaceException", "code": 404 } }
         406:
@@ -350,7 +350,12 @@ paths:
         '401':
           description: Unauthorized
         '404':
-          description: Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))
+          description: >
+            Not Found, either
+              - NoSuchTableException
+                - Table to rename does not exist
+              - NoSuchNamespaceException
+                - The target namespace of the new table identifier does not exist
           content:
             application/json:
               schema:
@@ -359,11 +364,19 @@ paths:
                   - $ref: '#/components/schemas/NoSuchNamespaceError'
               examples:
                 table_to_rename_does_not_exist:
-                  value:
-                    '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 404 } }'
+                  value: {
+                    "error": {
+                      "message": "Table does not exist",
+                      "type": "NoSuchTableException",
+                      "code": 404
+                    } }
                 namespace_to_rename_to_does_not_exist:
-                  value:
-                    '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 404 } }'
+                  value: {
+                    "error": {
+                      "message": "Namespace does not exist",
+                      "type": "NoSuchNameSpaceException",
+                      "code": 404
+                    } }
         '406':
           description: Not Acceptable (UnsupportedOperationException)
         '409':
@@ -372,8 +385,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TableAlreadyExistsError'
-              example:
-                '{ "error": { "message": "Tale already exists", "type": "AlreadyExistsException", code: 409 } }'
+              example: {
+                "error": {
+                  "message": "Table already exists",
+                  "type": "AlreadyExistsException",
+                  "code": 409
+                } }
 
 components:
   schemas:
@@ -540,6 +557,8 @@ components:
           example: NoSuchNamespaceException
         code:
           type: integer
+          minimum: 100
+          maximum: 600
           description: HTTP response code
           example: 404
         metadata:
