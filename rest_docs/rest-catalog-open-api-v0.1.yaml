@@ -96,14 +96,13 @@ paths:
                 $ref: '#/components/schemas/GetTableResponse'
         '401':
           description: Unauthorized
-        # Using 412, `Precondition Failed`, instead of 404, as 404 makes monitoring response codes from ELBs
-        #  very difficult - Hard to tell if clients or servers are misconfigured and calling non-existent routes
-        #  or missing routes versus expected error cases such as NoSuchTableException (expected meaning that
-        #  a person who is on call shouldn't be paged for this but 404 they might need to be).
-        '412':
-          description: NoSuchTableException
+        '404':
+          description: Not Found (NoSuchNamespaceException)
+        '404':
+          description: Not Found (NoSuchTableException)
           content:
             application/json:
+              # The REST catalog's JSON format to represent NoSuchTableException.
               schema:
                 $ref: '#/components/schemas/NoSuchTableError'
     delete:
@@ -136,7 +135,7 @@ paths:
       summary: Check if a table exists
       operationId: tableExists
       description:
-        Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will return a TableNotFound error if not present.
+        Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will throw a NoSuchTableException if not present.
       parameters:
         - name: namespace
           in: path
@@ -152,8 +151,8 @@ paths:
       responses:
         '200':
           description: OK
-        '412':
-          description: Table Not Found
+        '404':
+          description: Not Found (NoSuchTableException)
   /v1/namespaces/{namespace}/tables:
     parameters:
       - name: namespace
@@ -219,32 +218,32 @@ paths:
           description: OK
         '401':
           description: Unauthorized
-        '406':
-          description: Not Acceptable (Unsupported Operation)
-        # Not using 404 as 404 is very hard to monitor.
-        # There's no way to tell by monitoring returned response codes
-        # if a client made a valid request but the table didn't exist,
-        # or if a client or server has been misconfigured or some bug exists
-        # and the client is actually calling endpoints that the server doesn't
-        # have.
-        #
-        # We can consider a different response code to use than 412.
-        '412':
-          description: Table to rename from does not exist
+        '404':
+          description: Not Found (NoSuchTableException - Table to rename does not exist)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchTableError'
               example:
-                '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 41202 }'
+                '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 40402 }'
+        '404':
+          description: Not Found (NoSuchNamespaceException - The target namespace of the table rename does not exist)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoSuchNamespaceError'
+              example:
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 40401 }'
+        '406':
+          description: Not Acceptable (UnsupportedOperationException)
         '409':
-          description: The new table identifier, the to table rename to, already exists.
+          description: Conflict (AlreadyExistsException - The new target table identifier already exists)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TableAlreadyExistsError'
               example:
-                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40902 }'
+                '{ error: { message: "Tale already exists", type: "AlreadyExistsException", code: 40902 }'
   /v1/namespaces/{namespace}/properties:
     parameters:
       - name: namespace
@@ -276,14 +275,14 @@ paths:
                 type: boolean
         '406':
           description: Not Acceptable (Unsupported Operation)
-        '412':
-          description: Namespace not found
+        '404':
+          description: Not Found (NoSuchNamespaceException)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
     put:
       tags:
         - Catalog API
@@ -308,14 +307,14 @@ paths:
                 type: boolean
         '406':
           description: Not Acceptable (Unsupported Operation)
-        '412':
-          description: Namespace not found
+        '404':
+          description: Not Found (No Such Namespace)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
 
   /v1/namespaces:
     get:
@@ -362,7 +361,7 @@ paths:
         '401':
           description: Unauthorized
         '409':
-          description: Namespace already exists
+          description: Conflict (AlreadyExistsException)
           content:
             application/json:
               schema:
@@ -389,14 +388,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetNamespaceResponse'
-        '412':
-          description: Namespace not found
+        '404':
+          description: Not Found (NoSuchNamespaceException)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 41201 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
     delete:
       tags:
         - Catalog API
@@ -652,7 +651,7 @@ components:
         {
           message: "The given table does not exist",
           type: "NoSuchTableException",
-          code: 41201
+          code: 40401
         }
 
   securitySchemes:
