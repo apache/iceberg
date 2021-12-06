@@ -494,7 +494,7 @@ System.out.println(response.toString());
 
 *Set or remove properties on a namespace*
 
-Set and/or remove a collection or properties on a namespae. The request body specifies a list of properties `toRemove` and a map of key value pairs `toUpsert`.
+Set and/or remove a collection or properties on a namespae. The request body specifies a list of properties to remove and a map of key value pairs to update.
 Properties that are not in the request are not modified or removed by this call. Server implementations are not required to support namespace properties.
 
 > Body parameter
@@ -554,7 +554,7 @@ Properties that are not in the request are not modified or removed by this call.
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[UpdatePropertiesResponse](#schemaupdatepropertiesresponse)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
 
 <aside class="warning">
@@ -830,7 +830,11 @@ Rename a table from one identifier to another. It's valid to move a table across
 
 > Example responses
 
-> Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))
+> Not Found, either
+  - NoSuchTableException
+    - Table to rename does not exist
+  - NoSuchNamespaceException
+    - The target namespace of the new table identifier does not exist
 
 ```json
 {
@@ -857,7 +861,7 @@ Rename a table from one identifier to another. It's valid to move a table across
 ```json
 {
   "error": {
-    "message": "Tale already exists",
+    "message": "Table already exists",
     "type": "AlreadyExistsException",
     "code": 409
   }
@@ -870,7 +874,11 @@ Rename a table from one identifier to another. It's valid to move a table across
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))|Inline|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found, either
+  - NoSuchTableException
+    - Table to rename does not exist
+  - NoSuchNamespaceException
+    - The target namespace of the new table identifier does not exist|Inline|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (UnsupportedOperationException)|None|
 |409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException - The new target table identifier already exists)|[TableAlreadyExistsError](#schematablealreadyexistserror)|
 
