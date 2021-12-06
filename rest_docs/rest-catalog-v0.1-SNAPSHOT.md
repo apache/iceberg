@@ -42,14 +42,14 @@ License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/config \
+curl -X GET http://127.0.0.1:1080/config \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/config");
+URL obj = new URL("http://127.0.0.1:1080/config");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -65,7 +65,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/config`
+`GET /config`
 
 *List all catalog configuration settings*
 
@@ -79,7 +79,7 @@ The server might be able to request that the client use its value over a value t
 
 ```json
 {
-  "rootPath": "/v1",
+  "rootPath": "/",
   "catalogProperties": {}
 }
 ```
@@ -107,14 +107,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table} \
+curl -X GET http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -130,7 +130,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/namespaces/{namespace}/tables/{table}`
+`GET /namespaces/{namespace}/tables/{table}`
 
 *Load a given table from a given namespace*
 
@@ -195,14 +195,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table} \
+curl -X DELETE http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("DELETE");
 int responseCode = con.getResponseCode();
@@ -218,7 +218,7 @@ System.out.println(response.toString());
 
 ```
 
-`DELETE /v1/namespaces/{namespace}/tables/{table}`
+`DELETE /namespaces/{namespace}/tables/{table}`
 
 *Drop a table from the catalog*
 
@@ -260,13 +260,13 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X HEAD http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table} \
+curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("HEAD");
 int responseCode = con.getResponseCode();
@@ -282,7 +282,7 @@ System.out.println(response.toString());
 
 ```
 
-`HEAD /v1/namespaces/{namespace}/tables/{table}`
+`HEAD /namespaces/{namespace}/tables/{table}`
 
 *Check if a table exists*
 
@@ -315,14 +315,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
+curl -X GET http://127.0.0.1:1080/namespaces/{namespace}/tables \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -338,7 +338,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/namespaces/{namespace}/tables`
+`GET /namespaces/{namespace}/tables`
 
 *List all table identifiers underneath a given namespace*
 
@@ -386,7 +386,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/tables/rename \
+curl -X POST http://127.0.0.1:1080/tables/rename \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -394,7 +394,7 @@ curl -X POST http://127.0.0.1:1080/v1/tables/rename \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/tables/rename");
+URL obj = new URL("http://127.0.0.1:1080/tables/rename");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -410,7 +410,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/tables/rename`
+`POST /tables/rename`
 
 *Rename a table from its current name to a new name*
 
@@ -488,7 +488,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
+curl -X POST http://127.0.0.1:1080/namespaces/{namespace}/properties \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -496,7 +496,7 @@ curl -X POST http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/properties");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -512,7 +512,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/namespaces/{namespace}/properties`
+`POST /namespaces/{namespace}/properties`
 
 *Set a collection of properties on a namespace*
 
@@ -571,7 +571,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
+curl -X PUT http://127.0.0.1:1080/namespaces/{namespace}/properties \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -579,7 +579,7 @@ curl -X PUT http://127.0.0.1:1080/v1/namespaces/{namespace}/properties \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/properties");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("PUT");
 int responseCode = con.getResponseCode();
@@ -595,7 +595,7 @@ System.out.println(response.toString());
 
 ```
 
-`PUT /v1/namespaces/{namespace}/properties`
+`PUT /namespaces/{namespace}/properties`
 
 *Remove a set of property keys from a namespace in the catalog*
 
@@ -654,14 +654,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces \
+curl -X GET http://127.0.0.1:1080/namespaces \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces");
+URL obj = new URL("http://127.0.0.1:1080/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -677,11 +677,11 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/namespaces`
+`GET /namespaces`
 
 *List namespaces, optionally providing a parent namespace to list underneaath*
 
-List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /v1/namespaces?parent=a` and must return Namepace.of("a","b").
+List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a","b").
 
 <h3 id="listnamespaces-parameters">Parameters</h3>
 
@@ -723,7 +723,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/namespaces \
+curl -X POST http://127.0.0.1:1080/namespaces \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -731,7 +731,7 @@ curl -X POST http://127.0.0.1:1080/v1/namespaces \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces");
+URL obj = new URL("http://127.0.0.1:1080/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -747,7 +747,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/namespaces`
+`POST /namespaces`
 
 *Create a namespace*
 
@@ -801,14 +801,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/v1/namespaces/{namespace} \
+curl -X GET http://127.0.0.1:1080/namespaces/{namespace} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -824,7 +824,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /v1/namespaces/{namespace}`
+`GET /namespaces/{namespace}`
 
 *Load the metadata properties for a namespace*
 
@@ -878,14 +878,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE http://127.0.0.1:1080/v1/namespaces/{namespace} \
+curl -X DELETE http://127.0.0.1:1080/namespaces/{namespace} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}");
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("DELETE");
 int responseCode = con.getResponseCode();
@@ -901,7 +901,7 @@ System.out.println(response.toString());
 
 ```
 
-`DELETE /v1/namespaces/{namespace}`
+`DELETE /namespaces/{namespace}`
 
 *Drop a namespace from the catalog. Namespace must be empty.*
 
@@ -1281,7 +1281,7 @@ Reference to one or more levels of a namespace
 
 ```json
 {
-  "rootPath": "/v1",
+  "rootPath": "/",
   "catalogProperties": {}
 }
 
@@ -1307,7 +1307,7 @@ Server-provided configuration for the catalog.
 {
   "message": "string",
   "type": "string",
-  "code": 40101,
+  "code": "40401, Table not found vs 40402, Namespace not found.",
   "metadata": {}
 }
 
@@ -1330,7 +1330,7 @@ Namespace provided in the request does not exist
 {
   "message": "string",
   "type": "string",
-  "code": 40101,
+  "code": "40401, Table not found vs 40402, Namespace not found.",
   "metadata": {}
 }
 
@@ -1353,7 +1353,7 @@ Namespace provided in the request already exists
 {
   "message": "string",
   "type": "string",
-  "code": 40101,
+  "code": "40401, Table not found vs 40402, Namespace not found.",
   "metadata": {}
 }
 
@@ -1376,7 +1376,7 @@ The given table identifier does not exist
 {
   "message": "string",
   "type": "string",
-  "code": 40101,
+  "code": "40401, Table not found vs 40402, Namespace not found.",
   "metadata": {}
 }
 
@@ -1396,7 +1396,7 @@ the given table identifier already exists and cannot be created / renamed to
 <a id="tocsicebergresponseobject"></a>
 
 ```json
-"{ data: { }, error: { } }"
+"{ \"data\": { \"namespaces\": [\"ns1.foo_db\", \"ns1.bar_db\"] }, \"error\": {} }"
 
 ```
 
@@ -1417,7 +1417,7 @@ JSON wrapper for all response bodies, with a data object and / or an error objec
 <a id="tocsresponsedataobject"></a>
 
 ```json
-"{ data: { identifiers: [ \"office.employees\", \"office.dogs\", \"office.cats\" ] }"
+"{ \"data\": { \"identifiers\": [ \"office.employees\", \"office.dogs\", \"office.cats\" ] }"
 
 ```
 
@@ -1438,7 +1438,7 @@ JSON data payload returned in a successful response body
 {
   "message": "string",
   "type": "string",
-  "code": 40101,
+  "code": "40401, Table not found vs 40402, Namespace not found.",
   "metadata": {}
 }
 
@@ -1451,7 +1451,7 @@ JSON error payload returned in a response with further details on the error
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |message|string|true|none|Human-readable error message|
-|type|string|true|none|Machine-type of the errror, such as an exception class|
+|type|string|true|none|Machine-type of the error, such as an exception class|
 |code|integer|false|none|Application specific error code, to disambiguage amongst subclasses of HTTP responses|
 |metadata|object¦null|false|none|Additional metadata to accompany this error, such as server side stack traces or user instructions|
 
