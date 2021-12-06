@@ -568,11 +568,11 @@ components:
           description: Human-readable error message
         type:
           type: string
-          description: Machine-type of the errror, such as an exception class
+          description: Machine-type of the error, such as an exception class
         code:
           type: integer
           description: Application specific error code, to disambiguage amongst subclasses of HTTP responses
-          example: 40101
+          example: 40401, Table not found vs 40402, Namespace not found.
         metadata:
           type: object
           description: Additional metadata to accompany this error, such as server side stack traces or user instructions
