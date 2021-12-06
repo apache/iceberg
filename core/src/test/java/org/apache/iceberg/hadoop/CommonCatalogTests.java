@@ -90,7 +90,7 @@ public class CommonCatalogTests extends HadoopTableTestBase {
     this.catalogFactory = catalogFactory;
   }
 
-  private Catalog catalog() throws Exception {
+  private Catalog catalog() throws IOException {
     switch (catalogFactory) {
       case HADOOP: return hadoopCatalog();
       case IN_MEMORY: {
@@ -272,7 +272,7 @@ public class CommonCatalogTests extends HadoopTableTestBase {
   }
 
   @Test
-  public void testCallingLocationProviderWhenNoCurrentMetadata() throws Exception {
+  public void testCallingLocationProviderWhenNoCurrentMetadata() throws IOException {
     Catalog catalog = catalog();
 
     TableIdentifier tableIdent = TableIdentifier.of("ns1", "ns2", "table1");
@@ -350,7 +350,7 @@ public class CommonCatalogTests extends HadoopTableTestBase {
   }
 
   @Test
-  public void testLoadNamespaceMeta() throws Exception {
+  public void testLoadNamespaceMeta() throws IOException {
     Catalog catalog = catalog();
     SupportsNamespaces catalogWithNamespaceSupport = castToSupportsNamespaces(catalog);
 
@@ -371,7 +371,7 @@ public class CommonCatalogTests extends HadoopTableTestBase {
   }
 
   @Test
-  public void testNamespaceExists() throws Exception {
+  public void testNamespaceExists() throws IOException {
     Catalog catalog = catalog();
     SupportsNamespaces catalogWithNamespaceSupport = castToSupportsNamespaces(catalog);
 
@@ -390,7 +390,7 @@ public class CommonCatalogTests extends HadoopTableTestBase {
   }
 
   @Test
-  public void testDropNamespace() throws Exception {
+  public void testDropNamespace() throws IOException {
     Catalog catalog = catalog();
     SupportsNamespaces catalogWithNamespaceSupport = castToSupportsNamespaces(catalog);
     Namespace namespace1 = Namespace.of("db");
