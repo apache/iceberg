@@ -113,7 +113,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NamespaceAlreadyExistsError'
               example:
-                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
+                '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 409 }'
 
   /namespaces/{namespace}:
     parameters:
@@ -142,7 +142,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
     head:
       tags:
         - Catalog API
@@ -215,7 +215,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
     put:
       tags:
         - Catalog API
@@ -247,7 +247,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+                '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
 
   /namespaces/{namespace}/tables:
     parameters:
@@ -275,6 +275,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
+        '404':
+          description: Not Found (NamespaceNotFound)
+          example: '{ "error": { "
 
   /namespaces/{namespace}/tables/{table}:
     parameters:
@@ -371,10 +374,10 @@ paths:
               examples:
                 table_to_rename_does_not_exist:
                   value:
-                    '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 40402 }'
+                    '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 404 }'
                 namespace_to_rename_to_does_not_exist:
                   value:
-                    '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 40401 }'
+                    '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 404 }'
         '406':
           description: Not Acceptable (UnsupportedOperationException)
         '409':
@@ -384,7 +387,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TableAlreadyExistsError'
               example:
-                '{ error: { message: "Tale already exists", type: "AlreadyExistsException", code: 40902 }'
+                '{ error: { message: "Tale already exists", type: "AlreadyExistsException", code: 409 }'
 
 components:
   schemas:
@@ -538,11 +541,12 @@ components:
           description: Human-readable error message
         type:
           type: string
-          description: Machine-type of the error, such as an exception class
+          description: Internal type of the error, such as an exception class
+          example: NoSuchNamespaceException
         code:
           type: integer
-          description: Application specific error code, to disambiguage amongst subclasses of HTTP responses
-          example: 40401, Table not found vs 40402, Namespace not found.
+          description: HTTP response code
+          example: 404
         metadata:
           type: object
           description: Additional metadata to accompany this error, such as server side stack traces or user instructions
@@ -560,7 +564,7 @@ components:
         {
           message: "The given table does not exist",
           type: "NoSuchTableException",
-          code: 40401
+          code: 404
         }
 
   securitySchemes:
