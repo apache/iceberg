@@ -154,8 +154,8 @@ paths:
           content:
             application/json:
               schema:
-                type: IcebergResponseObject
-                example: '{ "data": { "dropped": true } }'
+                $ref: '#/components/schemas/IcebergResponseObject'
+              example: '{ "data": { "dropped": true } }'
         # TODO - Not empty exception, No such namespace exception
         '401':
           description: Unauthorized
@@ -190,7 +190,7 @@ paths:
             'application/json':
               schema:
                 # This is an IcebergResponseObject<SetPropertiesResponse>, in that it uses the standard wrapper.
-                type: SetPropertiesResponse
+                $ref: '#/components/schemas/SetPropertiesResponse'
                 example: '{ "data": { "updated": true }, "error": null }'
         '406':
           description: Not Acceptable (Unsupported Operation)
@@ -469,7 +469,6 @@ components:
         updated:
           type: boolean
           description: true if the set properties request was accepted and is reflected on the server
-          required: true
     ListNamespacesResponse:
       type: object
       properties:
