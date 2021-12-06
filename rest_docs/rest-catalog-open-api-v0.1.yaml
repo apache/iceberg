@@ -143,6 +143,22 @@ paths:
                 $ref: '#/components/schemas/NoSuchNamespaceError'
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
+    head:
+      tags:
+        - Catalog API
+      summary: Check if a namespace exists
+      operationId: namespaceExists
+      description: Check if a namespace exists.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergResponseObject'
+              example: '{ "data": { "exists": false } }'
+        '401':
+          description: Unauthorized
     delete:
       tags:
         - Catalog API
@@ -235,6 +251,33 @@ paths:
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
 
+  /namespaces/{namespace}/tables:
+    parameters:
+      - name: namespace
+        description: A namespace identifier under which to list tables
+        in: path
+        required: true
+        schema:
+          type: string
+        examples:
+          singlepart_namespace:
+            value: "accounting"
+          multipart_namespace:
+            value: "accounting.tax"
+    get:
+      tags:
+        - Catalog API
+      summary: List all table identifiers underneath a given namespace
+      description: Return all table identifiers under this namespace
+      operationId: listTables
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTablesResponse'
+
   /namespaces/{namespace}/tables/{table}:
     parameters:
       - name: namespace
@@ -307,50 +350,32 @@ paths:
       summary: Check if a table exists
       operationId: tableExists
       description:
-        Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will throw a NoSuchTableException if not present.
-      parameters:
-        - name: namespace
-          in: path
-          required: true
-          description: A namespace identifier
-          schema:
-            type: string
-        - name: table
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: OK
-        '404':
-          description: Not Found (NoSuchTableException)
-  /namespaces/{namespace}/tables:
-    parameters:
-      - name: namespace
-        description: A namespace identifier under which to list tables
-        in: path
-        required: true
-        schema:
-          type: string
-        examples:
-          singlepart_namespace:
-            value: "accounting"
-          multipart_namespace:
-            value: "accounting.tax"
-    get:
-      tags:
-        - Catalog API
-      summary: List all table identifiers underneath a given namespace
-      description: Return all table identifiers under this namespace
-      operationId: listTables
+        Check if a table exists within a given namespace.
+        Returns the standard Iceberg response data wrapper with exists set to `true` when found, `false` if not found.
+        If the namespace for the table does not exist, returns a 404 NoSuchNamespaceException.
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListTablesResponse'
+                $ref: '#/components/schemas/IcebergResponseObject'
+              examples:
+                table_exists_response:
+                  value: '{ "data": { "exists": true } }'
+                table_does_not_exist:
+                  value: '{ "data": { "exists: false } }'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergResponseObject'
+              example:
+                '{ "error": { "message": "The namespace does not exist", type: "NoSuchTableException", code: 40401 } }'
+
   /tables/rename:
     post:
       tags:
