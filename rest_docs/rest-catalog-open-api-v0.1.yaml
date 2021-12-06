@@ -308,9 +308,10 @@ paths:
           content:
             'application/json':
               schema:
-                type: boolean
-                description: true if the table was dropped and false if the table did not exist
+                $ref: '#/components/schemas/IcebergResponseObject'
+              example: { "data": { "dropped": true, "purged": false } }
         '202':
+          # TODO - Add a callback or handle to check on the state of an async purge request
           description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
 
     head:
@@ -398,6 +399,7 @@ components:
       type: object
       required:
         - namespace
+        - name
       properties:
         namespace:
           type: array
@@ -415,7 +417,7 @@ components:
       properties:
         namespace:
           type: array
-          description: individual levels of the namespace
+          description: Individual levels of the namespace
           items:
             type: string
         properties:
@@ -470,16 +472,16 @@ components:
     ListNamespacesResponse:
       type: object
       properties:
-        databases:
+        namespaces:
           type: array
           items:
             $ref: '#/components/schemas/Namespace'
     Namespace:
-      type: object
+      type: array
       description: Reference to one or more levels of a namespace
-      properties:
-        empty:
-          type: boolean
+      items:
+        type: string
+      example: [ "accounting", "tax" ]
     GetNamespaceResponse:
       type: object
       properties:
@@ -487,8 +489,7 @@ components:
           $ref: '#/components/schemas/Namespace'
         properties:
           type: object
-          additionalProperties:
-            type: string
+          example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
     ListTablesResponse:
       type: object
       properties:
@@ -542,11 +543,11 @@ components:
           $ref: '#/components/schemas/ResponseDataObject'
         error:
           $ref: '#/components/schemas/ResponseErrorObject'
-      example: '{ "data": { "namespaces": ["ns1.foo_db", "ns1.bar_db"] }, "error": {} }'
+      example: { "data": { "namespaces": [ ["ns1", "foo_db"], ["ns1", "bar_db"] ] }, "error": {} }
     ResponseDataObject:
       type: object
       description: JSON data payload returned in a successful response body
-      example: '{ "data": { "identifiers": [ "office.employees", "office.dogs", "office.cats" ] }'
+      example: { "data": { "identifiers": [ "office.employees", "office.dogs", "office.cats" ] } }
     ResponseErrorObject:
       type: object
       description: JSON error payload returned in a response with further details on the error
@@ -577,7 +578,7 @@ components:
     namespace:
       value: accounting
     no_such_table_error:
-      value: |-
+      value:
         {
           message: "The given table does not exist",
           type: "NoSuchTableException",
