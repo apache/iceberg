@@ -34,7 +34,7 @@ servers:
 security:
   - BearerAuth: []
 paths:
-  /v1/config:
+  /config:
     get:
       tags:
         - Configuration API
@@ -62,7 +62,7 @@ paths:
         "401":
           description: Unauthorized
 
-  /v1/namespaces/{namespace}/tables/{table}:
+  /namespaces/{namespace}/tables/{table}:
     parameters:
       - name: namespace
         in: path
@@ -152,7 +152,7 @@ paths:
           description: OK
         '404':
           description: Not Found (NoSuchTableException)
-  /v1/namespaces/{namespace}/tables:
+  /namespaces/{namespace}/tables:
     parameters:
       - name: namespace
         description: A namespace identifier under which to list tables
@@ -178,7 +178,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
-  /v1/tables/rename:
+  /tables/rename:
     post:
       tags:
         - Catalog API
@@ -224,7 +224,7 @@ paths:
                 $ref: '#/components/schemas/TableAlreadyExistsError'
               example:
                 '{ error: { message: "Tale already exists", type: "AlreadyExistsException", code: 40902 }'
-  /v1/namespaces/{namespace}/properties:
+  /namespaces/{namespace}/properties:
     parameters:
       - name: namespace
         in: path
@@ -296,7 +296,7 @@ paths:
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 40401 }'
 
-  /v1/namespaces:
+  /namespaces:
     get:
       tags:
         - Catalog API
@@ -304,7 +304,7 @@ paths:
       description:
         List all namespaces at a certain level, optionally starting from a given parent namespace.
         For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into
-        `GET /v1/namespaces?parent=a` and must return Namepace.of("a","b").
+        `GET /namespaces?parent=a` and must return Namepace.of("a","b").
       operationId: listNamespaces
       parameters:
         - name: parent
@@ -348,7 +348,7 @@ paths:
                 $ref: '#/components/schemas/NamespaceAlreadyExistsError'
               example:
                 '{ error: { message: "Namespace already exists", type: "AlreadyExistsException", code: 40901 }'
-  /v1/namespaces/{namespace}:
+  /namespaces/{namespace}:
     parameters:
       - name: namespace
         in: path
@@ -515,7 +515,7 @@ components:
         rootPath:
           minLength: 1
           type: string
-          default: /v1
+          default: /
           nullable: false
           description:
             Root path to be used for all other requests. Server-side implementations
@@ -554,11 +554,11 @@ components:
           $ref: '#/components/schemas/ResponseDataObject'
         error:
           $ref: '#/components/schemas/ResponseErrorObject'
-      example: "{ data: { }, error: { } }"
+      example: '{ "data": { "namespaces": ["ns1.foo_db", "ns1.bar_db"] }, "error": {} }'
     ResponseDataObject:
       type: object
       description: JSON data payload returned in a successful response body
-      example: '{ data: { identifiers: [ "office.employees", "office.dogs", "office.cats" ] }'
+      example: '{ "data": { "identifiers": [ "office.employees", "office.dogs", "office.cats" ] }'
     ResponseErrorObject:
       type: object
       description: JSON error payload returned in a response with further details on the error
