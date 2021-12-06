@@ -298,28 +298,7 @@ paths:
         schema:
           type: string
         example: "sales"
-    get:
-      tags:
-        - Catalog API
-      summary: Load a given table from a given namespace
-      operationId: loadTable
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GetTableResponse'
-        '401':
-          description: Unauthorized
-        '404':
-          description: Not Found (NoSuchTableException | NoSuchNamespaceException)
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/NoSuchTableError'
-                  - $ref: '#/components/schemas/NoSuchNamespaceError'
+
     delete:
       tags:
         - Catalog API
@@ -344,6 +323,7 @@ paths:
                 description: true if the table was dropped and false if the table did not exist
         '202':
           description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
+
     head:
       tags:
         - Catalog API
@@ -467,19 +447,6 @@ components:
           $ref: '#/components/schemas/TableIdentifier'
         destinationTableIdentifier:
           $ref: '#/components/schemas/TableIdentifier'
-    PartitionSpec:
-      type: object
-      properties:
-        unpartitioned:
-          type: boolean
-    Schema:
-      type: object
-      properties:
-        aliases:
-          type: object
-          additionalProperties:
-            type: integer
-            format: int32
     SetPropertiesRequest:
       type: object
       properties:
@@ -523,25 +490,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableIdentifier'
-    GetTableResponse:
-      type: object
-      properties:
-        identifier:
-          $ref: '#/components/schemas/TableIdentifier'
-        location:
-          type: string
-        metadataLocation:
-          type: string
-        metadataJson:
-          type: string
-        schema:
-          $ref: '#/components/schemas/Schema'
-        partitionSpec:
-          $ref: '#/components/schemas/PartitionSpec'
-        properties:
-          type: object
-          additionalProperties:
-            type: string
     TableMetadata:
       type: object
       properties:
