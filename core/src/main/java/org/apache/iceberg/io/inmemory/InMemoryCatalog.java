@@ -21,14 +21,18 @@ package org.apache.iceberg.io.inmemory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
@@ -40,11 +44,14 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +61,8 @@ import org.slf4j.LoggerFactory;
  * This class doesn't touch external resources and
  * can be utilized to write unit tests without side effects.
  * It uses {@link InMemoryFileIO}.
- * <p>This catalog supports namespaces.
+ * <p>
+ * This catalog supports namespaces.
  * This catalog automatically creates namespaces if needed during table creation.
  */
 public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Closeable {
@@ -63,13 +71,15 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   private static final Joiner SLASH = Joiner.on("/");
   private static final Joiner DOT = Joiner.on(".");
 
-  private final InMemoryCatalogDb catalogDb;
+  private final ConcurrentMap<Namespace, Map<String, String>> namespaceDb;
+  private final ConcurrentMap<TableIdentifier, String> tableDb;
   private FileIO io;
   private String catalogName;
   private String warehouseLocation;
 
   public InMemoryCatalog() {
-    catalogDb = new InMemoryCatalogDb();
+    namespaceDb = new ConcurrentHashMap<>();
+    tableDb = new ConcurrentHashMap<>();
   }
 
   @Override
@@ -88,13 +98,13 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   }
 
   @Override
-  protected TableOperations newTableOps(TableIdentifier identifier) {
-    return new InMemoryTableOperations(io, identifier, catalogDb);
+  protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    return new InMemoryTableOperations(io, tableIdentifier);
   }
 
   @Override
-  protected String defaultWarehouseLocation(TableIdentifier identifier) {
-    return SLASH.join(defaultNamespaceLocation(identifier.namespace()), identifier.name());
+  protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+    return SLASH.join(defaultNamespaceLocation(tableIdentifier.namespace()), tableIdentifier.name());
   }
 
   private String defaultNamespaceLocation(Namespace namespace) {
@@ -107,23 +117,23 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
 
   @Override
   public Table createTable(
-      TableIdentifier identifier,
+      TableIdentifier tableIdentifier,
       Schema schema,
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
 
     // Create namespace automatically if it does not exist.
-    if (!namespaceExists(identifier.namespace())) {
-      createNamespace(identifier.namespace());
+    if (!namespaceExists(tableIdentifier.namespace())) {
+      createNamespace(tableIdentifier.namespace());
     }
 
-    return super.createTable(identifier, schema, spec, location, properties);
+    return super.createTable(tableIdentifier, schema, spec, location, properties);
   }
 
   @Override
-  public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    TableOperations ops = newTableOps(identifier);
+  public boolean dropTable(TableIdentifier tableIdentifier, boolean purge) {
+    TableOperations ops = newTableOps(tableIdentifier);
     TableMetadata lastMetadata;
     if (purge && ops.current() != null) {
       lastMetadata = ops.current();
@@ -131,8 +141,8 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
       lastMetadata = null;
     }
 
-    if (!catalogDb.removeTable(identifier)) {
-      LOG.info("Cannot drop table {} because table {} does not exist", identifier, identifier);
+    if (tableDb.remove(tableIdentifier) == null) {
+      LOG.info("Table does not exist: cannot drop table {}", tableIdentifier);
       return false;
     }
 
@@ -147,37 +157,44 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   public List<TableIdentifier> listTables(Namespace namespace) {
     if (!namespaceExists(namespace) && !namespace.isEmpty()) {
       throw new NoSuchNamespaceException(
-          "Cannot list tables for namespace %s because namespace %s does not exist", namespace, namespace);
+          "Namespace does not exist: cannot list tables for namespace %s", namespace);
     }
 
-    return catalogDb.listTables().stream()
-      .filter(t -> namespace.isEmpty() || t.namespace().equals(namespace))
-      .sorted(Comparator.comparing(TableIdentifier::toString))
-      .collect(Collectors.toList());
+    return tableDb.keySet().stream()
+        .filter(t -> namespace.isEmpty() || t.namespace().equals(namespace))
+        .sorted(Comparator.comparing(TableIdentifier::toString))
+        .collect(Collectors.toList());
   }
 
   @Override
-  public void renameTable(TableIdentifier fromIdentifier, TableIdentifier toIdentifier) {
-    if (fromIdentifier.equals(toIdentifier)) {
+  public void renameTable(TableIdentifier fromTableIdentifier, TableIdentifier toTableIdentifier) {
+    if (fromTableIdentifier.equals(toTableIdentifier)) {
       return;
     }
 
-    if (!namespaceExists(toIdentifier.namespace())) {
+    if (!namespaceExists(toTableIdentifier.namespace())) {
       throw new NoSuchNamespaceException("Cannot rename %s to %s because the namespace %s does not exist",
-          fromIdentifier, toIdentifier, toIdentifier.namespace());
+          fromTableIdentifier, toTableIdentifier, toTableIdentifier.namespace());
     }
 
-    if (catalogDb.currentMetadataLocation(fromIdentifier) == null) {
+    if (!tableDb.containsKey(fromTableIdentifier)) {
       throw new NoSuchTableException("Cannot rename %s to %s because the table %s does not exist",
-          fromIdentifier, toIdentifier, fromIdentifier);
+          fromTableIdentifier, toTableIdentifier, fromTableIdentifier);
     }
 
-    if (catalogDb.currentMetadataLocation(toIdentifier) != null) {
-      throw new AlreadyExistsException(
-        "Cannot rename %s to %s because the table %s already exists", fromIdentifier, toIdentifier, toIdentifier);
+    if (tableDb.containsKey(toTableIdentifier)) {
+      throw new AlreadyExistsException("Cannot rename %s to %s because the table %s already exists",
+          fromTableIdentifier, toTableIdentifier, toTableIdentifier);
     }
 
-    catalogDb.moveTableEntry(fromIdentifier, toIdentifier);
+    String fromLocation = tableDb.remove(fromTableIdentifier);
+    if (fromLocation != null) {
+      tableDb.put(toTableIdentifier, fromLocation);
+    } else {
+      throw new IllegalStateException(String.format(
+          "Cannot rename from %s to %s because source table does not exist",
+          fromTableIdentifier, toTableIdentifier));
+    }
   }
 
   @Override
@@ -188,56 +205,73 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     if (namespaceExists(namespace)) {
-      throw new AlreadyExistsException("Cannot create namespace %s because namespace %s already exists",
-          namespace, namespace);
+      throw new AlreadyExistsException("Namespace already exists: %s. Cannot create namespace", namespace);
     }
 
-    catalogDb.putNamespaceEntry(namespace, metadata);
+    namespaceDb.put(namespace, ImmutableMap.copyOf(metadata));
   }
 
   @Override
   public boolean namespaceExists(Namespace namespace) {
-    return catalogDb.namespaceProperties(namespace) != null;
+    return namespaceDb.containsKey(namespace);
   }
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
     if (!namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+      return false;
     }
 
-    List<TableIdentifier> identifiers = listTables(namespace);
-    if (!identifiers.isEmpty()) {
+    List<TableIdentifier> tableIdentifiers = listTables(namespace);
+    if (!tableIdentifiers.isEmpty()) {
       throw new NamespaceNotEmptyException(
-        "Namespace '%s' is not empty, contains %d table(s).", namespace, identifiers.size());
+          "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
     }
 
-    return catalogDb.removeNamespace(namespace);
+    return namespaceDb.remove(namespace) != null;
   }
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
-    if (catalogDb.namespaceProperties(namespace) == null) {
+    if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    catalogDb.putNamespaceProperties(namespace, properties);
+    namespaceDb.compute(namespace, (k, v) -> {
+      if (v == null) {
+        throw new IllegalStateException("Namespace does not exist: " + namespace);
+      } else {
+        Map<String, String> newProperties = new HashMap<>(v);
+        newProperties.putAll(properties);
+        return newProperties;
+      }
+    });
+
     return true;
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
-    if (catalogDb.namespaceProperties(namespace) == null) {
+    if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    catalogDb.removeNamespaceProperties(namespace, properties);
+    namespaceDb.compute(namespace, (k, v) -> {
+      if (v == null) {
+        throw new IllegalStateException("Namespace does not exist: " + namespace);
+      } else {
+        Map<String, String> newProperties = new HashMap<>(v);
+        properties.forEach(newProperties::remove);
+        return newProperties;
+      }
+    });
+
     return true;
   }
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    Map<String, String> properties = catalogDb.namespaceProperties(namespace);
+    Map<String, String> properties = namespaceDb.get(namespace);
     if (properties == null) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
@@ -247,27 +281,94 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
 
   @Override
   public List<Namespace> listNamespaces() {
-    return catalogDb.listNamespaces().stream()
-      .filter(n -> !n.isEmpty())
-      .map(n -> n.level(0))
-      .distinct()
-      .sorted()
-      .map(Namespace::of)
-      .collect(Collectors.toList());
+    return namespaceDb.keySet().stream()
+        .filter(n -> !n.isEmpty())
+        .map(n -> n.level(0))
+        .distinct()
+        .sorted()
+        .map(Namespace::of)
+        .collect(Collectors.toList());
   }
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
     final String searchNamespaceString = namespace.isEmpty() ? "" : DOT.join(namespace.levels()) + ".";
+    final int searchNumberOfLevels = namespace.levels().length;
 
-    return catalogDb.listNamespaces().stream()
-      .filter(n -> DOT.join(n.levels()).startsWith(searchNamespaceString))
-      .sorted(Comparator.comparing(n -> DOT.join(n.levels())))
-      .collect(Collectors.toList());
+    List<Namespace> filteredNamespaces = namespaceDb.keySet().stream()
+        .filter(n -> DOT.join(n.levels()).startsWith(searchNamespaceString))
+        .collect(Collectors.toList());
+
+    // If the namespace does not exist and the namespace is not a prefix of another namespace,
+    // throw an exception.
+    if (!namespaceDb.containsKey(namespace) && filteredNamespaces.isEmpty()) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
+    return filteredNamespaces.stream()
+        // List only the child-namespaces roots.
+        .map(n -> Namespace.of(Arrays.copyOf(n.levels(), searchNumberOfLevels + 1)))
+        .distinct()
+        .sorted(Comparator.comparing(n -> DOT.join(n.levels())))
+        .collect(Collectors.toList());
   }
 
   @Override
   public void close() throws IOException {
-    catalogDb.close();
+    namespaceDb.clear();
+    tableDb.clear();
+  }
+
+  private class InMemoryTableOperations extends BaseMetastoreTableOperations {
+
+    private final FileIO fileIO;
+    private final TableIdentifier tableIdentifier;
+
+    InMemoryTableOperations(FileIO fileIO, TableIdentifier tableIdentifier) {
+      this.fileIO = fileIO;
+      this.tableIdentifier = tableIdentifier;
+    }
+
+    @Override
+    public void doRefresh() {
+      String latestLocation = tableDb.get(tableIdentifier);
+      if (latestLocation == null) {
+        disableRefresh();
+      } else {
+        refreshFromMetadataLocation(latestLocation);
+      }
+    }
+
+    @Override
+    public void doCommit(TableMetadata base, TableMetadata metadata) {
+      // Create namespace automatically if it does not exist.
+      // This is needed to handle transactions.
+      if (!namespaceExists(tableIdentifier.namespace())) {
+        createNamespace(tableIdentifier.namespace());
+      }
+
+      // Commit the table.
+      String newLocation = writeNewMetadata(metadata, currentVersion() + 1);
+      String oldLocation = base == null ? null : base.metadataFileLocation();
+
+      tableDb.compute(tableIdentifier, (k, existingLocation) -> {
+        if (!Objects.equal(existingLocation, oldLocation)) {
+          throw new CommitFailedException("Cannot create/update table %s metadata location from %s to %s" +
+              " because it has been concurrently modified to %s",
+              tableIdentifier, oldLocation, newLocation, existingLocation);
+        }
+        return newLocation;
+      });
+    }
+
+    @Override
+    public FileIO io() {
+      return fileIO;
+    }
+
+    @Override
+    protected String tableName() {
+      return tableIdentifier.toString();
+    }
   }
 }

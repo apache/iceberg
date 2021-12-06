@@ -21,6 +21,7 @@ package org.apache.iceberg.io.inmemory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.stream.IntStream;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -89,12 +90,83 @@ public class InMemoryFileIOTest {
     assertEquals(2, inputStream.read(dataRead, 0, 2));
     assertEquals("at", new String(dataRead, 0, 2, UTF_8));
 
-    // Test seek
-    inputStream.seek(0);
-    assertEquals(0, inputStream.getPos());
-    byte[] dataReadFull = new byte[5];
-    assertEquals(5, inputStream.read(dataReadFull, 0, dataReadFull.length));
-    assertEquals("data1", new String(dataReadFull, UTF_8));
+    inputStream.close();
+  }
+
+  @Test
+  public void testSeek() throws IOException {
+    String fileName = "file1";
+
+    // Number of rows
+    int numRowsInChunk = 10;
+
+    // Emulate parquet file structure
+    ByteBuffer buffer = ByteBuffer.allocate(1024);
+    // Add magic number
+    buffer.put("par1".getBytes(UTF_8));
+    // Add column chunk 1 for int32
+    IntStream.range(0, numRowsInChunk).forEach(buffer::putInt);
+    // Add column chunk 2 for float64
+    IntStream.range(0, numRowsInChunk).forEach(buffer::putDouble);
+    // Add metadata footer (index to the start of chunks)
+    buffer.putInt(4);
+    buffer.putInt(4 + numRowsInChunk * 4);
+    // Add footer size
+    buffer.putInt(8);
+    // Add magic number
+    buffer.put("par1".getBytes(UTF_8));
+
+    // Put the data in the store
+    buffer.flip();
+    store.put(fileName, buffer);
+
+    // magic number, chunk1, chunk2, footer, footer size, magic number
+    int expectedFileSize = 4 + numRowsInChunk * 4 + numRowsInChunk * 8 + 8 + 4 + 4;
+
+    InputFile inputFile = fileIO.newInputFile(fileName);
+    assertNotNull(inputFile);
+
+    // Check file size
+    assertTrue(inputFile.exists());
+    assertEquals(fileName, inputFile.location());
+    assertEquals(expectedFileSize, inputFile.getLength());
+
+    SeekableInputStream inputStream = inputFile.newStream();
+    assertNotNull(inputStream);
+
+    // Seek to footer length
+    inputStream.seek(expectedFileSize - 8);
+
+    // Read and check the footer size
+    byte[] footerSizeBytes = new byte[4];
+    assertEquals(footerSizeBytes.length, inputStream.read(footerSizeBytes));
+    ByteBuffer footerSizeBuffer = ByteBuffer.wrap(footerSizeBytes);
+    int footerSize = footerSizeBuffer.getInt();
+    assertEquals(8, footerSize);
+
+    // Read and check the footer
+    inputStream.seek(expectedFileSize - 8 - footerSize);
+    byte[] footerBytes = new byte[footerSize];
+    assertEquals(footerBytes.length, inputStream.read(footerBytes));
+    ByteBuffer footerBuffer = ByteBuffer.wrap(footerBytes);
+    int chunk1Offset = footerBuffer.getInt();
+    int chunk2Offset = footerBuffer.getInt();
+    assertEquals(4, chunk1Offset);
+    assertEquals(4 + numRowsInChunk * 4, chunk2Offset);
+
+    // Read and check the chunk2
+    inputStream.seek(chunk2Offset);
+    byte[] chunk2Bytes = new byte[8 * numRowsInChunk];
+    assertEquals(chunk2Bytes.length, inputStream.read(chunk2Bytes));
+    ByteBuffer chunk2Buffer = ByteBuffer.wrap(chunk2Bytes);
+    IntStream.range(0, numRowsInChunk).forEach(i -> assertEquals(i, chunk2Buffer.getDouble(), 1e-15));
+
+    // Read and check the chunk1
+    inputStream.seek(chunk1Offset);
+    byte[] chunk1Bytes = new byte[4 * numRowsInChunk];
+    assertEquals(chunk1Bytes.length, inputStream.read(chunk1Bytes));
+    ByteBuffer chunk1Buffer = ByteBuffer.wrap(chunk1Bytes);
+    IntStream.range(0, numRowsInChunk).forEach(i -> assertEquals(i, chunk1Buffer.getInt()));
 
     inputStream.close();
   }
