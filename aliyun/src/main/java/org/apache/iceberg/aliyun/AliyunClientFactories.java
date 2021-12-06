@@ -83,7 +83,7 @@ public class AliyunClientFactories {
           aliyunProperties, "Cannot create aliyun oss client before initializing the AliyunClientFactory.");
 
       return new OSSClientBuilder().build(
-          aliyunProperties.ossEndpoint(), aliyunProperties.accessKeyId(), aliyunProperties.secretAccessKey());
+          aliyunProperties.ossEndpoint(), aliyunProperties.accessKeyId(), aliyunProperties.accessKeySecret());
     }
 
     @Override
