@@ -218,6 +218,21 @@ abstract class TestTables {
     return loadTable(identifier);
   }
 
+  public String getInsertQuery(List<Record> records, TableIdentifier identifier, boolean isOverwrite) {
+    StringBuilder query = new StringBuilder(String.format("INSERT %s %s VALUES ",
+            isOverwrite ? "OVERWRITE TABLE" : "INTO", identifier));
+
+    records.forEach(record -> {
+      query.append("(");
+      query.append(record.struct().fields().stream()
+              .map(field -> getStringValueForInsert(record.getField(field.name()), field.type()))
+              .collect(Collectors.joining(",")));
+      query.append("),");
+    });
+    query.setLength(query.length() - 1);
+    return query.toString();
+  }
+
   /**
    * Creates a Hive test table. Creates the Iceberg table/data and creates the corresponding Hive table as well when
    * needed. The table will be in the 'default' database. The table will be populated with the provided with randomly
