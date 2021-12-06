@@ -79,18 +79,19 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
-  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
-      int numRetries) {
+  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry, int numRetries) {
     super.refreshFromMetadataLocation(newLocation, shouldRetry, numRetries, this::loadTableMetadata);
   }
 
   private TableMetadata loadTableMetadata(String metadataLocation) {
     // Update the TableMetadata with the Content of NessieTableState.
-    return TableMetadataParser.read(io(), metadataLocation)
-        .withCurrentSnapshotOnly(table.getSnapshotId())
-        .withCurrentSchema(table.getSchemaId())
-        .withDefaultSortOrder(table.getSortOrderId())
-        .withDefaultSpec(table.getSpecId());
+    return TableMetadata.buildFrom(TableMetadataParser.read(io(), metadataLocation))
+        .setCurrentSnapshot(table.getSnapshotId())
+        .setCurrentSchema(table.getSchemaId())
+        .setDefaultSortOrder(table.getSortOrderId())
+        .setDefaultPartitionSpec(table.getSpecId())
+        .discardChanges()
+        .build();
   }
 
   @Override
