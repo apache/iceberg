@@ -269,7 +269,6 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private List<Object[]> currentData() {
-    spark.sql("select * from " + tableName + ".files").show(200, false);
     return rowsToJava(spark.sql("SELECT * FROM " + tableName + " order by c1, c2, c3").collectAsList());
   }
 }
