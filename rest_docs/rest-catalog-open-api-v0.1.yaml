@@ -97,14 +97,13 @@ paths:
         '401':
           description: Unauthorized
         '404':
-          description: Not Found (NoSuchNamespaceException)
-        '404':
-          description: Not Found (NoSuchTableException)
+          description: Not Found (NoSuchTableException | NoSuchNamespaceException)
           content:
             application/json:
-              # The REST catalog's JSON format to represent NoSuchTableException.
               schema:
-                $ref: '#/components/schemas/NoSuchTableError'
+                oneOf:
+                  - $ref: '#/components/schemas/NoSuchTableError'
+                  - $ref: '#/components/schemas/NoSuchNamespaceError'
     delete:
       tags:
         - Catalog API
@@ -201,21 +200,18 @@ paths:
         '401':
           description: Unauthorized
         '404':
-          description: Not Found (NoSuchTableException - Table to rename does not exist)
+          description: Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NoSuchTableError'
-              example:
-                '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 40402 }'
-        '404':
-          description: Not Found (NoSuchNamespaceException - The target namespace of the table rename does not exist)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NoSuchNamespaceError'
-              example:
-                '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 40401 }'
+                oneOf:
+                  - $ref: '#/components/schemas/NoSuchTableError'
+                  - $ref: '#/components/schemas/NoSuchNamespaceError'
+              examples:
+                table_to_rename_does_not_exist:
+                  '{ error: { message: "Table does not exist", type: "NoSuchTableException", code: 40402 }'
+                namespace_to_rename_to_does_not_exist:
+                  '{ error: { message: "Namespace does not exist", type: "NoSuchNameSpaceException", code: 40401 }'
         '406':
           description: Not Acceptable (UnsupportedOperationException)
         '409':

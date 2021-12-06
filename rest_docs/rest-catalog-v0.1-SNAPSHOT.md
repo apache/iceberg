@@ -178,7 +178,9 @@ System.out.println(response.toString());
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetTableResponse](#schemagettableresponse)|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|NoSuchTableException|[NoSuchTableError](#schemanosuchtableerror)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchTableException | NoSuchNamespaceException)|Inline|
+
+<h3 id="loadtable-responseschema">Response Schema</h3>
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -284,7 +286,7 @@ System.out.println(response.toString());
 
 *Check if a table exists*
 
-Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will return a TableNotFound error if not present.
+Check if a table exists within a given namespace. Returns the standard response with `true` when found. Will throw a NoSuchTableException if not present.
 
 <h3 id="tableexists-parameters">Parameters</h3>
 
@@ -298,7 +300,7 @@ Check if a table exists within a given namespace. Returns the standard response 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Table Not Found|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchTableException)|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -376,123 +378,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
-## createTable
-
-<a id="opIdcreateTable"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/namespaces/{namespace}/tables \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/v1/namespaces/{namespace}/tables");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`POST /v1/namespaces/{namespace}/tables`
-
-*Create a table with the identifier given in the body*
-
-> Body parameter
-
-```json
-{
-  "identifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "schema": {
-    "aliases": {
-      "property1": 0,
-      "property2": 0
-    }
-  },
-  "partitionSpec": {
-    "unpartitioned": true
-  },
-  "sortOrder": {
-    "unsorted": true
-  },
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "metadataJson": "string",
-  "commit": true
-}
-```
-
-<h3 id="createtable-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[CreateTableRequest](#schemacreatetablerequest)|true|none|
-|» identifier|body|[TableIdentifier](#schematableidentifier)|false|none|
-|»» namespace|body|[string]|true|none|
-|»» name|body|string|false|none|
-|» schema|body|[Schema](#schemaschema)|false|none|
-|»» aliases|body|object|false|none|
-|»»» **additionalProperties**|body|integer(int32)|false|none|
-|» partitionSpec|body|[PartitionSpec](#schemapartitionspec)|false|none|
-|»» unpartitioned|body|boolean|false|none|
-|» sortOrder|body|[SortOrder](#schemasortorder)|false|none|
-|»» unsorted|body|boolean|false|none|
-|» properties|body|object|false|none|
-|»» **additionalProperties**|body|string|false|none|
-|» metadataJson|body|string|false|none|
-|» commit|body|boolean|false|none|
-|namespace|path|string|true|A namespace identifier under which to list tables|
-
-> Example responses
-
-> 200 Response
-
-```json
-{
-  "identifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "metadataLocation": "s3://bucket/prod/accounting.db/monthly_sales/metadata/00001-0d4ef14f-ef7d-43e7-9af-5f4ad40a1103.metadata.json",
-  "metadataJson": "TODO",
-  "tableToken": "string"
-}
-```
-
-<h3 id="createtable-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[CreateTableResponse](#schemacreatetableresponse)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
 ## renameTable
 
 <a id="opIdrenameTable"></a>
@@ -501,7 +386,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/v1/tables/renameTable \
+curl -X POST http://127.0.0.1:1080/v1/tables/rename \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -509,7 +394,7 @@ curl -X POST http://127.0.0.1:1080/v1/tables/renameTable \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/v1/tables/renameTable");
+URL obj = new URL("http://127.0.0.1:1080/v1/tables/rename");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -525,7 +410,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /v1/tables/renameTable`
+`POST /v1/tables/rename`
 
 *Rename a table from its current name to a new name*
 
@@ -562,16 +447,20 @@ Rename a table from one identifier to another. It's valid to move a table across
 
 > Example responses
 
+> Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))
+
+```json
+{}
+```
+
+```json
+{}
+```
+
 > 409 Response
 
 ```json
-"{ error: { message: \"Namespace already exists\", type: \"AlreadyExistsException\", code: 40902 }"
-```
-
-> 412 Response
-
-```json
-"{ error: { message: \"Table does not exist\", type: \"NoSuchTableException\", code: 41202 }"
+"{ error: { message: \"Tale already exists\", type: \"AlreadyExistsException\", code: 40902 }"
 ```
 
 <h3 id="renametable-responses">Responses</h3>
@@ -580,9 +469,11 @@ Rename a table from one identifier to another. It's valid to move a table across
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
-|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|The new table identifier, the to table rename to, already exists.|[TableAlreadyExistsError](#schematablealreadyexistserror)|
-|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Table to rename from does not exist|[NoSuchTableError](#schemanosuchtableerror)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchTableException - Table to rename does not exist | NoSuchTableException - The target namespace of the new table identifier does not exist))|Inline|
+|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (UnsupportedOperationException)|None|
+|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException - The new target table identifier already exists)|[TableAlreadyExistsError](#schematablealreadyexistserror)|
+
+<h3 id="renametable-responseschema">Response Schema</h3>
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -653,10 +544,10 @@ Set a collection of properties on a namespace in the catalog. Properties that ar
 true
 ```
 
-> 412 Response
+> 404 Response
 
 ```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41201 }"
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
 ```
 
 <h3 id="setproperties-responses">Responses</h3>
@@ -664,8 +555,8 @@ true
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
-|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -736,10 +627,10 @@ Remove a set of property keys from a namespace in the catalog. Properties that a
 true
 ```
 
-> 412 Response
+> 404 Response
 
 ```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41201 }"
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
 ```
 
 <h3 id="removeproperties-responses">Responses</h3>
@@ -747,8 +638,8 @@ true
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (No Such Namespace)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
-|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -895,7 +786,7 @@ Create a namespace, with an optional set of properties. The server might also ad
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Namespace already exists|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
+|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException)|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -961,10 +852,10 @@ Return all stored metadata properties for a given namespace
 }
 ```
 
-> 412 Response
+> 404 Response
 
 ```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 41201 }"
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
 ```
 
 <h3 id="loadnamespacemetadata-responses">Responses</h3>
@@ -972,7 +863,7 @@ Return all stored metadata properties for a given namespace
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
-|412|[Precondition Failed](https://tools.ietf.org/html/rfc7232#section-4.2)|Namespace not found|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -1144,56 +1035,6 @@ BearerAuth
 |sourceTableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
 |destinationTableIdentifier|[TableIdentifier](#schematableidentifier)|false|none|none|
 
-<h2 id="tocS_CreateTableRequest">CreateTableRequest</h2>
-<!-- backwards compatibility -->
-<a id="schemacreatetablerequest"></a>
-<a id="schema_CreateTableRequest"></a>
-<a id="tocScreatetablerequest"></a>
-<a id="tocscreatetablerequest"></a>
-
-```json
-{
-  "identifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "schema": {
-    "aliases": {
-      "property1": 0,
-      "property2": 0
-    }
-  },
-  "partitionSpec": {
-    "unpartitioned": true
-  },
-  "sortOrder": {
-    "unsorted": true
-  },
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "metadataJson": "string",
-  "commit": true
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|identifier|[TableIdentifier](#schematableidentifier)|false|none|none|
-|schema|[Schema](#schemaschema)|false|none|none|
-|partitionSpec|[PartitionSpec](#schemapartitionspec)|false|none|none|
-|sortOrder|[SortOrder](#schemasortorder)|false|none|none|
-|properties|object|false|none|none|
-|» **additionalProperties**|string|false|none|none|
-|metadataJson|string|false|none|none|
-|commit|boolean|false|none|none|
-
 <h2 id="tocS_PartitionSpec">PartitionSpec</h2>
 <!-- backwards compatibility -->
 <a id="schemapartitionspec"></a>
@@ -1237,57 +1078,6 @@ BearerAuth
 |---|---|---|---|---|
 |aliases|object|false|none|none|
 |» **additionalProperties**|integer(int32)|false|none|none|
-
-<h2 id="tocS_SortOrder">SortOrder</h2>
-<!-- backwards compatibility -->
-<a id="schemasortorder"></a>
-<a id="schema_SortOrder"></a>
-<a id="tocSsortorder"></a>
-<a id="tocssortorder"></a>
-
-```json
-{
-  "unsorted": true
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|unsorted|boolean|false|none|none|
-
-<h2 id="tocS_CreateTableResponse">CreateTableResponse</h2>
-<!-- backwards compatibility -->
-<a id="schemacreatetableresponse"></a>
-<a id="schema_CreateTableResponse"></a>
-<a id="tocScreatetableresponse"></a>
-<a id="tocscreatetableresponse"></a>
-
-```json
-{
-  "identifier": {
-    "namespace": [
-      "string"
-    ],
-    "name": "string"
-  },
-  "metadataLocation": "s3://bucket/prod/accounting.db/monthly_sales/metadata/00001-0d4ef14f-ef7d-43e7-9af-5f4ad40a1103.metadata.json",
-  "metadataJson": "TODO",
-  "tableToken": "string"
-}
-
-```
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|identifier|[TableIdentifier](#schematableidentifier)|false|none|none|
-|metadataLocation|string|false|none|Location of the most current primary metadata file for the table|
-|metadataJson|string|false|none|Stringified JSON representing the tables metadata|
-|tableToken|string|false|none|none|
 
 <h2 id="tocS_SetPropertiesRequest">SetPropertiesRequest</h2>
 <!-- backwards compatibility -->
@@ -1616,8 +1406,8 @@ JSON wrapper for all response bodies, with a data object and / or an error objec
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|data|[ResponseDataObject](#schemaresponsedataobject)|false|none|JSON data payload returned in a successful response body.|
-|error|[ResponseErrorObject](#schemaresponseerrorobject)|false|none|Error portion embedded in all JSON responses with further details of the error|
+|data|[ResponseDataObject](#schemaresponsedataobject)|false|none|JSON data payload returned in a successful response body|
+|error|[ResponseErrorObject](#schemaresponseerrorobject)|false|none|JSON error payload returned in a response with further details on the error|
 
 <h2 id="tocS_ResponseDataObject">ResponseDataObject</h2>
 <!-- backwards compatibility -->
@@ -1631,7 +1421,7 @@ JSON wrapper for all response bodies, with a data object and / or an error objec
 
 ```
 
-JSON data payload returned in a successful response body.
+JSON data payload returned in a successful response body
 
 ### Properties
 
@@ -1654,7 +1444,7 @@ JSON data payload returned in a successful response body.
 
 ```
 
-Error portion embedded in all JSON responses with further details of the error
+JSON error payload returned in a response with further details on the error
 
 ### Properties
 
@@ -1662,6 +1452,6 @@ Error portion embedded in all JSON responses with further details of the error
 |---|---|---|---|---|
 |message|string|true|none|Human-readable error message|
 |type|string|true|none|Machine-type of the errror, such as an exception class|
-|code|integer|true|none|Application specific error code, to disambiguage amongst subclasses of HTTP responses|
+|code|integer|false|none|Application specific error code, to disambiguage amongst subclasses of HTTP responses|
 |metadata|object¦null|false|none|Additional metadata to accompany this error, such as server side stack traces or user instructions|
 
