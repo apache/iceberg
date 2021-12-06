@@ -148,10 +148,11 @@ List all namespaces at a certain level, optionally starting from a given parent 
 
 ```json
 {
-  "databases": [
-    {
-      "empty": true
-    }
+  "namespaces": [
+    [
+      "accounting",
+      "tax"
+    ]
   ]
 }
 ```
@@ -223,7 +224,7 @@ Create a namespace, with an optional set of properties. The server might also ad
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
 |body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
-|» namespace|body|[string]|true|individual levels of the namespace|
+|» namespace|body|[string]|true|Individual levels of the namespace|
 |» properties|body|object|false|Configuration properties for the namespace|
 
 > Example responses
@@ -302,12 +303,13 @@ Return all stored metadata properties for a given namespace
 
 ```json
 {
-  "namespace": {
-    "empty": true
-  },
+  "namespace": [
+    "accounting",
+    "tax"
+  ],
   "properties": {
-    "property1": "string",
-    "property2": "string"
+    "owner": "Ralph",
+    "transient_lastDdlTime": "1452120468"
   }
 }
 ```
@@ -691,15 +693,21 @@ Remove a table from the catalog
 > 200 Response
 
 ```json
-true
+{
+  "data": {
+    "dropped": true,
+    "purged": false
+  }
+}
 ```
 
 <h3 id="droptable-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[DropTableResponse](#schemadroptableresponse)|
 |202|[Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3)|Accepted - for use if purgeRequested is implemented as an asynchronous action.|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -884,6 +892,97 @@ BearerAuth
 
 # Schemas
 
+<h2 id="tocS_IcebergResponseObject">IcebergResponseObject</h2>
+<!-- backwards compatibility -->
+<a id="schemaicebergresponseobject"></a>
+<a id="schema_IcebergResponseObject"></a>
+<a id="tocSicebergresponseobject"></a>
+<a id="tocsicebergresponseobject"></a>
+
+```json
+{
+  "data": {
+    "namespaces": [
+      [
+        "ns1",
+        "foo_db"
+      ],
+      [
+        "ns1",
+        "bar_db"
+      ]
+    ]
+  },
+  "error": {}
+}
+
+```
+
+JSON wrapper for all response bodies, with a data object and / or an error object
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|data|[ResponseDataObject](#schemaresponsedataobject)|false|none|JSON data payload returned in a successful response body|
+|error|[ResponseErrorObject](#schemaresponseerrorobject)|false|none|JSON error payload returned in a response with further details on the error|
+
+<h2 id="tocS_ResponseDataObject">ResponseDataObject</h2>
+<!-- backwards compatibility -->
+<a id="schemaresponsedataobject"></a>
+<a id="schema_ResponseDataObject"></a>
+<a id="tocSresponsedataobject"></a>
+<a id="tocsresponsedataobject"></a>
+
+```json
+{
+  "data": {
+    "identifiers": [
+      "office.employees",
+      "office.dogs",
+      "office.cats"
+    ]
+  }
+}
+
+```
+
+JSON data payload returned in a successful response body
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|data|object|false|none|Wrapper for the response of a successful request|
+
+<h2 id="tocS_ResponseErrorObject">ResponseErrorObject</h2>
+<!-- backwards compatibility -->
+<a id="schemaresponseerrorobject"></a>
+<a id="schema_ResponseErrorObject"></a>
+<a id="tocSresponseerrorobject"></a>
+<a id="tocsresponseerrorobject"></a>
+
+```json
+{
+  "message": "string",
+  "type": "NoSuchNamespaceException",
+  "code": 404,
+  "metadata": {}
+}
+
+```
+
+JSON error payload returned in a response with further details on the error
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|message|string|true|none|Human-readable error message|
+|type|string|true|none|Internal type of the error, such as an exception class|
+|code|integer|true|none|HTTP response code|
+|metadata|object¦null|false|none|Additional metadata to accompany this error, such as server side stack traces or user instructions|
+
 <h2 id="tocS_TableIdentifier">TableIdentifier</h2>
 <!-- backwards compatibility -->
 <a id="schematableidentifier"></a>
@@ -929,7 +1028,7 @@ BearerAuth
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|namespace|[string]|true|none|individual levels of the namespace|
+|namespace|[string]|true|none|Individual levels of the namespace|
 |properties|object|false|none|Configuration properties for the namespace|
 
 <h2 id="tocS_RenameTableRequest">RenameTableRequest</h2>
@@ -1029,10 +1128,11 @@ JSON data response for a synchronous update properties request.
 
 ```json
 {
-  "databases": [
-    {
-      "empty": true
-    }
+  "namespaces": [
+    [
+      "accounting",
+      "tax"
+    ]
   ]
 }
 
@@ -1042,7 +1142,29 @@ JSON data response for a synchronous update properties request.
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|databases|[[Namespace](#schemanamespace)]|false|none|[Reference to one or more levels of a namespace]|
+|namespaces|[[Namespace](#schemanamespace)]|false|none|[Reference to one or more levels of a namespace]|
+
+<h2 id="tocS_DropTableResponse">DropTableResponse</h2>
+<!-- backwards compatibility -->
+<a id="schemadroptableresponse"></a>
+<a id="schema_DropTableResponse"></a>
+<a id="tocSdroptableresponse"></a>
+<a id="tocsdroptableresponse"></a>
+
+```json
+{
+  "dropped": true,
+  "purged": true
+}
+
+```
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|dropped|boolean|false|none|true if the table was found and removed from the catalog|
+|purged|boolean|false|none|whether the underlying data was purged or is being purged|
 
 <h2 id="tocS_Namespace">Namespace</h2>
 <!-- backwards compatibility -->
@@ -1052,9 +1174,10 @@ JSON data response for a synchronous update properties request.
 <a id="tocsnamespace"></a>
 
 ```json
-{
-  "empty": true
-}
+[
+  "accounting",
+  "tax"
+]
 
 ```
 
@@ -1062,9 +1185,7 @@ Reference to one or more levels of a namespace
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|empty|boolean|false|none|none|
+*None*
 
 <h2 id="tocS_GetNamespaceResponse">GetNamespaceResponse</h2>
 <!-- backwards compatibility -->
@@ -1075,12 +1196,13 @@ Reference to one or more levels of a namespace
 
 ```json
 {
-  "namespace": {
-    "empty": true
-  },
+  "namespace": [
+    "accounting",
+    "tax"
+  ],
   "properties": {
-    "property1": "string",
-    "property2": "string"
+    "owner": "Ralph",
+    "transient_lastDdlTime": "1452120468"
   }
 }
 
@@ -1092,7 +1214,6 @@ Reference to one or more levels of a namespace
 |---|---|---|---|---|
 |namespace|[Namespace](#schemanamespace)|false|none|Reference to one or more levels of a namespace|
 |properties|object|false|none|none|
-|» **additionalProperties**|string|false|none|none|
 
 <h2 id="tocS_ListTablesResponse">ListTablesResponse</h2>
 <!-- backwards compatibility -->
@@ -1236,71 +1357,4 @@ the given table identifier already exists and cannot be created / renamed to
 ### Properties
 
 *None*
-
-<h2 id="tocS_IcebergResponseObject">IcebergResponseObject</h2>
-<!-- backwards compatibility -->
-<a id="schemaicebergresponseobject"></a>
-<a id="schema_IcebergResponseObject"></a>
-<a id="tocSicebergresponseobject"></a>
-<a id="tocsicebergresponseobject"></a>
-
-```json
-"{ \"data\": { \"namespaces\": [\"ns1.foo_db\", \"ns1.bar_db\"] }, \"error\": {} }"
-
-```
-
-JSON wrapper for all response bodies, with a data object and / or an error object
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|data|[ResponseDataObject](#schemaresponsedataobject)|false|none|JSON data payload returned in a successful response body|
-|error|[ResponseErrorObject](#schemaresponseerrorobject)|false|none|JSON error payload returned in a response with further details on the error|
-
-<h2 id="tocS_ResponseDataObject">ResponseDataObject</h2>
-<!-- backwards compatibility -->
-<a id="schemaresponsedataobject"></a>
-<a id="schema_ResponseDataObject"></a>
-<a id="tocSresponsedataobject"></a>
-<a id="tocsresponsedataobject"></a>
-
-```json
-"{ \"data\": { \"identifiers\": [ \"office.employees\", \"office.dogs\", \"office.cats\" ] }"
-
-```
-
-JSON data payload returned in a successful response body
-
-### Properties
-
-*None*
-
-<h2 id="tocS_ResponseErrorObject">ResponseErrorObject</h2>
-<!-- backwards compatibility -->
-<a id="schemaresponseerrorobject"></a>
-<a id="schema_ResponseErrorObject"></a>
-<a id="tocSresponseerrorobject"></a>
-<a id="tocsresponseerrorobject"></a>
-
-```json
-{
-  "message": "string",
-  "type": "NoSuchNamespaceException",
-  "code": 404,
-  "metadata": {}
-}
-
-```
-
-JSON error payload returned in a response with further details on the error
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|message|string|true|none|Human-readable error message|
-|type|string|true|none|Internal type of the error, such as an exception class|
-|code|integer|false|none|HTTP response code|
-|metadata|object¦null|false|none|Additional metadata to accompany this error, such as server side stack traces or user instructions|
 

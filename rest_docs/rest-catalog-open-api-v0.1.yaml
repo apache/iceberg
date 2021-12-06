@@ -308,11 +308,13 @@ paths:
           content:
             'application/json':
               schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
+                $ref: '#/components/schemas/DropTableResponse'
               example: { "data": { "dropped": true, "purged": false } }
         '202':
           # TODO - Add a callback or handle to check on the state of an async purge request
           description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
+        '404':
+          description: Not Found
 
     head:
       tags:
@@ -395,11 +397,52 @@ paths:
 
 components:
   schemas:
+    IcebergResponseObject:
+      type: object
+      description: JSON wrapper for all response bodies, with a data object and / or an error object
+      properties:
+        data:
+          $ref: '#/components/schemas/ResponseDataObject'
+        error:
+          $ref: '#/components/schemas/ResponseErrorObject'
+      example: { "data": { "namespaces": [ [ "ns1", "foo_db" ], [ "ns1", "bar_db" ] ] }, "error": { } }
+    ResponseDataObject:
+      type: object
+      description: JSON data payload returned in a successful response body
+      properties:
+        data:
+          type: object
+          description: Wrapper for the response of a successful request
+      example: { "data": { "identifiers": [ "office.employees", "office.dogs", "office.cats" ] } }
+    ResponseErrorObject:
+      type: object
+      description: JSON error payload returned in a response with further details on the error
+      required:
+        - message
+        - type
+        - code
+      properties:
+        message:
+          type: string
+          description: Human-readable error message
+        type:
+          type: string
+          description: Internal type of the error, such as an exception class
+          example: NoSuchNamespaceException
+        code:
+          type: integer
+          minimum: 100
+          maximum: 600
+          description: HTTP response code
+          example: 404
+        metadata:
+          type: object
+          description: Additional metadata to accompany this error, such as server side stack traces or user instructions
+          nullable: true
     TableIdentifier:
       type: object
       required:
         - namespace
-        - name
       properties:
         namespace:
           type: array
@@ -476,6 +519,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Namespace'
+    DropTableResponse:
+      type: object
+      properties:
+        dropped:
+          type: boolean
+          description: true if the table was found and removed from the catalog
+        purged:
+          type: boolean
+          description: whether the underlying data was purged or is being purged
     Namespace:
       type: array
       description: Reference to one or more levels of a namespace
@@ -535,43 +587,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/ResponseErrorObject'
       description: the given table identifier already exists and cannot be created / renamed to
-    IcebergResponseObject:
-      type: object
-      description: JSON wrapper for all response bodies, with a data object and / or an error object
-      properties:
-        data:
-          $ref: '#/components/schemas/ResponseDataObject'
-        error:
-          $ref: '#/components/schemas/ResponseErrorObject'
-      example: { "data": { "namespaces": [ ["ns1", "foo_db"], ["ns1", "bar_db"] ] }, "error": {} }
-    ResponseDataObject:
-      type: object
-      description: JSON data payload returned in a successful response body
-      example: { "data": { "identifiers": [ "office.employees", "office.dogs", "office.cats" ] } }
-    ResponseErrorObject:
-      type: object
-      description: JSON error payload returned in a response with further details on the error
-      properties:
-        message:
-          type: string
-          description: Human-readable error message
-        type:
-          type: string
-          description: Internal type of the error, such as an exception class
-          example: NoSuchNamespaceException
-        code:
-          type: integer
-          minimum: 100
-          maximum: 600
-          description: HTTP response code
-          example: 404
-        metadata:
-          type: object
-          description: Additional metadata to accompany this error, such as server side stack traces or user instructions
-          nullable: true
-      required:
-        - message
-        - type
   examples:
     catalogName:
       value: prod
