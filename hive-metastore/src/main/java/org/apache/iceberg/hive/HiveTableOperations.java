@@ -402,6 +402,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
     SerDeInfo serDeInfo = new SerDeInfo();
+    serDeInfo.setParameters(Maps.newHashMap());
     if (hiveEngineEnabled) {
       storageDescriptor.setInputFormat("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
       storageDescriptor.setOutputFormat("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
