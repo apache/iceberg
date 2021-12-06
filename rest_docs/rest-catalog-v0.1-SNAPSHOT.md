@@ -99,6 +99,463 @@ BearerAuth
 
 <h1 id="apache-iceberg-rest-catalog-api-catalog-api">Catalog API</h1>
 
+## listNamespaces
+
+<a id="opIdlistNamespaces"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X GET http://127.0.0.1:1080/namespaces \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`GET /namespaces`
+
+*List namespaces, optionally providing a parent namespace to list underneaath*
+
+List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a","b").
+
+<h3 id="listnamespaces-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|parent|query|string|false|Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.|
+
+> Example responses
+
+> 200 Response
+
+```json
+{
+  "databases": [
+    {
+      "empty": true
+    }
+  ]
+}
+```
+
+<h3 id="listnamespaces-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListNamespacesResponse](#schemalistnamespacesresponse)|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
+## createNamespace
+
+<a id="opIdcreateNamespace"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X POST http://127.0.0.1:1080/namespaces \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`POST /namespaces`
+
+*Create a namespace*
+
+Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
+
+> Body parameter
+
+```json
+{
+  "namespace": [
+    "string"
+  ],
+  "properties": "{ owner: \"Hank Bendickson\" }"
+}
+```
+
+<h3 id="createnamespace-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
+|» namespace|body|[string]|false|individual levels of the namespace|
+|» properties|body|object|false|Configuration properties for the namespace|
+
+> Example responses
+
+> 409 Response
+
+```json
+"{ error: { message: \"Namespace already exists\", type: \"AlreadyExistsException\", code: 40901 }"
+```
+
+<h3 id="createnamespace-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException)|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
+## loadNamespaceMetadata
+
+<a id="opIdloadNamespaceMetadata"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X GET http://127.0.0.1:1080/namespaces/{namespace} \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`GET /namespaces/{namespace}`
+
+*Load the metadata properties for a namespace*
+
+Return all stored metadata properties for a given namespace
+
+<h3 id="loadnamespacemetadata-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+{
+  "namespace": {
+    "empty": true
+  },
+  "properties": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+> 404 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
+```
+
+<h3 id="loadnamespacemetadata-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
+## dropNamespace
+
+<a id="opIddropNamespace"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X DELETE http://127.0.0.1:1080/namespaces/{namespace} \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("DELETE");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`DELETE /namespaces/{namespace}`
+
+*Drop a namespace from the catalog. Namespace must be empty.*
+
+<h3 id="dropnamespace-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+{
+  "data": {
+    "dropped": true
+  }
+}
+```
+
+<h3 id="dropnamespace-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
+|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
+## setProperties
+
+<a id="opIdsetProperties"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X POST http://127.0.0.1:1080/namespaces/{namespace}/properties \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`POST /namespaces/{namespace}/properties`
+
+*Set a collection of properties on a namespace*
+
+Set a collection of properties on a namespace in the catalog. Properties that are not in the given map are not modified or removed by this call. Server implementations are not required to support namespace properties.
+
+> Body parameter
+
+```json
+{
+  "namespace": "string",
+  "properties": {}
+}
+```
+
+<h3 id="setproperties-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|body|body|[SetPropertiesRequest](#schemasetpropertiesrequest)|true|none|
+|» namespace|body|string|false|none|
+|» properties|body|object|false|none|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+{
+  "updated": true
+}
+```
+
+> 404 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
+```
+
+<h3 id="setproperties-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[SetPropertiesResponse](#schemasetpropertiesresponse)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
+## removeProperties
+
+<a id="opIdremoveProperties"></a>
+
+> Code samples
+
+```shell
+# You can also use wget
+curl -X PUT http://127.0.0.1:1080/namespaces/{namespace}/properties \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer {access-token}'
+
+```
+
+```java
+URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("PUT");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+```
+
+`PUT /namespaces/{namespace}/properties`
+
+*Remove a set of property keys from a namespace in the catalog*
+
+Remove a set of property keys from a namespace in the catalog. Properties that are not in the given set are not modified or removed by this call. Server implementations are not required to support namespace properties.
+
+> Body parameter
+
+```json
+{
+  "namespace": "string",
+  "properties": {}
+}
+```
+
+<h3 id="removeproperties-parameters">Parameters</h3>
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|body|body|[RemovePropertiesRequest](#schemaremovepropertiesrequest)|true|none|
+|» namespace|body|string|false|none|
+|» properties|body|object|false|none|
+|namespace|path|string|true|none|
+
+> Example responses
+
+> 200 Response
+
+```json
+true
+```
+
+> 404 Response
+
+```json
+"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
+```
+
+<h3 id="removeproperties-responses">Responses</h3>
+
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (No Such Namespace)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
+|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
+
+<aside class="warning">
+To perform this operation, you must be authenticated by means of one of the following methods:
+BearerAuth
+</aside>
+
 ## loadTable
 
 <a id="opIdloadTable"></a>
@@ -480,457 +937,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
-## setProperties
-
-<a id="opIdsetProperties"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X POST http://127.0.0.1:1080/namespaces/{namespace}/properties \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`POST /namespaces/{namespace}/properties`
-
-*Set a collection of properties on a namespace*
-
-Set a collection of properties on a namespace in the catalog. Properties that are not in the given map are not modified or removed by this call. Server implementations are not required to support namespace properties.
-
-> Body parameter
-
-```json
-{
-  "namespace": "string",
-  "properties": {}
-}
-```
-
-<h3 id="setproperties-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[SetPropertiesRequest](#schemasetpropertiesrequest)|true|none|
-|» namespace|body|string|false|none|
-|» properties|body|object|false|none|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-```json
-true
-```
-
-> 404 Response
-
-```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
-```
-
-<h3 id="setproperties-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## removeProperties
-
-<a id="opIdremoveProperties"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X PUT http://127.0.0.1:1080/namespaces/{namespace}/properties \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("PUT");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`PUT /namespaces/{namespace}/properties`
-
-*Remove a set of property keys from a namespace in the catalog*
-
-Remove a set of property keys from a namespace in the catalog. Properties that are not in the given set are not modified or removed by this call. Server implementations are not required to support namespace properties.
-
-> Body parameter
-
-```json
-{
-  "namespace": "string",
-  "properties": {}
-}
-```
-
-<h3 id="removeproperties-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[RemovePropertiesRequest](#schemaremovepropertiesrequest)|true|none|
-|» namespace|body|string|false|none|
-|» properties|body|object|false|none|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-```json
-true
-```
-
-> 404 Response
-
-```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
-```
-
-<h3 id="removeproperties-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (No Such Namespace)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-|406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## listNamespaces
-
-<a id="opIdlistNamespaces"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("GET");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`GET /namespaces`
-
-*List namespaces, optionally providing a parent namespace to list underneaath*
-
-List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a","b").
-
-<h3 id="listnamespaces-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|parent|query|string|false|Optional parent namespace under which to list namespaces. When empty, list top-level namespaces.|
-
-> Example responses
-
-> 200 Response
-
-```json
-{
-  "databases": [
-    {
-      "empty": true
-    }
-  ]
-}
-```
-
-<h3 id="listnamespaces-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListNamespacesResponse](#schemalistnamespacesresponse)|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## createNamespace
-
-<a id="opIdcreateNamespace"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X POST http://127.0.0.1:1080/namespaces \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("POST");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`POST /namespaces`
-
-*Create a namespace*
-
-Create a namespace, with an optional set of properties. The server might also add properties, such as last_modified_time etc.
-
-> Body parameter
-
-```json
-{
-  "namespace": [
-    "string"
-  ],
-  "properties": "{ owner: \"Hank Bendickson\" }"
-}
-```
-
-<h3 id="createnamespace-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
-|» namespace|body|[string]|false|individual levels of the namespace|
-|» properties|body|object|false|Configuration properties for the namespace|
-
-> Example responses
-
-> 409 Response
-
-```json
-"{ error: { message: \"Namespace already exists\", type: \"AlreadyExistsException\", code: 40901 }"
-```
-
-<h3 id="createnamespace-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException)|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## loadNamespaceMetadata
-
-<a id="opIdloadNamespaceMetadata"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces/{namespace} \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("GET");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`GET /namespaces/{namespace}`
-
-*Load the metadata properties for a namespace*
-
-Return all stored metadata properties for a given namespace
-
-<h3 id="loadnamespacemetadata-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-```json
-{
-  "namespace": {
-    "empty": true
-  },
-  "properties": {
-    "property1": "string",
-    "property2": "string"
-  }
-}
-```
-
-> 404 Response
-
-```json
-"{ error: { message: \"Namespace does not exist\", type: \"NoSuchNamespaceException\", code: 40401 }"
-```
-
-<h3 id="loadnamespacemetadata-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[NoSuchNamespaceError](#schemanosuchnamespaceerror)|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
-## dropNamespace
-
-<a id="opIddropNamespace"></a>
-
-> Code samples
-
-```shell
-# You can also use wget
-curl -X DELETE http://127.0.0.1:1080/namespaces/{namespace} \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer {access-token}'
-
-```
-
-```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
-HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-con.setRequestMethod("DELETE");
-int responseCode = con.getResponseCode();
-BufferedReader in = new BufferedReader(
-    new InputStreamReader(con.getInputStream()));
-String inputLine;
-StringBuffer response = new StringBuffer();
-while ((inputLine = in.readLine()) != null) {
-    response.append(inputLine);
-}
-in.close();
-System.out.println(response.toString());
-
-```
-
-`DELETE /namespaces/{namespace}`
-
-*Drop a namespace from the catalog. Namespace must be empty.*
-
-<h3 id="dropnamespace-parameters">Parameters</h3>
-
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|namespace|path|string|true|none|
-
-> Example responses
-
-> 200 Response
-
-```json
-true
-```
-
-<h3 id="dropnamespace-responses">Responses</h3>
-
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|boolean|
-|401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-
-<aside class="warning">
-To perform this operation, you must be authenticated by means of one of the following methods:
-BearerAuth
-</aside>
-
 # Schemas
 
 <h2 id="tocS_TableIdentifier">TableIdentifier</h2>
@@ -1100,6 +1106,28 @@ BearerAuth
 |---|---|---|---|---|
 |namespace|string|false|none|none|
 |properties|object|false|none|none|
+
+<h2 id="tocS_SetPropertiesResponse">SetPropertiesResponse</h2>
+<!-- backwards compatibility -->
+<a id="schemasetpropertiesresponse"></a>
+<a id="schema_SetPropertiesResponse"></a>
+<a id="tocSsetpropertiesresponse"></a>
+<a id="tocssetpropertiesresponse"></a>
+
+```json
+{
+  "updated": true
+}
+
+```
+
+JSON data response on a successful set properties call.
+
+### Properties
+
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|updated|boolean|false|none|true if the set properties request was accepted and is reflected on the server|
 
 <h2 id="tocS_ListNamespacesResponse">ListNamespacesResponse</h2>
 <!-- backwards compatibility -->
