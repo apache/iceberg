@@ -151,14 +151,11 @@ paths:
       description: Check if a namespace exists.
       responses:
         '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
-              example: '{ "data": { "exists": false } }'
+          description: OK - Namesapce exists
         '401':
           description: Unauthorized
+        '404':
+          description: Not Found
     delete:
       tags:
         - Catalog API
@@ -335,26 +332,11 @@ paths:
         If the namespace for the table does not exist, returns a 404 NoSuchNamespaceException.
       responses:
         '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
-              examples:
-                table_exists_response:
-                  value: '{ "data": { "exists": true } }'
-                table_does_not_exist:
-                  value: '{ "data": { "exists: false } }'
+          description: OK - Table Exists
         '401':
           description: Unauthorized
         '404':
           description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
-              example:
-                '{ "error": { "message": "The namespace does not exist", type: "NoSuchTableException", code: 40401 } }'
 
   /tables/rename:
     post:
