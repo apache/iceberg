@@ -223,7 +223,7 @@ Create a namespace, with an optional set of properties. The server might also ad
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
 |body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
-|» namespace|body|[string]|false|individual levels of the namespace|
+|» namespace|body|[string]|true|individual levels of the namespace|
 |» properties|body|object|false|Configuration properties for the namespace|
 
 > Example responses
@@ -556,6 +556,7 @@ Properties that are not in the request are not modified or removed by this call.
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[UpdatePropertiesResponse](#schemaupdatepropertiesresponse)|
 |404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
+|422|[Unprocessable Entity](https://tools.ietf.org/html/rfc2518#section-10.3)|Unprocessable Entity. A property key was included in both toRemove and toUpdate.|None|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -824,17 +825,13 @@ Rename a table from one identifier to another. It's valid to move a table across
 |---|---|---|---|---|
 |body|body|[RenameTableRequest](#schemarenametablerequest)|true|Current table identifier to rename and new table identifier to rename to|
 |» sourceTableIdentifier|body|[TableIdentifier](#schematableidentifier)|false|none|
-|»» namespace|body|[string]|true|none|
+|»» namespace|body|[string]|true|Individual levels of the namespace|
 |»» name|body|string|false|none|
 |» destinationTableIdentifier|body|[TableIdentifier](#schematableidentifier)|false|none|
 
 > Example responses
 
-> Not Found, either
-  - NoSuchTableException
-    - Table to rename does not exist
-  - NoSuchNamespaceException
-    - The target namespace of the new table identifier does not exist
+> Not Found - NoSuchTableException, Table to rename does not exist - NoSuchNamespaceException, The target namespace of the new table identifier does not exist
 
 ```json
 {
@@ -874,11 +871,7 @@ Rename a table from one identifier to another. It's valid to move a table across
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found, either
-  - NoSuchTableException
-    - Table to rename does not exist
-  - NoSuchNamespaceException
-    - The target namespace of the new table identifier does not exist|Inline|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found - NoSuchTableException, Table to rename does not exist - NoSuchNamespaceException, The target namespace of the new table identifier does not exist|Inline|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (UnsupportedOperationException)|None|
 |409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException - The new target table identifier already exists)|[TableAlreadyExistsError](#schematablealreadyexistserror)|
 
@@ -912,7 +905,7 @@ BearerAuth
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|namespace|[string]|true|none|none|
+|namespace|[string]|true|none|Individual levels of the namespace|
 |name|string|false|none|none|
 
 <h2 id="tocS_CreateNamespaceRequest">CreateNamespaceRequest</h2>
@@ -936,7 +929,7 @@ BearerAuth
 
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-|namespace|[string]|false|none|individual levels of the namespace|
+|namespace|[string]|true|none|individual levels of the namespace|
 |properties|object|false|none|Configuration properties for the namespace|
 
 <h2 id="tocS_RenameTableRequest">RenameTableRequest</h2>

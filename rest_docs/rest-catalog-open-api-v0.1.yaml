@@ -229,6 +229,8 @@ paths:
                 { "error": { "message": "Namespace does not exist", "type": "NoSuchNamespaceException", "code": 404 } }
         406:
           description: Not Acceptable (Unsupported Operation)
+        422:
+          description: Unprocessable Entity. A property key was included in both toRemove and toUpdate.
 
   /namespaces/{namespace}/tables:
     parameters:
@@ -350,12 +352,10 @@ paths:
         '401':
           description: Unauthorized
         '404':
-          description: >
-            Not Found, either
-              - NoSuchTableException
-                - Table to rename does not exist
-              - NoSuchNamespaceException
-                - The target namespace of the new table identifier does not exist
+          description:
+            Not Found
+            - NoSuchTableException, Table to rename does not exist
+            - NoSuchNamespaceException, The target namespace of the new table identifier does not exist
           content:
             application/json:
               schema:
@@ -401,14 +401,17 @@ components:
       properties:
         namespace:
           type: array
+          description: Individual levels of the namespace
           items:
             type: string
-          nullable: false  # Note this is ignored
+          nullable: false
         name:
           type: string
           nullable: false
     CreateNamespaceRequest:
       type: object
+      required:
+        - namespace
       properties:
         namespace:
           type: array
