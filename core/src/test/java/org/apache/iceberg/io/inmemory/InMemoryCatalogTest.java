@@ -25,8 +25,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.CommonCatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -40,6 +40,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Tests specific to {@link InMemoryCatalog}, e.g. rename table, alter namespace properties, etc.
+ * Common catalog tests can be found in {@link CommonCatalogTests}.
+ */
 public class InMemoryCatalogTest {
 
   private InMemoryCatalog catalog;
@@ -48,62 +52,6 @@ public class InMemoryCatalogTest {
   public void before() {
     catalog = new InMemoryCatalog();
     catalog.initialize("in-memory-catalog", ImmutableMap.of());
-  }
-
-  @Test
-  public void testCreateNamespace() {
-    Namespace namespace = Namespace.of("level1", "level2");
-
-    // At the start of the test, ensure that
-    // namespace does not exist and list namespace is empty.
-    assertFalse(catalog.namespaceExists(namespace));
-    assertTrue(catalog.listNamespaces().isEmpty());
-
-    // Create a namespace.
-    catalog.createNamespace(namespace);
-
-    // Verify that namespace exists and
-    // list namespace returns the created namespace.
-    assertTrue(catalog.namespaceExists(namespace));
-  }
-
-  @Test
-  public void testCreateNamespace_properties() {
-    Namespace namespace = Namespace.of("level1", "level2");
-
-    // Create a namespace with properties.
-    catalog.createNamespace(namespace, ImmutableMap.of("k1", "v1", "k2", "v2"));
-
-    // Verify namespace properties.
-    assertEquals(ImmutableMap.of("k1", "v1", "k2", "v2"), catalog.loadNamespaceMetadata(namespace));
-  }
-
-  @Test
-  public void testListNamespace_level0() {
-    // Make sure list of namespaces is empty
-    assertEquals(ImmutableList.of(), catalog.listNamespaces());
-
-    // Create two namespaces, a.b and a.c
-    catalog.createNamespace(Namespace.of("a", "b"));
-    catalog.createNamespace(Namespace.of("a", "c"));
-
-    // Verify that list namespace returns ["a"].
-    assertEquals(ImmutableList.of(Namespace.of("a")), catalog.listNamespaces());
-  }
-
-  @Test
-  public void testListNamespace_underANamespace() {
-    // Make sure list of namespaces is empty
-    assertEquals(ImmutableList.of(), catalog.listNamespaces());
-
-    // Create two namespaces, a.b and a.c
-    catalog.createNamespace(Namespace.of("a", "1"));
-    catalog.createNamespace(Namespace.of("a", "2"));
-    catalog.createNamespace(Namespace.of("b", "3"));
-
-    // Verify that list namespace returns ["a", "1"] and ["a", "2"].
-    assertEquals(ImmutableList.of(Namespace.of("a", "1"), Namespace.of("a", "2")),
-        catalog.listNamespaces(Namespace.of("a")));
   }
 
   @Test
@@ -137,25 +85,6 @@ public class InMemoryCatalogTest {
   }
 
   @Test
-  public void dropNamespace() {
-    Namespace namespace = Namespace.of("a");
-    catalog.createNamespace(namespace);
-    assertTrue(catalog.dropNamespace(namespace));
-  }
-
-  @Test
-  public void dropNamespace_notEmpty() {
-    Namespace namespace = Namespace.of("a");
-    catalog.createNamespace(namespace);
-    catalog.createTable(TableIdentifier.of(namespace, "table1"), new Schema());
-    AssertHelpers.assertThrows(
-        "Dropping a non-empty namespace should fail",
-        NamespaceNotEmptyException.class,
-        "Namespace 'a' is not empty, contains 1 table(s).",
-        () -> catalog.dropNamespace(namespace));
-  }
-
-  @Test
   public void testCreateTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db1", "table1");
 
@@ -185,19 +114,6 @@ public class InMemoryCatalogTest {
     assertEquals(1, alteredTable.schema().columns().size());
     assertEquals(ImmutableList.of(Types.NestedField.of(1, true, "column", IntegerType.get())),
         alteredTable.schema().columns());
-  }
-
-  @Test
-  public void testDropTable() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db1", "table1");
-
-    // Create table
-    catalog.createTable(tableIdentifier, new Schema());
-
-    // Drop table should succeed
-    assertTrue(catalog.dropTable(tableIdentifier, true));
-    // Drop table should fail because it has been dropped
-    assertFalse(catalog.dropTable(tableIdentifier, true));
   }
 
   @Test
@@ -260,23 +176,5 @@ public class InMemoryCatalogTest {
         AlreadyExistsException.class,
         "Cannot rename db1.table1 to db2.table2 because the table db2.table2 already exists",
         () -> catalog.renameTable(fromTableIdentifier, toTableIdentifier));
-  }
-
-  @Test
-  public void testListTables() {
-    TableIdentifier db1Table1 = TableIdentifier.of("db1", "table1");
-    TableIdentifier db1Table2 = TableIdentifier.of("db1", "table2");
-    TableIdentifier db2Table1 = TableIdentifier.of("db2", "table1");
-
-    catalog.createTable(db1Table1, new Schema());
-    catalog.createTable(db1Table2, new Schema());
-    catalog.createTable(db2Table1, new Schema());
-
-    // list "" should return ["db1.table1", "db1.table2", "db2.table1"]
-    assertEquals(ImmutableList.of(db1Table1, db1Table2, db2Table1), catalog.listTables(Namespace.of()));
-    // list "db1" should return ["db1.table1", "db1.table2"]
-    assertEquals(ImmutableList.of(db1Table1, db1Table2), catalog.listTables(Namespace.of("db1")));
-    // list "db2" should return ["db2.table1"]
-    assertEquals(ImmutableList.of(db2Table1), catalog.listTables(Namespace.of("db2")));
   }
 }

@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentMap;
  * An in-memory collection based storage for file contents
  * keyed by a string location.
  */
-final class InMemoryFileStore {
+class InMemoryFileStore {
 
   private final ConcurrentMap<String, byte[]> store;
 
