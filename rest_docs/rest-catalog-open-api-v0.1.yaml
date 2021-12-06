@@ -27,9 +27,18 @@ info:
   version: 1.0.0
   description:
     Defines the specification for the first version of the REST Catalog API. Implementations should support both Iceberg table specs v1 and v2, with priority given to v2.
-# TODO - Add ServerVariable so user's can control the routes and ports etc and have mutli-env etc.
 servers:
-  - url: http://127.0.0.1:1080
+  - url: https://{host}:{port}/{basePath}
+    variables:
+      host:
+        description: The host address for the specified server
+        default: localhost
+      port:
+        description: The port used when addressing the host
+        default: "443"
+      basePath:
+        default: v1
+  - url: http://127.0.0.1:1080/v1
     description: URL Used for Mock-Server Unit Tests
 # All routes are currently configured using an Authorization header.
 security:
@@ -109,13 +118,7 @@ paths:
         '401':
           description: Unauthorized
         '409':
-          description: Conflict (AlreadyExistsException)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NamespaceAlreadyExistsError'
-              example:
-                { "error": { "message": "Namespace already exists", "type": "AlreadyExistsException", code: 409 } }
+          $ref: '#/components/responses/NamespaceAlreadyExistsResponse'
 
   /namespaces/{namespace}:
     parameters:
@@ -138,13 +141,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GetNamespaceResponse'
         '404':
-          description: Not Found (NoSuchNamespaceException)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
-              example:
-                { "data": {}, "error": { "message": "Namespace does not exist", "type": "NoSuchNamespaceException", code: 404 } }
+          $ref: '#/components/responses/NoSuchNamespaceResponse'
     head:
       tags:
         - Catalog API
@@ -169,7 +166,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
+                $ref: '#/components/responses/IcebergResponseObject'
               example: { "data": { "dropped": true } }
         '401':
           description: Unauthorized
@@ -224,7 +221,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
+                $ref: '#/components/responses/IcebergResponseObject'
               example:
                 { "error": { "message": "Namespace does not exist", "type": "NoSuchNamespaceException", "code": 404 } }
         406:
@@ -263,7 +260,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IcebergResponseObject'
+                $ref: '#/components/responses/IcebergResponseObject'
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
 
@@ -303,18 +300,18 @@ paths:
             type: boolean
             default: false
       responses:
-        '200':
+        200:
           description: OK
           content:
             'application/json':
               schema:
                 $ref: '#/components/schemas/DropTableResponse'
               example: { "data": { "dropped": true, "purged": false } }
-        '202':
+        202:
           # TODO - Add a callback or handle to check on the state of an async purge request
           description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
-        '404':
-          description: Not Found
+        404:
+          $ref: '#/components/responses/NoSuchTableResponse'
 
     head:
       tags:
@@ -323,14 +320,12 @@ paths:
       operationId: tableExists
       description:
         Check if a table exists within a given namespace.
-        Returns the standard Iceberg response data wrapper with exists set to `true` when found, `false` if not found.
-        If the namespace for the table does not exist, returns a 404 NoSuchNamespaceException.
       responses:
-        '200':
+        200:
           description: OK - Table Exists
-        '401':
+        401:
           description: Unauthorized
-        '404':
+        404:
           description: Not Found
 
   /tables/rename:
@@ -363,20 +358,20 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/NoSuchTableError'
-                  - $ref: '#/components/schemas/NoSuchNamespaceError'
+                  - $ref: '#/components/responses/NoSuchTableResponse'
+                  - $ref: '#/components/responses/NoSuchNamespaceResponse'
               examples:
                 table_to_rename_does_not_exist:
                   value: {
                     "error": {
-                      "message": "Table does not exist",
+                      "message": "Table to rename does not exist",
                       "type": "NoSuchTableException",
                       "code": 404
                     } }
                 namespace_to_rename_to_does_not_exist:
                   value: {
                     "error": {
-                      "message": "Namespace does not exist",
+                      "message": "Namespace to rename to does not exist",
                       "type": "NoSuchNameSpaceException",
                       "code": 404
                     } }
@@ -396,16 +391,11 @@ paths:
                 } }
 
 components:
+
+  ##############################
+  # Application Schema Objects #
+  ##############################
   schemas:
-    IcebergResponseObject:
-      type: object
-      description: JSON wrapper for all response bodies, with a data object and / or an error object
-      properties:
-        data:
-          $ref: '#/components/schemas/ResponseDataObject'
-        error:
-          $ref: '#/components/schemas/ResponseErrorObject'
-      example: { "data": { "namespaces": [ [ "ns1", "foo_db" ], [ "ns1", "bar_db" ] ] }, "error": { } }
     ResponseDataObject:
       type: object
       description: JSON data payload returned in a successful response body
@@ -571,22 +561,59 @@ components:
             are stored server side. This could be beneifical to an administrator,
             for example to enforce that a given LocationProvider is used or to
             enforce that a certain FileIO implementation is used.
-    NoSuchNamespaceError:
-      allOf:
-        - $ref: '#/components/schemas/ResponseErrorObject'
-      description: Namespace provided in the request does not exist
-    NamespaceAlreadyExistsError:
-      allOf:
-        - $ref: '#/components/schemas/ResponseErrorObject'
-      description: Namespace provided in the request already exists
-    NoSuchTableError:
-      allOf:
-        - $ref: '#/components/schemas/ResponseErrorObject'
-      description: The given table identifier does not exist
+
     TableAlreadyExistsError:
       allOf:
         - $ref: '#/components/schemas/ResponseErrorObject'
       description: the given table identifier already exists and cannot be created / renamed to
+
+  #############################
+  # Reusable Response Objects #
+  #############################
+  responses:
+
+    IcebergResponseObject:
+      description: JSON wrapper for all response bodies, with a data object and / or an error object
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/ResponseDataObject'
+              - $ref: '#/components/schemas/ResponseErrorObject'
+          example: { "data": { "namespaces": [ [ "ns1", "foo_db" ], [ "ns1", "bar_db" ] ] }, "error": { } }
+
+    NamespaceAlreadyExistsResponse:
+      description: The specified namespace provided in the request already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResponseErrorObject'
+          example:
+            { "error": { "message": "Namespace already exists", "type": "AlreadyExistsException", code: 409 } }
+
+
+    NoSuchNamespaceResponse:
+      description: Not Found (The specified namespace was not found)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResponseErrorObject'
+          example: {
+            "error": {
+              "message": "Namespace does not exist", "type": "NoSuchNamespaceException", "code": 404
+            } }
+
+    NoSuchTableResponse:
+      description: Not Found (The specified table identifier was not found)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResponseErrorObject'
+          example: {
+            "error": {
+              "message": "The given table does not exist", "type": "NoSuchTableException", code: 404
+            } }
+
   examples:
     catalogName:
       value: prod

@@ -24,7 +24,15 @@ Defines the specification for the first version of the REST Catalog API. Impleme
 
 Base URLs:
 
-* <a href="http://127.0.0.1:1080">http://127.0.0.1:1080</a>
+* <a href="https://{host}:{port}/{basePath}">https://{host}:{port}/{basePath}</a>
+
+    * **host** - The host address for the specified server Default: localhost
+
+    * **port** - The port used when addressing the host Default: 443
+
+    * **basePath** -  Default: v1
+
+* <a href="http://127.0.0.1:1080/v1">http://127.0.0.1:1080/v1</a>
 
 License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</a>
 
@@ -42,14 +50,14 @@ License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/config \
+curl -X GET https://{host}:{port}/{basePath}/config \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/config");
+URL obj = new URL("https://{host}:{port}/{basePath}/config");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -107,14 +115,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces \
+curl -X GET https://{host}:{port}/{basePath}/namespaces \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -178,7 +186,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/namespaces \
+curl -X POST https://{host}:{port}/{basePath}/namespaces \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -186,7 +194,7 @@ curl -X POST http://127.0.0.1:1080/namespaces \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -247,7 +255,7 @@ Create a namespace, with an optional set of properties. The server might also ad
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
-|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|Conflict (AlreadyExistsException)|[NamespaceAlreadyExistsError](#schemanamespacealreadyexistserror)|
+|409|[Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)|The specified namespace provided in the request already exists|[ResponseErrorObject](#schemaresponseerrorobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -262,14 +270,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces/{namespace} \
+curl -X GET https://{host}:{port}/{basePath}/namespaces/{namespace} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -318,7 +326,6 @@ Return all stored metadata properties for a given namespace
 
 ```json
 {
-  "data": {},
   "error": {
     "message": "Namespace does not exist",
     "type": "NoSuchNamespaceException",
@@ -332,7 +339,7 @@ Return all stored metadata properties for a given namespace
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[GetNamespaceResponse](#schemagetnamespaceresponse)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (The specified namespace was not found)|[ResponseErrorObject](#schemaresponseerrorobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -347,13 +354,13 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace} \
+curl -X HEAD https://{host}:{port}/{basePath}/namespaces/{namespace} \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("HEAD");
 int responseCode = con.getResponseCode();
@@ -402,14 +409,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE http://127.0.0.1:1080/namespaces/{namespace} \
+curl -X DELETE https://{host}:{port}/{basePath}/namespaces/{namespace} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("DELETE");
 int responseCode = con.getResponseCode();
@@ -451,7 +458,7 @@ System.out.println(response.toString());
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[IcebergResponseObject](#schemaicebergresponseobject)|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[#/components/responses/IcebergResponseObject](#schema#/components/responses/icebergresponseobject)|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 |404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
 
@@ -468,7 +475,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/namespaces/{namespace}/properties \
+curl -X POST https://{host}:{port}/{basePath}/namespaces/{namespace}/properties \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -476,7 +483,7 @@ curl -X POST http://127.0.0.1:1080/namespaces/{namespace}/properties \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/properties");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/properties");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -556,7 +563,7 @@ Properties that are not in the request are not modified or removed by this call.
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[UpdatePropertiesResponse](#schemaupdatepropertiesresponse)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[#/components/responses/IcebergResponseObject](#schema#/components/responses/icebergresponseobject)|
 |406|[Not Acceptable](https://tools.ietf.org/html/rfc7231#section-6.5.6)|Not Acceptable (Unsupported Operation)|None|
 |422|[Unprocessable Entity](https://tools.ietf.org/html/rfc2518#section-10.3)|Unprocessable Entity. A property key was included in both toRemove and toUpdate.|None|
 
@@ -573,14 +580,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET http://127.0.0.1:1080/namespaces/{namespace}/tables \
+curl -X GET https://{host}:{port}/{basePath}/namespaces/{namespace}/tables \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -636,7 +643,7 @@ Return all table identifiers under this namespace
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[ListTablesResponse](#schemalisttablesresponse)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[IcebergResponseObject](#schemaicebergresponseobject)|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (NoSuchNamespaceException)|[#/components/responses/IcebergResponseObject](#schema#/components/responses/icebergresponseobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -651,14 +658,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
+curl -X DELETE https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("DELETE");
 int responseCode = con.getResponseCode();
@@ -701,13 +708,25 @@ Remove a table from the catalog
 }
 ```
 
+> 404 Response
+
+```json
+{
+  "error": {
+    "message": "The given table does not exist",
+    "type": "NoSuchTableException",
+    "code": 404
+  }
+}
+```
+
 <h3 id="droptable-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[DropTableResponse](#schemadroptableresponse)|
 |202|[Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3)|Accepted - for use if purgeRequested is implemented as an asynchronous action.|None|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
+|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found (The specified table identifier was not found)|[ResponseErrorObject](#schemaresponseerrorobject)|
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -722,13 +741,13 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X HEAD http://127.0.0.1:1080/namespaces/{namespace}/tables/{table} \
+curl -X HEAD https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table} \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("HEAD");
 int responseCode = con.getResponseCode();
@@ -748,7 +767,7 @@ System.out.println(response.toString());
 
 *Check if a table exists*
 
-Check if a table exists within a given namespace. Returns the standard Iceberg response data wrapper with exists set to `true` when found, `false` if not found. If the namespace for the table does not exist, returns a 404 NoSuchNamespaceException.
+Check if a table exists within a given namespace.
 
 <h3 id="tableexists-parameters">Parameters</h3>
 
@@ -778,7 +797,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST http://127.0.0.1:1080/tables/rename \
+curl -X POST https://{host}:{port}/{basePath}/tables/rename \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -786,7 +805,7 @@ curl -X POST http://127.0.0.1:1080/tables/rename \
 ```
 
 ```java
-URL obj = new URL("http://127.0.0.1:1080/tables/rename");
+URL obj = new URL("https://{host}:{port}/{basePath}/tables/rename");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -844,7 +863,7 @@ Rename a table from one identifier to another. It's valid to move a table across
 ```json
 {
   "error": {
-    "message": "Table does not exist",
+    "message": "Table to rename does not exist",
     "type": "NoSuchTableException",
     "code": 404
   }
@@ -854,7 +873,7 @@ Rename a table from one identifier to another. It's valid to move a table across
 ```json
 {
   "error": {
-    "message": "Namespace does not exist",
+    "message": "Namespace to rename to does not exist",
     "type": "NoSuchNameSpaceException",
     "code": 404
   }
@@ -891,41 +910,6 @@ BearerAuth
 </aside>
 
 # Schemas
-
-<h2 id="tocS_IcebergResponseObject">IcebergResponseObject</h2>
-<!-- backwards compatibility -->
-<a id="schemaicebergresponseobject"></a>
-<a id="schema_IcebergResponseObject"></a>
-<a id="tocSicebergresponseobject"></a>
-<a id="tocsicebergresponseobject"></a>
-
-```json
-{
-  "data": {
-    "namespaces": [
-      [
-        "ns1",
-        "foo_db"
-      ],
-      [
-        "ns1",
-        "bar_db"
-      ]
-    ]
-  },
-  "error": {}
-}
-
-```
-
-JSON wrapper for all response bodies, with a data object and / or an error object
-
-### Properties
-
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|data|[ResponseDataObject](#schemaresponsedataobject)|false|none|JSON data payload returned in a successful response body|
-|error|[ResponseErrorObject](#schemaresponseerrorobject)|false|none|JSON error payload returned in a response with further details on the error|
 
 <h2 id="tocS_ResponseDataObject">ResponseDataObject</h2>
 <!-- backwards compatibility -->
@@ -1265,75 +1249,6 @@ Server-provided configuration for the catalog.
 |---|---|---|---|---|
 |rootPath|string|false|none|Root path to be used for all other requests. Server-side implementations are free to use another choice for root path, but must conform to the specification otherwise in order to interoperate with the URI generation that the REST catalog client will do.|
 |catalogProperties|object¦null|false|none|An optional field for storing catalog configuration properties that are stored server side. This could be beneifical to an administrator, for example to enforce that a given LocationProvider is used or to enforce that a certain FileIO implementation is used.|
-
-<h2 id="tocS_NoSuchNamespaceError">NoSuchNamespaceError</h2>
-<!-- backwards compatibility -->
-<a id="schemanosuchnamespaceerror"></a>
-<a id="schema_NoSuchNamespaceError"></a>
-<a id="tocSnosuchnamespaceerror"></a>
-<a id="tocsnosuchnamespaceerror"></a>
-
-```json
-{
-  "message": "string",
-  "type": "NoSuchNamespaceException",
-  "code": 404,
-  "metadata": {}
-}
-
-```
-
-Namespace provided in the request does not exist
-
-### Properties
-
-*None*
-
-<h2 id="tocS_NamespaceAlreadyExistsError">NamespaceAlreadyExistsError</h2>
-<!-- backwards compatibility -->
-<a id="schemanamespacealreadyexistserror"></a>
-<a id="schema_NamespaceAlreadyExistsError"></a>
-<a id="tocSnamespacealreadyexistserror"></a>
-<a id="tocsnamespacealreadyexistserror"></a>
-
-```json
-{
-  "message": "string",
-  "type": "NoSuchNamespaceException",
-  "code": 404,
-  "metadata": {}
-}
-
-```
-
-Namespace provided in the request already exists
-
-### Properties
-
-*None*
-
-<h2 id="tocS_NoSuchTableError">NoSuchTableError</h2>
-<!-- backwards compatibility -->
-<a id="schemanosuchtableerror"></a>
-<a id="schema_NoSuchTableError"></a>
-<a id="tocSnosuchtableerror"></a>
-<a id="tocsnosuchtableerror"></a>
-
-```json
-{
-  "message": "string",
-  "type": "NoSuchNamespaceException",
-  "code": 404,
-  "metadata": {}
-}
-
-```
-
-The given table identifier does not exist
-
-### Properties
-
-*None*
 
 <h2 id="tocS_TableAlreadyExistsError">TableAlreadyExistsError</h2>
 <!-- backwards compatibility -->
