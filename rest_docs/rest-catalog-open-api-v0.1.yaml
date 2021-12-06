@@ -179,25 +179,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
-    post:
-      tags:
-        - Catalog API
-      summary: Create a table with the identifier given in the body
-      operationId: createTable
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTableRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateTableResponse'
-  /v1/tables/renameTable:
+  /v1/tables/rename:
     post:
       tags:
         - Catalog API
@@ -455,25 +437,6 @@ components:
           $ref: '#/components/schemas/TableIdentifier'
         destinationTableIdentifier:
           $ref: '#/components/schemas/TableIdentifier'
-    CreateTableRequest:
-      type: object
-      properties:
-        identifier:
-          $ref: '#/components/schemas/TableIdentifier'
-        schema:
-          $ref: '#/components/schemas/Schema'
-        partitionSpec:
-          $ref: '#/components/schemas/PartitionSpec'
-        sortOrder:
-          $ref: '#/components/schemas/SortOrder'
-        properties:
-          type: object
-          additionalProperties:
-            type: string
-        metadataJson:
-          type: string
-        commit:
-          type: boolean
     PartitionSpec:
       type: object
       properties:
@@ -487,27 +450,6 @@ components:
           additionalProperties:
             type: integer
             format: int32
-    SortOrder:
-      type: object
-      properties:
-        unsorted:
-          type: boolean
-    CreateTableResponse:
-      type: object
-      properties:
-        identifier:
-          $ref: '#/components/schemas/TableIdentifier'
-        metadataLocation:
-          type: string
-          description: "Location of the most current primary metadata file for the table"
-          example: s3://bucket/prod/accounting.db/monthly_sales/metadata/00001-0d4ef14f-ef7d-43e7-9af-5f4ad40a1103.metadata.json
-        metadataJson:
-          type: string
-          description: "Stringified JSON representing the tables metadata"
-          example:
-            "TODO"
-        tableToken:
-          type: string
     SetPropertiesRequest:
       type: object
       properties:
@@ -617,11 +559,11 @@ components:
       example: "{ data: { }, error: { } }"
     ResponseDataObject:
       type: object
-      description: JSON data payload returned in a successful response body.
+      description: JSON data payload returned in a successful response body
       example: '{ data: { identifiers: [ "office.employees", "office.dogs", "office.cats" ] }'
     ResponseErrorObject:
       type: object
-      description: Error portion embedded in all JSON responses with further details of the error
+      description: JSON error payload returned in a response with further details on the error
       properties:
         message:
           type: string
@@ -640,7 +582,6 @@ components:
       required:
         - message
         - type
-        - code
   examples:
     catalogName:
       value: prod
