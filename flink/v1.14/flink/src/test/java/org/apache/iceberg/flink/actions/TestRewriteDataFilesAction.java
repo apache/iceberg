@@ -99,6 +99,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
+  @Override
   @Before
   public void before() {
     super.before();
@@ -117,6 +118,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         TABLE_NAME_PARTITIONED));
   }
 
+  @Override
   @After
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTITIONED);
