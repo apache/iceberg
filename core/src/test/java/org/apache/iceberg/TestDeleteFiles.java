@@ -268,6 +268,40 @@ public class TestDeleteFiles extends TableTestBase {
             .commit());
   }
 
+  @Test
+  public void testDeleteCaseSensitivity() {
+    table.newFastAppend()
+        .appendFile(DATA_FILE_BUCKET_0_IDS_0_2)
+        .commit();
+
+    Expression rowFilter = Expressions.lessThan("iD", 5);
+
+    AssertHelpers.assertThrows("Should use case sensitive binding by default",
+        ValidationException.class, "Cannot find field 'iD'",
+        () -> table.newDelete()
+            .deleteFromRowFilter(rowFilter)
+            .commit());
+
+    AssertHelpers.assertThrows("Should fail with case sensitive binding",
+        ValidationException.class, "Cannot find field 'iD'",
+        () -> table.newDelete()
+            .deleteFromRowFilter(rowFilter)
+            .caseSensitive(true)
+            .commit());
+
+    table.newDelete()
+        .deleteFromRowFilter(rowFilter)
+        .caseSensitive(false)
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(deleteSnapshot.snapshotId()),
+        files(DATA_FILE_BUCKET_0_IDS_0_2),
+        statuses(Status.DELETED));
+  }
+
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }

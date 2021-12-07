@@ -900,4 +900,45 @@ public class TestOverwriteWithValidation extends TableTestBase {
     validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
     validateTableDeleteFiles(table, FILE_DAY_1_POS_DELETES);
   }
+
+  @Test
+  public void testOverwriteCaseSensitivity() {
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .commit();
+
+    Expression rowFilter = equal("dAtE", "2018-06-09");
+
+    AssertHelpers.assertThrows("Should use case sensitive binding by default",
+        ValidationException.class, "Cannot find field 'dAtE'",
+        () -> table.newOverwrite()
+            .addFile(FILE_DAY_2_MODIFIED)
+            .conflictDetectionFilter(rowFilter)
+            .validateNoConflictingData()
+            .commit());
+
+    AssertHelpers.assertThrows("Should fail with case sensitive binding",
+        ValidationException.class, "Cannot find field 'dAtE'",
+        () -> table.newOverwrite()
+            .caseSensitive(true)
+            .addFile(FILE_DAY_2_MODIFIED)
+            .conflictDetectionFilter(rowFilter)
+            .validateNoConflictingData()
+            .commit());
+
+    // binding should succeed and trigger the validation
+    AssertHelpers.assertThrows("Should trigger the validation",
+        ValidationException.class, "Found conflicting files",
+        () -> table.newOverwrite()
+            .caseSensitive(false)
+            .addFile(FILE_DAY_2_MODIFIED)
+            .conflictDetectionFilter(rowFilter)
+            .validateNoConflictingData()
+            .commit());
+  }
 }
