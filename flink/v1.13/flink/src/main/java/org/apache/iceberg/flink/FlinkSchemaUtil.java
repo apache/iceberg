@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.descriptors.DescriptorProperties;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
@@ -38,11 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK;
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_ROWTIME;
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_EXPR;
 
 /**
  * Converter between Flink types and Iceberg type.
@@ -170,27 +166,29 @@ public class FlinkSchemaUtil {
 
     // Add watermark
     final int watermarkCount =
-            properties.keySet().stream()
-                    .filter(
-                            (k) ->
-                                    k.startsWith(WATERMARK)
-                                            && k.endsWith('.' + WATERMARK_ROWTIME))
-                    .mapToInt((k) -> 1)
-                    .sum();
+        properties.keySet().stream()
+            .filter(
+                (k) ->
+                    k.startsWith(DescriptorProperties.WATERMARK) &&
+                        k.endsWith('.' + DescriptorProperties.WATERMARK_ROWTIME))
+            .mapToInt((k) -> 1)
+            .sum();
     if (watermarkCount > 0) {
       for (int i = 0; i < watermarkCount; i++) {
-        final String rowtimeKey = WATERMARK + '.' + i + '.' + WATERMARK_ROWTIME;
-        final String exprKey = WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_EXPR;
+        final String rowtimeKey =
+            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME;
+        final String exprKey =
+            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR;
         final String typeKey =
-                WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_DATA_TYPE;
+            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
         final String rowtime =
-                optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
+            optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
         final String exprString =
-                optionalGet(exprKey, properties).orElseThrow(exceptionSupplier(exprKey));
+            optionalGet(exprKey, properties).orElseThrow(exceptionSupplier(exprKey));
         final String typeString =
-                optionalGet(typeKey, properties).orElseThrow(exceptionSupplier(typeKey));
+            optionalGet(typeKey, properties).orElseThrow(exceptionSupplier(typeKey));
         final DataType exprType =
-                TypeConversions.fromLogicalToDataType(LogicalTypeParser.parse(typeString));
+            TypeConversions.fromLogicalToDataType(LogicalTypeParser.parse(typeString));
         builder.watermark(rowtime, exprString, exprType);
       }
     }
@@ -211,17 +209,15 @@ public class FlinkSchemaUtil {
     return builder.build();
   }
 
-    private static Optional<String> optionalGet(String key, Map<String, String> properties) {
-      return Optional.ofNullable(properties.get(key));
-    }
+  private static Optional<String> optionalGet(String key, Map<String, String> properties) {
+    return Optional.ofNullable(properties.get(key));
+  }
 
   private static Supplier<TableException> exceptionSupplier(String key) {
     return () -> {
       throw new TableException(
-              "Property with key '"
-                      + key
-                      + "' could not be found. "
-                      + "This is a bug because the validation logic should have checked that before.");
+          "Property with key '" + key + "' could not be found. " +
+              "This is a bug because the validation logic should have checked that before.");
     };
   }
 }

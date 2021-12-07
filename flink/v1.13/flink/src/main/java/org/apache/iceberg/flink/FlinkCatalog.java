@@ -50,9 +50,9 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
+import org.apache.flink.table.descriptors.DescriptorProperties;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
-import org.apache.flink.table.types.DataType;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -78,11 +78,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK;
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_ROWTIME;
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
-import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_EXPR;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -284,7 +279,6 @@ public class FlinkCatalog extends AbstractCatalog {
         if (!removals.isEmpty()) {
           asNamespaceCatalog.removeProperties(namespace, removals);
         }
-
       } catch (NoSuchNamespaceException e) {
         if (!ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name, e);
@@ -386,12 +380,18 @@ public class FlinkCatalog extends AbstractCatalog {
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
 
     List<WatermarkSpec> watermarkSpecs = table.getSchema().getWatermarkSpecs();
-    if (watermarkSpecs!=null){
+    if (watermarkSpecs != null) {
       for (int i = 0; i < watermarkSpecs.size(); i++) {
         WatermarkSpec watermarkSpec = watermarkSpecs.get(i);
-        properties.put(WATERMARK + '.' + i + '.' + WATERMARK_ROWTIME, watermarkSpec.getRowtimeAttribute());
-        properties.put(WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_EXPR, watermarkSpec.getWatermarkExpr());
-        properties.put(WATERMARK + '.' + i + '.' + WATERMARK_STRATEGY_DATA_TYPE, watermarkSpec.getWatermarkExprOutputType().toString());
+        properties.put(
+            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME,
+            watermarkSpec.getRowtimeAttribute());
+        properties.put(
+            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR,
+            watermarkSpec.getWatermarkExpr());
+        properties.put(
+            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE,
+            watermarkSpec.getWatermarkExprOutputType().toString());
       }
     }
 

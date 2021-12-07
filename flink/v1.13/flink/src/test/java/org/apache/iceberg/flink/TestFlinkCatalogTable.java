@@ -169,18 +169,22 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testCreateTableWithWatermark() {
-    sql("CREATE TABLE tl(id BIGINT, data STRING, testTime TIMESTAMP(3), WATERMARK FOR testTime AS testTime - INTERVAL '5' SECOND)");
+    sql("CREATE TABLE tl(id BIGINT, data STRING, testTime TIMESTAMP(3), WATERMARK FOR testTime AS testTime - " +
+        "INTERVAL '5' SECOND)");
 
     Table table = table("tl");
-    Assert.assertEquals("Should have the expected watermark properties.",
-            table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_ROWTIME),
-            "testTime");
-    Assert.assertEquals("Should have the expected watermark properties.",
-            table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_EXPR),
-            "TIMESTAMP(3)");
-    Assert.assertEquals("Should have the expected watermark properties.",
-            table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_DATA_TYPE),
-            "testTime - INTERVAL '5' SECOND");
+    Assert.assertEquals(
+        "Should have the expected watermark properties.",
+        table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_ROWTIME),
+        "testTime");
+    Assert.assertEquals(
+        "Should have the expected watermark properties.",
+        table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_DATA_TYPE),
+        "TIMESTAMP(3)");
+    Assert.assertEquals(
+        "Should have the expected watermark properties.",
+        table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_EXPR),
+        "`testTime` - INTERVAL '5' SECOND");
   }
 
   @Test
