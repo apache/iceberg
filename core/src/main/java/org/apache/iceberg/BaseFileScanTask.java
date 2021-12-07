@@ -222,7 +222,7 @@ class BaseFileScanTask implements FileScanTask {
 
     public boolean isAdjacent(SplitScanTask other) {
       return (other != null) &&
-          (this.file() == other.file()) &&
+          (this.file().equals(other.file())) &&
           (this.offset + this.len == other.offset);
     }
   }
@@ -237,16 +237,24 @@ class BaseFileScanTask implements FileScanTask {
 
     for (FileScanTask fileScanTask : tasks) {
       if (!(fileScanTask instanceof SplitScanTask)) {
+        // We do not know how to combine anything but SplitScanTasks
         combinedScans.add(fileScanTask);
       } else {
         SplitScanTask split = (SplitScanTask) fileScanTask;
-        if (lastSplit != null && lastSplit.isAdjacent(split)) {
-          lastSplit = new SplitScanTask(
-              lastSplit.offset,
-              lastSplit.len + split.len,
-              lastSplit.fileScanTask);
+        if (lastSplit != null) {
+          if (lastSplit.isAdjacent(split)) {
+            // We can merge with the last split
+            lastSplit = new SplitScanTask(
+                lastSplit.offset,
+                lastSplit.len + split.len,
+                lastSplit.fileScanTask);
+          } else {
+            // We cannot merge with the last split, add it to the set of tasks
+            combinedScans.add(lastSplit);
+            lastSplit = split;
+          }
         } else {
-          combinedScans.add(lastSplit);
+          // We haven't seen another split yet, save this split in-case we can combine it later
           lastSplit = split;
         }
       }
@@ -256,6 +264,6 @@ class BaseFileScanTask implements FileScanTask {
       combinedScans.add(lastSplit);
     }
 
-    return  combinedScans.stream().toArray(FileScanTask[]::new);
+    return combinedScans.stream().toArray(FileScanTask[]::new);
   }
 }
