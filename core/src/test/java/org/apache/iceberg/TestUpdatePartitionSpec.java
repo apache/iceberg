@@ -599,8 +599,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     }
 
     PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
-        .month("ts", "ts_date")
-        .build();
+            .month("ts", "ts_date")
+            .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }

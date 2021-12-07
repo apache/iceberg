@@ -173,7 +173,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec removeField(String name) {
-    System.out.println("calling removeField");
     PartitionField alreadyAdded = nameToAddedField.get(name);
     Preconditions.checkArgument(alreadyAdded == null, "Cannot delete newly added field: %s", alreadyAdded);
 
