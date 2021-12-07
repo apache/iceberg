@@ -599,8 +599,8 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     }
 
     PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
-            .month("ts", "ts_date")
-            .build();
+        .month("ts", "ts_date")
+        .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
@@ -608,16 +608,16 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRemoveAndUpdateWithIdentity() {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
-            .identity("ts")
-            .build();
+         .identity("ts")
+         .build();
     PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
-            .removeField("ts")
-            .addField("ts")
-            .apply();
+         .removeField("ts")
+         .addField("ts")
+         .apply();
 
     if (formatVersion == 1) {
       Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
-      Assert.assertEquals("Should match expected field name", "ts",
+      Assert.assertEquals("Should match expected field name", "ts_1000",
               updated.fields().get(0).name());
       Assert.assertEquals("Should match expected field name", "ts",
               updated.fields().get(1).name());
@@ -637,16 +637,16 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRemoveAndUpdateWithDifferentTransformation() {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
-            .month("ts", "ts_transformed")
-            .build();
+        .month("ts", "ts_transformed")
+        .build();
     PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
-            .removeField("ts_transformed")
-            .addField("ts_transformed", day("ts"))
-            .apply();
+        .removeField("ts_transformed")
+        .addField("ts_transformed", day("ts"))
+        .apply();
 
     if (formatVersion == 1) {
       Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
-      Assert.assertEquals("Should match expected field name", "ts_transformed",
+      Assert.assertEquals("Should match expected field name", "ts_transformed_1000",
               updated.fields().get(0).name());
       Assert.assertEquals("Should match expected field name", "ts_transformed",
               updated.fields().get(1).name());
