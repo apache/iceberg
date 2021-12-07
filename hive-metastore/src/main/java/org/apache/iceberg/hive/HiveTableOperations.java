@@ -362,7 +362,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
 
-    // remove the DDL_TIME so it gets refreshed
+    // remove any props that are controlled by HMS so it can handle them
     parameters.remove(hive_metastoreConstants.DDL_TIME);
 
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
