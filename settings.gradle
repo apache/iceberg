@@ -95,6 +95,15 @@ if (flinkVersions.contains("1.13")) {
   project(':iceberg-flink:flink-1.13-runtime').name = 'iceberg-flink-1.13-runtime'
 }
 
+if (flinkVersions.contains("1.14")) {
+  include ':iceberg-flink:flink-1.14'
+  include ':iceberg-flink:flink-1.14-runtime'
+  project(':iceberg-flink:flink-1.14').projectDir = file('flink/v1.14/flink')
+  project(':iceberg-flink:flink-1.14').name = 'iceberg-flink-1.14'
+  project(':iceberg-flink:flink-1.14-runtime').projectDir = file('flink/v1.14/flink-runtime')
+  project(':iceberg-flink:flink-1.14-runtime').name = 'iceberg-flink-1.14-runtime'
+}
+
 if (sparkVersions.contains("3.0")) {
   include ':iceberg-spark:spark3'
   include ':iceberg-spark:spark3-extensions'
