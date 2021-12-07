@@ -62,6 +62,11 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK;
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_ROWTIME;
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
+import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_STRATEGY_EXPR;
+
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   public TestFlinkCatalogTable(String catalogName, Namespace baseNamepace) {
@@ -160,6 +165,22 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
     Assert.assertEquals("Should have the expected columns",
         ImmutableSet.of("data", "id"), ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()));
+  }
+
+  @Test
+  public void testCreateTableWithWatermark() {
+    sql("CREATE TABLE tl(id BIGINT, data STRING, testTime TIMESTAMP(3), WATERMARK FOR testTime AS testTime - INTERVAL '5' SECOND)");
+
+    Table table = table("tl");
+    Assert.assertEquals("Should have the expected watermark properties.",
+            table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_ROWTIME),
+            "testTime");
+    Assert.assertEquals("Should have the expected watermark properties.",
+            table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_EXPR),
+            "TIMESTAMP(3)");
+    Assert.assertEquals("Should have the expected watermark properties.",
+            table.properties().get(WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_DATA_TYPE),
+            "testTime - INTERVAL '5' SECOND");
   }
 
   @Test
