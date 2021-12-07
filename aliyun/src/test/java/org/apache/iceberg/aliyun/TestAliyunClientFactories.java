@@ -21,6 +21,7 @@ package org.apache.iceberg.aliyun;
 
 import com.aliyun.oss.OSS;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
@@ -32,9 +33,20 @@ public class TestAliyunClientFactories {
     Assert.assertEquals("Default client should be singleton",
         AliyunClientFactories.defaultFactory(), AliyunClientFactories.defaultFactory());
 
+    AliyunClientFactory defaultFactory = AliyunClientFactories.from(Maps.newHashMap());
     Assert.assertTrue(
-        "Should load default when not configured",
-        AliyunClientFactories.load(Maps.newHashMap()) instanceof AliyunClientFactories.DefaultAliyunClientFactory);
+        "Should load default when factory impl not configured",
+         defaultFactory instanceof AliyunClientFactories.DefaultAliyunClientFactory);
+    Assert.assertNull("Should have no Aliyun properties set",
+        defaultFactory.aliyunProperties().accessKeyId());
+
+    AliyunClientFactory defaultFactoryWithConfig = AliyunClientFactories.from(
+        ImmutableMap.of(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key"));
+    Assert.assertTrue(
+        "Should load default when factory impl not configured",
+        defaultFactoryWithConfig instanceof AliyunClientFactories.DefaultAliyunClientFactory);
+    Assert.assertEquals("Should have access key set",
+        "key", defaultFactoryWithConfig.aliyunProperties().accessKeyId());
   }
 
   @Test
@@ -43,7 +55,7 @@ public class TestAliyunClientFactories {
     properties.put(AliyunProperties.CLIENT_FACTORY, CustomFactory.class.getName());
     Assert.assertTrue(
         "Should load custom class",
-        AliyunClientFactories.load(properties) instanceof CustomFactory);
+        AliyunClientFactories.from(properties) instanceof CustomFactory);
   }
 
   public static class CustomFactory implements AliyunClientFactory {
