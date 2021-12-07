@@ -77,9 +77,16 @@ System.out.println(response.toString());
 
 *List all catalog configuration settings*
 
-All REST catalog clients will first call this route to get some configuration provided by the server. This route will return any server specified default configuration values for the catalog, such as configuration values used to setup the catalog for usage with Spark (e.g. vectorization-enabled).
-Users should be able to override these values with client specified values.
-The server might be able to request that the client use its value over a value that has been configured in the client application. How and if it will do that is an open question, and thus not currently specified in this documents schema.
+All REST catalog clients will first call this route to get possible catalog-specific configuration values provided by the server, that the catalog (and its HTTP client) can use to complete the `initialize` step.
+This call is similar to the initial set-up calls that some catalogs already do for domain-specific information, such as the Nessie catalog or the Glue catalog. This is to allow for services that would like to integrate with Iceberg to do so, and to be able to add their own domain-specific information into the REST catalog without requiring them to write and distribute a catalog themselves.
+There will be two sets of values provided -
+- overrides
+  * An object containing values that the client must use.
+    For example, auth headers that the client will receive from the server
+    as temporary credentials.
+- defaults
+  * Catalog-specific configuration that the client may use as a default value.
+    These are optional and the client is free to use its own value for these.
 
 > Example responses
 
@@ -87,8 +94,21 @@ The server might be able to request that the client use its value over a value t
 
 ```json
 {
-  "rootPath": "/",
-  "catalogProperties": {}
+  "data": {
+    "overrides": {
+      "prefix": "/raul",
+      "headers": {
+        "User-Agent": "Raul",
+        "Authorization": "Basic Ym9zY236Ym9zY28="
+      }
+    },
+    "defaults": {
+      "clients": 5,
+      "headers": {
+        "Upgrade-Insecure-Requests": "1"
+      }
+    }
+  }
 }
 ```
 
@@ -950,8 +970,7 @@ JSON data payload returned in a successful response body
 {
   "message": "string",
   "type": "NoSuchNamespaceException",
-  "code": 404,
-  "metadata": {}
+  "code": 404
 }
 
 ```
@@ -965,7 +984,6 @@ JSON error payload returned in a response with further details on the error
 |message|string|true|none|Human-readable error message|
 |type|string|true|none|Internal type of the error, such as an exception class|
 |code|integer|true|none|HTTP response code|
-|metadata|object¦null|false|none|Additional metadata to accompany this error, such as server side stack traces or user instructions|
 
 <h2 id="tocS_TableIdentifier">TableIdentifier</h2>
 <!-- backwards compatibility -->
@@ -1261,8 +1279,7 @@ Server-provided configuration for the catalog.
 {
   "message": "string",
   "type": "NoSuchNamespaceException",
-  "code": 404,
-  "metadata": {}
+  "code": 404
 }
 
 ```
