@@ -166,7 +166,6 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   @Override
   public void processWatermark(Watermark mark) {
     // we do nothing because we emit our own watermarks if needed.
-    output.emitWatermark(mark);
   }
 
   @Override
