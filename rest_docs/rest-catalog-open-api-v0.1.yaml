@@ -479,7 +479,7 @@ components:
             type: string
         properties:
           type: object
-          description: Configuration properties for the namespace
+          description: Configured properties for the namespace
           example: '{ "owner": "Hank Bendickson" }'
     RenameTableRequest:
       type: object
