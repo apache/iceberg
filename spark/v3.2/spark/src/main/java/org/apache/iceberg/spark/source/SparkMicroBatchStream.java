@@ -77,6 +77,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
+  private final boolean skipOverwrite;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf, boolean caseSensitive,
                         Schema expectedSchema, String checkpointLocation) {
@@ -93,6 +94,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
+    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
   }
 
   @Override
@@ -206,9 +208,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
             snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
-        Preconditions.checkState(skipDelete,
+        Preconditions.checkState(skipOverwrite,
             "Cannot process overwrite snapshot : %s. Set read option %s to allow skipping snapshots of type overwrite",
-            snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
+            snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
         return false;
       default:
         throw new IllegalStateException(String.format(
