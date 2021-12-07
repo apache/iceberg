@@ -64,7 +64,6 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
       Dataset<Row> scanDF = cloneSession.read().format("iceberg")
           .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
-          .option(SparkReadOptions.LOOKBACK, 10)
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
           .load(table.name());
 
