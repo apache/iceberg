@@ -388,6 +388,38 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 
+  @Test
+  public void testReadStreamWithSnapshotTypeDeleteAndSkipOverwriteOption() throws Exception {
+    table.updateSpec()
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
+
+    table.refresh();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+
+    table.refresh();
+
+    // this should create a snapshot with type overwrite.
+    table.newOverwrite()
+        .overwriteByRowFilter(Expressions.greaterThan("id", 4))
+        .commit();
+
+    // check pre-condition - that the above delete operation on table resulted in Snapshot of Type OVERWRITE.
+    table.refresh();
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .option(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true")
+        .load(tableIdentifier);
+    Assertions.assertThat(processAvailable(df))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
       throws TimeoutException, StreamingQueryException {
     StreamingQuery streamingQuery = singleBatchWriter.start();
