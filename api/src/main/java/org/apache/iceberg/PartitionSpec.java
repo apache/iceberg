@@ -319,7 +319,8 @@ public class PartitionSpec implements Serializable {
   public static class Builder {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
-    private final Set<String> partitionNameAndTransform = Sets.newHashSet();
+    private final Set<String> partitionNames = Sets.newHashSet();
+    private final Set<String> voidPartitions = Sets.newHashSet();
     private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
@@ -350,10 +351,16 @@ public class PartitionSpec implements Serializable {
       }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
-      String nameAndTransform = name + "_" + transformName;
-      Preconditions.checkArgument(!partitionNameAndTransform.contains(nameAndTransform),
+      if (transformName.equals(Transforms.alwaysNull().dedupName())) {
+        System.out.println("adding " + name);
+        voidPartitions.add(name);
+      }
+      Preconditions.checkArgument(!partitionNames.contains(name) || voidPartitions.contains(name),
           "Cannot use partition name more than once: %s", name);
-      partitionNameAndTransform.add(nameAndTransform);
+      partitionNames.add(name);
+      if (!transformName.equals(Transforms.alwaysNull().dedupName())) {
+        voidPartitions.remove(name);
+      }
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
