@@ -83,12 +83,6 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
-  public OverwriteFiles caseSensitive(boolean isCaseSensitive) {
-    caseSensitiveBinding(isCaseSensitive);
-    return this;
-  }
-
-  @Override
   public OverwriteFiles conflictDetectionFilter(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
@@ -121,7 +115,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       Expression strictExpr = Projections.strict(spec).project(rowFilter);
       Evaluator strict = new Evaluator(spec.partitionType(), strictExpr);
 
-      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(base.schema(), rowFilter, caseSensitive());
+      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
       for (DataFile file : addedFiles()) {
         // the real test is that the strict or metrics test matches the file, indicating that all

@@ -59,10 +59,4 @@ class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements De
     deleteByRowFilter(expr);
     return this;
   }
-
-  @Override
-  public StreamingDelete caseSensitive(boolean caseSensitive) {
-    caseSensitiveBinding(caseSensitive);
-    return this;
-  }
 }

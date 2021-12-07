@@ -65,12 +65,6 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  public RowDelta caseSensitive(boolean isCaseSensitive) {
-    caseSensitiveBinding(isCaseSensitive);
-    return this;
-  }
-
-  @Override
   public RowDelta validateDeletedFiles() {
     this.validateDeletes = true;
     return this;

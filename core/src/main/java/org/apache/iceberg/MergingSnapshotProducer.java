@@ -127,13 +127,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return self();
   }
 
-  protected void caseSensitiveBinding(boolean newCaseSensitive) {
-    this.caseSensitive = newCaseSensitive;
-    filterManager.caseSensitive(newCaseSensitive);
-    deleteFilterManager.caseSensitive(newCaseSensitive);
+  public ThisT caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    filterManager.caseSensitive(isCaseSensitive);
+    deleteFilterManager.caseSensitive(isCaseSensitive);
+    return self();
   }
 
-  protected boolean caseSensitive() {
+  protected boolean isCaseSensitive() {
     return caseSensitive;
   }
 
@@ -282,7 +283,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshots = history.second();
 
     ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
-        .caseSensitive(caseSensitive())
+        .caseSensitive(caseSensitive)
         .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
         .filterData(conflictDetectionFilter)
         .specsById(base.specsById())
@@ -415,7 +416,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                                                Expression dataFilter) {
     DeleteFileIndex.Builder builder = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
         .afterSequenceNumber(startingSequenceNumber)
-        .caseSensitive(caseSensitive())
+        .caseSensitive(caseSensitive)
         .specsById(ops.current().specsById());
 
     if (dataFilter != null) {
