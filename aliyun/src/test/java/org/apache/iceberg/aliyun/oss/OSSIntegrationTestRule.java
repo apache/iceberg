@@ -24,42 +24,39 @@ import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.ListObjectsV2Request;
 import com.aliyun.oss.model.ListObjectsV2Result;
 import com.aliyun.oss.model.OSSObjectSummary;
-import java.util.UUID;
 import org.apache.iceberg.aliyun.AliyunTestUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * It's used for integration test.
- */
 public class OSSIntegrationTestRule implements AliyunOSSTestRule {
-  private String endpoint;
-  private String accessKey;
-  private String accessSecret;
-  private String testBucketName;
-  private String keyPrefix;
+  // Aliyun access key pair.
+  private String accessKeyId;
+  private String accessKeySecret;
 
-  private OSS lazyClient = null;
+  // Aliyun OSS configure values.
+  private String ossEndpoint;
+  private String ossBucket;
+  private String ossKey;
+
+  private volatile OSS lazyClient = null;
 
   @Override
   public String testBucketName() {
-    return testBucketName;
+    return ossBucket;
   }
 
   @Override
   public String keyPrefix() {
-    return keyPrefix;
+    return ossKey;
   }
 
   @Override
   public void start() {
-    endpoint = AliyunTestUtility.ossEndpoint();
-    accessKey = AliyunTestUtility.accessKeyId();
-    accessSecret = AliyunTestUtility.accessKeySecret();
-    testBucketName = AliyunTestUtility.bucketName();
-    keyPrefix = AliyunTestUtility.ossKeyPrefix();
-    if (keyPrefix == null) {
-      keyPrefix = String.format("iceberg-oss-testing-%s", UUID.randomUUID());
-    }
+    this.accessKeyId = AliyunTestUtility.accessKeyId();
+    this.accessKeySecret = AliyunTestUtility.accessKeySecret();
+
+    this.ossEndpoint = AliyunTestUtility.ossEndpoint();
+    this.ossBucket = AliyunTestUtility.ossBucket();
+    this.ossKey = AliyunTestUtility.ossKey();
   }
 
   @Override
@@ -72,11 +69,11 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
 
   @Override
   public OSS createOSSClient() {
-    Preconditions.checkNotNull(endpoint, "OSS endpoint cannot be null");
-    Preconditions.checkNotNull(accessKey, "OSS access key cannot be null");
-    Preconditions.checkNotNull(accessSecret, "OSS access secret cannot be null");
+    Preconditions.checkNotNull(ossEndpoint, "OSS endpoint cannot be null");
+    Preconditions.checkNotNull(accessKeyId, "OSS access key id cannot be null");
+    Preconditions.checkNotNull(accessKeySecret, "OSS access secret cannot be null");
 
-    return new OSSClientBuilder().build(endpoint, accessKey, accessSecret);
+    return new OSSClientBuilder().build(ossEndpoint, accessKeyId, accessKeySecret);
   }
 
   @Override
@@ -93,7 +90,9 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
     ListObjectsV2Result objectListingResult;
     do {
       ListObjectsV2Request listObjectsV2Request = new ListObjectsV2Request(bucket)
-          .withMaxKeys(maxKeys).withPrefix(keyPrefix).withContinuationToken(nextContinuationToken);
+          .withMaxKeys(maxKeys)
+          .withPrefix(ossKey)
+          .withContinuationToken(nextContinuationToken);
       objectListingResult = ossClient().listObjectsV2(listObjectsV2Request);
 
       for (OSSObjectSummary s : objectListingResult.getObjectSummaries()) {
