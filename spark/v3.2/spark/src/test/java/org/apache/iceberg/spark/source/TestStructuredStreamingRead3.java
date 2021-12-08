@@ -170,9 +170,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadingStreamFromTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
-            new SimpleRecord(-2, "minustwo"),
-            new SimpleRecord(-1, "minusone"),
-            new SimpleRecord(0, "zero"));
+        new SimpleRecord(-2, "minustwo"),
+        new SimpleRecord(-1, "minusone"),
+        new SimpleRecord(0, "zero"));
     appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
 
     table.refresh();
@@ -185,9 +185,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     table.refresh();
 
     Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
-            .load(tableIdentifier);
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+        .load(tableIdentifier);
     List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
@@ -197,9 +197,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadingStreamAfterLatestTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
-            new SimpleRecord(-2, "minustwo"),
-            new SimpleRecord(-1, "minusone"),
-            new SimpleRecord(0, "zero"));
+        new SimpleRecord(-2, "minustwo"),
+        new SimpleRecord(-1, "minusone"),
+        new SimpleRecord(0, "zero"));
     appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
 
     table.refresh();
@@ -207,9 +207,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     waitUntilAfter(streamStartTimestamp);
 
     Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
-            .load(tableIdentifier);
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+        .load(tableIdentifier);
     List<SimpleRecord> actual = processAvailable(df);
     Assertions.assertThat(actual.isEmpty()).isTrue();
   }
@@ -218,9 +218,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadingStreamFromTimestampStartWithExistingTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
-            new SimpleRecord(-2, "minustwo"),
-            new SimpleRecord(-1, "minusone"),
-            new SimpleRecord(0, "zero"));
+        new SimpleRecord(-2, "minustwo"),
+        new SimpleRecord(-1, "minusone"),
+        new SimpleRecord(0, "zero"));
     appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
 
     table.refresh();
@@ -233,9 +233,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // Start stream
     Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
-            .load(tableIdentifier);
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+        .load(tableIdentifier);
 
     // Append rest of expected data
     for (int i = 1; i < expected.size(); i++) {
@@ -252,26 +252,26 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadingStreamWithExpiredSnapshotFromTimestamp() throws TimeoutException {
     List<SimpleRecord> firstSnapshotRecordList = Lists.newArrayList(
-            new SimpleRecord(1, "one"));
+        new SimpleRecord(1, "one"));
 
     List<SimpleRecord> secondSnapshotRecordList = Lists.newArrayList(
-            new SimpleRecord(2, "two"));
+        new SimpleRecord(2, "two"));
 
     List<SimpleRecord> thirdSnapshotRecordList = Lists.newArrayList(
-            new SimpleRecord(3, "three"));
+        new SimpleRecord(3, "three"));
 
     List<SimpleRecord> expectedRecordList = Lists.newArrayList(
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three"));
+        new SimpleRecord(2, "two"),
+        new SimpleRecord(3, "three"));
 
     appendData(firstSnapshotRecordList, tableIdentifier, "parquet");
     table.refresh();
     Snapshot firstSnapshot = table.currentSnapshot();
 
     Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(firstSnapshot.timestampMillis()))
-            .load(tableIdentifier);
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(firstSnapshot.timestampMillis()))
+        .load(tableIdentifier);
 
     appendData(secondSnapshotRecordList, tableIdentifier, "parquet");
     table.refresh();
@@ -290,21 +290,29 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadingStreamFromTimestampGreaterThanLatestSnapshotTime() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three"));
+        new SimpleRecord(1, "one"),
+        new SimpleRecord(2, "two"),
+        new SimpleRecord(3, "three"));
     appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
 
     table.refresh();
     long streamStartTimestamp = table.currentSnapshot().timestampMillis() + 1;
     waitUntilAfter(streamStartTimestamp);
 
+    // Test stream with Timestamp > Latest Snapshot Time
     Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
-            .load(tableIdentifier);
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+        .load(tableIdentifier);
     List<SimpleRecord> actual = processAvailable(df);
     Assert.assertEquals(Collections.emptyList(), actual);
+
+    // Test stream after new data is added
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected, tableIdentifier);
+    table.refresh();
+    Assertions.assertThat(processAvailable(df, "newdata"))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @SuppressWarnings("unchecked")
@@ -559,15 +567,19 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .save(tableIdentifier);
   }
 
-  private static List<SimpleRecord> processAvailable(Dataset<Row> df) throws TimeoutException {
+  private static List<SimpleRecord> processAvailable(Dataset<Row> df, String tableName) throws TimeoutException {
     StreamingQuery streamingQuery = df.writeStream()
         .format("memory")
-        .queryName("test12")
+        .queryName(tableName)
         .outputMode(OutputMode.Append())
         .start();
     streamingQuery.processAllAvailable();
-    return spark.sql("select * from test12")
+    return spark.sql("select * from " + tableName)
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+  }
+
+  private static List<SimpleRecord> processAvailable(Dataset<Row> df) throws TimeoutException {
+    return processAvailable(df, "test12");
   }
 }
