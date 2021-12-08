@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -159,6 +160,16 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
+  public Map<String, SnapshotRef> refs() {
+    return table().refs();
+  }
+
+  @Override
+  public Set<SnapshotRef> refs(long snapshotId) {
+    return table().refs(snapshotId);
+  }
+
+  @Override
   public UpdateSchema updateSchema() {
     throw new UnsupportedOperationException("Cannot update the schema of a metadata table");
   }
@@ -181,6 +192,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   @Override
   public UpdateLocation updateLocation() {
     throw new UnsupportedOperationException("Cannot update the location of a metadata table");
+  }
+
+  @Override
+  public UpdateSnapshotRefs updateRefs() {
+    throw new UnsupportedOperationException("Cannot update the snapshot references of a metadata table");
   }
 
   @Override

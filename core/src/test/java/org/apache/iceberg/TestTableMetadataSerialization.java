@@ -81,5 +81,6 @@ public class TestTableMetadataSerialization extends TableTestBase {
         Lists.transform(meta.snapshots(), Snapshot::snapshotId),
         Lists.transform(result.snapshots(), Snapshot::snapshotId));
     Assert.assertEquals("History should match", meta.snapshotLog(), result.snapshotLog());
+    Assert.assertEquals("Refs should match", meta.refs(), result.refs());
   }
 }

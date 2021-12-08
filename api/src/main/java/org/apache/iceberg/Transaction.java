@@ -69,6 +69,13 @@ public interface Transaction {
   UpdateLocation updateLocation();
 
   /**
+   * Create a new {@link UpdateSnapshotRefs} to update snapshot references.
+   *
+   * @return a new {@link UpdateSnapshotRefs}
+   */
+  UpdateSnapshotRefs updateRefs();
+
+  /**
    * Create a new {@link AppendFiles append API} to add files to this table.
    *
    * @return a new {@link AppendFiles}

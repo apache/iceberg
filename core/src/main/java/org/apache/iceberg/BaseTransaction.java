@@ -137,6 +137,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateSnapshotRefs updateRefs() {
+    checkLastOperationCommitted("UpdateRefs");
+    UpdateSnapshotRefs updateRefs = new BaseUpdateSnapshotRefs(transactionOps);
+    updates.add(updateRefs);
+    return updateRefs;
+  }
+
+  @Override
   public AppendFiles newAppend() {
     checkLastOperationCommitted("AppendFiles");
     AppendFiles append = new MergeAppend(tableName, transactionOps);
@@ -588,6 +596,16 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Map<String, SnapshotRef> refs() {
+      return current.refs();
+    }
+
+    @Override
+    public Set<SnapshotRef> refs(long snapshotId) {
+      return current.refs(snapshotId);
+    }
+
+    @Override
     public UpdateSchema updateSchema() {
       return BaseTransaction.this.updateSchema();
     }
@@ -610,6 +628,11 @@ class BaseTransaction implements Transaction {
     @Override
     public UpdateLocation updateLocation() {
       return BaseTransaction.this.updateLocation();
+    }
+
+    @Override
+    public UpdateSnapshotRefs updateRefs() {
+      return BaseTransaction.this.updateRefs();
     }
 
     @Override

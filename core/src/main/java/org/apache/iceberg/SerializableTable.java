@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
@@ -263,6 +264,16 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public Map<String, SnapshotRef> refs() {
+    return lazyTable().refs();
+  }
+
+  @Override
+  public Set<SnapshotRef> refs(long snapshotId) {
+    return lazyTable().refs(snapshotId);
+  }
+
+  @Override
   public UpdateSchema updateSchema() {
     throw new UnsupportedOperationException(errorMsg("updateSchema"));
   }
@@ -285,6 +296,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public UpdateLocation updateLocation() {
     throw new UnsupportedOperationException(errorMsg("updateLocation"));
+  }
+
+  @Override
+  public UpdateSnapshotRefs updateRefs() {
+    throw new UnsupportedOperationException(errorMsg("updateRefs"));
   }
 
   @Override

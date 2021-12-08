@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -139,6 +140,22 @@ public interface Table {
   List<HistoryEntry> history();
 
   /**
+   * Get the snapshot references of this table.
+   *
+   * @return a map with ref name as key, {@link SnapshotRef} as value
+   */
+  Map<String, SnapshotRef> refs();
+
+  /**
+   * Get the snapshot references of a snapshot.
+   *
+   * @param snapshotId snapshot ID
+   * @return a set of {@link SnapshotRef snapshot references} of a snapshot.
+   *         Note that when there is no ref, it returns an empty set but not null.
+   */
+  Set<SnapshotRef> refs(long snapshotId);
+
+  /**
    * Create a new {@link UpdateSchema} to alter the columns of this table and commit the change.
    *
    * @return a new {@link UpdateSchema}
@@ -172,6 +189,13 @@ public interface Table {
    * @return a new {@link UpdateLocation}
    */
   UpdateLocation updateLocation();
+
+  /**
+   * Create a new {@link UpdateSnapshotRefs} to update snapshot references and commit the changes.
+   *
+   * @return a new {@link UpdateSnapshotRefs}
+   */
+  UpdateSnapshotRefs updateRefs();
 
   /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.

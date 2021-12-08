@@ -200,4 +200,28 @@ public interface MetadataUpdate extends Serializable {
       return location;
     }
   }
+
+  class SetSnapshotRefs implements MetadataUpdate {
+    private final Map<String, SnapshotRef> updated;
+
+    public SetSnapshotRefs(Map<String, SnapshotRef> updated) {
+      this.updated = updated;
+    }
+
+    public Map<String, SnapshotRef> updated() {
+      return updated;
+    }
+  }
+
+  class RemoveSnapshotRefs implements MetadataUpdate {
+    private final Set<String> removed;
+
+    public RemoveSnapshotRefs(Set<String> removed) {
+      this.removed = removed;
+    }
+
+    public Set<String> removed() {
+      return removed;
+    }
+  }
 }

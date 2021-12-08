@@ -42,9 +42,11 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
+@SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
 public class TableMetadataParser {
 
   public enum Codec {
@@ -105,6 +107,7 @@ public class TableMetadataParser {
   static final String SNAPSHOT_LOG = "snapshot-log";
   static final String METADATA_FILE = "metadata-file";
   static final String METADATA_LOG = "metadata-log";
+  static final String REFS = "refs";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -237,6 +240,13 @@ public class TableMetadataParser {
       generator.writeEndObject();
     }
     generator.writeEndArray();
+
+    generator.writeObjectFieldStart(REFS);
+    for (Map.Entry<String, SnapshotRef> ref : metadata.refs().entrySet()) {
+      generator.writeFieldName(ref.getKey());
+      SnapshotReferenceParser.toJson(ref.getValue(), generator);
+    }
+    generator.writeEndObject();
 
     generator.writeEndObject();
   }
@@ -430,9 +440,19 @@ public class TableMetadataParser {
       }
     }
 
+    ImmutableMap.Builder<String, SnapshotRef> refs = ImmutableMap.builder();
+    if (node.has(REFS)) {
+      Iterator<Map.Entry<String, JsonNode>> refIterator = node.get(REFS).fields();
+      while (refIterator.hasNext()) {
+        Map.Entry<String, JsonNode> refEntry = refIterator.next();
+        refs.put(refEntry.getKey(), SnapshotReferenceParser.fromJson(refEntry.getValue()));
+      }
+    }
+
     return new TableMetadata(metadataLocation, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build(), ImmutableList.of() /* no changes from the file */);
+        snapshots, entries.build(), metadataEntries.build(), refs.build(),
+        ImmutableList.of() /* no changes from the file */);
   }
 }

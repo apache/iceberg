@@ -118,5 +118,22 @@
       "timestamp-ms": 1555100955770
     }
   ],
-  "metadata-log": []
+  "metadata-log": [],
+  "refs": {
+    "main": {
+      "snapshot-id": 3055729675574597004,
+      "type": "branch"
+    },
+    "test": {
+      "snapshot-id": 3055729675574597004,
+      "type": "tag",
+      "max-ref-age-ms": 100
+    },
+    "dev": {
+      "snapshot-id": 3051729675574597004,
+      "type": "branch",
+      "min-snapshots-to-keep": 2,
+      "max-snapshot-age-ms": 200
+    }
+  }
 }

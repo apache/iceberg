@@ -108,7 +108,8 @@ public class TestTableMetadata {
         7, ImmutableList.of(TEST_SCHEMA, schema),
         5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of(), ImmutableList.of());
+        Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of(), ImmutableMap.of(),
+        ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
@@ -181,7 +182,7 @@ public class TestTableMetadata {
         ImmutableList.of(schema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
         currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of(),
-        ImmutableList.of());
+        ImmutableMap.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
@@ -303,7 +304,7 @@ public class TestTableMetadata {
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), asJson);
@@ -340,7 +341,7 @@ public class TestTableMetadata {
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -389,7 +390,7 @@ public class TestTableMetadata {
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -443,7 +444,7 @@ public class TestTableMetadata {
         SortOrder.unsorted().orderId(), ImmutableList.of(SortOrder.unsorted()),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -469,7 +470,7 @@ public class TestTableMetadata {
             LAST_ASSIGNED_COLUMN_ID, 7, ImmutableList.of(TEST_SCHEMA),
             SPEC_5.specId(), ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
             3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
-            ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+            ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of())
     );
   }
 
@@ -482,7 +483,7 @@ public class TestTableMetadata {
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID,
             7, ImmutableList.of(TEST_SCHEMA), SPEC_5.specId(), ImmutableList.of(SPEC_5),
             SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
-            ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+            ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of())
     );
   }
 
@@ -884,5 +885,79 @@ public class TestTableMetadata {
         "Table properties should not contain reserved properties, but got {format-version=1}",
         () -> TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null, "/tmp",
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"), 1));
+  }
+
+  @Test
+  public void testParseSnapshotReference() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(ops.io(), data);
+
+    SnapshotRef mainBranch = SnapshotRef.builderForBranch(3055729675574597004L).build();
+    SnapshotRef testTag = SnapshotRef.builderForTag(3055729675574597004L)
+        .maxRefAgeMs(100L).build();
+    SnapshotRef devBranch = SnapshotRef.builderForBranch(3051729675574597004L)
+        .minSnapshotsToKeep(2).maxSnapshotAgeMs(200L).build();
+
+    Assert.assertEquals(ImmutableMap.of("main", mainBranch, "test", testTag, "dev", devBranch), parsed.refs());
+  }
+
+  @Test
+  public void testMainBranchCreatedForNewMetadata() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    Assert.assertEquals("Metadata should have a main branch",
+        ImmutableMap.of("main", SnapshotRef.builderForBranch(-1).build()),
+        meta.refs());
+  }
+
+  @Test
+  public void testMainBranchUpdatedAfterReplaceSnapshot() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    long currentSnapshotId = System.currentTimeMillis();
+    Snapshot currentSnapshot = new BaseSnapshot(
+        ops.io(), currentSnapshotId, -1L, currentSnapshotId, null, null, meta.schema().schemaId(),
+        ImmutableList.of(new GenericManifestFile(Files.localInput("file:/tmp/manfiest.2.avro"), meta.spec().specId())));
+    TableMetadata newMeta = meta.replaceCurrentSnapshot(currentSnapshot);
+    Assert.assertEquals("Main branch should be updated to the replaced snapshot",
+        ImmutableMap.of("main", SnapshotRef.builderForBranch(currentSnapshotId).build()),
+        newMeta.refs());
+  }
+
+  @Test
+  public void testSnapshotWithRefShouldNotBeRemoved() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    long currentSnapshotId = System.currentTimeMillis();
+    Snapshot currentSnapshot = new BaseSnapshot(
+        ops.io(), currentSnapshotId, -1L, currentSnapshotId, null, null, meta.schema().schemaId(),
+        ImmutableList.of(new GenericManifestFile(Files.localInput("file:/tmp/manfiest.2.avro"), meta.spec().specId())));
+    TableMetadata newMeta = meta.replaceCurrentSnapshot(currentSnapshot);
+    newMeta = newMeta.removeSnapshotsIf(s -> s.snapshotId() == currentSnapshotId);
+    Assert.assertEquals("The current snapshot should not be removed",
+        currentSnapshotId, newMeta.currentSnapshot().snapshotId());
+    Assert.assertEquals("The current snapshot still be the main branch",
+        ImmutableMap.of("main", SnapshotRef.builderForBranch(currentSnapshotId).build()),
+        newMeta.refs());
+  }
+
+  @Test
+  public void testSnapshotReplacementShouldResetMainBranch() {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    long currentSnapshotId = System.currentTimeMillis();
+    Snapshot currentSnapshot = new BaseSnapshot(
+        ops.io(), currentSnapshotId, -1L, currentSnapshotId, null, null, meta.schema().schemaId(),
+        ImmutableList.of(new GenericManifestFile(Files.localInput("file:/tmp/manfiest.2.avro"), meta.spec().specId())));
+    TableMetadata newMeta = meta.replaceCurrentSnapshot(currentSnapshot);
+    newMeta = newMeta.buildReplacement(newMeta.schema(), newMeta.spec(), newMeta.sortOrder(), newMeta.location(),
+        ImmutableMap.of("key", "val"));
+    Assert.assertEquals("Main branch should be reset to snapshot ID -1",
+        ImmutableMap.of("main", SnapshotRef.builderForBranch(-1).build()),
+        newMeta.refs());
   }
 }
