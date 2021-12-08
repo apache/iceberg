@@ -23,11 +23,7 @@ project(':iceberg-aliyun') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
-
-    compileOnly 'com.aliyun.oss:aliyun-sdk-oss'
-    compileOnly 'javax.xml.bind:jaxb-api'
-    compileOnly 'javax.activation:activation'
-    compileOnly 'org.glassfish.jaxb:jaxb-runtime'
+    implementation 'com.aliyun.oss:aliyun-sdk-oss'
 
     testImplementation("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'

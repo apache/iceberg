@@ -29,7 +29,6 @@ project(':iceberg-aliyun-runtime') {
   }
 
   dependencies {
-    implementation 'com.aliyun.oss:aliyun-sdk-oss'
     implementation project(':iceberg-aliyun')
   }
 
@@ -49,8 +48,14 @@ project(':iceberg-aliyun-runtime') {
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
-    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    // Relocate to org.apache.iceberg.aliyun.shaded.* because they are introduced by iceberg-aliyun modules.
+    relocate 'org.apache.http', 'org.apache.iceberg.aliyun.shaded.org.apache.http'
+    relocate 'org.jdom2', 'org.apache.iceberg.aliyun.shaded.org.jdom2'
+    relocate 'org.codehaus.jettison', 'org.apache.iceberg.aliyun.shaded.org.codehaus.jettison'
+    relocate 'org.apache.commons', 'org.apache.iceberg.aliyun.shaded.org.apache.commons'
+    relocate 'org.apache.http', 'org.apache.iceberg.aliyun.shaded.org.apache.http'
+    relocate 'javax.xml', 'org.apache.iceberg.aliyun.shaded.javax.xml'
 
     classifier null
   }
