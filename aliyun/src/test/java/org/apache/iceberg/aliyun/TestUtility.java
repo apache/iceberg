@@ -28,8 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AliyunTestUtility {
-  private static final Logger LOG = LoggerFactory.getLogger(AliyunTestUtility.class);
+public class TestUtility {
+  private static final Logger LOG = LoggerFactory.getLogger(TestUtility.class);
 
   // System environment variables for Aliyun Access Key Pair.
   private static final String ALIYUN_TEST_ACCESS_KEY_ID = "ALIYUN_TEST_ACCESS_KEY_ID";
@@ -40,7 +40,7 @@ public class AliyunTestUtility {
   private static final String ALIYUN_TEST_OSS_ENDPOINT = "ALIYUN_TEST_OSS_ENDPOINT";
   private static final String ALIYUN_TEST_OSS_WAREHOUSE = "ALIYUN_TEST_OSS_WAREHOUSE";
 
-  private AliyunTestUtility() {
+  private TestUtility() {
   }
 
   public static AliyunOSSTestRule initialize() {
@@ -68,16 +68,16 @@ public class AliyunTestUtility {
     return testRule;
   }
 
-  public static String ossEndpoint() {
-    return System.getenv(ALIYUN_TEST_OSS_ENDPOINT);
-  }
-
   public static String accessKeyId() {
     return System.getenv(ALIYUN_TEST_ACCESS_KEY_ID);
   }
 
   public static String accessKeySecret() {
     return System.getenv(ALIYUN_TEST_ACCESS_KEY_SECRET);
+  }
+
+  public static String ossEndpoint() {
+    return System.getenv(ALIYUN_TEST_OSS_ENDPOINT);
   }
 
   public static String ossWarehouse() {

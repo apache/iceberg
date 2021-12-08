@@ -24,7 +24,7 @@ import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.ListObjectsV2Request;
 import com.aliyun.oss.model.ListObjectsV2Result;
 import com.aliyun.oss.model.OSSObjectSummary;
-import org.apache.iceberg.aliyun.AliyunTestUtility;
+import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class OSSIntegrationTestRule implements AliyunOSSTestRule {
@@ -51,12 +51,12 @@ public class OSSIntegrationTestRule implements AliyunOSSTestRule {
 
   @Override
   public void start() {
-    this.accessKeyId = AliyunTestUtility.accessKeyId();
-    this.accessKeySecret = AliyunTestUtility.accessKeySecret();
+    this.accessKeyId = TestUtility.accessKeyId();
+    this.accessKeySecret = TestUtility.accessKeySecret();
 
-    this.ossEndpoint = AliyunTestUtility.ossEndpoint();
-    this.ossBucket = AliyunTestUtility.ossBucket();
-    this.ossKey = AliyunTestUtility.ossKey();
+    this.ossEndpoint = TestUtility.ossEndpoint();
+    this.ossBucket = TestUtility.ossBucket();
+    this.ossKey = TestUtility.ossKey();
   }
 
   @Override
