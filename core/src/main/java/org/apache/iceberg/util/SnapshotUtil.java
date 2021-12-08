@@ -104,26 +104,38 @@ public class SnapshotUtil {
   /**
    * Traverses the history of the table's current snapshot
    * and finds the oldest ancestor snapshot after or equal to the timestamp in milliseconds.
-   * @return null if there is no current snapshot in the table,
-   * else the oldest ancestor snapshot after or equal to the timestamp in milliseconds.
-   * If there is no qualify snapshot, returns the oldest ancestor instead
+   *
+   * @param table           a table
+   * @param timestampMillis a timestamp in milliseconds
+   * @return the first snapshot from the given timestamp, or null if the current snapshot is older than the timestamp
+   * @throws IllegalStateException if the first snapshot from the given time can't be determined
    */
-  public static Snapshot oldestAncestorAfter(Table table, Long timestampMillis) {
-    Snapshot current = table.currentSnapshot();
+  public static Snapshot oldestAncestorFrom(Table table, Long timestampMillis) {
+    Snapshot currentSnapshot = table.currentSnapshot();
     long timestamp = timestampMillis == null ? -1L : timestampMillis;
-    if (current == null || current.timestampMillis() < timestamp) {
+    // If no snapshot exists or timestamp is higher than the current snapshot
+    if (currentSnapshot == null || currentSnapshot.timestampMillis() < timestamp) {
       return null;
     }
 
+    // Traverse to the oldest snapshot after or equal to the timestamp
+    Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
-      if (snapshot.timestampMillis() < timestamp) {
-        return current;
+      if (snapshot.timestampMillis() == timestamp) {
+        return snapshot;
+      } else if (snapshot.timestampMillis() < timestamp) {
+        return lastSnapshot;
       }
-
-      current = snapshot;
+      lastSnapshot = snapshot;
     }
 
-    return oldestAncestor(table);
+    // Oldest snapshot of the table which is not expired
+    if (lastSnapshot != null) {
+      return lastSnapshot;
+    }
+
+    throw new IllegalStateException(
+        "Cannot find snapshot older than " + DateTimeUtil.formatTimestampMillis(timestampMillis));
   }
 
   /**
