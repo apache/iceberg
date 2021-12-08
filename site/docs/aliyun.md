@@ -22,42 +22,44 @@ This section describes how to use Iceberg with [Aliyun](https://www.alibabacloud
 
 ## Enabling Aliyun Integration
 
-The `iceberg-aliyun` module provides the work which integrates alibaba cloud services with apache iceberg. Currently, it
-provides the bundled `iceberg-aliyun-runtime` for users to access the iceberg table backed in alibaba cloud services.
-People only need to guarantee that the `iceberg-aliyun-runtime` jar is loaded into classpath correctly by the engines
-such as Spark, Flink, Hive, Presto etc.
+The `iceberg-aliyun` module integrates alibaba cloud services (Aliyun OSS, Aliyun DLF etc) with apache iceberg.
+Currently, it provides the bundled `iceberg-aliyun-runtime` module for users to access the iceberg table backed in
+alibaba cloud services. To enable the aliyun integration, people only need to ensure that the `iceberg-aliyun-runtime`
+jar is loaded into classpath correctly by the engines such as Spark, Flink, Hive, Presto etc.
 
 ## Catalogs
 
 [Aliyun DLF](https://www.aliyun.com/product/bigdata/dlf) is a core service from Alibaba Cloud that satisfies users'
-needs for data asset management while creating data lakes. DLF provides unified metadata views and permission management
-for data available in OSS ([Aliyun Object Storage Service](https://www.alibabacloud.com/product/object-storage-service))
-. It also provides real-time lake migration and cleaning templates for data and production-level metadata services for
-upper-layer data analysis engines.
+needs for data asset management while creating data lake tables. DLF provides unified metadata views and permission
+management for data available in OSS ([Aliyun Object Storage Service](https://www.alibabacloud.com/product/object-storage-service)).
+It also provides real-time lake migration and cleaning templates for data and production-level metadata services for
+upper-layer data analysis engines. Aliyun DLF is a good choice to manage the apache iceberg tables, the Aliyun DLF
+catalog integration will come in the next releases.
 
 ### Engines Access.
 
-All the engines (Spark, Hive, Flink, Presto) can access the iceberg table backed in aliyun cloud. There are following
+All the engines (Spark, Hive, Flink, Presto) can access the iceberg table backed in aliyun services. There are following
 examples to show how to access it.
 
-The idea way to show the example is using Aliyun DLF Catalog to manage those iceberg tables, but we still don't finish
-the iceberg + DLF integration work yet. Here we are showing the examples to manage iceberg tables in Hive Catalog.
+The ideal way to show the example is using Aliyun DLF Catalog to manage those iceberg tables, but we still don't finish
+the iceberg + DLF integration work in apache iceberg repository. Here we are showing the examples to manage iceberg
+tables in Hive Catalog.
 
 ### Spark
 
 For example, to access apache iceberg tables stored in alibaba object storage service with Apache Spark 3.2.x:
 
 ```bash
-# add Iceberg dependency
+# Add Iceberg dependency
 ICEBERG_VERSION=0.13.0
-ALIYUN_OSS_ENDPOINT=******       # Your aliyun oss endpoint.
-ALIYUN_ACCESS_KEY_ID=******      # Your aliyun access key id.
-ALIYUN_ACCESS_KEY_SECRET=******  # Your aliyun access key secret.
+ALIYUN_ACCESS_KEY_ID=******      # Your Aliyun access key id.
+ALIYUN_ACCESS_KEY_SECRET=******  # Your Aliyun access key secret.
+ALIYUN_OSS_ENDPOINT=******       # Your Aliyun OSS endpoint.
 
 DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:$ICEBERG_VERSION"
 DEPENDENCIES+=",org.apache.iceberg:iceberg-aliyun-runtime:$ICEBERG_VERSION"
 
-# start Spark SQL client shell
+# Start Spark SQL client shell
 spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
@@ -69,6 +71,8 @@ spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog.client.access-key-secret=$ALIYUN_ACCESS_KEY_SECRET
 ```
 
+Let's create iceberg tables and insert few records into it.
+
 ```sql
 CREATE TABLE my_catalog.default.sample (
     id    BIGINT,
@@ -78,16 +82,17 @@ USING iceberg
 TBLPROPERTIES (
   'engine.hive.enabled' = 'true'
 );
+
+INSERT INTO `hive`.`default`.`sample` VALUES (1, 'AAA');
 ```
 
 ### Flink
 
-Take the sample, to access apache iceberg tables stored in aliyun object storage service with Apache Flink 1.13: 
+Take the sample that accessing apache iceberg tables stored in aliyun object storage service with Apache Flink 1.13.2: 
 
 ```bash
 ICEBERG_VERSION=0.13.0
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
-
 
 ./bin/sql-client.sh embedded \
   -j /path/to/flink-sql-connector-hive-2.3.6_2.12-1.13.2.jar \
@@ -95,6 +100,8 @@ wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-run
   -j /path/to/iceberg-flink-1.13-runtime-$ICEBERG_VERSION.jar \
   shell
 ```
+
+Let's create iceberg tables and insert few records into it.
 
 ```sql
 CREATE CATALOG hive WITH (
@@ -128,7 +135,6 @@ export ALIYUN_TEST_ACCESS_KEY_SECRET=<YOUR_TEST_ACCESS_KEY_SECRET>
 
 # Export aliyun oss configuration keys.
 export ALIYUN_TEST_OSS_TEST_RULE_CLASS=org.apache.iceberg.aliyun.oss.OSSIntegrationTestRule
-export ALIYUN_TEST_BUCKET=<YOUR_TEST_OSS_BUCKET>
 export ALIYUN_TEST_OSS_WAREHOUSE=oss://<YOUR_TEST_OSS_BUCKET>/<YOUR_TEST_OSS_OBJECT>
 export ALIYUN_TEST_OSS_ENDPOINT=<YOUR_TEST_OSS_ENDPOINT>
 
