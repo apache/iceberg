@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.data;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -137,7 +136,7 @@ public class TestSparkParquetReadMetadataColumns {
 
   @Before
   public void writeFile() throws IOException {
-    List<Path> fileSplits = new ArrayList<>();
+    List<Path> fileSplits = Lists.newArrayList();
     StructType struct = SparkSchemaUtil.convert(DATA_SCHEMA);
     Configuration conf = new Configuration();
 
@@ -175,7 +174,7 @@ public class TestSparkParquetReadMetadataColumns {
   @Test
   public void testReadRowNumbersWithDelete() throws IOException {
     if (vectorized) {
-      List<InternalRow> expectedRowsAfterDelete = new ArrayList<>(EXPECTED_ROWS);
+      List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList(EXPECTED_ROWS);
       // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100, 200)
       for (int i = 1; i <= 5; i++) {
         expectedRowsAfterDelete.remove(98);

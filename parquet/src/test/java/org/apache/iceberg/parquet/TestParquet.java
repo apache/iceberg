@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -29,6 +28,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -82,7 +82,7 @@ public class TestParquet {
     int recordCount = 100099;
     File file = createTempFile(temp);
 
-    List<GenericData.Record> records = new ArrayList<>(recordCount);
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     for (int i = 1; i <= recordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
@@ -106,7 +106,7 @@ public class TestParquet {
     int minimumRowGroupRecordCount = 100;
     int desiredRecordCount = minimumRowGroupRecordCount + 1;
 
-    List<GenericData.Record> records = new ArrayList<>(desiredRecordCount);
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(desiredRecordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     for (int i = 1; i <= desiredRecordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);

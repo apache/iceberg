@@ -25,7 +25,6 @@ import java.net.URI;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -351,7 +350,7 @@ public class TestPartitionPruning {
   private Set<String> extractFilePathsNotIn(List<Row> files, Set<String> filePaths) {
     Set<String> allFilePaths = files.stream().map(r -> CountOpenLocalFileSystem.stripScheme(r.getString(1)))
         .collect(Collectors.toSet());
-    return new HashSet<>(Sets.symmetricDifference(allFilePaths, filePaths));
+    return Sets.newHashSet(Sets.symmetricDifference(allFilePaths, filePaths));
   }
 
   public static class CountOpenLocalFileSystem extends RawLocalFileSystem {

@@ -24,7 +24,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AccessDeniedException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -287,7 +286,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     try {
       // using the iterator listing allows for paged downloads
       // from HDFS and prefetching from object storage.
-      List<Namespace> namespaces = new ArrayList<>();
+      List<Namespace> namespaces = Lists.newArrayList();
       RemoteIterator<FileStatus> it = fs.listStatusIterator(nsPath);
       while (it.hasNext()) {
         Path path = it.next().getPath();

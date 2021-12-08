@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -34,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -168,7 +168,7 @@ public class TestHadoopTables {
     Table table = TABLES.create(SCHEMA, tableDir.toURI().toString());
     AppendFiles append = table.newAppend();
     String data = dataDir.getPath() + "/data.parquet";
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)

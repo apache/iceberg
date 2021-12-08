@@ -21,7 +21,6 @@ package org.apache.iceberg.nessie;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
@@ -37,6 +36,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
@@ -144,7 +144,7 @@ public abstract class BaseTestIceberg {
   }
 
   protected static Schema schema(int count) {
-    List<Types.NestedField> fields = new ArrayList<>();
+    List<Types.NestedField> fields = Lists.newArrayList();
     for (int i = 0; i < count; i++) {
       fields.add(required(i, "id" + i, Types.LongType.get()));
     }
