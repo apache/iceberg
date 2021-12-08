@@ -227,6 +227,21 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @Override
+  public org.apache.iceberg.Table updatePrefix(TableIdentifier identifier, String metadataFileLocation,
+      String newPrefix) {
+    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata currentMetadata = ops.current();
+
+    // Update the location prefix in metadata
+    TableMetadata updatedMetadata = currentMetadata.updatePrefixInMetadata(newPrefix);
+    ops.commit(currentMetadata, updatedMetadata);
+
+    return new BaseTable(ops, identifier.toString());
+  }
+
+  @Override
   public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
         !namespace.isEmpty(),

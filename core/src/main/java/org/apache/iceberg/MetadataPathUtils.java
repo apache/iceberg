@@ -69,20 +69,18 @@ public final class MetadataPathUtils {
   /**
    * Convert a given absolute path to relative path with respect to base table location
    * @param path the absolute path
-   * @param tableLocation the base table location
    * @return relative path with respect to the base table location
    */
-  public static String toRelativePath(String path, String locationPrefix, String tableLocation,
-      boolean useRelativePaths) {
+  public static String toRelativePath(String path, String locationPrefix, boolean useRelativePaths) {
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
     // TODO: Fix this after tests are changed to always pass the table location. Table location cannot be null.
-    if (locationPrefix == null || tableLocation == null) {
+    if (locationPrefix == null) {
       return path;
     }
 
     // convert to relative path by removing the table location
-    Path originalPath = Paths.get(path);
-    Path toRemove = Paths.get(locationPrefix);
+    Path originalPath = Paths.get(removePrefix(path));
+    Path toRemove = Paths.get(removePrefix(locationPrefix));
     return useRelativePaths && originalPath.startsWith(toRemove) ?
         toRemove.relativize(originalPath).toString() : path;
   }
@@ -95,5 +93,9 @@ public final class MetadataPathUtils {
   public static boolean useRelativePath(Map<String, String> properties) {
     return PropertyUtil.propertyAsBoolean(properties, WRITE_METADATA_USE_RELATIVE_PATH,
         WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
+  }
+
+  private static String removePrefix(String path) {
+    return path.substring(path.lastIndexOf(":") + 1);
   }
 }

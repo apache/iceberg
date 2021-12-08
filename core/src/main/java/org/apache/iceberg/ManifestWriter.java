@@ -110,7 +110,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       BaseFile<?> entryFile = (BaseFile<?>) entry.file();
       // Update path to use relative location if needed.
       entryFile.setFilePath(MetadataPathUtils.toRelativePath(entryFile.path().toString(),
-            locationPrefix, tableLocation, useRelativePaths));
+            locationPrefix, useRelativePaths));
     }
     writer.add(prepare(entry));
   }

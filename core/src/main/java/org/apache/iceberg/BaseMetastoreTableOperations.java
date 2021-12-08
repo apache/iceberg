@@ -198,7 +198,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     if (metadataLocation != null) {
       return String.format("%s/%s", metadataLocation, filename);
     } else {
-      return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
+      return String.format("%s/%s/%s", MetadataPathUtils.toAbsolutePath(metadata.location(), metadata.locationPrefix()),
+          METADATA_FOLDER_NAME,
+          filename);
     }
   }
 

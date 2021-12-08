@@ -52,6 +52,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.MetadataPathUtils;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
@@ -210,9 +211,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = metadata.metadataFileLocation() == null ?
-        writeNewMetadata(metadata, currentVersion() + 1) :
-        metadata.metadataFileLocation();
+    String newMetadataLocation = base == null && metadata.metadataFileLocation() != null ?
+        metadata.metadataFileLocation() : writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
     CommitStatus commitStatus = CommitStatus.FAILURE;
@@ -397,7 +397,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
     storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
-    storageDescriptor.setLocation(metadata.location());
+    storageDescriptor.setLocation(MetadataPathUtils.toAbsolutePath(metadata.location(), metadata.locationPrefix()));
     SerDeInfo serDeInfo = new SerDeInfo();
     if (hiveEngineEnabled) {
       storageDescriptor.setInputFormat("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");

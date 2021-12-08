@@ -351,6 +351,10 @@ public interface Catalog {
     throw new UnsupportedOperationException("Registering tables is not supported");
   }
 
+  default Table updatePrefix(TableIdentifier identifier, String metadataFileLocation, String newPrefix) {
+    throw new UnsupportedOperationException("Updating location prefix is not supported");
+  }
+
   /**
    * Instantiate a builder to either create a table or start a create/replace transaction.
    *

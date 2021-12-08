@@ -146,12 +146,14 @@ public class TableMetadata implements Serializable {
     // rebuild the sort order using the new column ids
     int freshSortOrderId = sortOrder.isUnsorted() ? sortOrder.orderId() : INITIAL_SORT_ORDER_ID;
     SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, sortOrder);
+    boolean useRelativePaths = MetadataPathUtils.useRelativePath(properties);
 
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
-    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), locationPrefix, location,
+    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), locationPrefix,
+        MetadataPathUtils.toRelativePath(location, locationPrefix, useRelativePaths),
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema.schemaId(), ImmutableList.of(freshSchema),
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
@@ -676,18 +678,23 @@ public class TableMetadata implements Serializable {
    * @return updated table metadata
    */
   public TableMetadata convertAbsolutePathsToRelativePaths() {
-    List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
-    for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), locationPrefix,
-          location, useRelativePaths());
-      newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
-          snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), snapshot.schemaId(), locationPrefix, location, useRelativePaths(), manifestListLocation));
+    List<Snapshot> newUpdatedSnapshots = null;
+    if (snapshots.size() > 0) {
+      newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
+      for (Snapshot snapshot : snapshots) {
+        String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), locationPrefix,
+            useRelativePaths());
+        newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
+            snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
+            snapshot.summary(), snapshot.schemaId(), locationPrefix, location, useRelativePaths(),
+            manifestListLocation));
+      }
     }
+
     return new TableMetadata(file, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, newUpdatedSnapshots,
-        snapshotLog, previousFiles);
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        newUpdatedSnapshots == null ? snapshots : newUpdatedSnapshots, snapshotLog, previousFiles);
   }
 
   /**
@@ -711,6 +718,19 @@ public class TableMetadata implements Serializable {
         snapshotLog, previousFiles);
   }
 
+  /**
+   * Update the prefix in table metadata
+   * @param newPrefix new location prefix
+   */
+  public TableMetadata updatePrefixInMetadata(String newPrefix) {
+    if (!locationPrefix().equals(newPrefix)) {
+      return new TableMetadata(file, formatVersion, uuid, newPrefix, location,
+          lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+          lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots,
+          snapshotLog, previousFiles);
+    }
+    return this;
+  }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> filtered = Lists.newArrayListWithExpectedSize(snapshots.size());
@@ -982,7 +1002,7 @@ public class TableMetadata implements Serializable {
       newMetadataLog = Lists.newArrayList(previousFiles);
     }
     newMetadataLog.add(new MetadataLogEntry(timestampMillis,
-        MetadataPathUtils.toRelativePath(previousFile.location(), locationPrefix, location, useRelativePaths())));
+        MetadataPathUtils.toRelativePath(previousFile.location(), locationPrefix, useRelativePaths())));
 
     return newMetadataLog;
   }

@@ -367,9 +367,6 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Let's check the location loaded through the catalog
     Table table = catalog.loadTable(tableIdentifier);
     Assert.assertEquals(namespaceMeta.get("location") + "/" + TABLE_NAME, table.location());
-
-    // Drop the database and purge the files
-    metastoreClient.dropDatabase(NON_DEFAULT_DATABASE, true, true, true);
   }
 
   @Test

@@ -58,7 +58,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   public void add(ManifestFile manifest) {
     // Update the manifest file location to relative path if necessary.
     writer.add(prepare(GenericManifestFile.copyOf(manifest).withManifestPath(MetadataPathUtils.toRelativePath(
-            manifest.path(), locationPrefix, tableLocation, useRelativePaths)).build()));
+            manifest.path(), locationPrefix, useRelativePaths)).build()));
   }
 
   @Override
