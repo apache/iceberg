@@ -20,8 +20,10 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +72,17 @@ public class JsonUtil {
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber(),
         "Cannot parse %s from non-numeric value: %s", property, pNode);
+    return pNode.asLong();
+  }
+
+  public static Long getLongOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isIntegralNumber() &&
+        pNode.canConvertToLong(), "Cannot parse %s from non-numeric value: %s", property, pNode);
     return pNode.asLong();
   }
 
@@ -132,6 +145,18 @@ public class JsonUtil {
     return ImmutableSet.<Integer>builder()
         .addAll(new JsonIntegerArrayIterator(property, node))
         .build();
+  }
+
+  public static void writeIntegerIfExists(String key, Integer value, JsonGenerator generator) throws IOException {
+    if (value != null) {
+      generator.writeNumberField(key, value);
+    }
+  }
+
+  public static void writeLongIfExists(String key, Long value, JsonGenerator generator) throws IOException {
+    if (value != null) {
+      generator.writeNumberField(key, value);
+    }
   }
 
   abstract static class JsonArrayIterator<T> implements Iterator<T> {

@@ -63,6 +63,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdateSnapshotRefs updateRefs() {
+    return wrapped.updateRefs();
+  }
+
+  @Override
   public AppendFiles newFastAppend() {
     return wrapped.newFastAppend();
   }
