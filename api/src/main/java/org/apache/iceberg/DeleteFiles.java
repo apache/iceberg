@@ -74,4 +74,12 @@ public interface DeleteFiles extends SnapshotUpdate<DeleteFiles> {
    * @throws ValidationException If a file can contain both rows that match and rows that do not
    */
   DeleteFiles deleteFromRowFilter(Expression expr);
+
+  /**
+   * Enables or disables case sensitive expression binding for methods that accept expressions.
+   *
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return this for method chaining
+   */
+  DeleteFiles caseSensitive(boolean caseSensitive);
 }

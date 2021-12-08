@@ -190,9 +190,10 @@ public class TestTables {
             throw new CommitFailedException("Injected failure");
           }
           Integer version = VERSIONS.get(tableName);
+          // remove changes from the committed metadata
+          this.current = TableMetadata.buildFrom(updatedMetadata).discardChanges().build();
           VERSIONS.put(tableName, version == null ? 0 : version + 1);
-          METADATA.put(tableName, updatedMetadata);
-          this.current = updatedMetadata;
+          METADATA.put(tableName, current);
         } else {
           throw new CommitFailedException(
               "Commit failed: table was updated at %d", current.lastUpdatedMillis());

@@ -330,7 +330,7 @@ public class ParquetValueReaders {
       if (reuse != null && reuse.hasArray() && reuse.capacity() >= data.remaining()) {
         data.get(reuse.array(), reuse.arrayOffset(), data.remaining());
         reuse.position(0);
-        reuse.limit(data.remaining());
+        reuse.limit(binary.length());
         return reuse;
       } else {
         byte[] array = new byte[data.remaining()];

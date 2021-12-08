@@ -1219,4 +1219,56 @@ public class TestRowDelta extends V2TableTestBase {
         "Cannot commit, found new position delete for replaced data file",
         rewriteFiles::commit);
   }
+
+  @Test
+  public void testRowDeltaCaseSensitivity() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_A2)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    Expression conflictDetectionFilter = Expressions.equal(Expressions.bucket("dAtA", 16), 0);
+
+    AssertHelpers.assertThrows("Should use case sensitive binding by default",
+        ValidationException.class, "Cannot find field 'dAtA'",
+        () -> table.newRowDelta()
+            .addRows(FILE_B)
+            .addDeletes(FILE_A2_DELETES)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .commit());
+
+    AssertHelpers.assertThrows("Should fail with case sensitive binding",
+        ValidationException.class, "Cannot find field 'dAtA'",
+        () -> table.newRowDelta()
+            .caseSensitive(true)
+            .addRows(FILE_B)
+            .addDeletes(FILE_A2_DELETES)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .commit());
+
+    // binding should succeed and trigger the validation
+    AssertHelpers.assertThrows("Should reject case sensitive binding",
+        ValidationException.class, "Found new conflicting delete files",
+        () -> table.newRowDelta()
+            .caseSensitive(false)
+            .addRows(FILE_B)
+            .addDeletes(FILE_A2_DELETES)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .commit());
+  }
 }
