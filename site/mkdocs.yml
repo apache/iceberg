@@ -91,6 +91,7 @@ nav:
   - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
   - Integrations:
     - AWS: aws.md
+    - Aliyun: aliyun.md
     - Nessie: nessie.md
     - JDBC: jdbc.md
   - API:
