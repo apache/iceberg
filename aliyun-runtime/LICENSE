@@ -202,3 +202,65 @@
    limitations under the License.
 
 --------------------------------------------------------------------------------
+
+This binary artifact contains Apache Avro.
+
+Copyright: 2014-2020 The Apache Software Foundation.
+Home page: https://parquet.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Aliyun OSS SDK.
+
+Copyright: Alibaba Cloud Computing
+Home page: https://www.alibabacloud.com/help/en/doc-detail/195870.htm
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains findbugs.
+
+Copyright: stephenc and contributors.
+Home page: https://github.com/stephenc/findbugs-annotations
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Apache HttpComponents Client.
+
+Copyright: The Apache Software Foundation.
+Home page: http://hc.apache.org/httpcomponents-client
+License: http://hc.apache.org/httpcomponents-client
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains JDOM.
+
+Copyright: 2000-2015, Jason Hunter
+Home page: http://www.jdom.org/
+License: https://github.com/hunterhacker/jdom/blob/master/LICENSE.txt
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains codehaus jettison.
+
+Copyright: jettison authors.
+Home page: https://github.com/jettison-json/jettison
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary includes code from Apache Commons.
+
+Copyright: 2020 The Apache Software Foundation
+Home page: https://commons.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary includes code from RoaringBitmap.
+
+Copyright: RoaringBitmap authors.
+Home page: https://roaringbitmap.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
