@@ -132,10 +132,9 @@ public class SnapshotUtil {
     // Oldest snapshot of the table which is not expired
     if (lastSnapshot != null) {
       return lastSnapshot;
+    } else {
+      return oldestAncestor(table);
     }
-
-    throw new IllegalStateException(
-        "Cannot find snapshot older than " + DateTimeUtil.formatTimestampMillis(timestampMillis));
   }
 
   /**
