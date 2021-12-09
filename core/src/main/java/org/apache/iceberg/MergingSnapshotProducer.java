@@ -38,6 +38,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -551,12 +552,17 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     long snapshotId = snapshotId();
     Snapshot justSaved = ops.refresh().snapshot(snapshotId);
     long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
+    Map<String, String> summary = summary();
     if (justSaved == null) {
       // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to eventual
       // consistency problems in refresh.
       LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
     } else {
       sequenceNumber = justSaved.sequenceNumber();
+      summary = ImmutableMap.<String, String>builder()
+              .putAll(summary)
+              .putAll(SnapshotSummary.fetchTotalStatsFromSummary(justSaved.summary()))
+              .build();
     }
 
     return new CreateSnapshotEvent(
@@ -564,7 +570,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         operation(),
         snapshotId,
         sequenceNumber,
-        summary());
+        summary);
   }
 
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
