@@ -104,22 +104,22 @@ public class SnapshotUtil {
   /**
    * Traverses the history of the table's current snapshot and:
    * 1. returns null, if no snapshot exists or target timestamp is more recent than the current snapshot.
-   * 2. else return the first snapshot which satisfies >= targetTimestamp.
+   * 2. else return the first snapshot which satisfies {@literal >=} targetTimestamp.
    * <p>
    * Given the snapshots (with timestamp): [S1 (10), S2 (11), S3 (12), S4 (14)]
    * <p>
-   * firstSnapshotAfterTimestamp(table, x <= 10) = S1
+   * firstSnapshotAfterTimestamp(table, x {@literal <=} 10) = S1
    * firstSnapshotAfterTimestamp(table, 11) = S2
    * firstSnapshotAfterTimestamp(table, 13) = S4
    * firstSnapshotAfterTimestamp(table, 14) = S4
-   * firstSnapshotAfterTimestamp(table, x > 14) = null
+   * firstSnapshotAfterTimestamp(table, x {@literal >} 14) = null
    * <p>
    * where x is the target timestamp in milliseconds and Si is the snapshot
    *
    * @param table a table
    * @param targetTimestampMillis a timestamp in milliseconds
-   * @return the first snapshot which satisfies >= targetTimestamp, or null if the current snapshot is more recent than
-   * the target timestamp
+   * @return the first snapshot which satisfies {@literal >=} targetTimestamp, or null if the current snapshot is
+   * more recent than the target timestamp
    */
   public static Snapshot firstSnapshotAfterTimestamp(Table table, Long targetTimestampMillis) {
     Snapshot currentSnapshot = table.currentSnapshot();
