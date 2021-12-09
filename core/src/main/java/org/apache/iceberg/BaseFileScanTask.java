@@ -19,14 +19,15 @@
 
 package org.apache.iceberg;
 
-import java.util.ArrayList;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import javax.annotation.Nullable;
-import org.apache.commons.math3.analysis.function.Add;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -36,6 +37,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@JsonSerialize(as = ImmutableBaseFileScanTask.class)
+@JsonDeserialize(as = ImmutableBaseFileScanTask.class)
 abstract class BaseFileScanTask implements FileScanTask {
 
   public static BaseFileScanTask of(
@@ -137,8 +140,7 @@ abstract class BaseFileScanTask implements FileScanTask {
       int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
       sizeIdx += 1; // Create 1 split per offset
-      FileScanTask combinedTask = SplitScanTask.of(offsets.get(offsetIdx), currentSize, parentScanTask);
-      return combinedTask;
+      return SplitScanTask.of(offsets.get(offsetIdx), currentSize, parentScanTask);
     }
   }
 
@@ -172,10 +174,13 @@ abstract class BaseFileScanTask implements FileScanTask {
   }
 
   @Value.Immutable
+  @JsonSerialize(as = ImmutableSplitScanTask.class)
+  @JsonDeserialize(as = ImmutableSplitScanTask.class)
   abstract static class SplitScanTask implements FileScanTask {
 
     static SplitScanTask of(long offset, long len, FileScanTask fileScanTask) {
       return ImmutableSplitScanTask.builder()
+          .fileScanTask(fileScanTask)
           .file(fileScanTask.file())
           .deletes(fileScanTask.deletes())
           .spec(fileScanTask.spec())
@@ -184,6 +189,8 @@ abstract class BaseFileScanTask implements FileScanTask {
           .start(offset)
           .build();
     }
+
+    public abstract FileScanTask fileScanTask();
 
     @Override
     @Nullable
@@ -208,7 +215,7 @@ abstract class BaseFileScanTask implements FileScanTask {
 
     public boolean isAdjacent(SplitScanTask other) {
       return (other != null) &&
-          (this.file().equals(other.file())) &&
+          Objects.equals(this.file(), other.file()) &&
           (this.start() + this.length() == other.start());
     }
   }
@@ -233,7 +240,7 @@ abstract class BaseFileScanTask implements FileScanTask {
             lastSplit = SplitScanTask.of(
                 lastSplit.start(),
                 lastSplit.length() + split.length(),
-                lastSplit.asFileScanTask());
+                lastSplit.fileScanTask());
           } else {
             // Last split is not adjacent, add it to finished adjacent groups
             combinedScans.add(lastSplit);

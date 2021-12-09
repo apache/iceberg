@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -117,6 +119,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   }
 
   @Value.Immutable
+  @JsonSerialize(as = ImmutableManifestEntriesReadTask.class)
+  @JsonDeserialize(as = ImmutableManifestEntriesReadTask.class)
   abstract static class ManifestEntriesReadTask extends BaseFileScanTask implements DataTask {
 
     public static ManifestEntriesReadTask of(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
