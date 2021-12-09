@@ -462,7 +462,8 @@ public class TestGlueCatalog {
     Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db0123456789", "table0123456789")));
     Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db_0123456789", "table_0123456789")));
 
-    Assert.assertFalse(glueCatalog.i(TableIdentifier.of("test-db", "table")));
+    Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("DB", "TABLE")));
+    Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("test-db", "table")));
     Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("test db", "table")));
     Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("test db", "ta ble")));
     Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("db", "test-table")));
