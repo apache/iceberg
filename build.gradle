@@ -111,7 +111,9 @@ subprojects {
   targetCompatibility = '1.8'
 
   dependencies {
-    implementation 'org.slf4j:slf4j-api'
+    if (!(project.name.contains("spark") && project.name.contains("runtime"))) {
+      implementation 'org.slf4j:slf4j-api'
+    }
     implementation 'com.github.stephenc.findbugs:findbugs-annotations'
 
     testImplementation 'org.junit.vintage:junit-vintage-engine'
