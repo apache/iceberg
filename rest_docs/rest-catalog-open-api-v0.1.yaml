@@ -107,7 +107,7 @@ paths:
       description:
         List all namespaces at a certain level, optionally starting from a given parent namespace.
         For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into
-        `GET /namespaces?parent=a` and must return Namepace.of("a","b").
+        `GET /namespaces?parent=a` and must return Namepace.of("a","b")
       operationId: listNamespaces
       parameters:
         - name: parent

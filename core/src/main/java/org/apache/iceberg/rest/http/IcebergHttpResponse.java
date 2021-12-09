@@ -24,6 +24,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
+ *
+ * NOTE: This document isn't intended as part of the Spec, and was
+ *       intended for showing something to somebody. As there is on-going
+ *       discssion, I'm leaving it, but then I will likely remove it for now.
+ *
  * All responses for the first version of the Iceberg REST API will be JSON objects, a top-level envelope object with two fields,
  * `error` and `data`, which are themselves JSON objects.
  *
@@ -32,8 +37,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * All responses for the REST catalog should be wrapped this way, vs using primitives. For example, for a ListTableResponse, listing tables under a namespace "accounting",
  * we'd get a JSON object back like the following:
+ *   (the field `error`, having a value of null, has not been serialized).
  *
- * { "data": { "identifiers": [ "accounting.tax", "accounting.currency_conversions"] }, "error", {} }
+ * { "data": { "identifiers": [ "accounting.tax", "accounting.currency_conversions"] }   }
+ *
+ * NOTE: The direction now is to head to just using HTTP response codes and
+ *       not internal codes, as we have `Type`. If anybody feels strongly about
+ *       using internal codes, please bring that up.
  *
  * If the namesapce `accounting` didn't request, the response from that call would have a body like the following,
  * where the `code` 40401 is a two-part identifier:
