@@ -166,7 +166,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @SuppressWarnings("unchecked")
   @Test
   public void testReadingStreamFromTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
@@ -193,7 +192,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @SuppressWarnings("unchecked")
   @Test
   public void testReadingStreamAfterLatestTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
@@ -214,7 +212,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assertions.assertThat(actual.isEmpty()).isTrue();
   }
 
-  @SuppressWarnings("unchecked")
   @Test
   public void testReadingStreamFromTimestampStartWithExistingTimestamp() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
@@ -248,7 +245,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
-  @SuppressWarnings("unchecked")
   @Test
   public void testReadingStreamWithExpiredSnapshotFromTimestamp() throws TimeoutException {
     List<SimpleRecord> firstSnapshotRecordList = Lists.newArrayList(
@@ -286,7 +282,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expectedRecordList));
   }
 
-  @SuppressWarnings("unchecked")
   @Test
   public void testReadingStreamFromTimestampGreaterThanLatestSnapshotTime() throws Exception {
     List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
