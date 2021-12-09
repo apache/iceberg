@@ -128,7 +128,7 @@ public class SnapshotUtil {
       return null;
     }
 
-    // Return the first snapshot which satisfies >= targetTimestamp
+    // Return the oldest snapshot which satisfies >= targetTimestamp
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
       if (snapshot.timestampMillis() < targetTimestampMillis) {
