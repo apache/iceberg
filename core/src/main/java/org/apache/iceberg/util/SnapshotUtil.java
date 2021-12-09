@@ -123,16 +123,15 @@ public class SnapshotUtil {
    */
   public static Snapshot firstSnapshotAfterTimestamp(Table table, Long targetTimestampMillis) {
     Snapshot currentSnapshot = table.currentSnapshot();
-    long targetTimestamp = targetTimestampMillis == null ? -1L : targetTimestampMillis;
     // Return null if no snapshot exists or target timestamp is more recent than the current snapshot
-    if (currentSnapshot == null || currentSnapshot.timestampMillis() < targetTimestamp) {
+    if (currentSnapshot == null || currentSnapshot.timestampMillis() < targetTimestampMillis) {
       return null;
     }
 
     // Return the first snapshot which satisfies >= targetTimestamp
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
-      if (snapshot.timestampMillis() < targetTimestamp) {
+      if (snapshot.timestampMillis() < targetTimestampMillis) {
         return lastSnapshot;
       }
       lastSnapshot = snapshot;

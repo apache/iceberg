@@ -240,7 +240,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
-      this.fromTimestamp = fromTimestamp == null ? -1L : fromTimestamp;
+      this.fromTimestamp = fromTimestamp;
     }
 
     public StreamingOffset initialOffset() {
