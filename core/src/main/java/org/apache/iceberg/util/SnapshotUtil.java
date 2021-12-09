@@ -101,6 +101,57 @@ public class SnapshotUtil {
     return ancestorsOf(start, lookup);
   }
 
+  /**
+   * Traverses the history of the table's current snapshot and:
+   * 1. returns null, if no snapshot exists or target timestamp is more recent than the current snapshot.
+   * 2. else return the first snapshot which satisfies {@literal >=} targetTimestamp.
+   * <p>
+   * Given the snapshots (with timestamp): [S1 (10), S2 (11), S3 (12), S4 (14)]
+   * <p>
+   * firstSnapshotAfterTimestamp(table, x {@literal <=} 10) = S1
+   * firstSnapshotAfterTimestamp(table, 11) = S2
+   * firstSnapshotAfterTimestamp(table, 13) = S4
+   * firstSnapshotAfterTimestamp(table, 14) = S4
+   * firstSnapshotAfterTimestamp(table, x {@literal >} 14) = null
+   * <p>
+   * where x is the target timestamp in milliseconds and Si is the snapshot
+   *
+   * @param table a table
+   * @param targetTimestampMillis a timestamp in milliseconds
+   * @return the first snapshot which satisfies {@literal >=} targetTimestamp, or null if the current snapshot is
+   * more recent than the target timestamp
+   */
+  public static Snapshot firstSnapshotAfterTimestamp(Table table, Long targetTimestampMillis) {
+    Snapshot currentSnapshot = table.currentSnapshot();
+    // Return null if no snapshot exists or target timestamp is more recent than the current snapshot
+    if (currentSnapshot == null || currentSnapshot.timestampMillis() < targetTimestampMillis) {
+      return null;
+    }
+
+    // Return the oldest snapshot which satisfies >= targetTimestamp
+    Snapshot lastSnapshot = null;
+    for (Snapshot snapshot : currentAncestors(table)) {
+      if (snapshot.timestampMillis() < targetTimestampMillis) {
+        return lastSnapshot;
+      }
+      lastSnapshot = snapshot;
+    }
+
+    // Return the oldest snapshot if the target timestamp is less than the oldest snapshot of the table
+    return lastSnapshot;
+  }
+
+  /**
+   * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
+   * <p>
+   * This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
+   */
+  public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
+    List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),
+        snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    return snapshotIds;
+  }
+
   public static Iterable<Long> ancestorIdsBetween(long latestSnapshotId, Long oldestSnapshotId,
                                                   Function<Long, Snapshot> lookup) {
     return toIds(ancestorsBetween(latestSnapshotId, oldestSnapshotId, lookup));

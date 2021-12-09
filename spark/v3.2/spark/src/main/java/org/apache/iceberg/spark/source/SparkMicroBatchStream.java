@@ -47,7 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -77,6 +76,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
+  private final Long fromTimestamp;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf, boolean caseSensitive,
                         Schema expectedSchema, String checkpointLocation) {
@@ -88,8 +88,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.fromTimestamp = readConf.streamFromTimestamp();
 
-    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
+    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
@@ -98,11 +99,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   @Override
   public Offset latestOffset() {
     table.refresh();
-    Snapshot latestSnapshot = table.currentSnapshot();
-    if (latestSnapshot == null) {
+    if (isStreamEmpty(table)) {
       return StreamingOffset.START_OFFSET;
     }
 
+    if (isFutureStartTime(table, fromTimestamp)) {
+      return initialFutureStartOffset(table);
+    }
+
+    Snapshot latestSnapshot = table.currentSnapshot();
     return new StreamingOffset(latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles()), false);
   }
 
@@ -164,7 +169,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
-        new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false) :
+        new StreamingOffset(SnapshotUtil.firstSnapshotAfterTimestamp(table, fromTimestamp).snapshotId(), 0, false) :
         startOffset;
 
     StreamingOffset currentOffset = null;
@@ -195,31 +200,47 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
-    switch (op) {
-      case DataOperations.APPEND:
-        return true;
-      case DataOperations.REPLACE:
-        return false;
-      case DataOperations.DELETE:
-        Preconditions.checkState(skipDelete,
-            "Cannot process delete snapshot : %s. Set read option %s to allow skipping snapshots of type delete",
-            snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
-        return false;
-      default:
-        throw new IllegalStateException(String.format(
-            "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
+    Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
+        "Cannot process delete snapshot: %s", snapshot.snapshotId());
+    Preconditions.checkState(
+        op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
+        "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
+    return op.equals(DataOperations.APPEND);
+  }
+
+  private static boolean isStreamEmpty(Table table) {
+    return table.currentSnapshot() == null;
+  }
+
+  private static boolean isStreamNotEmpty(Table table) {
+    return table.currentSnapshot() != null;
+  }
+
+  private static boolean isFutureStartTime(Table table, Long streamStartTimeStampMillis) {
+    if (streamStartTimeStampMillis == null) {
+      return false;
     }
+
+    return table.currentSnapshot().timestampMillis() < streamStartTimeStampMillis;
+  }
+
+  private static StreamingOffset initialFutureStartOffset(Table table) {
+    Preconditions.checkNotNull(table, "Cannot process future start offset with invalid table input.");
+    Snapshot latestSnapshot = table.currentSnapshot();
+    return new StreamingOffset(latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles()) + 1, false);
   }
 
   private static class InitialOffsetStore {
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
+    private final Long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation) {
+    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
+      this.fromTimestamp = fromTimestamp;
     }
 
     public StreamingOffset initialOffset() {
@@ -229,9 +250,11 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       }
 
       table.refresh();
-      StreamingOffset offset = table.currentSnapshot() == null ?
-          StreamingOffset.START_OFFSET :
-          new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+      StreamingOffset offset = StreamingOffset.START_OFFSET;
+      if (isStreamNotEmpty(table)) {
+        offset = isFutureStartTime(table, fromTimestamp) ? initialFutureStartOffset(table) :
+            new StreamingOffset(SnapshotUtil.firstSnapshotAfterTimestamp(table, fromTimestamp).snapshotId(), 0, false);
+      }
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);
