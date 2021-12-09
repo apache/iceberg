@@ -383,21 +383,19 @@ public class SparkCatalog extends BaseCatalog {
     if (asNamespaceCatalog != null) {
       Namespace asNamespace = Namespace.of(namespace);
       boolean exists = namespaceExists(namespace);
-      // Abort early if this namespace doesn't exist.
-      //
+
       // Spark only throws the catalyst version of `NoSuchNamespaceException` if the namespace
       // does not exist AND the user did not specify `IF EXISTS` in their query.
       //
-      // We allow the exception to bubble up if the user did not specify IF EXISTS and
-      // return false otherwise if we know the namespace does not exist.
+      // If the namespace does not exist, but listNamespaces didn't throw NoSuchNamespaceException,
+      // we know the user used IF EXISTS and can return false early.
       List<Namespace> subNamespaces;
       try {
         subNamespaces = asNamespaceCatalog.listNamespaces(asNamespace);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(namespace);
       }
-      // User called dropNamespace on a namespace that does not exist with IF NOT EXISTS in the query,
-      // so we return false instead of throwing an exception.
+
       if (!exists && subNamespaces.size() == 0) {
         return false;
       }
@@ -414,7 +412,7 @@ public class SparkCatalog extends BaseCatalog {
           }
         } catch (NoSuchNamespaceException e) {
           // Spark says this sub-namespace doesn't exist. This is unlikely to happen as we just
-          // got it from a listing. If this happens, it was likely concurrently removed.
+          // got it from a listing, but it could have been concurrently removed.
           // In either case, the result is the same.
         }
       }
