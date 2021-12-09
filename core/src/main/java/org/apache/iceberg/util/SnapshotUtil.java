@@ -104,7 +104,7 @@ public class SnapshotUtil {
   /**
    * Traverses the history of the table's current snapshot and:
    * 1. returns null, if no snapshot exists or target timestamp is more recent than the current snapshot.
-   * 2. else return the first snapshot which satisfies >= targetTimeStamp.
+   * 2. else return the first snapshot which satisfies >= targetTimestamp.
    * <p>
    * Given the snapshots (with timestamp): [S1 (10), S2 (11), S3 (12), S4 (14)]
    * <p>
@@ -118,21 +118,21 @@ public class SnapshotUtil {
    *
    * @param table a table
    * @param targetTimestampMillis a timestamp in milliseconds
-   * @return the first snapshot which satisfies >= targetTimeStamp, or null if the current snapshot is more recent than
+   * @return the first snapshot which satisfies >= targetTimestamp, or null if the current snapshot is more recent than
    * the target timestamp
    */
   public static Snapshot firstSnapshotAfterTimestamp(Table table, Long targetTimestampMillis) {
     Snapshot currentSnapshot = table.currentSnapshot();
-    long targetTimeStamp = targetTimestampMillis == null ? -1L : targetTimestampMillis;
+    long targetTimestamp = targetTimestampMillis == null ? -1L : targetTimestampMillis;
     // Return null if no snapshot exists or target timestamp is more recent than the current snapshot
-    if (currentSnapshot == null || currentSnapshot.timestampMillis() < targetTimeStamp) {
+    if (currentSnapshot == null || currentSnapshot.timestampMillis() < targetTimestamp) {
       return null;
     }
 
-    // Return the first snapshot which satisfies >= targetTimeStamp
+    // Return the first snapshot which satisfies >= targetTimestamp
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
-      if (snapshot.timestampMillis() < targetTimeStamp) {
+      if (snapshot.timestampMillis() < targetTimestamp) {
         return lastSnapshot;
       }
       lastSnapshot = snapshot;
