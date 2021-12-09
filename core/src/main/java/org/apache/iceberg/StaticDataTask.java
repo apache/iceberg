@@ -31,66 +31,62 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructProjection;
+import org.immutables.value.Value;
 
-class StaticDataTask implements DataTask {
+@Value.Immutable
+abstract class StaticDataTask implements DataTask {
 
   static <T> DataTask of(InputFile metadata, Schema tableSchema, Schema projectedSchema, Iterable<T> values,
       Function<T, Row> transform) {
-    return new StaticDataTask(metadata,
-        tableSchema,
-        projectedSchema,
-        Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]));
-  }
-
-  private final DataFile metadataFile;
-  private final StructLike[] rows;
-  private final Schema tableSchema;
-  private final Schema projectedSchema;
-
-  private StaticDataTask(InputFile metadata, Schema tableSchema, Schema projectedSchema, StructLike[] rows) {
-    this.tableSchema = tableSchema;
-    this.projectedSchema = projectedSchema;
-    this.metadataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withInputFile(metadata)
-        .withRecordCount(rows.length)
-        .withFormat(FileFormat.METADATA)
+    Row[] structRows = Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]);
+    return ImmutableStaticDataTask.builder()
+        .tableSchema(tableSchema)
+        .projectedSchema(projectedSchema)
+        .structRows(structRows)
+        .file(DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(metadata)
+            .withRecordCount(structRows.length)
+            .withFormat(FileFormat.METADATA)
+            .build())
         .build();
-    this.rows = rows;
   }
 
   @Override
+  @Value.Default
   public List<DeleteFile> deletes() {
     return ImmutableList.of();
   }
 
   @Override
   public CloseableIterable<StructLike> rows() {
-    StructProjection projection = StructProjection.create(tableSchema, projectedSchema);
-    Iterable<StructLike> projectedRows = Iterables.transform(Arrays.asList(rows), projection::wrap);
+    StructProjection projection = StructProjection.create(tableSchema(), projectedSchema());
+    Iterable<StructLike> projectedRows = Iterables.transform(Arrays.asList(structRows()), projection::wrap);
     return CloseableIterable.withNoopClose(projectedRows);
   }
 
   @Override
-  public DataFile file() {
-    return metadataFile;
-  }
+  public abstract DataFile file();
 
   @Override
+  @Value.Default
   public PartitionSpec spec() {
     return PartitionSpec.unpartitioned();
   }
 
   @Override
+  @Value.Default
   public long start() {
     return 0;
   }
 
   @Override
+  @Value.Derived
   public long length() {
-    return metadataFile.fileSizeInBytes();
+    return file().fileSizeInBytes();
   }
 
   @Override
+  @Value.Default
   public Expression residual() {
     return Expressions.alwaysTrue();
   }
@@ -99,6 +95,12 @@ class StaticDataTask implements DataTask {
   public Iterable<FileScanTask> split(long splitSize) {
     return ImmutableList.of(this);
   }
+
+  public abstract StructLike[] structRows();
+
+  public abstract Schema tableSchema();
+
+  public abstract Schema projectedSchema();
 
   /**
    * Implements {@link StructLike#get} for passing static rows.

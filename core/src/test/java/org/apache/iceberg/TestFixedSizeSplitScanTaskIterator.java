@@ -38,7 +38,7 @@ public class TestFixedSizeSplitScanTaskIterator {
 
   private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
     List<FileScanTask> tasks = Lists.newArrayList(
-        new FixedSizeSplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
+        new FixedSizeSplitScanTaskIterator(splitSize, MockFileScanTask.of(fileLen)));
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);
       List<Long> split = offsetLenPairs.get(i);

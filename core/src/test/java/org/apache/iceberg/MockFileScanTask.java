@@ -19,32 +19,43 @@
 
 package org.apache.iceberg;
 
+import java.util.Arrays;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.immutables.value.Value;
 import org.mockito.Mockito;
 
-public class MockFileScanTask extends BaseFileScanTask {
+@Value.Immutable
+public abstract class MockFileScanTask extends BaseFileScanTask {
 
-  private final long length;
-
-  public MockFileScanTask(long length) {
-    super(null, null, null, null, null);
-    this.length = length;
+  public static MockFileScanTask of(long length) {
+    return ImmutableMockFileScanTask.builder()
+        .length(length)
+        .build();
   }
 
-  public MockFileScanTask(DataFile file) {
-    super(file, null, null, null, null);
-    this.length = file.fileSizeInBytes();
+  public static MockFileScanTask of(DataFile file) {
+    return ImmutableMockFileScanTask.builder()
+        .file(file)
+        .length(file.fileSizeInBytes())
+        .build();
   }
 
-  public MockFileScanTask(DataFile file, DeleteFile[] deleteFiles) {
-    super(file, deleteFiles, null, null, null);
-    this.length = file.fileSizeInBytes();
+  public static MockFileScanTask of(DataFile file, DeleteFile[] deleteFiles) {
+    return ImmutableMockFileScanTask.builder()
+        .file(file)
+        .deletes(Arrays.asList(deleteFiles))
+        .length(file.fileSizeInBytes())
+        .build();
   }
 
   public static MockFileScanTask mockTask(long length, int sortOrderId) {
     DataFile mockFile = Mockito.mock(DataFile.class);
     Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
     Mockito.when(mockFile.sortOrderId()).thenReturn(sortOrderId);
-    return new MockFileScanTask(mockFile);
+    return MockFileScanTask.of(mockFile);
   }
 
   public static MockFileScanTask mockTaskWithDeletes(long length, int nDeletes) {
@@ -55,17 +66,35 @@ public class MockFileScanTask extends BaseFileScanTask {
 
     DataFile mockFile = Mockito.mock(DataFile.class);
     Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
-    return new MockFileScanTask(mockFile, mockDeletes);
+    return MockFileScanTask.of(mockFile, mockDeletes);
   }
 
   @Override
-  public long length() {
-    return length;
-  }
+  @Nullable
+  public abstract DataFile file();
+
+  @Override
+  @Nullable
+  public abstract List<DeleteFile> deletes();
+
+  @Override
+  @Nullable
+  public abstract ResidualEvaluator residuals();
+
+  @Override
+  @Nullable
+  public abstract PartitionSpec spec();
+
+  @Override
+  @Nullable
+  public abstract Expression residual();
+
+  @Override
+  public abstract long length();
 
   @Override
   public String toString() {
-    return "Mock Scan Task Size: " + length;
+    return "Mock Scan Task Size: " + length();
   }
 
   @Override
@@ -78,11 +107,11 @@ public class MockFileScanTask extends BaseFileScanTask {
     }
 
     MockFileScanTask that = (MockFileScanTask) o;
-    return length == that.length;
+    return length() == that.length();
   }
 
   @Override
   public int hashCode() {
-    return (int) (length ^ (length >>> 32));
+    return (int) (length() ^ (length() >>> 32));
   }
 }

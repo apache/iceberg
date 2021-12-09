@@ -174,10 +174,10 @@ class ManifestGroup {
       String specString = PartitionSpecParser.toJson(spec);
       ResidualEvaluator residuals = residualCache.get(specId);
       if (dropStats) {
-        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+        return CloseableIterable.transform(entries, e -> BaseFileScanTask.of(
             e.file().copyWithoutStats(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       } else {
-        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
+        return CloseableIterable.transform(entries, e -> BaseFileScanTask.of(
             e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       }
     });

@@ -31,6 +31,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructProjection;
+import org.immutables.value.Value;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
@@ -110,46 +111,56 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals,
+          ManifestEntriesReadTask.of(ops.io(), manifest, schema(), schemaString, specString, residuals,
               ops.current().specsById()));
     }
   }
 
-  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
-    private final Schema schema;
-    private final Schema fileSchema;
-    private final FileIO io;
-    private final ManifestFile manifest;
-    private final Map<Integer, PartitionSpec> specsById;
+  @Value.Immutable
+  abstract static class ManifestEntriesReadTask extends BaseFileScanTask implements DataTask {
 
-    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
+    public static ManifestEntriesReadTask of(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
                      String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
-      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.schema = schema;
-      this.io = io;
-      this.manifest = manifest;
-      this.specsById = specsById;
 
       Type fileProjection = schema.findType("data_file");
-      this.fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
+      return ImmutableManifestEntriesReadTask.builder()
+          .file(DataFiles.fromManifest(manifest))
+          .residuals(residuals)
+          .spec(PartitionSpecParser.fromJson(SchemaParser.fromJson(schemaString), specString))
+          .schema(schema)
+          .fileSchema(fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema())
+          .io(io)
+          .manifest(manifest)
+          .specsById(specsById)
+          .build();
     }
+
+    public abstract Schema schema();
+
+    public abstract Schema fileSchema();
+
+    public abstract FileIO io();
+
+    public abstract ManifestFile manifest();
+
+    public abstract Map<Integer, PartitionSpec> specsById();
 
     @Override
     public CloseableIterable<StructLike> rows() {
       // Project data-file fields
       CloseableIterable<StructLike> prunedRows;
-      if (manifest.content() == ManifestContent.DATA) {
-        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+      if (manifest().content() == ManifestContent.DATA) {
+        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest(), io()).project(fileSchema()).entries(),
             file -> (GenericManifestEntry<DataFile>) file);
       } else {
-        prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                .project(fileSchema).entries(),
+        prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest(), io(), specsById())
+                .project(fileSchema()).entries(),
             file -> (GenericManifestEntry<DeleteFile>) file);
       }
 
       // Project non-readable fields
-      Schema readSchema = ManifestEntry.wrapFileSchema(fileSchema.asStruct());
-      StructProjection projection = StructProjection.create(readSchema, schema);
+      Schema readSchema = ManifestEntry.wrapFileSchema(fileSchema().asStruct());
+      StructProjection projection = StructProjection.create(readSchema, schema());
       return CloseableIterable.transform(prunedRows, projection::wrap);
     }
 

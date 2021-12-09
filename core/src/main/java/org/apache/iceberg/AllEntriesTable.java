@@ -102,7 +102,7 @@ public class AllEntriesTable extends BaseMetadataTable {
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
+      return CloseableIterable.transform(manifests, manifest -> ManifestEntriesTable.ManifestEntriesReadTask.of(
           ops.io(), manifest, schema(), schemaString, specString, residuals, ops.current().specsById()));
     }
   }

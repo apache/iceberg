@@ -67,7 +67,7 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   private List<FileScanTask> filesOfSize(long... sizes) {
-    return Arrays.stream(sizes).mapToObj(size -> new MockFileScanTask(size * MB)).collect(Collectors.toList());
+    return Arrays.stream(sizes).mapToObj(size -> MockFileScanTask.of(size * MB)).collect(Collectors.toList());
   }
 
   private RewriteStrategy defaultBinPack() {

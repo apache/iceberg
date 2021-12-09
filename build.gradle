@@ -193,6 +193,8 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
     testImplementation "org.apache.avro:avro"
+    annotationProcessor "org.immutables:value"
+    implementation "org.immutables:value"
   }
 }
 
@@ -211,6 +213,10 @@ project(':iceberg-core') {
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
+
+    annotationProcessor "org.immutables:value"
+    testAnnotationProcessor "org.immutables:value"
+    implementation "org.immutables:value"
 
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"

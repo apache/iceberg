@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
+import org.immutables.value.Value;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
@@ -124,38 +125,43 @@ public class DataFilesTable extends BaseMetadataTable {
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(filtered, manifest ->
-          new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
+          ManifestReadTask.of(ops.io(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 
-  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
-    private final FileIO io;
-    private final ManifestFile manifest;
-    private final Schema schema;
+  @Value.Immutable
+  abstract static class ManifestReadTask extends BaseFileScanTask implements DataTask {
 
-    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
-                     String specString, ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.io = io;
-      this.manifest = manifest;
-      this.schema = schema;
+    public static ManifestReadTask of(
+        FileIO io, ManifestFile manifest, Schema schema, String schemaString, String specString,
+        ResidualEvaluator residuals) {
+      return ImmutableManifestReadTask.builder()
+          .file(DataFiles.fromManifest(manifest))
+          .residuals(residuals)
+          .spec(PartitionSpecParser.fromJson(SchemaParser.fromJson(schemaString), specString))
+          .io(io)
+          .manifest(manifest)
+          .schema(schema)
+          .build();
     }
+
+    public abstract FileIO io();
+
+    @VisibleForTesting
+    abstract ManifestFile manifest();
+
+    public abstract Schema schema();
 
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestFiles.read(manifest, io).project(schema),
+          ManifestFiles.read(manifest(), io()).project(schema()),
           file -> (GenericDataFile) file);
     }
 
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
-    }
-
-    @VisibleForTesting
-    ManifestFile manifest() {
-      return manifest;
     }
   }
 }

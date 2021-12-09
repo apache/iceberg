@@ -117,7 +117,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new DataFilesTable.ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
+          DataFilesTable.ManifestReadTask.of(ops.io(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 

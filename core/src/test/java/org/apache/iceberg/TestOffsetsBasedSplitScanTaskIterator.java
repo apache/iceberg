@@ -41,7 +41,7 @@ public class TestOffsetsBasedSplitScanTaskIterator {
   private static void verify(List<Long> offsetRanges, long fileLen, List<List<Long>> offsetLenPairs) {
     List<FileScanTask> tasks = Lists.newArrayList(
         new BaseFileScanTask.OffsetsAwareTargetSplitSizeScanTaskIterator(
-            offsetRanges, new MockFileScanTask(fileLen)));
+            offsetRanges, MockFileScanTask.of(fileLen)));
     Assert.assertEquals("Number of tasks don't match", offsetLenPairs.size(), tasks.size());
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);

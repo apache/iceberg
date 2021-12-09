@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -32,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
+import org.immutables.value.Value;
 
 /**
  * A {@link Table} implementation that exposes a table's valid manifest files as rows.
@@ -128,7 +128,7 @@ public class AllManifestsTable extends BaseMetadataTable {
               .withRecordCount(1)
               .withFormat(FileFormat.AVRO)
               .build();
-          return new ManifestListReadTask(ops.io(), schema(), table().spec(), new BaseFileScanTask(
+          return ManifestListReadTask.of(ops.io(), schema(), table().spec(), BaseFileScanTask.of(
               manifestListAsDataFile, null,
               schemaString, specString, residuals));
         } else {
@@ -142,28 +142,36 @@ public class AllManifestsTable extends BaseMetadataTable {
     }
   }
 
-  static class ManifestListReadTask implements DataTask {
-    private final FileIO io;
-    private final Schema schema;
-    private final PartitionSpec spec;
-    private final FileScanTask manifestListTask;
+  @Value.Immutable
+  abstract static class ManifestListReadTask implements DataTask {
 
-    ManifestListReadTask(FileIO io, Schema schema,  PartitionSpec spec, FileScanTask manifestListTask) {
-      this.io = io;
-      this.schema = schema;
-      this.spec = spec;
-      this.manifestListTask = manifestListTask;
+    public static ManifestListReadTask of(FileIO io, Schema schema,  PartitionSpec spec,
+        FileScanTask manifestListTask) {
+      return ImmutableManifestListReadTask.builder()
+          .io(io)
+          .file(manifestListTask.file())
+          .schema(schema)
+          .spec(manifestListTask.spec())
+          .originalSpec(spec)
+          .deletes(manifestListTask.deletes())
+          .manifestListTask(manifestListTask)
+          .residual(manifestListTask.residual())
+          .length(manifestListTask.length())
+          .build();
     }
 
-    @Override
-    public List<DeleteFile> deletes() {
-      return manifestListTask.deletes();
-    }
+    public abstract FileIO io();
+
+    public abstract Schema schema();
+
+    public abstract FileScanTask manifestListTask();
+
+    public abstract PartitionSpec originalSpec();
 
     @Override
     public CloseableIterable<StructLike> rows() {
       try (CloseableIterable<ManifestFile> manifests = Avro
-          .read(io.newInputFile(manifestListTask.file().path().toString()))
+          .read(io().newInputFile(manifestListTask().file().path().toString()))
           .rename("manifest_file", GenericManifestFile.class.getName())
           .rename("partitions", GenericPartitionFieldSummary.class.getName())
           .rename("r508", GenericPartitionFieldSummary.class.getName())
@@ -173,39 +181,20 @@ public class AllManifestsTable extends BaseMetadataTable {
           .build()) {
 
         CloseableIterable<StructLike> rowIterable =  CloseableIterable.transform(manifests,
-            manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
+            manifest -> ManifestsTable.manifestFileToRow(originalSpec(), manifest));
 
-        StructProjection projection = StructProjection.create(MANIFEST_FILE_SCHEMA, schema);
+        StructProjection projection = StructProjection.create(MANIFEST_FILE_SCHEMA, schema());
         return CloseableIterable.transform(rowIterable, projection::wrap);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListTask.file().path());
+        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListTask().file().path());
       }
     }
 
     @Override
-    public DataFile file() {
-      return manifestListTask.file();
-    }
-
-    @Override
-    public PartitionSpec spec() {
-      return manifestListTask.spec();
-    }
-
-    @Override
+    @Value.Default
     public long start() {
       return 0;
-    }
-
-    @Override
-    public long length() {
-      return manifestListTask.length();
-    }
-
-    @Override
-    public Expression residual() {
-      return manifestListTask.residual();
     }
 
     @Override

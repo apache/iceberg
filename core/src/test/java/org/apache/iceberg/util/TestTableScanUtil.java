@@ -42,7 +42,7 @@ public class TestTableScanUtil {
       DataFile dataFile = dataFileWithSize(sizePair.first());
       DeleteFile[] deleteFiles = deleteFilesWithSizes(
           Arrays.stream(sizePair.second()).mapToLong(Long::longValue).toArray());
-      return new MockFileScanTask(dataFile, deleteFiles);
+      return MockFileScanTask.of(dataFile, deleteFiles);
     }).collect(Collectors.toList());
   }
 

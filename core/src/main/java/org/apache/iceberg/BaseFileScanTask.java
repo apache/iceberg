@@ -19,73 +19,72 @@
 
 package org.apache.iceberg;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import javax.annotation.Nullable;
+import org.apache.commons.math3.analysis.function.Add;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.immutables.value.Value;
 
-class BaseFileScanTask implements FileScanTask {
-  private final DataFile file;
-  private final DeleteFile[] deletes;
-  private final String schemaString;
-  private final String specString;
-  private final ResidualEvaluator residuals;
+@Value.Immutable
+abstract class BaseFileScanTask implements FileScanTask {
 
-  private transient PartitionSpec spec = null;
-
-  BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
-                   ResidualEvaluator residuals) {
-    this.file = file;
-    this.deletes = deletes != null ? deletes : new DeleteFile[0];
-    this.schemaString = schemaString;
-    this.specString = specString;
-    this.residuals = residuals;
+  public static BaseFileScanTask of(
+      DataFile file, DeleteFile[] deletes, String schemaString, String specString, ResidualEvaluator residuals) {
+    return ImmutableBaseFileScanTask.builder()
+        .file(file)
+        .deletes(Arrays.asList(deletes != null ? deletes : new DeleteFile[0]))
+        .residuals(residuals)
+        .spec(PartitionSpecParser.fromJson(SchemaParser.fromJson(schemaString), specString))
+        .build();
   }
 
   @Override
-  public DataFile file() {
-    return file;
-  }
+  public abstract DataFile file();
 
   @Override
+  @Value.Default
   public List<DeleteFile> deletes() {
-    return ImmutableList.copyOf(deletes);
+    return Collections.emptyList();
   }
 
-  @Override
-  public PartitionSpec spec() {
-    if (spec == null) {
-      this.spec = PartitionSpecParser.fromJson(SchemaParser.fromJson(schemaString), specString);
-    }
-    return spec;
-  }
+  public abstract ResidualEvaluator residuals();
 
   @Override
+  public abstract PartitionSpec spec();
+
+  @Override
+  @Value.Default
   public long start() {
     return 0;
   }
 
   @Override
+  @Value.Derived
   public long length() {
-    return file.fileSizeInBytes();
+    return file().fileSizeInBytes();
   }
 
   @Override
+  @Value.Derived
   public Expression residual() {
-    return residuals.residualFor(file.partition());
+    return residuals().residualFor(file().partition());
   }
 
   @Override
   public Iterable<FileScanTask> split(long targetSplitSize) {
-    if (file.format().isSplittable()) {
-      if (file.splitOffsets() != null) {
-        return () -> new OffsetsAwareTargetSplitSizeScanTaskIterator(file.splitOffsets(), this);
+    if (file().format().isSplittable()) {
+      if (file().splitOffsets() != null) {
+        return () -> new OffsetsAwareTargetSplitSizeScanTaskIterator(file().splitOffsets(), this);
       } else {
         return () -> new FixedSizeSplitScanTaskIterator(targetSplitSize, this);
       }
@@ -96,8 +95,8 @@ class BaseFileScanTask implements FileScanTask {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("file", file.path())
-        .add("partition_data", file.partition())
+        .add("file", file().path())
+        .add("partition_data", file().partition())
         .add("residual", residual())
         .toString();
   }
@@ -138,10 +137,9 @@ class BaseFileScanTask implements FileScanTask {
       int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
       sizeIdx += 1; // Create 1 split per offset
-      FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+      FileScanTask combinedTask = SplitScanTask.of(offsets.get(offsetIdx), currentSize, parentScanTask);
       return combinedTask;
     }
-
   }
 
   @VisibleForTesting
@@ -166,53 +164,42 @@ class BaseFileScanTask implements FileScanTask {
     @Override
     public FileScanTask next() {
       long len = Math.min(splitSize, remainingLen);
-      final FileScanTask splitTask = new SplitScanTask(offset, len, fileScanTask);
+      final FileScanTask splitTask = SplitScanTask.of(offset, len, fileScanTask);
       offset += len;
       remainingLen -= len;
       return splitTask;
     }
   }
 
-  private static final class SplitScanTask implements FileScanTask {
-    private final long len;
-    private final long offset;
-    private final FileScanTask fileScanTask;
+  @Value.Immutable
+  abstract static class SplitScanTask implements FileScanTask {
 
-    SplitScanTask(long offset, long len, FileScanTask fileScanTask) {
-      this.offset = offset;
-      this.len = len;
-      this.fileScanTask = fileScanTask;
+    static SplitScanTask of(long offset, long len, FileScanTask fileScanTask) {
+      return ImmutableSplitScanTask.builder()
+          .file(fileScanTask.file())
+          .deletes(fileScanTask.deletes())
+          .spec(fileScanTask.spec())
+          .residual(fileScanTask.residual())
+          .length(len)
+          .start(offset)
+          .build();
     }
 
     @Override
-    public DataFile file() {
-      return fileScanTask.file();
-    }
+    @Nullable
+    public abstract DataFile file();
 
     @Override
-    public List<DeleteFile> deletes() {
-      return fileScanTask.deletes();
-    }
+    @Nullable
+    public abstract List<DeleteFile> deletes();
 
     @Override
-    public PartitionSpec spec() {
-      return fileScanTask.spec();
-    }
+    @Nullable
+    public abstract PartitionSpec spec();
 
     @Override
-    public long start() {
-      return offset;
-    }
-
-    @Override
-    public long length() {
-      return len;
-    }
-
-    @Override
-    public Expression residual() {
-      return fileScanTask.residual();
-    }
+    @Nullable
+    public abstract Expression residual();
 
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
@@ -222,7 +209,7 @@ class BaseFileScanTask implements FileScanTask {
     public boolean isAdjacent(SplitScanTask other) {
       return (other != null) &&
           (this.file().equals(other.file())) &&
-          (this.offset + this.len == other.offset);
+          (this.start() + this.length() == other.start());
     }
   }
 
@@ -243,10 +230,10 @@ class BaseFileScanTask implements FileScanTask {
         if (lastSplit != null) {
           if (lastSplit.isAdjacent(split)) {
             // Merge with the last split
-            lastSplit = new SplitScanTask(
-                lastSplit.offset,
-                lastSplit.len + split.len,
-                lastSplit.fileScanTask);
+            lastSplit = SplitScanTask.of(
+                lastSplit.start(),
+                lastSplit.length() + split.length(),
+                lastSplit.asFileScanTask());
           } else {
             // Last split is not adjacent, add it to finished adjacent groups
             combinedScans.add(lastSplit);
