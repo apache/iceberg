@@ -396,8 +396,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     String flinkMaxCommitedCheckpointIDBeforeRewrite = summary.get(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID);
 
     Actions.forTable(icebergTableUnPartitioned)
-            .rewriteDataFiles()
-            .execute();
+        .rewriteDataFiles()
+        .execute();
 
     icebergTableUnPartitioned.refresh();
 
@@ -405,9 +405,9 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
     // Assert the flink job info retain after rewrite.
     Assert.assertEquals("Should retain flinkJobId after rewrite",
-            flinkJobIdBeforeRewrite, summaryAfterRewrite.get(SnapshotSummary.FLINK_JOB_ID));
+        flinkJobIdBeforeRewrite, summaryAfterRewrite.get(SnapshotSummary.FLINK_JOB_ID));
     Assert.assertEquals("Should retain flinkMaxCommitedCheckpointID after rewrite",
-            flinkMaxCommitedCheckpointIDBeforeRewrite,
-            summaryAfterRewrite.get(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID));
+        flinkMaxCommitedCheckpointIDBeforeRewrite,
+        summaryAfterRewrite.get(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID));
   }
 }

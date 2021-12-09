@@ -23,6 +23,7 @@ package org.apache.iceberg.flink.actions;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
@@ -34,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
@@ -380,5 +382,32 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     expected.add(SimpleDataUtil.createRecord(1, "a"));
     expected.add(SimpleDataUtil.createRecord(2, "b"));
     SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
+  }
+
+  @Test
+  public void testRewriteDataFilesMergeCheckpointInfo() throws Exception {
+    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
+
+    icebergTableUnPartitioned.refresh();
+
+    Map<String, String> summary = icebergTableUnPartitioned.currentSnapshot().summary();
+    String flinkJobIdBeforeRewrite = summary.get(SnapshotSummary.FLINK_JOB_ID);
+    String flinkMaxCommitedCheckpointIDBeforeRewrite = summary.get(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID);
+
+    Actions.forTable(icebergTableUnPartitioned)
+        .rewriteDataFiles()
+        .execute();
+
+    icebergTableUnPartitioned.refresh();
+
+    Map<String, String> summaryAfterRewrite = icebergTableUnPartitioned.currentSnapshot().summary();
+
+    // Assert the flink job info retain after rewrite.
+    Assert.assertEquals("Should retain flinkJobId after rewrite",
+        flinkJobIdBeforeRewrite, summaryAfterRewrite.get(SnapshotSummary.FLINK_JOB_ID));
+    Assert.assertEquals("Should retain flinkMaxCommitedCheckpointID after rewrite",
+        flinkMaxCommitedCheckpointIDBeforeRewrite,
+        summaryAfterRewrite.get(SnapshotSummary.FLINK_MAX_COMMITTED_CHECKPOINT_ID));
   }
 }
