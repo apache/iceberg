@@ -102,39 +102,44 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot
-   * and finds the oldest ancestor snapshot after or equal to the timestamp in milliseconds.
+   * Traverses the history of the table's current snapshot and:
+   * 1. returns null, if no snapshot exists or target timestamp is more recent than the current snapshot.
+   * 2. else return the first snapshot which satisfies >= targetTimeStamp.
+   * <p>
+   * Given the snapshots (with timestamp): [S1 (10), S2 (11), S3 (12), S4 (14)]
+   * <p>
+   * firstSnapshotAfterTimestamp(table, x <= 10) = S1
+   * firstSnapshotAfterTimestamp(table, 11) = S2
+   * firstSnapshotAfterTimestamp(table, 13) = S4
+   * firstSnapshotAfterTimestamp(table, 14) = S4
+   * firstSnapshotAfterTimestamp(table, x > 14) = null
+   * <p>
+   * where x is the target timestamp in milliseconds and Si is the snapshot
    *
-   * @param table           a table
-   * @param timestampMillis a timestamp in milliseconds
-   * @return the first snapshot from the given timestamp, or null if the current snapshot is older than the timestamp
-   * @throws IllegalStateException if the first snapshot from the given time can't be determined
+   * @param table a table
+   * @param targetTimestampMillis a timestamp in milliseconds
+   * @return the first snapshot which satisfies >= targetTimeStamp, or null if the current snapshot is more recent than
+   * the target timestamp
    */
-  public static Snapshot oldestAncestorFrom(Table table, Long timestampMillis) {
+  public static Snapshot firstSnapshotAfterTimestamp(Table table, Long targetTimestampMillis) {
     Snapshot currentSnapshot = table.currentSnapshot();
-    long timestamp = timestampMillis == null ? -1L : timestampMillis;
-    // If no snapshot exists or timestamp is higher than the current snapshot
-    if (currentSnapshot == null || currentSnapshot.timestampMillis() < timestamp) {
+    long targetTimeStamp = targetTimestampMillis == null ? -1L : targetTimestampMillis;
+    // Return null if no snapshot exists or target timestamp is more recent than the current snapshot
+    if (currentSnapshot == null || currentSnapshot.timestampMillis() < targetTimeStamp) {
       return null;
     }
 
-    // Traverse to the oldest snapshot after or equal to the timestamp
+    // Return the first snapshot which satisfies >= targetTimeStamp
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
-      if (snapshot.timestampMillis() == timestamp) {
-        return snapshot;
-      } else if (snapshot.timestampMillis() < timestamp) {
+      if (snapshot.timestampMillis() < targetTimeStamp) {
         return lastSnapshot;
       }
       lastSnapshot = snapshot;
     }
 
-    // Oldest snapshot of the table which is not expired
-    if (lastSnapshot != null) {
-      return lastSnapshot;
-    } else {
-      return oldestAncestor(table);
-    }
+    // Return the oldest snapshot if the target timestamp is less than the oldest snapshot of the table
+    return lastSnapshot;
   }
 
   /**
