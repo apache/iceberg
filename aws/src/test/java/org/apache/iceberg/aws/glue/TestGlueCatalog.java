@@ -30,6 +30,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -453,5 +454,20 @@ public class TestGlueCatalog {
     Mockito.doReturn(UpdateDatabaseResponse.builder().build())
         .when(glue).updateDatabase(Mockito.any(UpdateDatabaseRequest.class));
     glueCatalog.removeProperties(Namespace.of("db1"), Sets.newHashSet("key"));
+  }
+
+  @Test
+  public void testValidIdentifier() {
+    Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db", "table")));
+    Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db0123456789", "table0123456789")));
+    Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db_0123456789", "table_0123456789")));
+
+    Assert.assertFalse(glueCatalog.i(TableIdentifier.of("test-db", "table")));
+    Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("test db", "table")));
+    Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("test db", "ta ble")));
+    Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of("db", "test-table")));
+    Assert.assertFalse(glueCatalog.isValidIdentifier(TableIdentifier.of(
+        Strings.repeat("a", 256),
+        Strings.repeat("a", 256))));
   }
 }
