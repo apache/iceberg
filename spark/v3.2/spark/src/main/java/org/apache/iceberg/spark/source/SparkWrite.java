@@ -42,7 +42,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -100,6 +99,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String queryId;
   private final FileFormat format;
   private final String applicationId;
+  private final boolean wapEnabled;
   private final String wapId;
   private final long targetFileSize;
   private final Schema writeSchema;
@@ -118,6 +118,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.queryId = writeInfo.queryId();
     this.format = writeConf.dataFileFormat();
     this.applicationId = applicationId;
+    this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
@@ -166,11 +167,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     return new StreamingOverwrite();
   }
 
-  private boolean isWapTable() {
-    return Boolean.parseBoolean(table.properties().getOrDefault(
-        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
-  }
-
   // the writer factory works for both batch and streaming
   private WriterFactory createWriterFactory() {
     // broadcast the table metadata as the writer factory will be sent to executors
@@ -188,7 +184,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       extraSnapshotMetadata.forEach(operation::set);
     }
 
-    if (isWapTable() && wapId != null) {
+    if (wapEnabled && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
       operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
