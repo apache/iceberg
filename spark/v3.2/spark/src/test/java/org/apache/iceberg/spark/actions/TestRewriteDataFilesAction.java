@@ -348,9 +348,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .execute();
 
     Assert.assertEquals("Action should delete 1 data files", 1, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFilesCount());
+    Assert.assertEquals("Action should add 3 data files", 2, result.addedDataFilesCount());
 
-    shouldHaveFiles(table, 3);
+    shouldHaveFiles(table, 2);
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
@@ -358,13 +358,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackCombineMixedFiles() {
-    // One file too big
-    Table table = createTable(1);
+    Table table = createTable(1); // 40000
     shouldHaveFiles(table, 1);
 
-    // Two files too small
-    writeRecords(1, 10000);
-    writeRecords(1, 10000);
+    // Add one more small file, and one large file
+    writeRecords(1, 40000);
+    writeRecords(1, 120000);
     shouldHaveFiles(table, 3);
 
     List<Object[]> expectedRecords = currentData();
@@ -389,24 +388,23 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackCombineMediumFiles() {
-    // Create 10 files
-    Table table = createTable(10);
-    shouldHaveFiles(table, 10);
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
 
-    List<Object[]> expectedRecords = currentData(); // 40000 Rows , 4000 per File
-
-    int targetSize = averageFileSize(table);
+    List<Object[]> expectedRecords = currentData(); // 40000 Rows , 10000 per File
+    int targetSize = ((int) testDataSize(table) / 3); // 40000 Rows, 13333 per File
+    // The test is to see if we can combine parts of files to make files of the correct size
 
     Result result = basicRewrite(table)
-        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString((int) (targetSize * 1.25))) // 5000 Per File
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize))
         .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((int) (targetSize * 1.8)))
-        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize + 100)) // All files too small
+        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 100)) // All files too small
         .execute();
 
-    Assert.assertEquals("Action should delete 10 data files", 10, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 8 data files", 8, result.addedDataFilesCount());
+    Assert.assertEquals("Action should delete 4 data files", 4, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFilesCount());
 
-    shouldHaveFiles(table, 8); // 40000 Rows, 5000 per File
+    shouldHaveFiles(table, 3);
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
@@ -1072,7 +1070,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1024").commit();
+    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(40 * 1024)).commit();
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
     writeRecords(files, 40000);
