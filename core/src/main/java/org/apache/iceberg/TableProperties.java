@@ -194,8 +194,10 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
-  public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 512 * 1024 * 1024; // 512 MB
+
+  public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
+  public static final long DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT = 64 * 1024 * 1024; // 64 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;

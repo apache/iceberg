@@ -39,6 +39,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import static org.apache.iceberg.DataOperations.DELETE;
+import static org.apache.iceberg.DataOperations.OVERWRITE;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
@@ -182,8 +184,22 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     }
   }
 
+  protected void validateDelete(Snapshot snapshot, String changedPartitionCount, String deletedDataFiles) {
+    validateSnapshot(snapshot, DELETE, changedPartitionCount, deletedDataFiles, null, null);
+  }
+
+  protected void validateCopyOnWrite(Snapshot snapshot, String changedPartitionCount,
+                                     String deletedDataFiles, String addedDataFiles) {
+    validateSnapshot(snapshot, OVERWRITE, changedPartitionCount, deletedDataFiles, null, addedDataFiles);
+  }
+
+  protected void validateMergeOnRead(Snapshot snapshot, String changedPartitionCount,
+                                     String addedDeleteFiles, String addedDataFiles) {
+    validateSnapshot(snapshot, OVERWRITE, changedPartitionCount, null, addedDeleteFiles, addedDataFiles);
+  }
+
   protected void validateSnapshot(Snapshot snapshot, String operation, String changedPartitionCount,
-                                  String deletedDataFiles, String addedDataFiles) {
+                                  String deletedDataFiles, String addedDeleteFiles, String addedDataFiles) {
     Assert.assertEquals("Operation must match", operation, snapshot.operation());
     Assert.assertEquals("Changed partitions count must match",
         changedPartitionCount,
@@ -191,6 +207,9 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     Assert.assertEquals("Deleted data files count must match",
         deletedDataFiles,
         snapshot.summary().get("deleted-data-files"));
+    Assert.assertEquals("Added delete files count must match",
+        addedDeleteFiles,
+        snapshot.summary().get("added-delete-files"));
     Assert.assertEquals("Added data files count must match",
         addedDataFiles,
         snapshot.summary().get("added-data-files"));
