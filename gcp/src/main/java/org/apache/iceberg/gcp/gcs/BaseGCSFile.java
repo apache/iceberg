@@ -58,7 +58,7 @@ abstract class BaseGCSFile {
   }
 
   public boolean exists() {
-      return getBlob() != null;
+    return getBlob() != null;
   }
 
   protected Blob getBlob() {
@@ -73,5 +73,4 @@ abstract class BaseGCSFile {
   public String toString() {
     return blobId.toString();
   }
-
 }

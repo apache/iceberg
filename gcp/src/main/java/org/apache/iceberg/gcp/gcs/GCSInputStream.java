@@ -112,7 +112,7 @@ class GCSInputStream extends SeekableInputStream {
 
     byteBuffer = byteBuffer != null && byteBuffer.array() == b ? byteBuffer : ByteBuffer.wrap(b);
     byteBuffer.position(off);
-    byteBuffer.limit(Math.min(off+len, byteBuffer.capacity()));
+    byteBuffer.limit(Math.min(off + len, byteBuffer.capacity()));
 
     int bytesRead = channel.read(byteBuffer);
     pos += bytesRead;

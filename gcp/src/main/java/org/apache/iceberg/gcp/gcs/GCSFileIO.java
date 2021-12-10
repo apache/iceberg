@@ -35,7 +35,8 @@ import org.slf4j.LoggerFactory;
 /**
  * FileIO Implementation backed by Google Cloud Storage (GCS)
  * <p>
- * Locations follow the conventions used by {@link com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri}
+ * Locations follow the conventions used by
+ * {@link com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri}
  */
 public class GCSFileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
