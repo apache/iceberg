@@ -393,10 +393,11 @@ public class SparkCatalog extends BaseCatalog {
         return false;
       }
 
-      // Recursively drop namespaces under the requested `namespace`
-      // so that the base case will delete the tables and then the namespace of those tables
-      // if the user used CASCADE. If the user did not use CASCADE, Spark will return false
-      // as soon as it encounters a non-empty namespace.
+      // Recursively drop namespaces under the requested `namespace so that:
+      //   1) query has CASCADE in it and thus the base case will delete the tables
+      //      and then the namespace of those tables
+      //   2) query does not have CASCADE in it, so Spark will throw
+      //      as soon as it encounters a non-empty namespace.
       for (String[] ns : subNamespaces) {
         try {
           boolean didDrop = dropNamespace(ns);
