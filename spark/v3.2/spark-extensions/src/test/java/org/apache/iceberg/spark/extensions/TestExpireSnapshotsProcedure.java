@@ -141,6 +141,46 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testExpireSnapshotWithSnapshotIDs() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should be 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    String ids =
+        Iterables.get(table.snapshots(), 0).snapshotId() + "," + Iterables.get(table.snapshots(), 1).snapshotId();
+    List<Object[]> output = sql(
+        "CALL %s.system.expire_snapshots(" +
+            "table => '%s'," +
+            "snapshot_ids => '%s')",
+        catalogName, tableIdent, ids);
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(0L, 0L, 2L)),
+        output);
+    table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should be only 1 snapshot remaining", 1, Iterables.size(table.snapshots()));
+    long remainingSnapshotId = Iterables.get(table.snapshots(), 0).snapshotId();
+    Assert.assertFalse(
+        "Remaining snapshot id should not be same as expired id", ids.contains(Long.toString(remainingSnapshotId)));
+
+    // pass the invalid snapshot id
+    output = sql(
+        "CALL %s.system.expire_snapshots(" +
+            "table => '%s'," +
+            "snapshot_ids => '%d')",
+        catalogName, tableIdent, remainingSnapshotId - 1);
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(0L, 0L, 0L)),
+        output);
+    table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should be 1 snapshot remaining", 1, Iterables.size(table.snapshots()));
+  }
+
+  @Test
   public void testExpireSnapshotsGCDisabled() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 

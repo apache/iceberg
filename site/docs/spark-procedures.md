@@ -186,6 +186,8 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `table`       | ✔️  | string | Name of the table to update |
 | `older_than`  | ️   | timestamp | Timestamp before which snapshots will be removed (Default: 5 days ago) |
 | `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
+| `max_concurrent_deletes` |    | int       | Maximum number of threads in a pool used for delete executor service|
+| `snapshot_ids` |    | string       | Comma separated snapshot IDs to be expired |
 
 #### Output
 
@@ -207,6 +209,12 @@ Erase all snapshots older than the current timestamp but retain the last 5 snaps
 
 ```sql
 CALL hive_prod.system.expire_snapshots(table => 'db.sample', older_than => now(), retain_last => 5)
+```
+
+Remove specific snapshots which are passed as an argument:
+
+```sql
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => '123456,234567')
 ```
 
 ### `remove_orphan_files`
