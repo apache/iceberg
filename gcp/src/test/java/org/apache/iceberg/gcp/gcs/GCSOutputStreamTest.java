@@ -39,8 +39,8 @@ public class GCSOutputStreamTest {
   private static final Logger LOG = LoggerFactory.getLogger(GCSOutputStreamTest.class);
   private static final String BUCKET = "test-bucket";
 
-  GCPProperties properties = new GCPProperties();
-  Storage storage = LocalStorageHelper.getOptions().getService();
+  private final GCPProperties properties = new GCPProperties();
+  private final Storage storage = LocalStorageHelper.getOptions().getService();
   private final Random random = new Random(1);
 
   @Test

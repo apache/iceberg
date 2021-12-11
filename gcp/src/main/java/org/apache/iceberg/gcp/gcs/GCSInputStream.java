@@ -45,7 +45,7 @@ class GCSInputStream extends SeekableInputStream {
 
   private final StackTraceElement[] createStack;
   private final Storage storage;
-  private final BlobId blobid;
+  private final BlobId blobId;
   private final GCPProperties gcpProperties;
 
   private ReadChannel channel;
@@ -56,7 +56,7 @@ class GCSInputStream extends SeekableInputStream {
 
   GCSInputStream(Storage storage, BlobId blobId, GCPProperties gcpProperties) {
     this.storage = storage;
-    this.blobid = blobId;
+    this.blobId = blobId;
     this.gcpProperties = gcpProperties;
 
     createStack = Thread.currentThread().getStackTrace();
@@ -68,11 +68,11 @@ class GCSInputStream extends SeekableInputStream {
     List<BlobSourceOption> sourceOptions = Lists.newArrayList();
 
     gcpProperties.decryptionKey().ifPresent(
-        (key) -> sourceOptions.add(BlobSourceOption.decryptionKey(key)));
+        key -> sourceOptions.add(BlobSourceOption.decryptionKey(key)));
     gcpProperties.userProject().ifPresent(
-        (userProject) -> sourceOptions.add(BlobSourceOption.userProject(userProject)));
+        userProject -> sourceOptions.add(BlobSourceOption.userProject(userProject)));
 
-    channel = storage.reader(blobid, sourceOptions.toArray(new BlobSourceOption[0]));
+    channel = storage.reader(blobId, sourceOptions.toArray(new BlobSourceOption[0]));
 
     gcpProperties.channelReadChunkSize().ifPresent(channel::setChunkSize);
   }

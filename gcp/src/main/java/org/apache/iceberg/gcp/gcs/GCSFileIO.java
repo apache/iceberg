@@ -37,6 +37,9 @@ import org.slf4j.LoggerFactory;
  * <p>
  * Locations follow the conventions used by
  * {@link com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri}
+ * that follow the convention <pre>{@code gs://<bucket>/<blob_path>}</pre>
+ * <p>
+ * See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage Overview</a>
  */
 public class GCSFileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
@@ -69,12 +72,12 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return new GCSInputFile(client(), BlobId.fromGsUtilUri(path), gcpProperties);
+    return GCSInputFile.fromLocation(path, client(), gcpProperties);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return new GCSOutputFile(client(), BlobId.fromGsUtilUri(path), gcpProperties);
+    return GCSOutputFile.fromLocation(path, client(), gcpProperties);
   }
 
   @Override

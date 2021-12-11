@@ -42,8 +42,8 @@ public class GCSFileIOTest {
   private static final String TEST_BUCKET = "TEST_BUCKET";
   private final Random random = new Random(1);
 
-  Storage storage = LocalStorageHelper.getOptions().getService();
-  GCSFileIO io;
+  private final Storage storage = LocalStorageHelper.getOptions().getService();
+  private GCSFileIO io;
 
   @Before
   public void before() {

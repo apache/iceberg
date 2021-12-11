@@ -40,8 +40,8 @@ public class GCSInputStreamTest {
 
   private final Random random = new Random(1);
 
-  GCPProperties gcpProperties = new GCPProperties();
-  Storage storage = LocalStorageHelper.getOptions().getService();
+  private final GCPProperties gcpProperties = new GCPProperties();
+  private final Storage storage = LocalStorageHelper.getOptions().getService();
 
   @Test
   public void testRead() throws Exception {

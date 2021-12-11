@@ -89,9 +89,9 @@ class GCSOutputStream extends PositionOutputStream {
     List<BlobWriteOption> writeOptions = Lists.newArrayList();
 
     gcpProperties.encryptionKey().ifPresent(
-        (key) -> writeOptions.add(BlobWriteOption.encryptionKey(key)));
+        key -> writeOptions.add(BlobWriteOption.encryptionKey(key)));
     gcpProperties.userProject().ifPresent(
-        (userProject) -> writeOptions.add(BlobWriteOption.userProject(userProject)));
+        userProject -> writeOptions.add(BlobWriteOption.userProject(userProject)));
 
     WriteChannel channel = storage.writer(BlobInfo.newBuilder(blobId).build(),
         writeOptions.toArray(new BlobWriteOption[0]));
