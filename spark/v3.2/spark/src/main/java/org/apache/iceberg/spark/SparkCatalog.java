@@ -370,12 +370,9 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  // Spark assumes that catalogs CASCADE by default. So we have to eagerly
-  // attempt to drop namespaces and tables, but the CASCADE keyword is still
-  // required to actually drop tables and namespaces as Spark will error out
-  // if any of the recursive deletes are non-empty and the user didn't specify
-  // cascades in their query.
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+    // Spark assumes that catalogs CASCADE by default. So if we have a namespace catalog
+    /// we need to attempt to recursively delete.
     if (asNamespaceCatalog != null) {
       Namespace asNamespace = Namespace.of(namespace);
       boolean exists = namespaceExists(namespace);
@@ -385,14 +382,14 @@ public class SparkCatalog extends BaseCatalog {
       //
       // If the namespace does not exist, but listNamespaces didn't throw an exception,
       // we know the user used IF EXISTS and can return false early.
-      List<Namespace> subNamespaces;
+      String[][] subNamespaces;
       try {
-        subNamespaces = asNamespaceCatalog.listNamespaces(asNamespace);
+        subNamespaces = listNamespaces(namespace);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(namespace);
       }
 
-      if (!exists && subNamespaces.size() == 0) {
+      if (!exists && (subNamespaces == null || subNamespaces.length == 0)){
         return false;
       }
 
@@ -400,9 +397,9 @@ public class SparkCatalog extends BaseCatalog {
       // so that the base case will delete the tables and then the namespace of those tables
       // if the user used CASCADE. If the user did not use CASCADE, Spark will return false
       // as soon as it encounters a non-empty namespace.
-      for (Namespace ns : subNamespaces) {
+      for (String[] ns : subNamespaces) {
         try {
-          boolean didDrop = dropNamespace(ns.levels());
+          boolean didDrop = dropNamespace(ns);
           if (!didDrop) {
             return false;
           }
