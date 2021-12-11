@@ -377,6 +377,12 @@ public class SparkCatalog extends BaseCatalog {
       Namespace asNamespace = Namespace.of(namespace);
       boolean exists = namespaceExists(namespace);
 
+      // TODO - Follow up
+      //
+      // If not exists, we can eagerly try to drop the namespace.
+      // If it throws, then that means that the user did not use IF EXISTS.
+      // If it does not throw, we can return false early as the user must have used IF EXISTS.
+
       // Spark only throws the catalyst version of `NoSuchNamespaceException` if the namespace
       // does not exist AND the user did not specify `IF EXISTS` in their query.
       //
