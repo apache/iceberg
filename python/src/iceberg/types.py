@@ -17,17 +17,13 @@
 
 import decimal
 import math
-import struct
-from base64 import b64encode
-from datetime import date, datetime, time
 from decimal import Decimal as PythonDecimal
 from typing import Any, Dict
 from typing import List as PythonList
 from typing import Optional, Tuple, Type, Union
-from uuid import UUID as PythonUUID
 
 import mmh3
-from numpy import float32, float64, isinf, isnan
+from numpy import float32, float64
 
 
 # intended for use inside this module only
@@ -134,10 +130,10 @@ class PrimitiveType(IcebergType):
             self.value = value
 
     def __repr__(self) -> str:
-        return f"{repr(type(self))}(value={self.value})"
+        return f"{repr(type(self))}(value={self.value})"  # type: ignore
 
     def __str__(self) -> str:
-        return f"{str(type(self))}({self.value})"
+        return f"{str(type(self))}({self.value})"  # type: ignore
 
     def __bool__(self) -> bool:
         return bool(self.value)
@@ -174,10 +170,10 @@ class Number(PrimitiveType):
 
     value: Union[int, float32, float64, PythonDecimal]
 
-    def __float__(self) -> int:
+    def __float__(self) -> float:
         return float(self.value)
 
-    def __int__(self) -> float:
+    def __int__(self) -> int:
         return int(self.value)
 
     def __math(self, op, other=None):
@@ -186,10 +182,18 @@ class Number(PrimitiveType):
                 ctx.prec = self.precision
             op_f = getattr(self.value, op)
             try:
-                if op in ("__add__", "__sub__", "__div__", "__mul__",):
+                if op in (
+                    "__add__",
+                    "__sub__",
+                    "__div__",
+                    "__mul__",
+                ):
                     other = other.to(type(self))
                     return type(self)(op_f(other.value))
-                if op in ("__pow__", "__mod__",):
+                if op in (
+                    "__pow__",
+                    "__mod__",
+                ):
                     other = type(self)(other)
                     return type(self)(op_f(other.value))
                 if op in ("__lt__", "__eq__"):
@@ -235,7 +239,7 @@ class Number(PrimitiveType):
         return self.__math("__lt__", other)
 
     def __eq__(self, other) -> bool:
-        return self.__math("__eq__", other) and self._neg == other._neg
+        return self.__math("__eq__", other) and self._neg == other._neg  # type: ignore
 
     def __gt__(self, other) -> bool:
         return not self.__le__(other)
@@ -265,13 +269,7 @@ class generic_class(type):
     def __new__(
         cls,
         name: str,
-        attributes: PythonList[
-            Tuple[
-                str,
-                Type[Union[IcebergType, "Instance"]],
-                Tuple[str, Type[Union[IcebergType, "Instance"]], Any],
-            ]
-        ],
+        generic_attributes: PythonList[Union[Tuple[str, Union[Type[IcebergType], Type["Instance"]]], Tuple[str, Union[Type[IcebergType], Type["Instance"]], Any]]],  # type: ignore
         base_type: type = IcebergType,
         doc: str = "",
         meta_doc: str = "",
@@ -288,7 +286,7 @@ class generic_class(type):
 
         Args:
             name: the name of the generic type used in repr and str
-            attributes: list of generic attribute names and types - must provide at least a name type or both for each attribute
+            generic_attributes: list of generic attribute (names, type, [default]) tuples
             base_type: class for generic to inherit from
             doc: docstring of specfied generic e.g. List[Integer]
             meta_doc: docstring of unspecified generic e.g. List
@@ -298,8 +296,10 @@ class generic_class(type):
             >>>List[Integer]
             List[type=Integer]
         """
-        attributes = [a if len(a) == 3 else (*a, None) for a in attributes]
-        attribute_names = [a[0] for a in attributes]
+        attributes: PythonList[Tuple[str, Type[IcebergType], Any]] = [
+            a if len(a) == 3 else (*a, None) for a in generic_attributes  # type: ignore
+        ]
+        attribute_names: PythonList[str] = [a[0] for a in attributes]
         attribute_types = [a[1] for a in attributes]
         attribute_defaults = dict(zip(attribute_names, [a[2] for a in attributes]))
 
@@ -369,7 +369,9 @@ class generic_class(type):
                     f"{name}[{', '.join(f'{k}={repr(v)}' for k,v in kwargs.items())}]",
                 )
                 setattr(
-                    _Type, "__args__", attrs,
+                    _Type,
+                    "__args__",
+                    attrs,
                 )
                 type.__setattr__(
                     _Type,
@@ -392,14 +394,18 @@ class generic_class(type):
 
         class _Factory(IcebergType):
             __doc__ = f"{meta_doc if meta_doc else name}"
-            _implemented = dict()
+            _implemented: Dict[Type[IcebergType], Any] = dict()
 
         setattr(
-            _Factory, "_get_generic", get_generic,
+            _Factory,
+            "_get_generic",
+            get_generic,
         )
 
         setattr(
-            _Factory, "__name__", name,
+            _Factory,
+            "__name__",
+            name,
         )
         type.__setattr__(_Factory, "_frozen_attrs", {"_get_generic", "_implemented"})
         cls.generics[name] = (_Factory, attribute_names)
@@ -439,9 +445,9 @@ class generic_class(type):
         return cls in [generic[0] for generic in generic_class.generics.values()]
 
 
-Instance = generic_class(
+Instance: Dict[Any, Any] = generic_class(  # type: ignore
     "Instance",
-    [("type", Union[int, float, str, bool])],
+    [("type", Union[int, float, str, bool])],  # type: ignore
     meta_doc="""
     Instance used to represent that a generic parameter requires an instance of a primitive python type
     intended for usage with `generic_class` only
@@ -538,8 +544,13 @@ Examples:
 
 Fixed = generic_class(
     "Fixed",
-    [("length", Instance[int])],
-    Binary,
+    [
+        (
+            "length",
+            Instance[int],
+        )
+    ],
+    PrimitiveType,
     doc="""Note: see `Fixed` for more details
 
 Args:
@@ -569,14 +580,14 @@ class _DecimalBase(Number):
 
     def __init__(self, value: Union[float, str, int]):
         with decimal.localcontext() as ctx:
-            ctx.prec = self.precision
+            ctx.prec = self.precision  # type: ignore
             super().__init__(value)
 
             if isinstance(self.value, Number):
                 self.value = PythonDecimal(str(self.value.value))
             else:
                 self.value = PythonDecimal(str(self.value))
-            self._scale = PythonDecimal(10) ** -self.scale
+            self._scale = PythonDecimal(10) ** -self.scale  # type: ignore
             self.value = self.value.quantize(self._scale)
             object.__setattr__(self, "_neg", self.value < 0)
 
@@ -638,7 +649,7 @@ NestedField = generic_class(
         ("optional", Instance[bool]),
         ("field_id", Instance[int]),
         ("name", Instance[str]),
-        ("doc", Instance[str], ""),
+        ("doc", Instance[str]),
     ],
     IcebergType,
     meta_doc="""equivalent of `NestedField` type from Java implementation""",
@@ -685,7 +696,9 @@ def _struct():  # pragma: no cover
 
             setattr(_StructType, "__annotations__", types)
             setattr(
-                _StructType, "__name__", f"Struct{list(types)}",
+                _StructType,
+                "__name__",
+                f"Struct{list(types)}",
             )
             cls._implemented[types] = _StructType
             return _StructType
@@ -716,10 +729,14 @@ def _struct():  # pragma: no cover
             return cls(*fields)
 
     setattr(
-        Struct, "_get_generic", get_generic,
+        Struct,
+        "_get_generic",
+        get_generic,
     )
     setattr(
-        Struct, "__name__", "Struct",
+        Struct,
+        "__name__",
+        "Struct",
     )
     type.__setattr__(
         Struct, "_frozen_attrs", {"_get_generic", "_implemented", "_types"}
@@ -730,4 +747,4 @@ def _struct():  # pragma: no cover
 
 Struct = _struct()
 
-generic_class.generics["Struct"] = (Struct,)
+generic_class.generics["Struct"] = (Struct, [])
