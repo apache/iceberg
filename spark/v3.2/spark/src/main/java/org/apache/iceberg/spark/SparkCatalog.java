@@ -395,7 +395,7 @@ public class SparkCatalog extends BaseCatalog {
         throw new NoSuchNamespaceException(namespace);
       }
 
-      if (!exists && (subNamespaces == null || subNamespaces.length == 0)){
+      if (!exists && (subNamespaces == null || subNamespaces.length == 0)) {
         return false;
       }
 
