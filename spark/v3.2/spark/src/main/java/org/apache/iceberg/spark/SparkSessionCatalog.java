@@ -108,9 +108,9 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     // and Spark will handle things based on whether the query used IF EXISTS or CASCADE
     //
     // First check if the namespace exists.
-    //   - If it doesn't, we can try dropping it, with two possible outcomes:
-    //      1) throw a NoSuchNamespace exception, e.g. user did not use `IF EXISTS` when dropping
-    //      2) return false because the user used "IF EXISTS" in their drop statement.
+    //  - If it doesn't, we can try dropping it, with two possible outcomes:
+    //     1) throw a NoSuchNamespaceException - query did not use `IF EXISTS` when dropping
+    //     2) return false because the user used "IF EXISTS" in their drop statement.
     boolean doesNamespaceExist = namespaceExists(namespace);
     if (!doesNamespaceExist) {
       return getSessionCatalog().dropNamespace(namespace);
