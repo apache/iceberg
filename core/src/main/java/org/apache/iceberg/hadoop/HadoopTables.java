@@ -21,7 +21,10 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -45,6 +48,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.LockManager;
+import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +61,10 @@ import org.slf4j.LoggerFactory;
 public class HadoopTables implements Tables, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTables.class);
   private static final String METADATA_JSON = "metadata.json";
+
+  private static final ConcurrentHashMap<String, LockManager> tableOperationLocks =
+          new ConcurrentHashMap<>();
+
   private Configuration conf;
 
   public HadoopTables() {
@@ -194,8 +203,24 @@ public class HadoopTables implements Tables, Configurable {
     if (location.contains(METADATA_JSON)) {
       return new StaticTableOperations(location, new HadoopFileIO(conf));
     } else {
-      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf);
+      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf,
+              createOrGetLockManager(location));
     }
+  }
+
+  private LockManager createOrGetLockManager(String location) {
+    Map<String, String> properties = new HashMap<>();
+    Iterator<Map.Entry<String, String>> configEntries = this.conf.iterator();
+    while (configEntries.hasNext()) {
+      Map.Entry<String, String> entry = configEntries.next();
+      String key = entry.getKey();
+      if (key.startsWith("iceberg.lock.")) {
+        properties.put(key.substring("iceberg.".length()), entry.getValue());
+      }
+    }
+    LockManager mgr = LockManagers.from(properties);
+    LockManager currentMgr = tableOperationLocks.putIfAbsent(location, mgr);
+    return currentMgr != null ? currentMgr : tableOperationLocks.get(location);
   }
 
   private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,

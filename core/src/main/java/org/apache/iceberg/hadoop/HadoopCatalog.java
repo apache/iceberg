@@ -57,6 +57,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.LockManager;
+import org.apache.iceberg.util.LockManagers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +89,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private String warehouseLocation;
   private FileSystem fs;
   private FileIO fileIO;
+  private LockManager lockManager;
   private boolean suppressPermissionError = false;
 
   public HadoopCatalog() {
@@ -105,6 +108,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.suppressPermissionError = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_PERMISSION_ERROR));
+
+    this.lockManager = LockManagers.from(properties);
   }
 
   /**
@@ -205,7 +210,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), fileIO, conf);
+    return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
   }
 
   @Override

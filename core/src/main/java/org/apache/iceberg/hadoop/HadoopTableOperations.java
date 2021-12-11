@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.google.errorprone.annotations.concurrent.LockMethod;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -48,6 +49,8 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.LockManager;
+import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -65,15 +68,17 @@ public class HadoopTableOperations implements TableOperations {
   private final Configuration conf;
   private final Path location;
   private final FileIO fileIO;
+  private final LockManager lockManager;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
+  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf, LockManager lockMgr) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
+    this.lockManager = lockMgr;
   }
 
   @Override
@@ -347,10 +352,9 @@ public class HadoopTableOperations implements TableOperations {
    */
   private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
     try {
-      HadoopTableOperations.releaseLock.lock();
+      lockManager.acquire(dst.toString(), Thread.currentThread().getName());
       if (fs.exists(dst)) {
-        throw new CommitFailedException(
-                "Version %d already exists: %s", nextVersion, dst);
+        throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
       if (!fs.rename(src, dst)) {
         CommitFailedException cfe = new CommitFailedException(
@@ -370,7 +374,7 @@ public class HadoopTableOperations implements TableOperations {
       }
       throw cfe;
     } finally {
-      HadoopTableOperations.releaseLock.unlock();
+      lockManager.release(dst.toString(), Thread.currentThread().getName());
     }
   }
 
@@ -428,6 +432,4 @@ public class HadoopTableOperations implements TableOperations {
     }
     return newMetadata;
   }
-
-  private static Lock releaseLock = new ReentrantLock();
 }

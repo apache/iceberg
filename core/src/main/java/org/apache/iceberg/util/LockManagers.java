@@ -1,23 +1,18 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg.util;
 
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -26,17 +21,19 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.LockManagerProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.LockManager;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class LockManagers {
+public class LockManagers {
 
   private static final LockManager LOCK_MANAGER_DEFAULT = new InMemoryLockManager(Maps.newHashMap());
 
@@ -48,8 +45,8 @@ class LockManagers {
   }
 
   public static LockManager from(Map<String, String> properties) {
-    if (properties.containsKey(CatalogProperties.LOCK_IMPL)) {
-      return loadLockManager(properties.get(CatalogProperties.LOCK_IMPL), properties);
+    if (properties.containsKey(LockManagerProperties.LOCK_IMPL)) {
+      return loadLockManager(properties.get(LockManagerProperties.LOCK_IMPL), properties);
     } else {
       return defaultLockManager();
     }
@@ -76,7 +73,7 @@ class LockManagers {
     return lockManager;
   }
 
-  abstract static class BaseLockManager implements LockManager {
+  public abstract static class BaseLockManager implements LockManager {
 
     private static volatile ScheduledExecutorService scheduler;
 
@@ -127,15 +124,15 @@ class LockManagers {
     @Override
     public void initialize(Map<String, String> properties) {
       this.acquireTimeoutMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT);
+          LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT);
       this.acquireIntervalMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS_DEFAULT);
+          LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS_DEFAULT);
       this.heartbeatIntervalMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
+          LockManagerProperties.LOCK_HEARTBEAT_INTERVAL_MS, LockManagerProperties.LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
       this.heartbeatTimeoutMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS, CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT);
+          LockManagerProperties.LOCK_HEARTBEAT_TIMEOUT_MS, LockManagerProperties.LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT);
       this.heartbeatThreads = PropertyUtil.propertyAsInt(properties,
-          CatalogProperties.LOCK_HEARTBEAT_THREADS, CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
+          LockManagerProperties.LOCK_HEARTBEAT_THREADS, LockManagerProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
     }
   }
 

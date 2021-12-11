@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.LockManagerProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -153,9 +154,9 @@ public class TestDynamoLockManager {
   @Test
   public void testAcquireMultiProcessAllSucceed() throws Exception {
     lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
-        CatalogProperties.LOCK_TABLE, lockTableName
+        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+        LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
+        LockManagerProperties.LOCK_TABLE, lockTableName
     ));
     long start = System.currentTimeMillis();
     List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
@@ -182,8 +183,8 @@ public class TestDynamoLockManager {
   @Test
   public void testAcquireMultiProcessOnlyOneSucceed() throws Exception {
     lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "10000",
-        CatalogProperties.LOCK_TABLE, lockTableName
+        LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, "10000",
+        LockManagerProperties.LOCK_TABLE, lockTableName
     ));
 
     List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()

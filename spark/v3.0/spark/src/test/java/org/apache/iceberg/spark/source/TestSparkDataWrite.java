@@ -529,7 +529,8 @@ public class TestSparkDataWrite {
 
     HadoopTables tables = new HadoopTables(CONF);
     Map<String, String> properties = new HashMap<>();
-    properties.put(TableProperties.COMMIT_NUM_RETRIES, "1000");
+    int threadsCount = 5;
+    properties.put(TableProperties.COMMIT_NUM_RETRIES, String.valueOf(threadsCount));
     Table table = tables.create(SCHEMA, null, properties, location.toString());
 
     List<SimpleRecord> records = Lists.newArrayList(
@@ -539,7 +540,6 @@ public class TestSparkDataWrite {
     );
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
-    int threadsCount = 10;
     Thread[] threads = new Thread[threadsCount];
     for (int i = 0; i < threadsCount; i++) {
       threads[i] = new Thread(() -> {

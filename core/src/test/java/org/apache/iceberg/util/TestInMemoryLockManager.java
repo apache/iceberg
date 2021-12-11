@@ -1,23 +1,18 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg.util;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,8 +22,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.LockManagerProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LockManagers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -100,8 +97,8 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireSingleProcess() throws Exception {
     lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
+        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+        LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
     ));
     Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
     String oldOwner = ownerId;
@@ -126,7 +123,7 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireMultiProcessAllSucceed() {
     lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"
+        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"
     ));
     long start = System.currentTimeMillis();
     List<Boolean> results = IntStream.range(0, 3).parallel()
@@ -152,9 +149,9 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireMultiProcessOnlyOneSucceed() {
     lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
+        LockManagerProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
+        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+        LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
     ));
 
     List<Boolean> results = IntStream.range(0, 3).parallel()

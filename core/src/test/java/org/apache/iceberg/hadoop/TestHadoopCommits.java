@@ -429,13 +429,12 @@ public class TestHadoopCommits extends HadoopTableTestBase {
             version(1).exists() && version(1).isFile());
     File dir = temp.newFolder();
     dir.delete();
-
+    int threadsCount = 5;
     Table tableWithHighRetries = TABLES.create(SCHEMA, SPEC, new HashMap<String, String>() {
       {
-        put(TableProperties.COMMIT_NUM_RETRIES, "1000");
+        put(TableProperties.COMMIT_NUM_RETRIES, String.valueOf(threadsCount));
       }
     }, dir.toURI().toString());
-    int threadsCount = 30;
     Thread[] threads = new Thread[threadsCount];
     for (int i = 0; i < threadsCount; i++) {
       threads[i] = new Thread(() -> tableWithHighRetries.newAppend().appendFile(FILE_A).commit());
