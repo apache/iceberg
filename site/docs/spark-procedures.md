@@ -240,6 +240,34 @@ Remove any files in the `tablelocation/data` folder which are not known to the t
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
 ```
 
+### `delete_reachable_files`
+
+Used to delete all files referenced by a table metadata file. 
+This procedure will irreversibly delete all reachable files such as data files, manifests, manifest lists 
+and should be used to clean up the underlying storage once a table is dropped and no longer needed.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `metadataFileLocation`       | ✔️  | string | Location of metadata file of dropped table (with purge = false) or the table which is no longer needed|
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `deleted_data_files_count` | long | Number of data files deleted by this operation |
+| `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+| `deleted_other_files_count` | long | Number of other files (metadata.json, version_hint.txt, etc..) deleted by this operation |
+
+#### Examples
+
+Delete all the reachable files for given metadata path:
+```sql
+CALL catalog_name.system.delete_reachable_files(metadataFileLocation => 'path-to-metadata-file')
+```
+
 ### `rewrite_data_files`
 
 Iceberg tracks each data file in a table. More data files leads to more metadata stored in manifest files, and small data files causes an unnecessary amount of metadata and less efficient queries from file open costs.
