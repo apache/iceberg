@@ -154,13 +154,11 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   @Override
   public Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> dataFiles) {
-    if (minInputFiles == 1) {
-      return Collections.emptyList();
-    }
     ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
+    // single file should not be sufficient condition
     return potentialGroups.stream().filter(group ->
-      group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize ||
+            (group.size() >= minInputFiles && group.size() > 1) || sizeOfInputFiles(group) > targetFileSize ||
               group.stream().anyMatch(this::taskHasTooManyDeletes)
     ).collect(Collectors.toList());
   }

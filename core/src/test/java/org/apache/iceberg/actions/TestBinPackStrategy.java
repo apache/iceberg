@@ -144,7 +144,7 @@ public class TestBinPackStrategy extends TableTestBase {
             BinPackStrategy.MIN_INPUT_FILES, Integer.toString(1)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1);
+    Iterable<FileScanTask> testFiles = filesOfSize(1);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
