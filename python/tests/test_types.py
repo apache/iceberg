@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import decimal
 import math
 
 import pytest
@@ -27,11 +26,8 @@ from iceberg.types import (
     Date,
     Double,
     Float,
-    IcebergType,
     Integer,
     Long,
-    Number,
-    PrimitiveType,
     String,
     Time,
     Timestamp,
@@ -83,7 +79,12 @@ def test_number_casting_succeeds(_from, to, coerce):
 
 @pytest.mark.parametrize(
     "_from, to",
-    [(Integer(5), Double), (Integer(5), Float), (Long(5), Double), (Long(5), Float),],
+    [
+        (Integer(5), Double),
+        (Integer(5), Float),
+        (Long(5), Double),
+        (Long(5), Float),
+    ],
 )
 def test_number_casting_fails(_from, to):
     with pytest.raises(TypeError):

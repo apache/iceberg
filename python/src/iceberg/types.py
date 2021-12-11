@@ -15,15 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import decimal
-import math
 import struct
 from base64 import b64encode
 from datetime import date, datetime, time
 from decimal import Decimal as PythonDecimal
-from typing import Any, Dict
-from typing import List as PythonList
-from typing import Optional, Tuple, Type, Union
+from typing import Dict, Optional, Tuple, Type, Union
 from uuid import UUID as PythonUUID
 
 import mmh3
@@ -60,7 +56,20 @@ class PrimitiveType(IcebergType):
     a `PrimitiveType` should type the instance `value` most specific to that type
     """
 
-    value: Union[bytes, bool, int, float32, float64, PythonDecimal, str, dict]
+    value: Union[
+        bytes,
+        bool,
+        int,
+        float32,
+        float64,
+        PythonDecimal,
+        str,
+        dict,
+        PythonUUID,
+        date,
+        time,
+        datetime,
+    ]
 
     def __init__(self, value):
 
@@ -73,10 +82,10 @@ class PrimitiveType(IcebergType):
             self.value = value
 
     def __repr__(self) -> str:
-        return f"{repr(type(self))}(value={self.value})"
+        return f"{repr(type(self))}(value={self.value})"  # type: ignore
 
     def __str__(self) -> str:
-        return f"{str(type(self))}({self.value})"
+        return f"{str(type(self))}({self.value})"  # type: ignore
 
     def __bool__(self) -> bool:
         return bool(self.value)
@@ -113,19 +122,27 @@ class Number(PrimitiveType):
 
     value: Union[int, float32, float64, PythonDecimal]
 
-    def __float__(self) -> int:
+    def __float__(self) -> float:
         return float(self.value)
 
-    def __int__(self) -> float:
+    def __int__(self) -> int:
         return int(self.value)
 
     def __math(self, op, other=None):
         op_f = getattr(self.value, op)
         try:
-            if op in ("__add__", "__sub__", "__div__", "__mul__",):
+            if op in (
+                "__add__",
+                "__sub__",
+                "__div__",
+                "__mul__",
+            ):
                 other = other.to(type(self))
                 return type(self)(op_f(other.value))
-            if op in ("__pow__", "__mod__",):
+            if op in (
+                "__pow__",
+                "__mod__",
+            ):
                 other = type(self)(other)
                 return type(self)(op_f(other.value))
             if op in ("__lt__", "__eq__"):
@@ -171,7 +188,7 @@ class Number(PrimitiveType):
         return self.__math("__lt__", other)
 
     def __eq__(self, other) -> bool:
-        return self.__math("__eq__", other) and self._neg == other._neg
+        return self.__math("__eq__", other) and self._neg == other._neg  # type: ignore
 
     def __gt__(self, other) -> bool:
         return not self.__le__(other)
@@ -214,12 +231,12 @@ class Integral(Number):
         """
         helper method for `Integal` specific `_check` to ensure value is within spec
         """
-        if self.value > self.max:
-            raise ValueError(f"{type(self)} must be less than or equal to {self.max}")
+        if self.value > self.max:  # type: ignore
+            raise ValueError(f"{type(self)} must be less than or equal to {self.max}")  # type: ignore
 
-        if self.value < self.min:
+        if self.value < self.min:  # type: ignore
             raise ValueError(
-                f"{type(self)} must be greater than or equal to {self.min}"
+                f"{type(self)} must be greater than or equal to {self.min}"  # type: ignore
             )
 
         return self
@@ -256,19 +273,19 @@ class Floating(Number):
 
     def __repr__(self) -> str:
         ret = super().__repr__()
-        if self._neg and isnan(self.value):
+        if self._neg and isnan(self.value):  # type: ignore
             return ret.replace("nan", "-nan")
         return ret
 
     def is_nan(self) -> bool:
-        return isnan(self.value)
+        return isnan(self.value)  # type: ignore
 
     def is_inf(self) -> bool:
-        return isinf(self.value)
+        return isinf(self.value)  # type: ignore
 
     def __str__(self) -> str:
         ret = super().__str__()
-        if self._neg and isnan(self.value):
+        if self._neg and self.is_nan():
             return ret.replace("nan", "-nan")
         if self._neg and self.value == 0.0:
             return ret.replace("0.0", "-0.0")
@@ -286,7 +303,7 @@ class Floating(Number):
                 f"Cannot compare {self} with {other}. Ensure try creating an appropriate type {type(self)}({other})."
             )
 
-        def get_key(x):
+        def get_key(x) -> str:
             if x.is_nan():
                 ret = "nan"
             elif x.is_inf():
@@ -295,7 +312,7 @@ class Floating(Number):
                 return "value"
             return ("-" if x._neg else "") + ret
 
-        return {
+        ret_dict: Dict[Tuple[str, str], bool] = {
             ("inf", "value"): False,
             ("nan", "nan"): False,
             ("-inf", "-inf"): False,
@@ -312,8 +329,7 @@ class Floating(Number):
             ("-nan", "inf"): True,
             ("inf", "inf"): False,
             ("nan", "-inf"): False,
-            ("value", "value"): (self._neg and not other._neg)
-            or (self.value < other.value),
+            ("value", "value"): (self._neg and not other._neg) or (self.value < other.value),  # type: ignore
             ("-nan", "value"): True,
             ("value", "nan"): True,
             ("-inf", "value"): True,
@@ -322,7 +338,8 @@ class Floating(Number):
             ("nan", "inf"): True,
             ("value", "-inf"): False,
             ("inf", "-nan"): False,
-        }[(get_key(self), get_key(other))]
+        }
+        return ret_dict[(get_key(self), get_key(other))]
 
 
 class Integer(Integral):
@@ -507,7 +524,9 @@ class UUID(PrimitiveType):
     def to_bytes(cls, value) -> bytes:
         v = int(value.int)
         return struct.pack(
-            ">QQ", (v >> 64) & 0xFFFFFFFFFFFFFFFF, v & 0xFFFFFFFFFFFFFFFF,
+            ">QQ",
+            (v >> 64) & 0xFFFFFFFFFFFFFFFF,
+            v & 0xFFFFFFFFFFFFFFFF,
         )
 
 
