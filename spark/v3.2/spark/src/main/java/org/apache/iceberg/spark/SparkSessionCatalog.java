@@ -103,34 +103,35 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
-  // Spark assumes that catalogs CASCADE by default. So we have to eagerly
-  // attempt to drop namespaces and tables, but the CASCADE keyword is still
-  // required to actually drop tables and namespaces as Spark will error out
-  // if any of the recursive deletes are non-empty and the user didn't specify
-  // cascades in their query.
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
-    // First check if the namespace exists. If it doesn't, we can try dropping it, which will
-    // error out with NoSuchNamespace exception, or return false if the user used "IF EXISTS"
-    // in their drop statement.
+    // Spark assumes that catalogs CASCADE by default. So we must recursively try deleting
+    // and Spark will handle things based on whether the query used IF EXISTS or CASCADE
+    //
+    // First check if the namespace exists.
+    //   - If it doesn't, we can try dropping it, with two possible outcomes:
+    //      1) throw a NoSuchNamespace exception, e.g. user did not use `IF EXISTS` when dropping
+    //      2) return false because the user used "IF EXISTS" in their drop statement.
     boolean doesNamespaceExist = namespaceExists(namespace);
     if (!doesNamespaceExist) {
       return getSessionCatalog().dropNamespace(namespace);
     }
 
     // Recursively try to drop, since we know the namespace exists.
+    // Spark will guard against drops if the keyword CASCADE was not used.
     String[][] subNamespaces = getSessionCatalog().listNamespaces(namespace);
     for (String[] ns : subNamespaces) {
       try {
         dropNamespace(ns);
       } catch (NoSuchNamespaceException e) {
-        // Do nothing. It's possible this namespace doesn't exist at all or the user used `if not exists`.
+        // Do nothing. It's possible this namespace was removed concurrrently.
       }
     }
 
+    // Base case
     try {
       Arrays.stream(listTables(namespace)).forEach(tbl -> getSessionCatalog().dropTable(tbl));
     } catch (NoSuchNamespaceException e) {
-      // Do nothing. It's possible this namespace doesn't exist at all or the user used `if not exists`.
+      // Do nothing. It's possible this namespace was dropped concurrently.
     }
     return getSessionCatalog().dropNamespace(namespace);
   }
