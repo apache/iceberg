@@ -227,6 +227,12 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
         "Attempting to drop a non-existing namespace without IF EXISTS should throw",
         NoSuchNamespaceException.class, "not found",
         () -> sql("DROP NAMESPACE %s", NS));
+
+    sql("CREATE NAMESPACE %s", fullNamespace);
+    Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
+
+    sql("DROP NAMESPACE IF EXISTS %s", fullNamespace);
+    Assert.assertFalse("Namespace should no longer exist", validationNamespaceCatalog.namespaceExists(NS));
   }
 
   @Test

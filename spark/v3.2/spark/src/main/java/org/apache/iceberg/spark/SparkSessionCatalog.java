@@ -109,11 +109,16 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   // if any of the recursive deletes are non-empty and the user didn't specify
   // cascades in their query.
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+    // First check if the namespace exists. If it doesn't, we can try dropping it, which will
+    // error out with NoSuchNamespace exception, or return false if the user used "IF EXISTS"
+    // in their drop statement.
+    boolean doesNamespaceExist = namespaceExists(namespace);
+    if (!doesNamespaceExist) {
+      return getSessionCatalog().dropNamespace(namespace);
+    }
 
-    // This will eagerly throw NoSuchNamespaceException if namespace does not exist
-    // and the user did not use "IF EXISTS"
+    // Recursively try to drop, since we know the namespace exists.
     String[][] subNamespaces = getSessionCatalog().listNamespaces(namespace);
-
     for (String[] ns : subNamespaces) {
       try {
         dropNamespace(ns);
