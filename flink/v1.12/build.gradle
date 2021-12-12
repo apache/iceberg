@@ -19,7 +19,7 @@
 
 def flinkProjects = [
     project(':iceberg-flink:iceberg-flink-1.12'),
-    project(':iceberg-flink:iceberg-flink-1.12-runtime')
+    project(':iceberg-flink:iceberg-flink-runtime-1.12')
 ]
 
 configure(flinkProjects) {
@@ -118,7 +118,7 @@ project(':iceberg-flink:iceberg-flink-1.12') {
   }
 }
 
-project(':iceberg-flink:iceberg-flink-1.12-runtime') {
+project(':iceberg-flink:iceberg-flink-runtime-1.12') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
