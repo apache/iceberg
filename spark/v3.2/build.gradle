@@ -93,6 +93,12 @@ project(':iceberg-spark:iceberg-spark-3.2_2.12') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation("org.apache.parquet:parquet-avro") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
+    }
   }
 
   tasks.withType(Test) {

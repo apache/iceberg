@@ -334,6 +334,17 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false)
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.
 
+**Note** Parquet files written with old two level list structures when read from Spark using Iceberg returns NULL
+for those fields irrespective of actual values in the files. This is a known issue till 0.12.1 Iceberg releases.
+The issue is planned to be resolved in upcoming releases. 
+
+`snapshot` are not the sole owners of their data files, they are prohibited from
+actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's
+integrity. DELETE statements executed against the original Hive table will remove original data files and the
+`snapshot` table will no longer be able to access them.
+
+
 ### `snapshot`
 
 Create a light-weight temporary copy of a table for testing, without changing the source table.
