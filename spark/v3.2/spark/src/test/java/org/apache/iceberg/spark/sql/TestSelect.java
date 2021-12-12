@@ -120,4 +120,42 @@ public class TestSelect extends SparkCatalogTestBase {
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
         sql("SELECT * FROM %s.snapshots", tableName));
   }
+
+  @Test
+  public void testSnapshotInTableName() {
+    Assume.assumeFalse(
+        "Spark session catalog does not support extended table names",
+        "spark_catalog".equals(catalogName));
+
+    // get the snapshot ID of the last write and get the current row set as expected
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    String prefix = "snapshot_id_";
+    // read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s.%s", tableName, prefix + snapshotId);
+    assertEquals("Snapshot at specific ID, prefix " + prefix, expected, actual);
+  }
+
+  @Test
+  public void testTimestampInTableName() {
+    Assume.assumeFalse(
+        "Spark session catalog does not support extended table names",
+        "spark_catalog".equals(catalogName));
+
+    // get a timestamp just after the last write and get the current row set as expected
+    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    String prefix = "at_timestamp_";
+    // read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s.%s", tableName, prefix + timestamp);
+    assertEquals("Snapshot at time, prefix " + prefix, expected, actual);
+  }
 }

@@ -304,4 +304,30 @@ public class SnapshotUtil {
     // TODO: recover the schema by reading previous metadata files
     return table.schema();
   }
+
+  /**
+   * Convenience method for returning the schema of the table for a snapshot,
+   * when we have a snapshot id or a timestamp. Only one of them should be specified
+   * (non-null), or an IllegalArgumentException is thrown.
+   *
+   * @param table a {@link Table}
+   * @param snapshotId the ID of the snapshot
+   * @param timestampMillis the timestamp in millis since the Unix epoch
+   * @return the schema
+   * @throws IllegalArgumentException if both snapshotId and timestampMillis are non-null
+   */
+  public static Schema schemaFor(Table table, Long snapshotId, Long timestampMillis) {
+    Preconditions.checkArgument(snapshotId == null || timestampMillis == null,
+        "Cannot use both snapshot id and timestamp to find a schema");
+
+    if (snapshotId != null) {
+      return schemaFor(table, snapshotId);
+    }
+
+    if (timestampMillis != null) {
+      return schemaFor(table, snapshotIdAsOfTime(table, timestampMillis));
+    }
+
+    return table.schema();
+  }
 }
