@@ -400,8 +400,20 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
-  // skip the AbstractConstraint comparison
-  public boolean schemaCompare(org.apache.flink.table.api.Schema rawSchema,
+  /**
+   * schema.equals() contanins getColumns and getWatermarkSpecs
+   * and "primary key"
+   * primary.equals() contains columnNames and constraintName
+   * columnNames are identifierFields of table and constraintName now generate randomly through a function
+   * {@link TableSchema} #primaryKey
+   * so the result is always false because random names are not equal
+   * (two solutions: 1. give specific name like all identifierFields's name combination
+   *                 2. change the equals method because table's metadata has no constraintName)
+   * @param rawSchema Table original schema
+   * @param newSchema Schema after table change
+   * @return Boolean value of whether the schema is consistent
+   */
+  boolean schemaEquals(org.apache.flink.table.api.Schema rawSchema,
                                org.apache.flink.table.api.Schema newSchema) {
 
     org.apache.flink.table.api.Schema.UnresolvedPrimaryKey rawPK = rawSchema.getPrimaryKey().orElse(null);
@@ -410,12 +422,13 @@ public class FlinkCatalog extends AbstractCatalog {
     if ((rawPK == null && newPK != null) || (rawPK != null && newPK == null)) {
       return false;
     }
-    boolean exp = rawSchema.getColumns().equals(newSchema.getColumns()) &&
+    boolean columnsAndWatermarkEquals = rawSchema.getColumns().equals(newSchema.getColumns()) &&
             rawSchema.getWatermarkSpecs().equals(newSchema.getWatermarkSpecs());
-    boolean exp2 = rawPK != null && newPK != null ?
+    boolean primaryKeyEquals = rawPK != null && newPK != null ?
             rawPK.getColumnNames().equals(newPK.getColumnNames())
             : true;
-    return exp && exp2;
+
+    return columnsAndWatermarkEquals && primaryKeyEquals;
   }
 
   @Override
@@ -440,7 +453,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
     // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
-    if (!schemaCompare(table.getUnresolvedSchema(), newTable.getUnresolvedSchema())) {
+    if (!schemaEquals(table.getUnresolvedSchema(), newTable.getUnresolvedSchema())) {
       throw new UnsupportedOperationException("Altering schema is not supported yet.");
     }
 
