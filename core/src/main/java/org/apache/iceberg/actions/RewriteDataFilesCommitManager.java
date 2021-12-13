@@ -27,11 +27,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import org.apache.iceberg.BaseRewriteFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -79,11 +83,33 @@ public class RewriteDataFilesCommitManager {
     }
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
-    if (useStartingSequenceNumber) {
-      long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber);
+
+    if (addedDataFiles.size() > 0) {
+      if (useStartingSequenceNumber) {
+        rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, table.snapshot(startingSnapshotId).sequenceNumber());
+      } else {
+        rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
+      }
     } else {
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
+      // just expire no split offsets data files
+      Set<DataFile> noOffsetDataFiles = Sets.newHashSet();
+      noOffsetDataFiles.addAll(rewrittenDataFiles.stream()
+          .filter(dataFile -> dataFile.splitOffsets() == null || dataFile.splitOffsets().size() <= 1)
+          .collect(Collectors.toSet()));
+      if (noOffsetDataFiles.size() == 0) {
+        throw new ValidationException(
+            "No need add new data files, but all data files have split offsets, cannot expired");
+      }
+
+      LOG.info("Expired no split offsets data files:{}, rewritten data files:{}", noOffsetDataFiles, rewrittenDataFiles);
+      if (rewrite instanceof BaseRewriteFiles) {
+        ((BaseRewriteFiles) rewrite).needExpiredDataFiles();
+      }
+      if (useStartingSequenceNumber) {
+        rewrite.rewriteFiles(noOffsetDataFiles, ImmutableSet.of(), table.snapshot(startingSnapshotId).sequenceNumber());
+      } else {
+        rewrite.rewriteFiles(noOffsetDataFiles, ImmutableSet.of(), ImmutableSet.of(), ImmutableSet.of());
+      }
     }
 
     rewrite.commit();

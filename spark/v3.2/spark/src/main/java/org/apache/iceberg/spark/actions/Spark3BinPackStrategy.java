@@ -26,6 +26,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackStrategy;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -66,6 +67,12 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
           .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
           .load(table.name());
+
+      // If got 0 pieces of data,
+      // no need write new data file and should return to expire the data file
+      if (scanDF.count() == 0) {
+        return ImmutableSet.of();
+      }
 
       // write the packed data into new files where each split becomes a new file
       scanDF.write()
