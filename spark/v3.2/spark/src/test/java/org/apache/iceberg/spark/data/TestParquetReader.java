@@ -53,7 +53,7 @@ public class TestParquetReader {
     List<InternalRow> rows;
 
     /* Using a static file rather than generating test data in test, as parquet writers in Iceberg only supports
-     * three level lists. The twoLevelList.pq is a parquet file that contains following Parquet schema.
+     * three level lists. The hiveStyleList.pq is a parquet file that contains following Parquet schema.
      * message hive_schema {
      *  optional binary key (STRING);
      *  optional group val (LIST) {
@@ -71,7 +71,7 @@ public class TestParquetReader {
      */
     try (CloseableIterable<InternalRow> reader =
                  Parquet.read(Files.localInput(
-                         this.getClass().getClassLoader().getResource("twoLevelList.pq").getPath()))
+                         this.getClass().getClassLoader().getResource("hiveStyleList.pq").getPath()))
                          .project(icebergSchema)
                          .withNameMapping(MappingUtil.create(icebergSchema))
                          .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
