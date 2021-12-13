@@ -112,7 +112,6 @@ public class TestCreateSnapshotEvent extends TableTestBase {
   class MyListener implements Listener<CreateSnapshotEvent> {
     @Override
     public void notify(CreateSnapshotEvent event) {
-      System.out.println("Event :: " + event.summary());
       currentEvent = event;
     }
   }

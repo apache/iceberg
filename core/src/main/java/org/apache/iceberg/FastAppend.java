@@ -29,7 +29,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -158,10 +157,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         operation(),
         snapshotId,
         sequenceNumber,
-        ImmutableMap.<String, String>builder()
-          .putAll(summary())
-          .putAll(SnapshotSummary.fetchTotalStatsFromSummary(snapshot.summary()))
-          .build());
+        snapshot.summary());
   }
 
   @Override

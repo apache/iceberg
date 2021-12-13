@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -321,23 +319,6 @@ public class SnapshotSummary {
       this.removedEqDeletes += other.removedEqDeletes;
       this.trustSizeAndDeleteCounts = trustSizeAndDeleteCounts && other.trustSizeAndDeleteCounts;
     }
-  }
-
-  protected static Map<String, String> fetchTotalStatsFromSummary(Map<String, String> summary) {
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    List<String> totalProps = Arrays.asList(
-            TOTAL_DATA_FILES_PROP,
-            TOTAL_DELETE_FILES_PROP,
-            TOTAL_EQ_DELETES_PROP,
-            TOTAL_POS_DELETES_PROP,
-            TOTAL_FILE_SIZE_PROP,
-            TOTAL_RECORDS_PROP);
-    summary.forEach((key, value) -> {
-      if (totalProps.contains(key) && Long.parseLong(summary.get(key)) > 0) {
-        builder.put(key, summary.get(key));
-      }
-    });
-    return builder.build();
   }
 
   private static void setIf(boolean expression, ImmutableMap.Builder<String, String> builder,
