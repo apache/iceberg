@@ -30,6 +30,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -453,5 +454,44 @@ public class TestGlueCatalog {
     Mockito.doReturn(UpdateDatabaseResponse.builder().build())
         .when(glue).updateDatabase(Mockito.any(UpdateDatabaseRequest.class));
     glueCatalog.removeProperties(Namespace.of("db1"), Sets.newHashSet("key"));
+  }
+
+  @Test
+  public void testValidIdentifier() {
+    String databaseNameValidationMessage = "Cannot convert namespace %s to Glue database name, because it must be " +
+        "1-252 chars of lowercase letters, numbers, underscore";
+    String tableNameValidationMessage = "Cannot use %s as Glue table name, because it must be 1-255 chars of " +
+        "lowercase letters, numbers, underscore";
+
+    // Positive Test Cases
+    Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db", "table")));
+    Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db0123456789", "table0123456789")));
+    Assert.assertTrue(glueCatalog.isValidIdentifier(TableIdentifier.of("db_0123456789", "table_0123456789")));
+
+    // Negative Test Cases
+    AssertHelpers.assertThrows("Database Name Invalid", ValidationException.class,
+        String.format(databaseNameValidationMessage, "DB"), () -> {
+          glueCatalog.isValidIdentifier(TableIdentifier.of("DB", "TABLE"));
+        });
+    AssertHelpers.assertThrows("Database Name Invalid", ValidationException.class,
+        String.format(databaseNameValidationMessage, "test-db"), () -> {
+          glueCatalog.isValidIdentifier(TableIdentifier.of("test-db", "table"));
+        });
+    AssertHelpers.assertThrows("Database Name Invalid", ValidationException.class,
+        String.format(databaseNameValidationMessage, "test db"), () -> {
+          glueCatalog.isValidIdentifier(TableIdentifier.of("test db", "table"));
+        });
+    AssertHelpers.assertThrows("Database and Table Name Invalid", ValidationException.class,
+        String.format(databaseNameValidationMessage, "test db"), () -> {
+          glueCatalog.isValidIdentifier(TableIdentifier.of("test db", "ta ble"));
+        });
+    AssertHelpers.assertThrows("Table Name Invalid", ValidationException.class,
+        String.format(tableNameValidationMessage, "test-table"), () -> {
+          glueCatalog.isValidIdentifier(TableIdentifier.of("db", "test-table"));
+        });
+    AssertHelpers.assertThrows("Table Name Invalid", ValidationException.class,
+        String.format(tableNameValidationMessage, Strings.repeat("a", 256)), () -> {
+          glueCatalog.isValidIdentifier(TableIdentifier.of("db", Strings.repeat("a", 256)));
+        });
   }
 }
