@@ -394,7 +394,7 @@ public class TestNessieTable extends BaseTestIceberg {
   private static String addRecordsToFile(Table table, String filename) throws IOException {
     GenericRecordBuilder recordBuilder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
-    List<GenericData.Record> records = Lists.newArrayList();
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(3);
     records.add(recordBuilder.set("id", 1L).build());
     records.add(recordBuilder.set("id", 2L).build());
     records.add(recordBuilder.set("id", 3L).build());

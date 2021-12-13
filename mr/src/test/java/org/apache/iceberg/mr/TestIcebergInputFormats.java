@@ -432,7 +432,7 @@ public class TestIcebergInputFormats {
       try {
         org.apache.hadoop.mapred.InputSplit[] splits = inputFormat.getSplits(job, 1);
 
-        List<IcebergSplit> iceSplits = Lists.newArrayListWithCapacity(splits.length);
+        List<IcebergSplit> iceSplits = Lists.newArrayListWithExpectedSize(splits.length);
         List<T> records = Lists.newArrayList();
 
         for (org.apache.hadoop.mapred.InputSplit split : splits) {
@@ -469,7 +469,7 @@ public class TestIcebergInputFormats {
       IcebergInputFormat<T> inputFormat = new IcebergInputFormat<>();
       List<InputSplit> splits = inputFormat.getSplits(context);
 
-      List<IcebergSplit> iceSplits = Lists.newArrayListWithCapacity(splits.size());
+      List<IcebergSplit> iceSplits = Lists.newArrayListWithExpectedSize(splits.size());
       List<T> records = Lists.newArrayList();
 
       for (InputSplit split : splits) {

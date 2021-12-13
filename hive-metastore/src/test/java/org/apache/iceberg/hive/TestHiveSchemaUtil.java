@@ -171,7 +171,7 @@ public class TestHiveSchemaUtil {
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
-    List<FieldSchema> fields = Lists.newArrayList();
+    List<FieldSchema> fields = Lists.newArrayListWithCapacity(10);
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
     fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, "double comment"));
     fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, "boolean comment"));
@@ -186,7 +186,7 @@ public class TestHiveSchemaUtil {
   }
 
   protected List<FieldSchema> getNotSupportedFieldSchemas() {
-    List<FieldSchema> fields = Lists.newArrayList();
+    List<FieldSchema> fields = Lists.newArrayListWithCapacity(6);
     fields.add(new FieldSchema("c_byte", serdeConstants.TINYINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_short", serdeConstants.SMALLINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_char", serdeConstants.CHAR_TYPE_NAME + "(5)", ""));

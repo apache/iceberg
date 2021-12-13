@@ -285,7 +285,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 100);
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, SPLIT_SIZE, 100);
 
-    List<Integer> ids = Lists.newArrayList();
+    List<Integer> ids = Lists.newArrayListWithCapacity(200);
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }

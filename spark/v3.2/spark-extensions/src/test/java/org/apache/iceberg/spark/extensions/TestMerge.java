@@ -910,7 +910,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
 
-    List<Integer> ids = Lists.newArrayList();
+    List<Integer> ids = Lists.newArrayListWithCapacity(200);
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }

@@ -61,7 +61,7 @@ class HiveSchemaConverter {
   }
 
   List<Types.NestedField> convertInternal(List<String> names, List<TypeInfo> typeInfos, List<String> comments) {
-    List<Types.NestedField> result = Lists.newArrayListWithCapacity(names.size());
+    List<Types.NestedField> result = Lists.newArrayListWithExpectedSize(names.size());
     for (int i = 0; i < names.size(); ++i) {
       result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i)),
           (comments.isEmpty() || i >= comments.size()) ? null : comments.get(i)));

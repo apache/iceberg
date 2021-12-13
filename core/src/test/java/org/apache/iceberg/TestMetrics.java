@@ -432,7 +432,7 @@ public abstract class TestMetrics {
     Assume.assumeTrue("Skip test for formats that do not support small row groups", supportsSmallRowGroups());
 
     int recordCount = 201;
-    List<Record> records = Lists.newArrayListWithCapacity(recordCount);
+    List<Record> records = Lists.newArrayListWithExpectedSize(recordCount);
 
     for (int i = 0; i < recordCount; i++) {
       Record newRecord = GenericRecord.create(SIMPLE_SCHEMA);

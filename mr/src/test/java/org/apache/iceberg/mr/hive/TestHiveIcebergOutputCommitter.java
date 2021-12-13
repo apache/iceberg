@@ -260,7 +260,7 @@ public class TestHiveIcebergOutputCommitter {
    */
   private List<Record> writeRecords(String name, int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
                                     JobConf conf, OutputCommitter committer) throws IOException {
-    List<Record> expected = Lists.newArrayListWithCapacity(RECORD_NUM * taskNum);
+    List<Record> expected = Lists.newArrayListWithExpectedSize(RECORD_NUM * taskNum);
 
     Table table = HiveIcebergStorageHandler.table(conf, name);
     FileIO io = table.io();

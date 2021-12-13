@@ -66,9 +66,9 @@ public final class HiveSchemaUtil {
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
-    List<String> names = Lists.newArrayListWithCapacity(fieldSchemas.size());
-    List<TypeInfo> typeInfos = Lists.newArrayListWithCapacity(fieldSchemas.size());
-    List<String> comments = Lists.newArrayListWithCapacity(fieldSchemas.size());
+    List<String> names = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
+    List<TypeInfo> typeInfos = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
+    List<String> comments = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
 
     for (FieldSchema col : fieldSchemas) {
       names.add(col.getName());

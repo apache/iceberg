@@ -209,7 +209,7 @@ public class ParquetUtil {
    * Returns a list of offsets in ascending order determined by the starting position of the row groups.
    */
   public static List<Long> getSplitOffsets(ParquetMetadata md) {
-    List<Long> splitOffsets = Lists.newArrayListWithCapacity(md.getBlocks().size());
+    List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
     }
