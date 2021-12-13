@@ -361,7 +361,7 @@ project(':iceberg-gcp') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
 
-    implementation platform('com.google.cloud:libraries-bom:24.1.0')
+    implementation platform('com.google.cloud:libraries-bom')
     implementation 'com.google.cloud:google-cloud-storage'
 
     testImplementation 'com.google.cloud:google-cloud-nio'
