@@ -68,8 +68,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
           .load(table.name());
 
-      // If got 0 pieces of data,
-      // no need write new data file and should return to expire the data file
+      // If got 0 pieces of data, no need write new data file, should return to expire the data file
       if (scanDF.count() == 0) {
         return ImmutableSet.of();
       }

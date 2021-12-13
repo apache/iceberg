@@ -101,7 +101,8 @@ public class RewriteDataFilesCommitManager {
             "No need add new data files, but all data files have split offsets, cannot expired");
       }
 
-      LOG.info("Expired no split offsets data files:{}, rewritten data files:{}", noOffsetDataFiles, rewrittenDataFiles);
+      LOG.info("Expired no split offsets data files:{}, rewritten data files:{}",
+          noOffsetDataFiles, rewrittenDataFiles);
       if (rewrite instanceof BaseRewriteFiles) {
         ((BaseRewriteFiles) rewrite).needExpiredDataFiles();
       }
