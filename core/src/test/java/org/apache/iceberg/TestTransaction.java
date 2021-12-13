@@ -708,19 +708,19 @@ public class TestTransaction extends TableTestBase {
 
     // Create a table ops such that: the commit actually succeeds but it throws CommitStateUnknownException at the end
     BiFunction<File, String, TestTables.TestTableOperations> opsSupplier = (file, name) ->
-            new TestTables.TestTableOperations(name, file) {
-              @Override
-              public void commit(TableMetadata base, TableMetadata updatedMetadata) {
-                super.commit(base, updatedMetadata);
-                throw new CommitStateUnknownException(new RuntimeException(errorMsg));
-              }
-            };
+        new TestTables.TestTableOperations(name, file) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            super.commit(base, updatedMetadata);
+            throw new CommitStateUnknownException(new RuntimeException(errorMsg));
+          }
+        };
     Table table = TestTables.load(tableDir, "test", opsSupplier);
 
     Transaction txn = table.newTransaction();
     txn.newAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
     try {
       txn.commitTransaction();
       Assert.fail("Transaction commit should have failed with CommitStateUnknownException");
