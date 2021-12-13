@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -244,7 +245,8 @@ class BaseTransaction implements Transaction {
     // process has created the same table.
     try {
       ops.commit(null, current);
-
+    } catch (CommitStateUnknownException e) {
+      throw e;
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
       Tasks.foreach(updates)
@@ -254,16 +256,13 @@ class BaseTransaction implements Transaction {
               ((SnapshotProducer) update).cleanAll();
             }
           });
-
-      throw e;
-
-    } finally {
       // create table never needs to retry because the table has no previous state. because retries are not a
       // concern, it is safe to delete all of the deleted files from individual operations
       Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+              .suppressFailureWhenFinished()
+              .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+              .run(ops.io()::deleteFile);
+      throw e;
     }
   }
 
@@ -297,7 +296,8 @@ class BaseTransaction implements Transaction {
 
             underlyingOps.commit(base, current);
           });
-
+    } catch (CommitStateUnknownException e) {
+      throw e;
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
       Tasks.foreach(updates)
@@ -307,16 +307,13 @@ class BaseTransaction implements Transaction {
               ((SnapshotProducer) update).cleanAll();
             }
           });
-
-      throw e;
-
-    } finally {
       // replace table never needs to retry because the table state is completely replaced. because retries are not
       // a concern, it is safe to delete all of the deleted files from individual operations
       Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
+              .suppressFailureWhenFinished()
+              .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+              .run(ops.io()::deleteFile);
+      throw e;
     }
   }
 
@@ -355,7 +352,8 @@ class BaseTransaction implements Transaction {
             // fix up the snapshot log, which should not contain intermediate snapshots
             underlyingOps.commit(base, current);
           });
-
+    } catch (CommitStateUnknownException e) {
+      throw e;
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
       Tasks.foreach(updates)

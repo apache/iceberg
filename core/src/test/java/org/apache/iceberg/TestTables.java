@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.util.Map;
+import java.util.function.BiFunction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -100,6 +101,11 @@ public class TestTables {
 
   public static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
+    return new TestTable(ops, name);
+  }
+
+  public static TestTable load(File temp, String name, BiFunction<File, String, TestTableOperations> opsSupplier) {
+    TestTableOperations ops = opsSupplier.apply(temp, name);
     return new TestTable(ops, name);
   }
 

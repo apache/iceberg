@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -698,5 +700,39 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     Assert.assertFalse("Append manifest should be deleted on expiry", new File(newManifest.path()).exists());
+  }
+
+  @Test
+  public void testTransactionNotDeletingMetadataOnUnknownSate() throws IOException {
+    String errorMsg = "datacenter on fire";
+
+    // Create a table ops such that: the commit actually succeeds but it throws CommitStateUnknownException at the end
+    BiFunction<File, String, TestTables.TestTableOperations> opsSupplier = (file, name) ->
+            new TestTables.TestTableOperations(name, file) {
+              @Override
+              public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+                super.commit(base, updatedMetadata);
+                throw new CommitStateUnknownException(new RuntimeException(errorMsg));
+              }
+            };
+    Table table = TestTables.load(tableDir, "test", opsSupplier);
+
+    Transaction txn = table.newTransaction();
+    txn.newAppend()
+            .appendFile(FILE_A)
+            .commit();
+    try {
+      txn.commitTransaction();
+      Assert.fail("Transaction commit should have failed with CommitStateUnknownException");
+    } catch (CommitStateUnknownException e) {
+      Assert.assertTrue("CommitStateUnknownException should contain original error msg",
+              e.getMessage().contains(errorMsg));
+    }
+
+    // Make sure metadata files still exist
+    Snapshot current = table.currentSnapshot();
+    List<ManifestFile> manifests = current.allManifests();
+    Assert.assertEquals("Should have 1 manifest file", 1, manifests.size());
+    Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
   }
 }
