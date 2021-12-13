@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -72,6 +73,7 @@ public class TestParquetReader {
                  Parquet.read(Files.localInput(
                          this.getClass().getClassLoader().getResource("twoLevelList.pq").getPath()))
                          .project(icebergSchema)
+                         .withNameMapping(MappingUtil.create(icebergSchema))
                          .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
                          .build()) {
       rows = Lists.newArrayList(reader);
