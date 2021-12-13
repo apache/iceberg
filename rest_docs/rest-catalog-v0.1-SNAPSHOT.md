@@ -1,5 +1,5 @@
 ---
-title: Apache Iceberg REST Catalog API v1.0.0
+title: Apache Iceberg REST Catalog API v0.0.1
 language_tabs:
   - shell: Shell
   - java: Java
@@ -16,7 +16,7 @@ headingLevel: 2
 
 <!-- Generator: Widdershins v4.0.1 -->
 
-<h1 id="apache-iceberg-rest-catalog-api">Apache Iceberg REST Catalog API v1.0.0</h1>
+<h1 id="apache-iceberg-rest-catalog-api">Apache Iceberg REST Catalog API v0.0.1</h1>
 
 > Scroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.
 
@@ -32,7 +32,7 @@ Base URLs:
 
     * **basePath** -  Default: v1
 
-* <a href="http://127.0.0.1:1080/v1">http://127.0.0.1:1080/v1</a>
+* <a href="http://127.0.0.1:1080/">http://127.0.0.1:1080/</a>
 
 License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</a>
 
@@ -50,14 +50,14 @@ License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</
 
 ```shell
 # You can also use wget
-curl -X GET https://{host}:{port}/{basePath}/config \
+curl -X GET https://{host}:{port}/{basePath}/v1/config \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/config");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/config");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -73,7 +73,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /config`
+`GET /v1/config`
 
 *List all catalog configuration settings*
 
@@ -135,14 +135,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET https://{host}:{port}/{basePath}/namespaces \
+curl -X GET https://{host}:{port}/{basePath}/v1/namespaces \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -158,11 +158,11 @@ System.out.println(response.toString());
 
 ```
 
-`GET /namespaces`
+`GET /v1/namespaces`
 
 *List namespaces, optionally providing a parent namespace to list underneaath*
 
-List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a","b").
+List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a","b")
 
 <h3 id="listnamespaces-parameters">Parameters</h3>
 
@@ -206,7 +206,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST https://{host}:{port}/{basePath}/namespaces \
+curl -X POST https://{host}:{port}/{basePath}/v1/namespaces \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -214,7 +214,7 @@ curl -X POST https://{host}:{port}/{basePath}/namespaces \
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -230,7 +230,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /namespaces`
+`POST /v1/namespaces`
 
 *Create a namespace*
 
@@ -253,7 +253,7 @@ Create a namespace, with an optional set of properties. The server might also ad
 |---|---|---|---|---|
 |body|body|[CreateNamespaceRequest](#schemacreatenamespacerequest)|true|none|
 |» namespace|body|[string]|true|Individual levels of the namespace|
-|» properties|body|object|false|Configuration properties for the namespace|
+|» properties|body|object|false|Configured properties for the namespace|
 
 > Example responses
 
@@ -290,14 +290,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET https://{host}:{port}/{basePath}/namespaces/{namespace} \
+curl -X GET https://{host}:{port}/{basePath}/v1/namespaces/{namespace} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -313,7 +313,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /namespaces/{namespace}`
+`GET /v1/namespaces/{namespace}`
 
 *Load the metadata properties for a namespace*
 
@@ -374,13 +374,13 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X HEAD https://{host}:{port}/{basePath}/namespaces/{namespace} \
+curl -X HEAD https://{host}:{port}/{basePath}/v1/namespaces/{namespace} \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("HEAD");
 int responseCode = con.getResponseCode();
@@ -396,7 +396,7 @@ System.out.println(response.toString());
 
 ```
 
-`HEAD /namespaces/{namespace}`
+`HEAD /v1/namespaces/{namespace}`
 
 *Check if a namespace exists*
 
@@ -412,7 +412,7 @@ Check if a namespace exists.
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK - Namesapce exists|None|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|Namesapce exists|None|
 |401|[Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)|Unauthorized|None|
 |404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|None|
 
@@ -429,14 +429,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE https://{host}:{port}/{basePath}/namespaces/{namespace} \
+curl -X DELETE https://{host}:{port}/{basePath}/v1/namespaces/{namespace} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("DELETE");
 int responseCode = con.getResponseCode();
@@ -452,7 +452,7 @@ System.out.println(response.toString());
 
 ```
 
-`DELETE /namespaces/{namespace}`
+`DELETE /v1/namespaces/{namespace}`
 
 *Drop a namespace from the catalog. Namespace must be empty.*
 
@@ -495,7 +495,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST https://{host}:{port}/{basePath}/namespaces/{namespace}/properties \
+curl -X POST https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/properties \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -503,7 +503,7 @@ curl -X POST https://{host}:{port}/{basePath}/namespaces/{namespace}/properties 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/properties");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/properties");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -519,7 +519,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /namespaces/{namespace}/properties`
+`POST /v1/namespaces/{namespace}/properties`
 
 *Set or remove properties on a namespace*
 
@@ -600,14 +600,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X GET https://{host}:{port}/{basePath}/namespaces/{namespace}/tables \
+curl -X GET https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/tables \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/tables");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/tables");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("GET");
 int responseCode = con.getResponseCode();
@@ -623,7 +623,7 @@ System.out.println(response.toString());
 
 ```
 
-`GET /namespaces/{namespace}/tables`
+`GET /v1/namespaces/{namespace}/tables`
 
 *List all table identifiers underneath a given namespace*
 
@@ -678,14 +678,14 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X DELETE https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table} \
+curl -X DELETE https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/tables/{table} \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("DELETE");
 int responseCode = con.getResponseCode();
@@ -701,7 +701,7 @@ System.out.println(response.toString());
 
 ```
 
-`DELETE /namespaces/{namespace}/tables/{table}`
+`DELETE /v1/namespaces/{namespace}/tables/{table}`
 
 *Drop a table from the catalog*
 
@@ -761,13 +761,13 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X HEAD https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table} \
+curl -X HEAD https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/tables/{table} \
   -H 'Authorization: Bearer {access-token}'
 
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/namespaces/{namespace}/tables/{table}");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/namespaces/{namespace}/tables/{table}");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("HEAD");
 int responseCode = con.getResponseCode();
@@ -783,7 +783,7 @@ System.out.println(response.toString());
 
 ```
 
-`HEAD /namespaces/{namespace}/tables/{table}`
+`HEAD /v1/namespaces/{namespace}/tables/{table}`
 
 *Check if a table exists*
 
@@ -817,7 +817,7 @@ BearerAuth
 
 ```shell
 # You can also use wget
-curl -X POST https://{host}:{port}/{basePath}/tables/rename \
+curl -X POST https://{host}:{port}/{basePath}/v1/tables/rename \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer {access-token}'
@@ -825,7 +825,7 @@ curl -X POST https://{host}:{port}/{basePath}/tables/rename \
 ```
 
 ```java
-URL obj = new URL("https://{host}:{port}/{basePath}/tables/rename");
+URL obj = new URL("https://{host}:{port}/{basePath}/v1/tables/rename");
 HttpURLConnection con = (HttpURLConnection) obj.openConnection();
 con.setRequestMethod("POST");
 int responseCode = con.getResponseCode();
@@ -841,7 +841,7 @@ System.out.println(response.toString());
 
 ```
 
-`POST /tables/rename`
+`POST /v1/tables/rename`
 
 *Rename a table from its current name to a new name*
 
@@ -1031,7 +1031,7 @@ JSON error payload returned in a response with further details on the error
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |namespace|[string]|true|none|Individual levels of the namespace|
-|properties|object|false|none|Configuration properties for the namespace|
+|properties|object|false|none|Configured properties for the namespace|
 
 <h2 id="tocS_RenameTableRequest">RenameTableRequest</h2>
 <!-- backwards compatibility -->
