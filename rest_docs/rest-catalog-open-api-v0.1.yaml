@@ -38,13 +38,13 @@ servers:
         default: "443"
       basePath:
         default: v1
-  - url: http://127.0.0.1:1080/v1
+  - url: http://127.0.0.1:1080/
     description: URL Used for Mock-Server Unit Tests
 # All routes are currently configured using an Authorization header.
 security:
   - BearerAuth: []
 paths:
-  /config:
+  /v1/config:
     get:
       tags:
         - Configuration API
@@ -99,7 +99,7 @@ paths:
           description: Unknown Error
         "401":
           description: Unauthorized
-  /namespaces:
+  /v1/namespaces:
     get:
       tags:
         - Catalog API
@@ -148,7 +148,7 @@ paths:
         '409':
           $ref: '#/components/responses/NamespaceAlreadyExistsResponse'
 
-  /namespaces/{namespace}:
+  /v1/namespaces/{namespace}:
     parameters:
       - name: namespace
         in: path
@@ -178,7 +178,7 @@ paths:
       description: Check if a namespace exists.
       responses:
         '200':
-          description: OK - Namesapce exists
+          description: Namesapce exists
         '401':
           description: Unauthorized
         '404':
@@ -202,7 +202,7 @@ paths:
           description: Not Found
 
 
-  /namespaces/{namespace}/properties:
+  /v1/namespaces/{namespace}/properties:
     parameters:
       - name: namespace
         in: path
@@ -257,7 +257,7 @@ paths:
         422:
           description: Unprocessable Entity. A property key was included in both toRemove and toUpdate.
 
-  /namespaces/{namespace}/tables:
+  /v1/namespaces/{namespace}/tables:
     parameters:
       - name: namespace
         description: A namespace identifier under which to list tables
@@ -292,7 +292,7 @@ paths:
               example:
                 '{ error: { message: "Namespace does not exist", type: "NoSuchNamespaceException", code: 404 }'
 
-  /namespaces/{namespace}/tables/{table}:
+  /v1/namespaces/{namespace}/tables/{table}:
     parameters:
       - name: namespace
         in: path
@@ -356,7 +356,7 @@ paths:
         404:
           description: Not Found
 
-  /tables/rename:
+  /v1/tables/rename:
     post:
       tags:
         - Catalog API
