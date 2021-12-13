@@ -30,6 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 
+import static org.apache.iceberg.DistributionMode.HASH;
+import static org.apache.iceberg.DistributionMode.NONE;
+import static org.apache.iceberg.DistributionMode.RANGE;
+
 /**
  * A class for common Iceberg configs for Spark writes.
  * <p>
@@ -155,19 +159,23 @@ public class SparkWriteConf {
   }
 
   public DistributionMode distributionMode() {
-    String defaultValue;
-    if (table.sortOrder().isSorted()) {
-      defaultValue = TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
-    } else {
-      defaultValue = TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
-    }
-
     String modeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
-        .defaultValue(defaultValue)
-        .parse();
-    return DistributionMode.fromName(modeName);
+        .parseOptional();
+
+    if (modeName != null) {
+      DistributionMode mode = DistributionMode.fromName(modeName);
+      if (mode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
+        return NONE;
+      } else if (mode == HASH && table.spec().isUnpartitioned()) {
+        return NONE;
+      } else {
+        return mode;
+      }
+    } else {
+      return table.sortOrder().isSorted() ? RANGE : NONE;
+    }
   }
 
   public DistributionMode deleteDistributionMode() {

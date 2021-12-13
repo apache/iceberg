@@ -94,6 +94,7 @@
                 org.apache.commons.lang3.Validate.*,
                 org.apache.iceberg.expressions.Expressions.*,
                 org.apache.iceberg.expressions.Expression.Operation.*,
+                org.apache.iceberg.DistributionMode.*,
                 org.apache.iceberg.IsolationLevel.*,
                 org.apache.iceberg.NullOrder.*,
                 org.apache.iceberg.MetadataTableType.*,
