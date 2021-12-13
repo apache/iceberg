@@ -188,6 +188,46 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
   }
 
+  public boolean cleanTable(TableIdentifier identifier) {
+    if (!isValidIdentifier(identifier)) {
+      return false;
+    }
+
+    String database = identifier.namespace().level(0);
+
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata lastMetadata;
+    if (purge && ops.current() != null) {
+      lastMetadata = ops.current();
+    } else {
+      lastMetadata = null;
+    }
+
+    try {
+      boolean isExist = clients.run(client -> {
+        return client.tableExists(database, identifier.name());
+      });
+
+      if (isExist) {
+        LOG.warn("Cleaned table: {}", identifier);
+        throw new RuntimeException("Failed to clean " + identifier + " as the table exists in MetaStore.");
+      }
+      if (purge && lastMetadata != null) {
+        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+      }
+
+      LOG.info("Cleaned table: {}", identifier);
+      return true;
+
+    } catch (TException e) {
+      throw new RuntimeException("Failed to clean " + identifier, e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to cleanTable", e);
+    }
+  }
+
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier originalTo) {
     if (!isValidIdentifier(from)) {
