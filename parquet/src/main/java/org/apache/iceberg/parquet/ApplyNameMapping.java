@@ -26,7 +26,9 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
@@ -61,11 +63,18 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "List type must have element field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type listType = Types.list(list.getRepetition())
-        .element(elementType)
-        .named(list.getName());
+    Type listType = makeListType(list, elementType);
 
     return field == null ? listType : listType.withId(field.id());
+  }
+
+  private Type makeListType(GroupType list, Type elementType) {
+    // List's repeated group in 3-level lists can be named differently across different parquet writers.
+    // For example, hive names it "bag", whereas new parquet writers names it as "list".
+    return Types.buildGroup(list.getRepetition())
+            .as(LogicalTypeAnnotation.listType())
+            .repeatedGroup().addFields(elementType).named(list.getFieldName(0))
+            .named(list.getName());
   }
 
   @Override
@@ -86,6 +95,31 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   public Type primitive(PrimitiveType primitive) {
     MappedField field = nameMapping.find(currentPath());
     return field == null ? primitive : primitive.withId(field.id());
+  }
+
+  @Override
+  public void beforeElementField(Type element) {
+    super.beforeElementField(makeElement(element));
+  }
+
+  @Override
+  public void afterElementField(Type element) {
+    super.afterElementField(makeElement(element));
+  }
+
+  private Type makeElement(Type element) {
+    // List's element in 3-level lists can be named differently across different parquet writers.
+    // For example, hive names it "array_element", whereas new parquet writers names it as "element".
+    if (element.getName().equals("element") || element.isPrimitive()) {
+      return element;
+    }
+
+    Types.GroupBuilder<GroupType> elementBuilder = Types.buildGroup(element.getRepetition())
+            .addFields(element.asGroupType().getFields().toArray(new Type[0]));
+    if (element.getId() != null) {
+      elementBuilder.id(element.getId().intValue());
+    }
+    return elementBuilder.named("element");
   }
 
   @Override

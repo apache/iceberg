@@ -42,7 +42,7 @@ public class TestParquetReader {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
-  public void testParquet2LevelList() throws IOException {
+  public void testHiveStlyeList() throws IOException {
     Schema icebergSchema = new Schema(
             optional(1, "key", Types.StringType.get()),
             optional(2, "val", Types.ListType.ofRequired(3, Types.StructType.of(
@@ -82,11 +82,7 @@ public class TestParquetReader {
     Assert.assertEquals(1, rows.size());
     InternalRow row = rows.get(0);
     Assert.assertEquals("k1", row.getString(0));
-
-    /*
-     * Iceberg's parquet reader would read 2-level list as null, which is due to Iceberg's parquet reader
-     * does not support reading 2-level lists.
-     */
-    Assert.assertTrue("Parquet reader silently incorrectly reads null.", row.isNullAt(1));
+    Assert.assertEquals("a", row.getArray(1).getStruct(0, 2).getUTF8String(0).toString());
+    Assert.assertEquals("b", row.getArray(1).getStruct(0, 2).getUTF8String(1).toString());
   }
 }
