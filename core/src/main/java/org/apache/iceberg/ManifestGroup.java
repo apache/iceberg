@@ -39,7 +39,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ParallelIterableLazy;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
@@ -167,7 +168,28 @@ class ManifestGroup {
       select(ManifestReader.withStatsColumns(columns));
     }
 
-    Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
+    if (executorService == null) {
+      Iterable<CloseableIterable<FileScanTask>> tasks = entries(
+          getManifestFileCloseableIterableBiFunction(residualCache, deleteFiles, dropStats));
+      return CloseableIterable.concat(tasks);
+    } else {
+      Iterable<ManifestFile> manifestFiles = entriesParallel();
+      Iterable<LazyWork<ManifestFile, CloseableIterable<FileScanTask>>> tasks = Iterables.transform(manifestFiles,
+          task -> new LazyWork<>(task, file -> {
+            Evaluator evaluator = getEvaluator();
+            return readManifestFileEntry(
+                getManifestFileCloseableIterableBiFunction(residualCache, deleteFiles, dropStats), evaluator, file);
+          }));
+
+      return new ParallelIterableLazy<>(tasks, executorService);
+    }
+  }
+
+  private BiFunction<ManifestFile,
+      CloseableIterable<ManifestEntry<DataFile>>,
+      CloseableIterable<FileScanTask>> getManifestFileCloseableIterableBiFunction(
+      LoadingCache<Integer, ResidualEvaluator> residualCache, DeleteFileIndex deleteFiles, boolean dropStats) {
+    return (manifest, entries) -> {
       int specId = manifest.partitionSpecId();
       PartitionSpec spec = specsById.get(specId);
       String schemaString = SchemaParser.toJson(spec.schema());
@@ -180,43 +202,24 @@ class ManifestGroup {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
             e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       }
-    });
-
-    if (executorService != null) {
-      return new ParallelIterable<>(tasks, executorService);
-    } else {
-      return CloseableIterable.concat(tasks);
-    }
+    };
   }
 
- /**
-   * Returns an iterable for manifest entries in the set of manifests.
-   * <p>
-   * Entries are not copied and it is the caller's responsibility to make defensive copies if
-   * adding these entries to a collection.
-   *
-   * @return a CloseableIterable of manifest entries.
-   */
   public CloseableIterable<ManifestEntry<DataFile>> entries() {
     return CloseableIterable.concat(entries((manifest, entries) -> entries));
   }
 
-  private <T> Iterable<CloseableIterable<T>> entries(
-      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
+  private <T> Iterable<CloseableIterable<T>> entries(BiFunction<ManifestFile,
+      CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
         null : Caffeine.newBuilder().build(specId -> {
           PartitionSpec spec = specsById.get(specId);
           return ManifestEvaluator.forPartitionFilter(
-              Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
-              spec, caseSensitive);
+          Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
+          spec, caseSensitive);
         });
 
-    Evaluator evaluator;
-    if (fileFilter != null && fileFilter != Expressions.alwaysTrue()) {
-      evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
-    } else {
-      evaluator = null;
-    }
+    Evaluator evaluator = getEvaluator();
 
     Iterable<ManifestFile> matchingManifests = evalCache == null ? dataManifests :
         Iterables.filter(dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
@@ -241,30 +244,75 @@ class ManifestGroup {
 
     return Iterables.transform(
         matchingManifests,
-        manifest -> {
-          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)
-              .filterRows(dataFilter)
-              .filterPartitions(partitionFilter)
-              .caseSensitive(caseSensitive)
-              .select(columns);
+        manifest -> readManifestFileEntry(entryFn, evaluator, manifest));
+  }
 
-          CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
-          if (ignoreDeleted) {
-            entries = reader.liveEntries();
-          }
-
-          if (ignoreExisting) {
-            entries = CloseableIterable.filter(entries,
-                entry -> entry.status() != ManifestEntry.Status.EXISTING);
-          }
-
-          if (evaluator != null) {
-            entries = CloseableIterable.filter(entries,
-                entry -> evaluator.eval((GenericDataFile) entry.file()));
-          }
-
-          entries = CloseableIterable.filter(entries, manifestEntryPredicate);
-          return entryFn.apply(manifest, entries);
+  public Iterable<ManifestFile> entriesParallel() {
+    LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
+        null : Caffeine.newBuilder().build(specId -> {
+          PartitionSpec spec = specsById.get(specId);
+          return ManifestEvaluator.forPartitionFilter(
+          Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
+          spec, caseSensitive);
         });
+
+    Iterable<ManifestFile> matchingManifests = evalCache == null ? dataManifests :
+        Iterables.filter(dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+
+    if (ignoreDeleted) {
+      // only scan manifests that have entries other than deletes
+      // remove any manifests that don't have any existing or added files. if either the added or
+      // existing files count is missing, the manifest must be scanned.
+      matchingManifests = Iterables.filter(matchingManifests,
+          manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles());
+    }
+
+    if (ignoreExisting) {
+      // only scan manifests that have entries other than existing
+      // remove any manifests that don't have any deleted or added files. if either the added or
+      // deleted files count is missing, the manifest must be scanned.
+      matchingManifests = Iterables.filter(matchingManifests,
+          manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
+    }
+
+    return Iterables.filter(matchingManifests, manifestPredicate::test);
+  }
+
+  private Evaluator getEvaluator() {
+    Evaluator evaluator;
+    if (fileFilter != null && fileFilter != Expressions.alwaysTrue()) {
+      evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
+    } else {
+      evaluator = null;
+    }
+    return evaluator;
+  }
+
+  public <T> CloseableIterable<T> readManifestFileEntry(
+      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn,
+      Evaluator evaluator, @Nullable ManifestFile manifest) {
+    ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)
+        .filterRows(dataFilter)
+        .filterPartitions(partitionFilter)
+        .caseSensitive(caseSensitive)
+        .select(columns);
+
+    CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
+    if (ignoreDeleted) {
+      entries = reader.liveEntries();
+    }
+
+    if (ignoreExisting) {
+      entries = CloseableIterable.filter(entries,
+          entry -> entry.status() != ManifestEntry.Status.EXISTING);
+    }
+
+    if (evaluator != null) {
+      entries = CloseableIterable.filter(entries,
+          entry -> evaluator.eval((GenericDataFile) entry.file()));
+    }
+
+    entries = CloseableIterable.filter(entries, manifestEntryPredicate);
+    return entryFn.apply(manifest, entries);
   }
 }
