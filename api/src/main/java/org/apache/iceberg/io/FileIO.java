@@ -47,6 +47,11 @@ public interface FileIO extends Serializable {
   void deleteFile(String path);
 
   /**
+   * Delete the directory at the given path.
+   */
+  void deleteDirectory(String path);
+
+  /**
    * Convenience method to {@link #deleteFile(String) delete} an {@link InputFile}.
    */
   default void deleteFile(InputFile file) {

@@ -188,20 +188,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
   }
 
-  public boolean cleanTable(TableIdentifier identifier) {
+  public boolean cleanTable(TableIdentifier identifier, String location) {
     if (!isValidIdentifier(identifier)) {
       return false;
     }
 
     String database = identifier.namespace().level(0);
-
-    TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
-    }
 
     try {
       boolean isExist = clients.run(client -> {
@@ -212,9 +204,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         LOG.warn("Cleaned table: {}", identifier);
         throw new RuntimeException("Failed to clean " + identifier + " as the table exists in MetaStore.");
       }
-      if (purge && lastMetadata != null) {
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+
+      if(fileIO instanceof HadoopFileIO) {
+        if (location.indexOf(database) < 0 || location.indexOf(identifier.name()) < 0) {
+          LOG.warn("Cleaned table: {}", identifier);
+          throw new RuntimeException("Failed to clean " + identifier + " as the location is wrong.");
+        }
       }
+
+      fileIO.deleteDirectory(location);
 
       LOG.info("Cleaned table: {}", identifier);
       return true;

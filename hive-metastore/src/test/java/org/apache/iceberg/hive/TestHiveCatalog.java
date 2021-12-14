@@ -381,30 +381,27 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testCleanTable() throws TException {
-    Namespace namespace = Namespace.of("dbname_drop");
+    Namespace namespace = Namespace.of("dbtest001");
     TableIdentifier identifier = TableIdentifier.of(namespace, "table_clean");
     Schema schema = new Schema(Types.StructType.of(
             required(1, "id", Types.LongType.get())).fields());
 
     catalog.createNamespace(namespace, meta);
     catalog.createTable(identifier, schema);
+    Table table = catalog.loadTable(identifier);
     Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
     Assert.assertTrue(nameMata.get("owner").equals("apache"));
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
 
-    AssertHelpers.assertThrows("Should fail to drop namespace is not empty" + namespace,
-            NamespaceNotEmptyException.class,
-            "Namespace dbname_drop is not empty. One or more tables exist.", () -> {
-              catalog.dropNamespace(namespace);
-            });
-    AssertHelpers.assertThrows("Should fail to clean table exists " + identifier,
-            NamespaceNotEmptyException.class,
-            "Namespace dbname_drop is not empty. One or more tables exist.", () -> {
-              catalog.cleanTable(identifier);
+
+    AssertHelpers.assertThrows("Should fail to clean table exists" + identifier,
+            RuntimeException.class,
+            "Failed to clean " + identifier + " as the table exists in MetaStore.", () -> {
+              catalog.cleanTable(identifier, table.location());
             });
     Assert.assertTrue(catalog.dropTable(identifier, true));
     Assert.assertTrue("Should fail to clean table if it exists",
-            catalog.cleanTable(identifier));
+            catalog.cleanTable(identifier, table.location()));
     Assert.assertTrue("Should fail to drop namespace if it is not empty",
             catalog.dropNamespace(namespace));
   }

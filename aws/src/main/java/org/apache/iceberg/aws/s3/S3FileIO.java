@@ -92,6 +92,12 @@ public class S3FileIO implements FileIO {
     client().deleteObject(deleteRequest);
   }
 
+  @Override
+  public void deleteDirectory(String path) {
+    // TODO
+  }
+
+
   private S3Client client() {
     if (client == null) {
       client = s3.get();

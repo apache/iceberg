@@ -243,5 +243,34 @@ public class TestTables {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
     }
+
+    @Override
+    public void deleteDirectory(String path) {
+      try {
+        File file = new File(path);
+        if (file.isDirectory()) {
+          deleteDir(file);
+        } else {
+          throw new RuntimeException("Failed to delete as it isn't a directory");
+        }
+      } catch (Exception ex) {
+        throw new RuntimeException("Failed to delete directory.");
+      }
+    }
+
+    public boolean deleteDir(File file) {
+      boolean success = false;
+      if (file.isDirectory()) {
+        String[] children = file.list();
+        //递归删除目录中的子目录下
+        for (int i=0; i<children.length; i++) {
+          success = deleteDir(new File(file, children[i]));
+          if (!success) {
+            throw new RuntimeException("Failed to delete directory.");
+          }
+        }
+      }
+      return file.delete() ? true:false;
+    }
   }
 }
