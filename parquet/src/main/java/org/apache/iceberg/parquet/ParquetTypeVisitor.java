@@ -66,17 +66,21 @@ public class ParquetTypeVisitor<T> {
     Preconditions.checkArgument(list.getFieldCount() == 1,
         "Invalid list: does not contain single repeated field: %s", list);
 
-    GroupType repeatedElement = list.getFields().get(0).asGroupType();
+    Type repeatedElement = list.getFields().get(0);
     Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
         "Invalid list: inner group is not repeated");
-    Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
+
+    boolean isElementType = ParquetSchemaUtil.isListElementType(repeatedElement, list.getName());
+
+    Preconditions.checkArgument(isElementType ||
+            repeatedElement.asGroupType().getFieldCount() <= 1,
         "Invalid list: repeated group is not a single field: %s", list);
 
     visitor.beforeRepeatedElement(repeatedElement);
     try {
       T elementResult = null;
-      if (repeatedElement.getFieldCount() > 0) {
-        Type elementField = repeatedElement.getType(0);
+      if (isElementType || repeatedElement.asGroupType().getFieldCount() > 0) {
+        Type elementField = isElementType ? repeatedElement : repeatedElement.asGroupType().getType(0);
         visitor.beforeElementField(elementField);
         try {
           elementResult = visit(elementField, visitor);

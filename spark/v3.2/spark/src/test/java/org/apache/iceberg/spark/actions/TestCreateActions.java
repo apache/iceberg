@@ -20,15 +20,20 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.MigrateTable;
@@ -43,6 +48,10 @@ import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
+import org.apache.parquet.schema.MessageType;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
@@ -54,6 +63,10 @@ import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
@@ -610,7 +623,71 @@ public class TestCreateActions extends SparkCatalogTestBase {
     structOfThreeLevelLists(false);
   }
 
-  public void threeLevelList(boolean useLegacyMode) throws Exception {
+  @Test
+  public void testTwoLevelList() throws IOException {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+
+    String tableName = sourceName("testTwoLevelList");
+    File location = temp.newFolder();
+
+    StructType sparkSchema =
+        new StructType(
+            new StructField[]{
+                new StructField(
+                        "col1", new ArrayType(
+                            new StructType(
+                                new StructField[]{
+                                    new StructField(
+                                        "col2",
+                                        DataTypes.IntegerType,
+                                        false,
+                                        Metadata.empty())
+                                }), false), true, Metadata.empty())});
+    String expectedParquetSchema =
+        "message spark_schema {\n" +
+            "  optional group col1 (LIST) {\n" +
+            "    repeated group array {\n" +
+            "      required int32 col2;\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n";
+
+
+    // generate parquet file with required schema
+    List<String> testData = Collections.singletonList("{\"col1\": [{\"col2\": 1}]}");
+    spark.read().schema(sparkSchema).json(
+            JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(testData))
+        .coalesce(1).write().format("parquet").mode(SaveMode.Append).save(location.getPath());
+
+    File parquetFile = Arrays.stream(Objects.requireNonNull(location.listFiles(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return name.endsWith("parquet");
+      }
+    }))).findAny().get();
+
+    // verify generated parquet file has expected schema
+    ParquetFileReader pqReader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(parquetFile.getPath()),
+        new Configuration()));
+    MessageType schema = pqReader.getFooter().getFileMetaData().getSchema();
+    Assert.assertEquals(expectedParquetSchema, schema.toString());
+
+    // create sql table on top of it
+    sql("CREATE EXTERNAL TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location);
+    List<Object[]> expected = sql("select array(struct(1))");
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql("SELECT * FROM %s", tableName);
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
+
+  private void threeLevelList(boolean useLegacyMode) throws Exception {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelList_%s", useLegacyMode));
@@ -700,7 +777,6 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assert.assertTrue(results.size() > 0);
     assertEquals("Output must match", expected, results);
   }
-
 
   private SparkTable loadTable(String name) throws NoSuchTableException, ParseException {
     return (SparkTable) catalog.loadTable(Spark3Util.catalogAndIdentifier(spark, name).identifier());

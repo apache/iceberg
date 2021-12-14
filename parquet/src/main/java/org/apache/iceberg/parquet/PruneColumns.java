@@ -108,15 +108,16 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType list, Type element) {
-    GroupType repeated = list.getType(0).asGroupType();
-    Type originalElement = repeated.getType(0);
+    Type repeated = list.getType(0);
+    boolean isElementType = ParquetSchemaUtil.isListElementType(repeated, list.getName());
+    Type originalElement = isElementType ? repeated : repeated.asGroupType().getType(0);
     Integer elementId = getId(originalElement);
 
     if (elementId != null && selectedIds.contains(elementId)) {
       return list;
     } else if (element != null) {
       if (!Objects.equal(element, originalElement)) {
-        return list.withNewFields(repeated.withNewFields(element));
+        return list.withNewFields(repeated.asGroupType().withNewFields(element));
       }
       return list;
     }

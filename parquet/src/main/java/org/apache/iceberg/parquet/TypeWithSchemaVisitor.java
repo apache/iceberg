@@ -63,10 +63,15 @@ public class TypeWithSchemaVisitor<T> {
             Preconditions.checkArgument(group.getFieldCount() == 1,
                 "Invalid list: does not contain single repeated field: %s", group);
 
-            GroupType repeatedElement = group.getFields().get(0).asGroupType();
+            Type repeatedElement = group.getFields().get(0);
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
-            Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
+
+            boolean isElementType = ParquetSchemaUtil.isListElementType(repeatedElement, group.getName());
+
+            Preconditions.checkArgument(
+                isElementType ||
+                    repeatedElement.asGroupType().getFieldCount() <= 1,
                 "Invalid list: repeated group is not a single field: %s", group);
 
             Types.ListType list = null;
@@ -76,16 +81,22 @@ public class TypeWithSchemaVisitor<T> {
               element = list.fields().get(0);
             }
 
-            visitor.fieldNames.push(repeatedElement.getName());
+            if (!isElementType) {
+              visitor.fieldNames.push(repeatedElement.getName());
+            }
             try {
               T elementResult = null;
-              if (repeatedElement.getFieldCount() > 0) {
-                elementResult = visitField(element, repeatedElement.getType(0), visitor);
+              if (isElementType) {
+                elementResult = visitField(element, repeatedElement, visitor);
+              } else if (repeatedElement.asGroupType().getFieldCount() > 0) {
+                elementResult = visitField(element, repeatedElement.asGroupType().getType(0), visitor);
               }
 
               return visitor.list(list, group, elementResult);
             } finally {
-              visitor.fieldNames.pop();
+              if (!isElementType) {
+                visitor.fieldNames.pop();
+              }
             }
 
           case MAP:
