@@ -40,19 +40,11 @@ public class SparkDistributionAndOrderingUtil {
         return Distributions.unspecified();
 
       case HASH:
-        if (table.spec().isUnpartitioned()) {
-          return Distributions.unspecified();
-        } else {
-          return Distributions.clustered(Spark3Util.toTransforms(table.spec()));
-        }
+        return Distributions.clustered(Spark3Util.toTransforms(table.spec()));
 
       case RANGE:
-        if (table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-          return Distributions.unspecified();
-        } else {
-          org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
-          return Distributions.ordered(convert(requiredSortOrder));
-        }
+        org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
+        return Distributions.ordered(convert(requiredSortOrder));
 
       default:
         throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
@@ -71,7 +63,7 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] convert(org.apache.iceberg.SortOrder sortOrder) {
-    List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark(sortOrder.schema()));
-    return converted.toArray(new OrderField[0]);
+    List<SortOrder> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark(sortOrder.schema()));
+    return converted.toArray(new SortOrder[0]);
   }
 }

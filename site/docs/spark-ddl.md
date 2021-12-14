@@ -104,6 +104,13 @@ USING iceberg
 AS SELECT ...
 ```
 ```sql
+REPLACE TABLE prod.db.sample
+USING iceberg
+PARTITIONED BY (part)
+TBLPROPERTIES ('key'='value')
+AS SELECT ...
+```
+```sql
 CREATE OR REPLACE TABLE prod.db.sample
 USING iceberg
 AS SELECT ...
@@ -181,6 +188,28 @@ ADD COLUMN point struct<x: double, y: double>;
 ALTER TABLE prod.db.sample
 ADD COLUMN point.z double
 ```
+
+```sql
+-- create a nested array column of struct
+ALTER TABLE prod.db.sample
+ADD COLUMN points array<struct<x: double, y: double>>;
+
+-- add a field to the struct within an array. Using keyword 'element' to access the array's element column.
+ALTER TABLE prod.db.sample
+ADD COLUMN points.element.z double
+```
+
+```sql
+-- create a map column of struct key and struct value
+ALTER TABLE prod.db.sample
+ADD COLUMN points map<struct<x: int>, struct<a: int>>;
+
+-- add a field to the value struct in a map. Using keyword 'value' to access the map's value column.
+ALTER TABLE prod.db.sample
+ADD COLUMN points.value.b int
+```
+
+Note: Altering a map 'key' column by adding columns is not allowed. Only map values can be updated.
 
 In Spark 2.4.4 and later, you can add columns in any position by adding `FIRST` or `AFTER` clauses:
 

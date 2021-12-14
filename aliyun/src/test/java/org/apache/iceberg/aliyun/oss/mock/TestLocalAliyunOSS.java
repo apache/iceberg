@@ -30,11 +30,12 @@ import java.io.InputStream;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
-import org.apache.iceberg.aliyun.oss.AliyunOSSTestUtility;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -42,7 +43,7 @@ import org.junit.Test;
 public class TestLocalAliyunOSS {
 
   @ClassRule
-  public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunOSSTestUtility.initialize();
+  public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
 
   private final OSS oss = OSS_TEST_RULE.createOSSClient();
   private final String bucketName = OSS_TEST_RULE.testBucketName();
@@ -69,6 +70,9 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testBuckets() {
+    Assume.assumeTrue("Aliyun integration test cannot delete existing bucket from test environment.",
+        OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
+
     Assert.assertTrue(doesBucketExist(bucketName));
     assertThrows(() -> oss.createBucket(bucketName), OSSErrorCode.BUCKET_ALREADY_EXISTS);
 
@@ -81,6 +85,9 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testDeleteBucket() {
+    Assume.assumeTrue("Aliyun integration test cannot delete existing bucket from test environment.",
+        OSS_TEST_RULE.getClass() == AliyunOSSMockRule.class);
+
     String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
     assertThrows(() -> oss.deleteBucket(bucketNotExist), OSSErrorCode.NO_SUCH_BUCKET);
 

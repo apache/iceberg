@@ -17,25 +17,36 @@
  * under the License.
  */
 
-package org.apache.iceberg.aliyun.oss;
+package org.apache.iceberg.aliyun;
 
+import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
+import org.apache.iceberg.aliyun.oss.OSSURI;
 import org.apache.iceberg.aliyun.oss.mock.AliyunOSSMockRule;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AliyunOSSTestUtility {
-  private static final Logger LOG = LoggerFactory.getLogger(AliyunOSSTestUtility.class);
-  private static final String ALIYUN_TEST_OSS_TEST_RULE_CLASS = "ALIYUN_TEST_OSS_TEST_RULE_CLASS";
+public class TestUtility {
+  private static final Logger LOG = LoggerFactory.getLogger(TestUtility.class);
 
-  private AliyunOSSTestUtility() {
+  // System environment variables for Aliyun Access Key Pair.
+  private static final String ALIYUN_TEST_ACCESS_KEY_ID = "ALIYUN_TEST_ACCESS_KEY_ID";
+  private static final String ALIYUN_TEST_ACCESS_KEY_SECRET = "ALIYUN_TEST_ACCESS_KEY_SECRET";
+
+  // System environment variables for Aliyun OSS
+  private static final String ALIYUN_TEST_OSS_RULE_CLASS = "ALIYUN_TEST_OSS_TEST_RULE_CLASS";
+  private static final String ALIYUN_TEST_OSS_ENDPOINT = "ALIYUN_TEST_OSS_ENDPOINT";
+  private static final String ALIYUN_TEST_OSS_WAREHOUSE = "ALIYUN_TEST_OSS_WAREHOUSE";
+
+  private TestUtility() {
   }
 
   public static AliyunOSSTestRule initialize() {
     AliyunOSSTestRule testRule;
 
-    String implClass = System.getenv(ALIYUN_TEST_OSS_TEST_RULE_CLASS);
+    String implClass = System.getenv(ALIYUN_TEST_OSS_RULE_CLASS);
     if (!Strings.isNullOrEmpty(implClass)) {
       LOG.info("The initializing AliyunOSSTestRule implementation is: {}", implClass);
       try {
@@ -55,5 +66,37 @@ public class AliyunOSSTestUtility {
     }
 
     return testRule;
+  }
+
+  public static String accessKeyId() {
+    return System.getenv(ALIYUN_TEST_ACCESS_KEY_ID);
+  }
+
+  public static String accessKeySecret() {
+    return System.getenv(ALIYUN_TEST_ACCESS_KEY_SECRET);
+  }
+
+  public static String ossEndpoint() {
+    return System.getenv(ALIYUN_TEST_OSS_ENDPOINT);
+  }
+
+  public static String ossWarehouse() {
+    return System.getenv(ALIYUN_TEST_OSS_WAREHOUSE);
+  }
+
+  public static String ossBucket() {
+    return ossWarehouseURI().bucket();
+  }
+
+  public static String ossKey() {
+    return ossWarehouseURI().key();
+  }
+
+  private static OSSURI ossWarehouseURI() {
+    String ossWarehouse = ossWarehouse();
+    Preconditions.checkNotNull(ossWarehouse,
+        "Please set a correct Aliyun OSS path for environment variable '%s'", ALIYUN_TEST_OSS_WAREHOUSE);
+
+    return new OSSURI(ossWarehouse);
   }
 }

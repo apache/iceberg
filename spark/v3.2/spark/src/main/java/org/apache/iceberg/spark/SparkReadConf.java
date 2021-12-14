@@ -211,4 +211,11 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_DEFAULT)
         .parse();
   }
+
+  public Long streamFromTimestamp() {
+    return confParser.longConf()
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP)
+        .defaultValue(Long.MIN_VALUE)
+        .parse();
+  }
 }

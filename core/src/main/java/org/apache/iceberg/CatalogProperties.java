@@ -30,6 +30,29 @@ public class CatalogProperties {
   public static final String FILE_IO_IMPL = "io-impl";
   public static final String WAREHOUSE_LOCATION = "warehouse";
 
+  /**
+   * Controls whether the catalog will cache table entries upon load.
+   * <p>
+   * If {@link #CACHE_EXPIRATION_INTERVAL_MS} is set to zero, this value
+   * will be ignored and the cache will be disabled.
+   */
+  public static final String CACHE_ENABLED = "cache-enabled";
+  public static final boolean CACHE_ENABLED_DEFAULT = true;
+
+  /**
+   * Controls the duration for which entries in the catalog are cached.
+   * <p>
+   * Behavior of specific values of cache.expiration-interval-ms:
+   * <ul>
+   *   <li> Zero - Caching and cache expiration are both disabled</li>
+   *   <li> Negative Values - Cache expiration is turned off and entries expire only on refresh etc</li>
+   *   <li> Positive Values - Cache entries expire if not accessed via the cache after this many milliseconds</li>
+   * </ul>
+   */
+  public static final String CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";
+  public static final long CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(30);
+  public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
+
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";
   public static final int CLIENT_POOL_SIZE_DEFAULT = 2;
