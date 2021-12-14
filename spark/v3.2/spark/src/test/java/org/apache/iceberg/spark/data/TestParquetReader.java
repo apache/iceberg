@@ -19,70 +19,121 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
+import org.apache.parquet.schema.MessageType;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestParquetReader {
+  private static SparkSession spark = null;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  @Test
-  public void testHiveStlyeList() throws IOException {
-    Schema icebergSchema = new Schema(
-            optional(1, "key", Types.StringType.get()),
-            optional(2, "val", Types.ListType.ofRequired(3, Types.StructType.of(
-                              optional(4, "a1", Types.StringType.get()),
-                              optional(5, "a2", Types.StringType.get())
-                      )
-                    )));
-    List<InternalRow> rows;
+  @BeforeClass
+  public static void startSpark() {
+    TestParquetReader.spark = SparkSession.builder().master("local[2]")
+            .config("spark.sql.parquet.writeLegacyFormat", true)
+            .getOrCreate();
+  }
 
-    /* Using a static file rather than generating test data in test, as parquet writers in Iceberg only supports
-     * three level lists. The hiveStyleList.pq is a parquet file that contains following Parquet schema.
-     * message hive_schema {
-     *  optional binary key (STRING);
-     *  optional group val (LIST) {
-     *    repeated group bag {
-     *      optional group array_element {
-     *        optional binary a1 (STRING);
-     *        optional binary a2 (STRING);
-     *      }
-     *    }
-     *  }
-     * }
-     *
-     * It contains only one row. Below is the json dump of the file.
-     * {"key":"k1","val":{"bag":[{"array_element":{"a1":"a","a2":"b"}}]}}
-     */
+  @AfterClass
+  public static void stopSpark() {
+    SparkSession currentSpark = TestParquetReader.spark;
+    TestParquetReader.spark = null;
+    currentSpark.stop();
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelList() throws IOException {
+    File location = new File(temp.getRoot(), "parquetReaderTest");
+    StructType sparkSchema =
+            new StructType(
+                    new StructField[]{
+                            new StructField(
+                                    "col1", new ArrayType(
+                                    new StructType(
+                                            new StructField[]{
+                                                    new StructField(
+                                                            "col2",
+                                                            DataTypes.IntegerType,
+                                                            false,
+                                                            Metadata.empty())
+                                            }), true), true, Metadata.empty())});
+
+    String expectedParquetSchema =
+            "message spark_schema {\n" +
+                    "  optional group col1 (LIST) {\n" +
+                    "    repeated group bag {\n" +
+                    "      optional group array {\n" +
+                    "        required int32 col2;\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}\n";
+
+
+    // generate parquet file with required schema
+    List<String> testData = Collections.singletonList("{\"col1\": [{\"col2\": 1}]}");
+    spark.read().schema(sparkSchema).json(
+                    JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(testData))
+            .coalesce(1).write().format("parquet").mode(SaveMode.Append).save(location.getPath());
+
+    File parquetFile = Arrays.stream(Objects.requireNonNull(location.listFiles(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return name.endsWith("parquet");
+      }
+    }))).findAny().get();
+
+    // verify generated parquet file has expected schema
+    ParquetFileReader pqReader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(parquetFile.getPath()), new Configuration()));
+    MessageType schema = pqReader.getFooter().getFileMetaData().getSchema();
+    Assert.assertEquals(expectedParquetSchema, schema.toString());
+
+    // read from Iceberg's parquet reader and ensure data is read correctly into Spark's internal row
+    Schema icebergSchema = SparkSchemaUtil.convert(sparkSchema);
+    List<InternalRow> rows;
     try (CloseableIterable<InternalRow> reader =
-                 Parquet.read(Files.localInput(
-                         this.getClass().getClassLoader().getResource("hiveStyleList.pq").getPath()))
+                 Parquet.read(Files.localInput(parquetFile.getPath()))
                          .project(icebergSchema)
                          .withNameMapping(MappingUtil.create(icebergSchema))
                          .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
                          .build()) {
       rows = Lists.newArrayList(reader);
     }
-
     Assert.assertEquals(1, rows.size());
     InternalRow row = rows.get(0);
-    Assert.assertEquals("k1", row.getString(0));
-    Assert.assertEquals("a", row.getArray(1).getStruct(0, 2).getUTF8String(0).toString());
-    Assert.assertEquals("b", row.getArray(1).getStruct(0, 2).getUTF8String(1).toString());
+    Assert.assertEquals(1, row.getArray(0).getStruct(0, 1).getInt(0));
   }
 }
