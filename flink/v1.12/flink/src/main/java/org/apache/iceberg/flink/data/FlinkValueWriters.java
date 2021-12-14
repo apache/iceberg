@@ -109,7 +109,7 @@ public class FlinkValueWriters {
 
     @Override
     public void write(Integer timeMills, Encoder encoder) throws IOException {
-      encoder.writeLong(timeMills * 1000);
+      encoder.writeLong(timeMills * 1000L);
     }
   }
 
