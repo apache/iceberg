@@ -337,9 +337,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   @Test
   public void testBinPackWithStartingSequenceNumber() {
     Table table = createTablePartitioned(4, 2);
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     table.refresh();
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
 
