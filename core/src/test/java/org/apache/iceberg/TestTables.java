@@ -81,26 +81,25 @@ public class TestTables {
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
-    return beginReplace(temp, name, schema, spec, SortOrder.unsorted(), ImmutableMap.of(), null);
+    return beginReplace(temp, name, schema, spec, SortOrder.unsorted(), ImmutableMap.of(),
+                        new TestTableOperations(name, temp));
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
       SortOrder sortOrder, Map<String, String> properties) {
-    return beginReplace(temp, name, schema, spec, sortOrder, properties, null);
+    return beginReplace(temp, name, schema, spec, sortOrder, properties, new TestTableOperations(name, temp));
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
                                          SortOrder sortOrder, Map<String, String> properties, TestTableOperations ops) {
-    TestTableOperations finalOps = ops != null ? ops : new TestTableOperations(name, temp);
-    TableMetadata current = finalOps.current();
-
+    TableMetadata current = ops.current();
     TableMetadata metadata;
     if (current != null) {
       metadata = current.buildReplacement(schema, spec, sortOrder, current.location(), properties);
-      return Transactions.replaceTableTransaction(name, finalOps, metadata);
+      return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
       metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), properties);
-      return Transactions.createTableTransaction(name, finalOps, metadata);
+      return Transactions.createTableTransaction(name, ops, metadata);
     }
   }
 
