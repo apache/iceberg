@@ -265,6 +265,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals(
+        "Data manifest should not have existing data file",
+        0,
+        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+    Assert.assertEquals("Data manifest should have 1 delete data file",
+        1L,
+        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+    Assert.assertEquals(
+        "Delete manifest added row count should equal total count",
+        total,
+        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
   }
 
   @Test
@@ -298,6 +309,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals(
+        "Data manifest should not have existing data file",
+        0,
+        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+    Assert.assertEquals("Data manifest should have 1 delete data file",
+        1L,
+        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+    Assert.assertEquals(
+        "Delete manifest added row count should equal total count",
+        total,
+        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
   }
 
   @Test
@@ -332,6 +354,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals(
+        "Data manifest should not have existing data file",
+        0,
+        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+    Assert.assertEquals("Data manifest should have 1 delete data file",
+        1L,
+        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+    Assert.assertEquals(
+        "Delete manifest added row count should equal total count",
+        total,
+        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
   }
 
   @Test
