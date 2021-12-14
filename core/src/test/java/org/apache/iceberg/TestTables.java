@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -81,21 +82,26 @@ public class TestTables {
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
-    return beginReplace(temp, name, schema, spec, SortOrder.unsorted(), ImmutableMap.of());
+    return beginReplace(temp, name, schema, spec, SortOrder.unsorted(), ImmutableMap.of(), null);
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
-                                         SortOrder sortOrder, Map<String, String> properties) {
-    TestTableOperations ops = new TestTableOperations(name, temp);
-    TableMetadata current = ops.current();
+      SortOrder sortOrder, Map<String, String> properties) {
+    return beginReplace(temp, name, schema, spec, sortOrder, properties, null);
+  }
+
+  public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
+                                         SortOrder sortOrder, Map<String, String> properties, TestTableOperations ops) {
+    TestTableOperations finalOps = ops != null ? ops : new TestTableOperations(name, temp);
+    TableMetadata current = finalOps.current();
 
     TableMetadata metadata;
     if (current != null) {
       metadata = current.buildReplacement(schema, spec, sortOrder, current.location(), properties);
-      return Transactions.replaceTableTransaction(name, ops, metadata);
+      return Transactions.replaceTableTransaction(name, finalOps, metadata);
     } else {
       metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), properties);
-      return Transactions.createTableTransaction(name, ops, metadata);
+      return Transactions.createTableTransaction(name, finalOps, metadata);
     }
   }
 
@@ -107,6 +113,21 @@ public class TestTables {
   public static TestTable load(File temp, String name, BiFunction<File, String, TestTableOperations> opsSupplier) {
     TestTableOperations ops = opsSupplier.apply(temp, name);
     return new TestTable(ops, name);
+  }
+
+  public static TestTable tableWithCommitSucceedButStateUnknown(File temp, String name) {
+    TestTableOperations ops = opsWithCommitSucceedButStateUnknown(temp, name);
+    return new TestTable(ops, name);
+  }
+
+  public static TestTableOperations opsWithCommitSucceedButStateUnknown(File temp, String name) {
+    return new TestTableOperations(name, temp) {
+      @Override
+      public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+        super.commit(base, updatedMetadata);
+        throw new CommitStateUnknownException(new RuntimeException("datacenter on fire"));
+      }
+    };
   }
 
   public static class TestTable extends BaseTable {

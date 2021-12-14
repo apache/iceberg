@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.BiFunction;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -703,31 +702,15 @@ public class TestTransaction extends TableTestBase {
   }
 
   @Test
-  public void testTransactionNotDeletingMetadataOnUnknownSate() throws IOException {
-    String errorMsg = "datacenter on fire";
+  public void testSimpleTransactionNotDeletingMetadataOnUnknownSate() throws IOException {
+    Table table = TestTables.tableWithCommitSucceedButStateUnknown(tableDir, "test");
 
-    // Create a table ops such that: the commit actually succeeds but it throws CommitStateUnknownException at the end
-    BiFunction<File, String, TestTables.TestTableOperations> opsSupplier = (file, name) ->
-        new TestTables.TestTableOperations(name, file) {
-          @Override
-          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
-            super.commit(base, updatedMetadata);
-            throw new CommitStateUnknownException(new RuntimeException(errorMsg));
-          }
-        };
-    Table table = TestTables.load(tableDir, "test", opsSupplier);
-
-    Transaction txn = table.newTransaction();
-    txn.newAppend()
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend()
         .appendFile(FILE_A)
         .commit();
-    try {
-      txn.commitTransaction();
-      Assert.fail("Transaction commit should have failed with CommitStateUnknownException");
-    } catch (CommitStateUnknownException e) {
-      Assert.assertTrue("CommitStateUnknownException should contain original error msg",
-              e.getMessage().contains(errorMsg));
-    }
+    AssertHelpers.assertThrows("Transaction commit should fail with CommitStateUnknownException",
+        CommitStateUnknownException.class, "datacenter on fire", () -> transaction.commitTransaction());
 
     // Make sure metadata files still exist
     Snapshot current = table.currentSnapshot();

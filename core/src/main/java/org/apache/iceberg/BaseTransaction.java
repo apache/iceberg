@@ -259,9 +259,9 @@ class BaseTransaction implements Transaction {
       // create table never needs to retry because the table has no previous state. because retries are not a
       // concern, it is safe to delete all of the deleted files from individual operations
       Tasks.foreach(deletedFiles)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-              .run(ops.io()::deleteFile);
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
       throw e;
     }
   }
@@ -310,9 +310,9 @@ class BaseTransaction implements Transaction {
       // replace table never needs to retry because the table state is completely replaced. because retries are not
       // a concern, it is safe to delete all of the deleted files from individual operations
       Tasks.foreach(deletedFiles)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-              .run(ops.io()::deleteFile);
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+          .run(ops.io()::deleteFile);
       throw e;
     }
   }
