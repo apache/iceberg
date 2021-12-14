@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -160,7 +159,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackPartitionedTable() {
-    Table table = createTablePartitioned(4, 2, new HashMap<>());
+    Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
 
@@ -176,7 +175,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackWithFilter() {
-    Table table = createTablePartitioned(4, 2, new HashMap<>());
+    Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
 
@@ -195,10 +194,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackWithDeletes() {
-    Map<String, String> options = new HashMap<>();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(4, 2, options);
+  public void testBinPackWithDeletes() throws Exception {
+    Table table = createTablePartitioned(4, 2);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     shouldHaveFiles(table, 8);
     table.refresh();
 
@@ -237,12 +235,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackWithDeleteAllDataAndDataFileHasGroupOffsets() {
-    Map<String, String> options = new HashMap<>();
+  public void testBinPackWithDeleteAllData() {
+    Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, "2");
-    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1024");
-    options.put(TableProperties.PARQUET_PAGE_SIZE_BYTES, "256");
-    options.put(TableProperties.PARQUET_DICT_SIZE_BYTES, "512");
     Table table = createTablePartitioned(1, 1, options);
     shouldHaveFiles(table, 1);
     table.refresh();
@@ -258,25 +253,24 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     rowDelta.commit();
     table.refresh();
-
-    AssertHelpers.assertThrows("Expected an exception",
-        RuntimeException.class,
-        () -> actions().rewriteDataFiles(table)
+    List<Object[]> expectedRecords = currentData();
+    Result result = actions().rewriteDataFiles(table)
             .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
             .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
             .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
             .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
             .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "false")
-            .execute());
+            .execute();
+    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
-  public void testBinPackWithDeleteAllDataAndDataFileHasGroupOffsetsWithSeqNum() {
-    Map<String, String> options = new HashMap<>();
+  public void testBinPackWithDeleteAllDataAndSeqNum() {
+    Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, "2");
-    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1024");
-    options.put(TableProperties.PARQUET_PAGE_SIZE_BYTES, "256");
-    options.put(TableProperties.PARQUET_DICT_SIZE_BYTES, "512");
     Table table = createTablePartitioned(1, 1, options);
     shouldHaveFiles(table, 1);
     table.refresh();
@@ -292,25 +286,24 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     rowDelta.commit();
     table.refresh();
+    List<Object[]> expectedRecords = currentData();
+    Result result = actions().rewriteDataFiles(table)
+          .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
+          .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+          .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+          .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
+          .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
+          .execute();
+    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
 
-    AssertHelpers.assertThrows("Expected an exception",
-        RuntimeException.class,
-        () -> actions().rewriteDataFiles(table)
-            .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-            .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-            .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-            .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
-            .execute());
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
-  public void testBinPackPartialCommitWithDeleteAllDataAndDataFileHasGroupOffsetsAndSeqNum() {
-    Map<String, String> options = new HashMap<>();
+  public void testBinPackPartialCommitWithDeleteAllDataAndSeqNum() {
+    Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, "2");
-    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1024");
-    options.put(TableProperties.PARQUET_PAGE_SIZE_BYTES, "256");
-    options.put(TableProperties.PARQUET_DICT_SIZE_BYTES, "512");
     Table table = createTablePartitioned(1, 1, options);
     shouldHaveFiles(table, 1);
     table.refresh();
@@ -335,108 +328,6 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .execute();
-    Assert.assertEquals("Action should rewrite 0 data files", 0, result.rewrittenDataFilesCount());
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-  }
-
-  @Test
-  public void testBinPackWithDeleteAllDataAndDataFileNoGroupOffsets() {
-    Map<String, String> options = new HashMap<>();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, options);
-    shouldHaveFiles(table, 1);
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
-
-    RowDelta rowDelta = table.newRowDelta();
-    // remove all data
-    writePosDeletesToFile(table, dataFiles.get(0), total)
-        .forEach(rowDelta::addDeletes);
-
-    rowDelta.commit();
-    table.refresh();
-    List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
-        // do not include any file based on bin pack file size configs
-        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "false")
-        .execute();
-    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-  }
-
-  @Test
-  public void testBinPackWithDeleteAllDataAndDataFileNoGroupOffsetsAndSeqNum() {
-    Map<String, String> options = new HashMap<>();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, options);
-    shouldHaveFiles(table, 1);
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
-
-    RowDelta rowDelta = table.newRowDelta();
-    // remove all data
-    writePosDeletesToFile(table, dataFiles.get(0), total)
-        .forEach(rowDelta::addDeletes);
-
-    rowDelta.commit();
-    table.refresh();
-    List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
-        // do not include any file based on bin pack file size configs
-        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
-        .execute();
-    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-  }
-
-  @Test
-  public void testBinPackPartialCommitWithDeleteAllDataAndDataFileNoGroupOffsetsAndSeqNum() {
-    Map<String, String> options = new HashMap<>();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, options);
-    shouldHaveFiles(table, 1);
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
-
-    RowDelta rowDelta = table.newRowDelta();
-    // remove all data
-    writePosDeletesToFile(table, dataFiles.get(0), total)
-        .forEach(rowDelta::addDeletes);
-
-    rowDelta.commit();
-    table.refresh();
-    List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
-        // do not include any file based on bin pack file size configs
-        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
-        .execute();
     Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
 
     List<Object[]> actualRecords = currentData();
@@ -445,9 +336,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackWithStartingSequenceNumber() {
-    Map<String, String> options = new HashMap<>();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(4, 2, options);
+    Table table = createTablePartitioned(4, 2);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
     table.refresh();
@@ -477,7 +367,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackWithStartingSequenceNumberV1Compatibility() {
-    Table table = createTablePartitioned(4, 2, new HashMap<>());
+    Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
     table.refresh();
@@ -1275,6 +1165,10 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     writeRecords(files, 2000, partitions);
     return table;
+  }
+
+  protected Table createTablePartitioned(int partitions, int files) {
+    return createTablePartitioned(partitions, files, Maps.newHashMap());
   }
 
   protected int averageFileSize(Table table) {

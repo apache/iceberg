@@ -76,15 +76,15 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     AssertHelpers.assertThrows("Expected an exception",
-        IllegalArgumentException.class,
-        "Data files to add can not be empty because there's no delete file to be rewritten",
+        ValidationException.class,
+        "Missing required files to delete: /path/to/data-a.parquet",
         () -> table.newRewrite()
             .rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet())
             .apply());
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
-        "Data files to add can not be empty because there's no delete file to be rewritten",
+        "Delete files to add must be empty because there's no delete file to be rewritten",
         () -> table.newRewrite()
             .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(),
                 ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES))
