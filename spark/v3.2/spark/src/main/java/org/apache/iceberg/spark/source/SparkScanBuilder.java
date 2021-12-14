@@ -36,7 +36,6 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -54,8 +53,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private final Table table;
   private final SparkReadConf readConf;
   private final List<String> metaColumns = Lists.newArrayList();
-  private final Long snapshotId;
-  private final Long asOfTimestamp;
 
   private Schema schema = null;
   private StructType requestedProjection;
@@ -64,29 +61,16 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private Filter[] pushedFilters = NO_FILTERS;
   private boolean ignoreResiduals = false;
 
-  SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+  SparkScanBuilder(SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
+    this.schema = schema;
     this.readConf = new SparkReadConf(spark, table, options);
-    this.snapshotId = readConf.snapshotId();
-    this.asOfTimestamp = readConf.asOfTimestamp();
     this.caseSensitive = readConf.caseSensitive();
   }
 
-  private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(table, snapshotId, asOfTimestamp);
-  }
-
-  private Schema lazySchema() {
-    if (schema == null) {
-      if (requestedProjection != null) {
-        // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(snapshotSchema(), requestedProjection, filterExpression(), caseSensitive);
-      } else {
-        this.schema = snapshotSchema();
-      }
-    }
-    return schema;
+  SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+    this(spark, table, table.schema(), options);
   }
 
   private Expression filterExpression() {
@@ -115,7 +99,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
       Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
         try {
-          Binder.bind(snapshotSchema().asStruct(), expr, caseSensitive);
+          Binder.bind(schema.asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushed.add(filter);
         } catch (ValidationException e) {
@@ -143,6 +127,9 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
         .toArray(StructField[]::new));
 
+    // the projection should include all columns that will be returned, including those only used in filters
+    this.schema = SparkSchemaUtil.prune(schema, requestedProjection, filterExpression(), caseSensitive);
+
     Stream.of(requestedSchema.fields())
         .map(StructField::name)
         .filter(MetadataColumns::isMetadataColumn)
@@ -164,7 +151,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     Schema meta = new Schema(fields);
 
     // schema or rows returned by readers
-    return TypeUtil.join(lazySchema(), meta);
+    return TypeUtil.join(schema, meta);
   }
 
   @Override

@@ -45,7 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
-import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -185,7 +184,20 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       icebergTable.refresh();
     }
 
-    return new SparkScanBuilder(sparkSession(), icebergTable, addSnapshotId(options));
+    // If the table is loaded using the Spark DataFrame API, and option("snapshot-id", <snapshot_id>)
+    // or option("as-of-timestamp", <timestamp>)  is applied to the DataFrameReader, SparkTable will be
+    // constructed with a non-null snapshotId. Subsequently SparkTable#newScanBuilder will be called
+    // with the options, which will include "snapshot-id" or "as-of-timestamp".
+    // On the other hand, if the table is loaded using SQL, with the table suffixed with a snapshot
+    // or timestamp selector, then SparkTable will be constructed with a non-null snapshotId, but
+    // SparkTable#newScanBuilder will be called without the "snapshot-id" or "as-of-timestamp" option.
+    // We therefore add a "snapshot-id" option here in this latter case.
+    CaseInsensitiveStringMap scanOptions =
+        (snapshotId != null &&
+         options.get(SparkReadOptions.SNAPSHOT_ID) == null &&
+         options.get(SparkReadOptions.AS_OF_TIMESTAMP) == null) ? addSnapshotId(options, snapshotId) : options;
+
+    return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
   }
 
   @Override
@@ -288,30 +300,15 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.name().hashCode();
   }
 
-  private CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options) {
+  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
     if (snapshotId != null) {
-      // If the table is loaded using the Spark DataFrame API, and option("snapshot-id", <snapshot_id>)
-      // or option("as-of-timestamp", <timestamp>)  is applied to the DataFrameReader, SparkTable will be
-      // constructed with a non-null snapshotId. Subsequently SparkTable#newScanBuilder will be called
-      // with the options, which will include "snapshot-id" or "as-of-timestamp".
-      // On the other hand, if the table is loaded using SQL, with the table suffixed with a snapshot
-      // or timestamp selector, then SparkTable will be constructed with a non-null snapshotId, but
-      // SparkTable#newScanBuilder will be called without the "snapshot-id" or "as-of-timestamp" option.
-      // We therefore add a "snapshot-id" option here in this latter case.
-      // As a consistency check, if "snapshot-id" is in the options, the id must match what we already
-      // have.
-      SparkReadConf readConf = new SparkReadConf(sparkSession(), icebergTable, options);
-      Long snapshotIdFromOptions = readConf.snapshotId();
-      Long asOfTimestamp = readConf.asOfTimestamp();
-      Preconditions.checkArgument(
-          snapshotIdFromOptions == null || snapshotIdFromOptions.longValue() == snapshotId.longValue(),
+      String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
+      Preconditions.checkArgument(snapshotIdFromOptions == null,
           "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
 
       Map<String, String> scanOptions = Maps.newHashMap();
       scanOptions.putAll(options.asCaseSensitiveMap());
-      if (snapshotIdFromOptions == null && asOfTimestamp == null) {
-        scanOptions.put(SparkReadOptions.SNAPSHOT_ID, String.valueOf(snapshotId));
-      }
+      scanOptions.put(SparkReadOptions.SNAPSHOT_ID, String.valueOf(snapshotId));
 
       return new CaseInsensitiveStringMap(scanOptions);
     }

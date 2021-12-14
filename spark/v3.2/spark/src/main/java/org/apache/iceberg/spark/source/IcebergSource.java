@@ -106,14 +106,17 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     setupDefaultSparkCatalog(spark);
     String path = options.get("path");
 
-    Long snapshotId = getPropertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
-    Long asOfTimestamp = getPropertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP);
+    Long snapshotId = propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
+    Long asOfTimestamp = propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP);
     Preconditions.checkArgument(asOfTimestamp == null || snapshotId == null,
         "Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)", snapshotId, asOfTimestamp);
-    String selector = "";
+
+    String selector = null;
+
     if (snapshotId != null) {
       selector = SNAPSHOT_ID + snapshotId;
     }
+
     if (asOfTimestamp != null) {
       selector = AT_TIMESTAMP + asOfTimestamp;
     }
@@ -122,7 +125,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     if (path.contains("/")) {
       // contains a path. Return iceberg default catalog and a PathIdentifier
-      String newPath = selector.equals("") ? path : path + "#" + selector;
+      String newPath = (selector == null) ? path : path + "#" + selector;
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
           new PathIdentifier(newPath));
     }
@@ -130,31 +133,26 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
         "path or identifier", spark, path);
 
+    Identifier ident = identifierWithSelector(catalogAndIdentifier.identifier(), selector);
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
       // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.
-      Identifier ident = catalogAndIdentifier.identifier();
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          newIdentifier(ident, selector));
-    } else if (snapshotId == null && asOfTimestamp == null) {
-      return catalogAndIdentifier;
+          ident);
     } else {
-      CatalogPlugin catalog = catalogAndIdentifier.catalog();
-      Identifier ident = catalogAndIdentifier.identifier();
-      return new Spark3Util.CatalogAndIdentifier(catalog,
-          newIdentifier(ident, selector));
+      return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(),
+          ident);
     }
   }
 
-  private Identifier newIdentifier(Identifier ident, String newName) {
-    if (newName.equals("")) {
+  private Identifier identifierWithSelector(Identifier ident, String selector) {
+    if (selector == null) {
       return ident;
     } else {
       String[] namespace = ident.namespace();
-      String name = ident.name();
       String[] ns = Arrays.copyOf(namespace, namespace.length + 1);
-      ns[namespace.length] = name;
-      return Identifier.of(ns, newName);
+      ns[namespace.length] = ident.name();
+      return Identifier.of(ns, selector);
     }
   }
 
@@ -168,7 +166,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     return catalogAndIdentifier(options).catalog().name();
   }
 
-  private static Long getPropertyAsLong(CaseInsensitiveStringMap options, String property) {
+  private static Long propertyAsLong(CaseInsensitiveStringMap options, String property) {
     String value = options.get(property);
     if (value != null) {
       return Long.parseLong(value);
