@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.spark.source.SparkTable;
@@ -760,30 +762,30 @@ public class Spark3Util {
     Map<String, String> emptyMap = Collections.emptyMap();
 
     InMemoryFileIndex fileIndex = new InMemoryFileIndex(
-        spark,
-        JavaConverters
-            .collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-            .asScala()
-            .toSeq(),
-        JavaConverters
-            .mapAsScalaMapConverter(emptyMap)
-            .asScala()
-            .toMap(Predef.conforms()),
-        Option.empty(),
-        fileStatusCache,
-        Option.empty(),
-        Option.empty());
+            spark,
+            JavaConverters
+                .collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+                .asScala()
+                .toSeq(),
+            JavaConverters
+                .mapAsScalaMapConverter(emptyMap)
+                .asScala()
+                .toMap(Predef.conforms()),
+            Option.empty(),
+            fileStatusCache,
+            Option.empty(),
+            Option.empty());
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
     if (schema.isEmpty()) {
-      return new ArrayList<>();
+      return Lists.newArrayList();
     }
 
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions =
         getPartitionFilterExpressions(schema, partitionFilter);
 
-    List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = new java.util.ArrayList<>();
+    List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = Lists.newArrayList();
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaPartitionFilters =
         JavaConverters.asScalaBufferConverter(filterExpressions).asScala().toSeq();
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaDataFilters =
@@ -811,7 +813,7 @@ public class Spark3Util {
 
   private static List getPartitionFilterExpressions(StructType schema,
                                                     Map<String, String> partitionFilter) {
-    List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions = new java.util.ArrayList<>();
+    List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions = Lists.newArrayList();
     for (Map.Entry<String, String> entry : partitionFilter.entrySet()) {
       try {
         // IllegalArgumentException is thrown if schema doesn't contain this entry,
@@ -819,29 +821,68 @@ public class Spark3Util {
         int index = schema.fieldIndex(entry.getKey());
         org.apache.spark.sql.types.DataType dataType = schema.fields()[index].dataType();
         BoundReference ref = new BoundReference(index, dataType, true);
-        if (dataType.sameType(DataTypes.IntegerType) || dataType.sameType(DataTypes.ShortType) ||
-            dataType.sameType(DataTypes.ByteType)) {
-          filterExpressions.add(new EqualTo(ref,
-              org.apache.spark.sql.catalyst.expressions.Literal.create(Integer.parseInt(entry.getValue()),
-              DataTypes.IntegerType)));
-        } else if (schema.fields()[index].dataType().sameType(DataTypes.StringType)) {
-          filterExpressions.add(new EqualTo(ref,
-              org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(), DataTypes.StringType)));
-        } else if (schema.fields()[index].dataType().sameType(DataTypes.LongType)) {
-          filterExpressions.add(new EqualTo(ref,
-              org.apache.spark.sql.catalyst.expressions.Literal.create(Long.parseLong(entry.getValue()),
-              DataTypes.LongType)));
-        } else if (schema.fields()[index].dataType().sameType(DataTypes.DateType)) {
-          filterExpressions.add(new EqualTo(ref,
-              org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(), DataTypes.DateType)));
-        } else if (schema.fields()[index].dataType().sameType(DataTypes.TimestampType)) {
-          filterExpressions.add(new EqualTo(ref,
-              org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(), DataTypes.TimestampType)));
-        } else if (schema.fields()[index].dataType()
-            .sameType(DataTypes.CalendarIntervalType)) {
-          filterExpressions.add(new EqualTo(ref,
-              org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
-              DataTypes.CalendarIntervalType)));
+        switch (dataType.typeName()) {
+          case "integer":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Integer.parseInt(entry.getValue()),
+                DataTypes.IntegerType)));
+            break;
+          case "string":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(), DataTypes.StringType)));
+            break;
+          case "short":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Short.parseShort(entry.getValue()),
+                DataTypes.ShortType)));
+            break;
+          case "byte":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Byte.parseByte(entry.getValue()),
+                DataTypes.ByteType)));
+            break;
+          case "long":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Long.parseLong(entry.getValue()),
+                DataTypes.LongType)));
+            break;
+          case "float":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Float.parseFloat(entry.getValue()),
+                DataTypes.FloatType)));
+            break;
+          case "double":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Double.parseDouble(entry.getValue()),
+                DataTypes.DoubleType)));
+            break;
+          case "boolean":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(Boolean.parseBoolean(entry.getValue()),
+                DataTypes.BooleanType)));
+            break;
+          case "binary":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(
+                entry.getValue().getBytes(StandardCharsets.UTF_8), DataTypes.BinaryType)));
+            break;
+          case "date":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
+                DataTypes.DateType)));
+            break;
+          case "timestamp":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
+                DataTypes.TimestampType)));
+            break;
+          case "interval":
+            filterExpressions.add(new EqualTo(ref,
+                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
+                DataTypes.CalendarIntervalType)));
+            break;
+          default:
+            throw new IllegalStateException("Unexpected data type in partition filters: " + dataType);
         }
       } catch (IllegalArgumentException e) {
         // ignore if filter is not on a partition column
