@@ -19,13 +19,16 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -85,6 +88,24 @@ public class TestManifestWriter extends TableTestBase {
         Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.lowerBound()));
     Assert.assertEquals("Upper bound should match", Integer.valueOf(3),
         Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.upperBound()));
+  }
+
+  @Test
+  public void testWriteManifestWithSequenceNumber() throws IOException {
+    Assume.assumeTrue("sequence number is only valid for format version > 1", formatVersion > 1);
+    File manifestFile = temp.newFile("manifest.avro");
+    Assert.assertTrue(manifestFile.delete());
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
+    writer.add(newFile(10, TestHelpers.Row.of(1)), 1000L);
+    writer.close();
+    ManifestFile manifest = writer.toManifestFile();
+    Assert.assertEquals("Manifest should have no sequence number", -1L, manifest.sequenceNumber());
+    ManifestReader<DataFile> manifestReader = ManifestFiles.read(manifest, table.io());
+    for (ManifestEntry<DataFile> entry : manifestReader.entries()) {
+      Assert.assertEquals("Custom sequence number should be used for all manifest entries",
+          1000L, (long) entry.sequenceNumber());
+    }
   }
 
   private DataFile newFile(long recordCount) {

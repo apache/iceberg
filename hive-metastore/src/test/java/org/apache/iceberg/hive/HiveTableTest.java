@@ -22,7 +22,6 @@ package org.apache.iceberg.hive;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -415,7 +414,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     catalog.dropTable(TABLE_IDENTIFIER);
 
     // Enabled by table property - also check that the hive-conf is ignored
-    Map<String, String> tableProperties = new HashMap<>();
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "false");
 

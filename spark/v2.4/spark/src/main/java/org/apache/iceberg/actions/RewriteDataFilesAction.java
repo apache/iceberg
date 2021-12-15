@@ -33,7 +33,8 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 
 /**
- * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link RewriteDataFilesAction} instead.
+ * @deprecated since 0.12.0, keeping this in Spark 2.4 for backward compatibility.
+ * This implementation is no longer maintained, the new implementation is available with Spark 3.x
  */
 @Deprecated
 public class RewriteDataFilesAction

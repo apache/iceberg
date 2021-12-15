@@ -26,7 +26,6 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -58,6 +57,7 @@ import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -118,7 +118,7 @@ abstract class TestTables {
    * @return the tables properties string, such as {@code TBLPROPERTIES('iceberg.catalog'='mycatalog')}
    */
   public String propertiesForCreateTableSQL(Map<String, String> tableProperties) {
-    Map<String, String> properties = new HashMap<>(tableProperties);
+    Map<String, String> properties = Maps.newHashMap(tableProperties);
     properties.putIfAbsent(InputFormatConfig.CATALOG_NAME, catalog);
     String props = properties.entrySet().stream()
             .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
@@ -216,6 +216,21 @@ abstract class TestTables {
     }
 
     return loadTable(identifier);
+  }
+
+  public String getInsertQuery(List<Record> records, TableIdentifier identifier, boolean isOverwrite) {
+    StringBuilder query = new StringBuilder(String.format("INSERT %s %s VALUES ",
+            isOverwrite ? "OVERWRITE TABLE" : "INTO", identifier));
+
+    records.forEach(record -> {
+      query.append("(");
+      query.append(record.struct().fields().stream()
+              .map(field -> getStringValueForInsert(record.getField(field.name()), field.type()))
+              .collect(Collectors.joining(",")));
+      query.append("),");
+    });
+    query.setLength(query.length() - 1);
+    return query.toString();
   }
 
   /**
@@ -374,6 +389,7 @@ abstract class TestTables {
       );
     }
 
+    @Override
     public String locationForCreateTableSQL(TableIdentifier identifier) {
       return "LOCATION '" + warehouseLocation + TestTables.tablePath(identifier) + "' ";
     }
@@ -455,23 +471,27 @@ abstract class TestTables {
 
   enum TestTableType {
     HADOOP_TABLE {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
         return new HadoopTestTables(conf, temporaryFolder);
       }
     },
     HADOOP_CATALOG {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
           throws IOException {
         return new HadoopCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     CUSTOM_CATALOG {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
           throws IOException {
         return new CustomCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     HIVE_CATALOG {
+      @Override
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
         return new HiveTestTables(conf, temporaryFolder, catalogName);
       }

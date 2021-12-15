@@ -20,7 +20,12 @@
 package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.CacheWriter;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+import com.github.benmanes.caffeine.cache.RemovalListener;
+import com.github.benmanes.caffeine.cache.Ticker;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,24 +34,91 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Class that wraps an Iceberg Catalog to cache tables.
+ * <p>
+ * See {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for more details
+ * regarding special values for {@code expirationIntervalMillis}.
+ */
 public class CachingCatalog implements Catalog {
+
+  private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
+  private static final RemovalListener<TableIdentifier, Table> identLoggingRemovalListener =
+      (key, value, cause) -> LOG.debug("Evicted {} from the table cache ({})", key, cause);
+
   public static Catalog wrap(Catalog catalog) {
-    return wrap(catalog, true);
+    return wrap(catalog, CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF);
   }
 
-  public static Catalog wrap(Catalog catalog, boolean caseSensitive) {
-    return new CachingCatalog(catalog, caseSensitive);
+  public static Catalog wrap(Catalog catalog, long expirationIntervalMillis) {
+    return wrap(catalog, true, expirationIntervalMillis);
   }
 
-  private final Cache<TableIdentifier, Table> tableCache = Caffeine.newBuilder().softValues().build();
+  public static Catalog wrap(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
+    return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis);
+  }
+
   private final Catalog catalog;
   private final boolean caseSensitive;
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected final long expirationIntervalMillis;
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected final Cache<TableIdentifier, Table> tableCache;
 
-  private CachingCatalog(Catalog catalog, boolean caseSensitive) {
+  private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
+    this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker());
+  }
+
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis, Ticker ticker) {
+    Preconditions.checkArgument(expirationIntervalMillis != 0,
+        "When %s is set to 0, the catalog cache should be disabled. This indicates a bug.",
+        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
+    this.expirationIntervalMillis = expirationIntervalMillis;
+    this.tableCache = createTableCache(ticker);
+  }
+
+  /**
+   * CacheWriter class for removing metadata tables when their associated data table is expired
+   * via cache expiration.
+   */
+  class MetadataTableInvalidatingCacheWriter implements CacheWriter<TableIdentifier, Table> {
+    @Override
+    public void write(TableIdentifier tableIdentifier, Table table) {
+    }
+
+    @Override
+    public void delete(TableIdentifier tableIdentifier, Table table, RemovalCause cause) {
+      if (RemovalCause.EXPIRED.equals(cause)) {
+        if (!MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
+          tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
+        }
+      }
+    }
+  }
+
+  private Cache<TableIdentifier, Table> createTableCache(Ticker ticker) {
+    Caffeine<TableIdentifier, Table> cacheBuilder = Caffeine
+        .newBuilder()
+        .softValues()
+        .removalListener(identLoggingRemovalListener);
+
+    if (expirationIntervalMillis > 0) {
+      return cacheBuilder
+          .writer(new CachingCatalog.MetadataTableInvalidatingCacheWriter())
+          .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
+          .ticker(ticker)
+          .build();
+    }
+
+    return cacheBuilder.build();
   }
 
   private TableIdentifier canonicalizeIdentifier(TableIdentifier tableIdentifier) {

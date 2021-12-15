@@ -238,7 +238,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
   private List<FlinkInputSplit> generateSplits() {
     List<FlinkInputSplit> inputSplits = Lists.newArrayList();
 
-    List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
+    List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
     for (int i = snapshotIds.size() - 1; i >= 0; i--) {
       ScanContext scanContext;
       if (i == snapshotIds.size() - 1) {

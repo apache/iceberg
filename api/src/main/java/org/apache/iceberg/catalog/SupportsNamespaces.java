@@ -100,7 +100,7 @@ public interface SupportsNamespaces {
    *
    * @param namespace a namespace. {@link Namespace}
    * @return true if the namespace was dropped, false otherwise.
-   * @throws NamespaceNotEmptyException If the namespace does not empty
+   * @throws NamespaceNotEmptyException If the namespace is not empty
    */
   boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException;
 

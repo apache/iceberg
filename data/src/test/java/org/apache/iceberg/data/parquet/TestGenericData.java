@@ -26,9 +26,11 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.DataTestHelpers;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,6 +61,21 @@ public class TestGenericData extends DataTest {
 
     for (int i = 0; i < expected.size(); i += 1) {
       DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+    }
+
+    // test reuseContainers
+    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .reuseContainers()
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      CloseableIterator it = reader.iterator();
+      int idx = 0;
+      while (it.hasNext()) {
+        GenericRecord actualRecord = (GenericRecord) it.next();
+        DataTestHelpers.assertEquals(schema.asStruct(), expected.get(idx), actualRecord);
+        idx++;
+      }
     }
   }
 }

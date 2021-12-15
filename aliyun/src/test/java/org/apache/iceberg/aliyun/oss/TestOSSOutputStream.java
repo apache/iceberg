@@ -21,6 +21,7 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -97,8 +98,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     Assert.assertEquals("Object length",
         ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), data.length);
 
-    byte[] actual = new byte[data.length];
-    ByteStreams.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
+    byte[] actual = ossDataContent(uri, data.length);
     Assert.assertArrayEquals("Object content", data, actual);
 
     // Verify all staging files are cleaned up.
@@ -122,5 +122,13 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     byte[] data = new byte[size];
     random.nextBytes(data);
     return data;
+  }
+
+  private byte[] ossDataContent(OSSURI uri, int dataSize) throws IOException {
+    try (InputStream is = ossClient.getObject(uri.bucket(), uri.key()).getObjectContent()) {
+      byte[] actual = new byte[dataSize];
+      ByteStreams.readFully(is, actual);
+      return actual;
+    }
   }
 }

@@ -248,6 +248,6 @@ public class TableProperties {
 
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 
-  public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
-  public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+  public static final String UPSERT_ENABLED = "write.upsert.enabled";
+  public static final boolean UPSERT_ENABLED_DEFAULT = false;
 }

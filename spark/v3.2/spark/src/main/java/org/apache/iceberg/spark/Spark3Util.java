@@ -22,7 +22,6 @@ package org.apache.iceberg.spark;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
@@ -240,41 +240,42 @@ public class Spark3Util {
    * @return an array of Transforms
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
+    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema());
     List<Transform> transforms = PartitionSpecVisitor.visit(spec,
         new PartitionSpecVisitor<Transform>() {
           @Override
           public Transform identity(String sourceName, int sourceId) {
-            return Expressions.identity(sourceName);
+            return Expressions.identity(quotedName(sourceId));
           }
 
           @Override
           public Transform bucket(String sourceName, int sourceId, int numBuckets) {
-            return Expressions.bucket(numBuckets, sourceName);
+            return Expressions.bucket(numBuckets, quotedName(sourceId));
           }
 
           @Override
           public Transform truncate(String sourceName, int sourceId, int width) {
-            return Expressions.apply("truncate", Expressions.column(sourceName), Expressions.literal(width));
+            return Expressions.apply("truncate", Expressions.column(quotedName(sourceId)), Expressions.literal(width));
           }
 
           @Override
           public Transform year(String sourceName, int sourceId) {
-            return Expressions.years(sourceName);
+            return Expressions.years(quotedName(sourceId));
           }
 
           @Override
           public Transform month(String sourceName, int sourceId) {
-            return Expressions.months(sourceName);
+            return Expressions.months(quotedName(sourceId));
           }
 
           @Override
           public Transform day(String sourceName, int sourceId) {
-            return Expressions.days(sourceName);
+            return Expressions.days(quotedName(sourceId));
           }
 
           @Override
           public Transform hour(String sourceName, int sourceId) {
-            return Expressions.hours(sourceName);
+            return Expressions.hours(quotedName(sourceId));
           }
 
           @Override
@@ -285,7 +286,11 @@ public class Spark3Util {
 
           @Override
           public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
-            return Expressions.apply(transform, Expressions.column(sourceName));
+            return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
+          }
+
+          private String quotedName(int id) {
+            return quotedNameById.get(id);
           }
         });
 
@@ -767,7 +772,7 @@ public class Spark3Util {
         .asJava()
         .stream()
         .map(partition -> {
-          Map<String, String> values = new HashMap<>();
+          Map<String, String> values = Maps.newHashMap();
           JavaConverters.asJavaIterableConverter(schema).asJava().forEach(field -> {
             int fieldIndex = schema.fieldIndex(field.name());
             Object catalystValue = partition.values().get(fieldIndex, field.dataType());

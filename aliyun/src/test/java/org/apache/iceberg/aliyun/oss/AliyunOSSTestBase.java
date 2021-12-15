@@ -20,6 +20,7 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.After;
 import org.junit.Before;
@@ -27,7 +28,7 @@ import org.junit.ClassRule;
 
 public abstract class AliyunOSSTestBase {
   @ClassRule
-  public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunOSSTestUtility.initialize();
+  public static final AliyunOSSTestRule OSS_TEST_RULE = TestUtility.initialize();
 
   private final SerializableSupplier<OSS> ossClient = OSS_TEST_RULE::createOSSClient;
   private final String bucketName = OSS_TEST_RULE.testBucketName();

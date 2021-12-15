@@ -22,8 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -127,7 +124,7 @@ public class TableMetadata implements Serializable {
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
-        ImmutableList.of(), ImmutableList.of());
+        ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -217,8 +214,6 @@ public class TableMetadata implements Serializable {
     }
   }
 
-  private final transient InputFile file;
-
   // stored metadata
   private final String metadataFileLocation;
   private final int formatVersion;
@@ -243,9 +238,10 @@ public class TableMetadata implements Serializable {
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
+  private final List<MetadataUpdate> changes;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  TableMetadata(InputFile file,
+  TableMetadata(String metadataFileLocation,
                 int formatVersion,
                 String uuid,
                 String location,
@@ -263,7 +259,8 @@ public class TableMetadata implements Serializable {
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
-                List<MetadataLogEntry> previousFiles) {
+                List<MetadataLogEntry> previousFiles,
+                List<MetadataUpdate> changes) {
     Preconditions.checkArgument(specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
     Preconditions.checkArgument(formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
@@ -272,10 +269,11 @@ public class TableMetadata implements Serializable {
         "UUID is required in format v%s", formatVersion);
     Preconditions.checkArgument(formatVersion > 1 || lastSequenceNumber == 0,
         "Sequence number must be 0 in v1: %s", lastSequenceNumber);
+    Preconditions.checkArgument(metadataFileLocation == null || changes.isEmpty(),
+        "Cannot create TableMetadata with a metadata location and changes");
 
+    this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
-    this.file = file;
-    this.metadataFileLocation = file != null ? file.location() : null;
     this.uuid = uuid;
     this.location = location;
     this.lastSequenceNumber = lastSequenceNumber;
@@ -293,6 +291,9 @@ public class TableMetadata implements Serializable {
     this.snapshots = snapshots;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
+
+    // changes are carried through until metadata is read from a file
+    this.changes = changes;
 
     this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
     this.schemasById = indexSchemas();
@@ -471,250 +472,61 @@ public class TableMetadata implements Serializable {
     return previousFiles;
   }
 
+  public List<MetadataUpdate> changes() {
+    return changes;
+  }
+
   public TableMetadata withUUID() {
-    if (uuid != null) {
-      return this;
-    } else {
-      return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
-          lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-          lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties,
-          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
-    }
+    return new Builder(this).assignUUID().build();
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
-    PartitionSpec.checkCompatibility(spec(), newSchema);
-    SortOrder.checkCompatibility(sortOrder(), newSchema);
-    // rebuild all of the partition specs and sort orders for the new current schema
-    List<PartitionSpec> updatedSpecs = Lists.transform(specs, spec -> updateSpecSchema(newSchema, spec));
-    List<SortOrder> updatedSortOrders = Lists.transform(sortOrders, order -> updateSortOrderSchema(newSchema, order));
-
-    int newSchemaId = reuseOrCreateNewSchemaId(newSchema);
-    if (currentSchemaId == newSchemaId && newLastColumnId == lastColumnId) {
-      // the new spec and last column Id is already current and no change is needed
-      return this;
-    }
-
-    ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder().addAll(schemas);
-    if (!schemasById.containsKey(newSchemaId)) {
-      builder.add(new Schema(newSchemaId, newSchema.columns(), newSchema.identifierFieldIds()));
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), newLastColumnId,
-        newSchemaId, builder.build(), defaultSpecId, updatedSpecs, lastAssignedPartitionId,
-        defaultSortOrderId, updatedSortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this).setCurrentSchema(newSchema, newLastColumnId).build();
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
-    Schema schema = schema();
-
-    PartitionSpec.checkCompatibility(newPartitionSpec, schema);
-    ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(newPartitionSpec),
-        "Spec does not use sequential IDs that are required in v1: %s", newPartitionSpec);
-
-    // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
-    int newDefaultSpecId = INITIAL_SPEC_ID;
-    for (PartitionSpec spec : specs) {
-      if (newPartitionSpec.compatibleWith(spec)) {
-        newDefaultSpecId = spec.specId();
-        break;
-      } else if (newDefaultSpecId <= spec.specId()) {
-        newDefaultSpecId = spec.specId() + 1;
-      }
-    }
-
-    if (defaultSpecId == newDefaultSpecId) {
-      // the new spec is already current and no change is needed
-      return this;
-    }
-
-    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
-        .addAll(specs);
-    if (!specsById.containsKey(newDefaultSpecId)) {
-      // get a fresh spec to ensure the spec ID is set to the new default
-      builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, newDefaultSpecId,
-        builder.build(), Math.max(lastAssignedPartitionId, newPartitionSpec.lastAssignedFieldId()),
-        defaultSortOrderId, sortOrders, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this).setDefaultPartitionSpec(newPartitionSpec).build();
   }
 
   public TableMetadata replaceSortOrder(SortOrder newOrder) {
-    Schema schema = schema();
-    SortOrder.checkCompatibility(newOrder, schema);
-
-    // determine the next order id
-    int newOrderId = INITIAL_SORT_ORDER_ID;
-    for (SortOrder order : sortOrders) {
-      if (order.sameOrder(newOrder)) {
-        newOrderId = order.orderId();
-        break;
-      } else if (newOrderId <= order.orderId()) {
-        newOrderId = order.orderId() + 1;
-      }
-    }
-
-    if (newOrderId == defaultSortOrderId) {
-      return this;
-    }
-
-    ImmutableList.Builder<SortOrder> builder = ImmutableList.builder();
-    builder.addAll(sortOrders);
-
-    if (!sortOrdersById.containsKey(newOrderId)) {
-      if (newOrder.isUnsorted()) {
-        newOrderId = SortOrder.unsorted().orderId();
-        builder.add(SortOrder.unsorted());
-      } else {
-        // rebuild the sort order using new column ids
-        builder.add(freshSortOrder(newOrderId, schema, newOrder));
-      }
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this).setDefaultSortOrder(newOrder).build();
   }
 
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
-    ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
-        "Cannot add snapshot with sequence number %s older than last sequence number %s",
-        snapshot.sequenceNumber(), lastSequenceNumber);
-
-    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
-        .addAll(snapshots)
-        .add(snapshot)
-        .build();
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId,
-        currentSchemaId, schemas, defaultSpecId, specs, lastAssignedPartitionId,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, newSnapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this).addSnapshot(snapshot).build();
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
-    // there can be operations (viz. rollback, cherrypick) where an existing snapshot could be replacing current
-    if (snapshotsById.containsKey(snapshot.snapshotId())) {
-      return setCurrentSnapshotTo(snapshot);
-    }
-
-    ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
-        "Cannot add snapshot with sequence number %s older than last sequence number %s",
-        snapshot.sequenceNumber(), lastSequenceNumber);
-
-    List<Snapshot> newSnapshots = ImmutableList.<Snapshot>builder()
-        .addAll(snapshots)
-        .add(snapshot)
-        .build();
-    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-        .addAll(snapshotLog)
-        .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
-        .build();
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId,
-        currentSchemaId, schemas, defaultSpecId, specs, lastAssignedPartitionId,
-        defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), newSnapshots, newSnapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this).setCurrentSnapshot(snapshot).build();
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
-    List<Snapshot> filtered = Lists.newArrayListWithExpectedSize(snapshots.size());
-    for (Snapshot snapshot : snapshots) {
-      // keep the current snapshot and any snapshots that do not match the removeIf condition
-      if (snapshot.snapshotId() == currentSnapshotId || !removeIf.test(snapshot)) {
-        filtered.add(snapshot);
-      }
-    }
-
-    // update the snapshot log
-    Set<Long> validIds = Sets.newHashSet(Iterables.transform(filtered, Snapshot::snapshotId));
-    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
-    for (HistoryEntry logEntry : snapshotLog) {
-      if (validIds.contains(logEntry.snapshotId())) {
-        // copy the log entries that are still valid
-        newSnapshotLog.add(logEntry);
-      } else {
-        // any invalid entry causes the history before it to be removed. otherwise, there could be
-        // history gaps that cause time-travel queries to produce incorrect results. for example,
-        // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
-        // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
-        // and t3 when in fact s2 was the current snapshot.
-        newSnapshotLog.clear();
-      }
-    }
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
-        ImmutableList.copyOf(newSnapshotLog), addPreviousFile(file, lastUpdatedMillis));
-  }
-
-  private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
-    ValidationException.check(snapshotsById.containsKey(snapshot.snapshotId()),
-        "Cannot set current snapshot to unknown: %s", snapshot.snapshotId());
-    ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
-        "Last sequence number %s is less than existing snapshot sequence number %s",
-        lastSequenceNumber, snapshot.sequenceNumber());
-
-    if (currentSnapshotId == snapshot.snapshotId()) {
-      // change is a noop
-      return this;
-    }
-
-    long nowMillis = System.currentTimeMillis();
-    List<HistoryEntry> newSnapshotLog = ImmutableList.<HistoryEntry>builder()
-        .addAll(snapshotLog)
-        .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
-        .build();
-
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, nowMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), snapshots,
-        newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    List<Snapshot> toRemove = snapshots.stream().filter(removeIf).collect(Collectors.toList());
+    return new Builder(this).removeSnapshots(toRemove).build();
   }
 
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
     ValidationException.check(rawProperties != null, "Cannot set properties to null");
     Map<String, String> newProperties = unreservedProperties(rawProperties);
-    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
-        snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
 
-    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
-    if (formatVersion != newFormatVersion) {
-      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
-    }
-
-    return metadata;
-  }
-
-  public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
-    List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
-    for (HistoryEntry logEntry : snapshotLog) {
-      if (!snapshotIds.contains(logEntry.snapshotId())) {
-        // copy the log entries that are still valid
-        newSnapshotLog.add(logEntry);
+    Set<String> removed = Sets.newHashSet(properties.keySet());
+    Map<String, String> updated = Maps.newHashMap();
+    for (Map.Entry<String, String> entry : newProperties.entrySet()) {
+      removed.remove(entry.getKey());
+      String current = properties.get(entry.getKey());
+      if (current == null || !current.equals(entry.getValue())) {
+        updated.put(entry.getKey(), entry.getValue());
       }
     }
 
-    ValidationException.check(currentSnapshotId < 0 || // not set
-            Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
-        "Cannot set invalid snapshot log: latest entry is not the current snapshot");
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
-    return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this)
+        .setProperties(updated)
+        .removeProperties(removed)
+        .upgradeFormatVersion(newFormatVersion)
+        .build();
   }
 
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
@@ -781,146 +593,62 @@ public class TableMetadata implements Serializable {
     AtomicInteger newLastColumnId = new AtomicInteger(lastColumnId);
     Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, schema(), newLastColumnId::incrementAndGet);
 
-    // determine the next spec id
-    OptionalInt maxSpecId = specs.stream().mapToInt(PartitionSpec::specId).max();
-    int nextSpecId = maxSpecId.orElse(TableMetadata.INITIAL_SPEC_ID) + 1;
-
-    // rebuild the partition spec using the new column ids
-    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
-
-    // reassign partition field ids with existing partition specs in the table
-    AtomicInteger lastPartitionId = new AtomicInteger(lastAssignedPartitionId);
-    PartitionSpec newSpec = reassignPartitionIds(freshSpec, lastPartitionId::incrementAndGet);
-
-    // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
-    int specId = specs.stream()
-        .filter(newSpec::compatibleWith)
-        .findFirst()
-        .map(PartitionSpec::specId)
-        .orElse(nextSpecId);
-
-    ImmutableList.Builder<PartitionSpec> specListBuilder = ImmutableList.<PartitionSpec>builder().addAll(specs);
-    if (!specsById.containsKey(specId)) {
-      specListBuilder.add(newSpec);
-    }
-
-    // determine the next order id
-    OptionalInt maxOrderId = sortOrders.stream().mapToInt(SortOrder::orderId).max();
-    int nextOrderId = maxOrderId.isPresent() ? maxOrderId.getAsInt() + 1 : INITIAL_SORT_ORDER_ID;
+    // rebuild the partition spec using the new column ids and reassign partition field ids to align with existing
+    // partition specs in the table
+    PartitionSpec freshSpec = reassignPartitionIds(
+        freshSpec(INITIAL_SPEC_ID, freshSchema, updatedPartitionSpec),
+        new AtomicInteger(lastAssignedPartitionId)::incrementAndGet);
 
     // rebuild the sort order using new column ids
-    int freshSortOrderId = updatedSortOrder.isUnsorted() ? updatedSortOrder.orderId() : nextOrderId;
-    SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, updatedSortOrder);
-
-    // if the order already exists, use the same ID. otherwise, use the fresh order ID
-    Optional<SortOrder> sameSortOrder = sortOrders.stream()
-        .filter(sortOrder -> sortOrder.sameOrder(freshSortOrder))
-        .findAny();
-    int orderId = sameSortOrder.map(SortOrder::orderId).orElse(freshSortOrderId);
-
-    ImmutableList.Builder<SortOrder> sortOrdersBuilder = ImmutableList.<SortOrder>builder().addAll(sortOrders);
-    if (!sortOrdersById.containsKey(orderId)) {
-      sortOrdersBuilder.add(freshSortOrder);
-    }
-
-    Map<String, String> newProperties = Maps.newHashMap();
-    newProperties.putAll(this.properties);
-    newProperties.putAll(unreservedProperties(updatedProperties));
+    SortOrder freshSortOrder = freshSortOrder(INITIAL_SORT_ORDER_ID, freshSchema, updatedSortOrder);
 
     // check if there is format version override
     int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
-    // determine the next schema id
-    int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);
-    ImmutableList.Builder<Schema> schemasBuilder = ImmutableList.<Schema>builder().addAll(schemas);
-
-    if (!schemasById.containsKey(freshSchemaId)) {
-      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
-    }
-
-    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
-        lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
-        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
-        orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
-        -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
-
-    if (formatVersion != newFormatVersion) {
-      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
-    }
-
-    return metadata;
+    return new Builder(this)
+        .upgradeFormatVersion(newFormatVersion)
+        .setCurrentSnapshot(null)
+        .setCurrentSchema(freshSchema, newLastColumnId.get())
+        .setDefaultPartitionSpec(freshSpec)
+        .setDefaultSortOrder(freshSortOrder)
+        .setLocation(newLocation)
+        .setProperties(unreservedProperties(updatedProperties))
+        .build();
   }
 
   public TableMetadata updateLocation(String newLocation) {
-    return new TableMetadata(null, formatVersion, uuid, newLocation,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    return new Builder(this).setLocation(newLocation).build();
   }
 
   public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
-    Preconditions.checkArgument(newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
-        "Cannot upgrade table to unsupported format version: v%s (supported: v%s)",
-        newFormatVersion, SUPPORTED_TABLE_FORMAT_VERSION);
-    Preconditions.checkArgument(newFormatVersion >= formatVersion,
-        "Cannot downgrade v%s table to v%s", formatVersion, newFormatVersion);
-
-    if (newFormatVersion == formatVersion) {
-      return this;
-    }
-
-    return new TableMetadata(null, newFormatVersion, uuid, location,
-        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
-        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
-  }
-
-  private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis) {
-    return addPreviousFile(previousFile, timestampMillis, properties);
-  }
-
-  private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis,
-                                                 Map<String, String> updatedProperties) {
-    if (previousFile == null) {
-      return previousFiles;
-    }
-
-    int maxSize = Math.max(1, PropertyUtil.propertyAsInt(updatedProperties,
-            TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
-
-    List<MetadataLogEntry> newMetadataLog;
-    if (previousFiles.size() >= maxSize) {
-      int removeIndex = previousFiles.size() - maxSize + 1;
-      newMetadataLog = Lists.newArrayList(previousFiles.subList(removeIndex, previousFiles.size()));
-    } else {
-      newMetadataLog = Lists.newArrayList(previousFiles);
-    }
-    newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFile.location()));
-
-    return newMetadataLog;
+    return new Builder(this).upgradeFormatVersion(newFormatVersion).build();
   }
 
   private static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
         .withSpecId(partitionSpec.specId());
 
-    // add all of the fields to the builder. IDs should not change.
+    // add all the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
       specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
     }
 
-    return specBuilder.build();
+    // build without validation because the schema may have changed in a way that makes this spec invalid. the spec
+    // should still be preserved so that older metadata can be interpreted.
+    return specBuilder.buildUnchecked();
   }
 
   private static SortOrder updateSortOrderSchema(Schema schema, SortOrder sortOrder) {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(sortOrder.orderId());
 
-    // add all of the fields to the builder. IDs should not change.
+    // add all the fields to the builder. IDs should not change.
     for (SortField field : sortOrder.fields()) {
-      builder.addSortField(field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+      builder.addSortField(field.transform(), field.sourceId(), field.direction(), field.nullOrder());
     }
 
-    return builder.build();
+    // build without validation because the schema may have changed in a way that makes this order invalid. the order
+    // should still be preserved so that older metadata can be interpreted.
+    return builder.buildUnchecked();
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
@@ -941,7 +669,11 @@ public class TableMetadata implements Serializable {
   }
 
   private static SortOrder freshSortOrder(int orderId, Schema schema, SortOrder sortOrder) {
-    SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+
+    if (sortOrder.isSorted()) {
+      builder.withOrderId(orderId);
+    }
 
     for (SortField field : sortOrder.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
@@ -993,17 +725,547 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private int reuseOrCreateNewSchemaId(Schema newSchema) {
-    // if the schema already exists, use its id; otherwise use the highest id + 1
-    int newSchemaId = currentSchemaId;
-    for (Schema schema : schemas) {
-      if (schema.sameSchema(newSchema)) {
-        newSchemaId = schema.schemaId();
-        break;
-      } else if (schema.schemaId() >= newSchemaId) {
-        newSchemaId = schema.schemaId() + 1;
-      }
+  public static Builder buildFrom(TableMetadata base) {
+    return new Builder(base);
+  }
+
+  public static class Builder {
+    private final TableMetadata base;
+    private int formatVersion;
+    private String uuid;
+    private Long lastUpdatedMillis;
+    private String location;
+    private long lastSequenceNumber;
+    private int lastColumnId;
+    private int currentSchemaId;
+    private final List<Schema> schemas;
+    private int defaultSpecId;
+    private List<PartitionSpec> specs;
+    private int lastAssignedPartitionId;
+    private int defaultSortOrderId;
+    private List<SortOrder> sortOrders;
+    private final Map<String, String> properties;
+    private long currentSnapshotId;
+    private List<Snapshot> snapshots;
+
+    // change tracking
+    private final List<MetadataUpdate> changes;
+    private final int startingChangeCount;
+    private boolean discardChanges = false;
+
+    // handled in build
+    private final List<HistoryEntry> snapshotLog;
+    private final String previousFileLocation;
+    private final List<MetadataLogEntry> previousFiles;
+
+    // indexes for convenience
+    private final Map<Long, Snapshot> snapshotsById;
+    private final Map<Integer, Schema> schemasById;
+    private final Map<Integer, PartitionSpec> specsById;
+    private final Map<Integer, SortOrder> sortOrdersById;
+
+    private Builder(TableMetadata base) {
+      this.base = base;
+      this.formatVersion = base.formatVersion;
+      this.uuid = base.uuid;
+      this.lastUpdatedMillis = null;
+      this.location = base.location;
+      this.lastSequenceNumber = base.lastSequenceNumber;
+      this.lastColumnId = base.lastColumnId;
+      this.currentSchemaId = base.currentSchemaId;
+      this.schemas = Lists.newArrayList(base.schemas);
+      this.defaultSpecId = base.defaultSpecId;
+      this.specs = Lists.newArrayList(base.specs);
+      this.lastAssignedPartitionId = base.lastAssignedPartitionId;
+      this.defaultSortOrderId = base.defaultSortOrderId;
+      this.sortOrders = Lists.newArrayList(base.sortOrders);
+      this.properties = Maps.newHashMap(base.properties);
+      this.currentSnapshotId = base.currentSnapshotId;
+      this.snapshots = Lists.newArrayList(base.snapshots);
+      this.changes = Lists.newArrayList(base.changes);
+      this.startingChangeCount = changes.size();
+
+      this.snapshotLog = Lists.newArrayList(base.snapshotLog);
+      this.previousFileLocation = base.metadataFileLocation;
+      this.previousFiles = base.previousFiles;
+
+      this.snapshotsById = Maps.newHashMap(base.snapshotsById);
+      this.schemasById = Maps.newHashMap(base.schemasById);
+      this.specsById = Maps.newHashMap(base.specsById);
+      this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
     }
-    return newSchemaId;
+
+    public Builder assignUUID() {
+      if (uuid == null) {
+        this.uuid = UUID.randomUUID().toString();
+        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      }
+
+      return this;
+    }
+
+    public Builder upgradeFormatVersion(int newFormatVersion) {
+      Preconditions.checkArgument(newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
+          "Cannot upgrade table to unsupported format version: v%s (supported: v%s)",
+          newFormatVersion, SUPPORTED_TABLE_FORMAT_VERSION);
+      Preconditions.checkArgument(newFormatVersion >= formatVersion,
+          "Cannot downgrade v%s table to v%s", formatVersion, newFormatVersion);
+
+      if (newFormatVersion == formatVersion) {
+        return this;
+      }
+
+      this.formatVersion = newFormatVersion;
+      changes.add(new MetadataUpdate.UpgradeFormatVersion(newFormatVersion));
+
+      return this;
+    }
+
+    public Builder setCurrentSchema(Schema newSchema, int newLastColumnId) {
+      setCurrentSchema(addSchemaInternal(newSchema, newLastColumnId));
+      return this;
+    }
+
+    public Builder setCurrentSchema(int schemaId) {
+      if (currentSchemaId == schemaId) {
+        return this;
+      }
+
+      Schema schema = schemasById.get(schemaId);
+      Preconditions.checkArgument(schema != null, "Cannot set current schema to unknown schema: %s", schemaId);
+
+      // rebuild all the partition specs and sort orders for the new current schema
+      this.specs = Lists.newArrayList(Iterables.transform(specs,
+          spec -> updateSpecSchema(schema, spec)));
+      specsById.clear();
+      specsById.putAll(indexSpecs(specs));
+
+      this.sortOrders = Lists.newArrayList(Iterables.transform(sortOrders,
+          order -> updateSortOrderSchema(schema, order)));
+      sortOrdersById.clear();
+      sortOrdersById.putAll(indexSortOrders(sortOrders));
+
+      this.currentSchemaId = schemaId;
+
+      changes.add(new MetadataUpdate.SetCurrentSchema(schemaId));
+
+      return this;
+    }
+
+    public Builder addSchema(Schema schema, int newLastColumnId) {
+      addSchemaInternal(schema, newLastColumnId);
+      return this;
+    }
+
+    public Builder setDefaultPartitionSpec(PartitionSpec spec) {
+      setDefaultPartitionSpec(addPartitionSpecInternal(spec));
+      return this;
+    }
+
+    public Builder setDefaultPartitionSpec(int specId) {
+      if (defaultSpecId == specId) {
+        // the new spec is already current and no change is needed
+        return this;
+      }
+
+      this.defaultSpecId = specId;
+      changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
+
+      return this;
+    }
+
+    public Builder addPartitionSpec(PartitionSpec spec) {
+      addPartitionSpecInternal(spec);
+      return this;
+    }
+
+    public Builder setDefaultSortOrder(SortOrder order) {
+      setDefaultSortOrder(addSortOrderInternal(order));
+      return this;
+    }
+
+    public Builder setDefaultSortOrder(int sortOrderId) {
+      if (sortOrderId == defaultSortOrderId) {
+        return this;
+      }
+
+      this.defaultSortOrderId = sortOrderId;
+      changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
+
+      return this;
+    }
+
+    public Builder addSortOrder(SortOrder order) {
+      addSortOrderInternal(order);
+      return this;
+    }
+
+    public Builder addSnapshot(Snapshot snapshot) {
+      if (snapshot == null || snapshotsById.containsKey(snapshot.snapshotId())) {
+        // change is a noop
+        return this;
+      }
+
+      ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
+          "Cannot add snapshot with sequence number %s older than last sequence number %s",
+          snapshot.sequenceNumber(), lastSequenceNumber);
+
+      this.lastUpdatedMillis = snapshot.timestampMillis();
+      this.lastSequenceNumber = snapshot.sequenceNumber();
+      snapshots.add(snapshot);
+      snapshotsById.put(snapshot.snapshotId(), snapshot);
+      changes.add(new MetadataUpdate.AddSnapshot(snapshot));
+
+      return this;
+    }
+
+    public Builder setCurrentSnapshot(Snapshot snapshot) {
+      addSnapshot(snapshot);
+      setCurrentSnapshot(snapshot, null);
+      return this;
+    }
+
+    public Builder setCurrentSnapshot(long snapshotId) {
+      if (currentSnapshotId == snapshotId) {
+        // change is a noop
+        return this;
+      }
+
+      Snapshot snapshot = snapshotsById.get(snapshotId);
+      ValidationException.check(snapshot != null,
+          "Cannot set current snapshot to unknown: %s", snapshotId);
+
+      setCurrentSnapshot(snapshot, System.currentTimeMillis());
+
+      return this;
+    }
+
+    public Builder removeSnapshots(List<Snapshot> snapshotsToRemove) {
+      Set<Long> idsToRemove = snapshotsToRemove.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+
+      List<Snapshot> retainedSnapshots = Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
+      for (Snapshot snapshot : snapshots) {
+        long snapshotId = snapshot.snapshotId();
+        if (idsToRemove.contains(snapshotId)) {
+          snapshotsById.remove(snapshotId);
+          changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+        } else {
+          retainedSnapshots.add(snapshot);
+        }
+      }
+
+      this.snapshots = retainedSnapshots;
+      if (!snapshotsById.containsKey(currentSnapshotId)) {
+        setCurrentSnapshot(null, System.currentTimeMillis());
+      }
+
+      return this;
+    }
+
+    public Builder setProperties(Map<String, String> updated) {
+      if (updated.isEmpty()) {
+        return this;
+      }
+
+      properties.putAll(updated);
+      changes.add(new MetadataUpdate.SetProperties(updated));
+
+      return this;
+    }
+
+    public Builder removeProperties(Set<String> removed) {
+      if (removed.isEmpty()) {
+        return this;
+      }
+
+      removed.forEach(properties::remove);
+      changes.add(new MetadataUpdate.RemoveProperties(removed));
+
+      return this;
+    }
+
+    public Builder setLocation(String newLocation) {
+      if (location != null && location.equals(newLocation)) {
+        return this;
+      }
+
+      this.location = newLocation;
+      changes.add(new MetadataUpdate.SetLocation(newLocation));
+
+      return this;
+    }
+
+    public Builder discardChanges() {
+      this.discardChanges = true;
+      return this;
+    }
+
+    public TableMetadata build() {
+      if (changes.size() == startingChangeCount && !(discardChanges && changes.size() > 0)) {
+        return base;
+      }
+
+      if (lastUpdatedMillis == null) {
+        this.lastUpdatedMillis = System.currentTimeMillis();
+      }
+
+      Schema schema = schemasById.get(currentSchemaId);
+      PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
+      SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
+
+      List<MetadataLogEntry> metadataHistory = addPreviousFile(
+          previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
+      List<HistoryEntry> newSnapshotLog = updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
+
+      return new TableMetadata(
+          null,
+          formatVersion,
+          uuid,
+          location,
+          lastSequenceNumber,
+          lastUpdatedMillis,
+          lastColumnId,
+          currentSchemaId,
+          ImmutableList.copyOf(schemas),
+          defaultSpecId,
+          ImmutableList.copyOf(specs),
+          lastAssignedPartitionId,
+          defaultSortOrderId,
+          ImmutableList.copyOf(sortOrders),
+          ImmutableMap.copyOf(properties),
+          currentSnapshotId,
+          ImmutableList.copyOf(snapshots),
+          ImmutableList.copyOf(newSnapshotLog),
+          ImmutableList.copyOf(metadataHistory),
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes)
+      );
+    }
+
+    private int addSchemaInternal(Schema schema, int newLastColumnId) {
+      Preconditions.checkArgument(newLastColumnId >= lastColumnId,
+          "Invalid last column ID: %s < %s (previous last column ID)", newLastColumnId, lastColumnId);
+
+      int newSchemaId = reuseOrCreateNewSchemaId(schema);
+      boolean schemaFound = schemasById.containsKey(newSchemaId);
+      if (schemaFound && newLastColumnId == lastColumnId) {
+        // the new spec and last column id is already current and no change is needed
+        return newSchemaId;
+      }
+
+      this.lastColumnId = newLastColumnId;
+
+      Schema newSchema;
+      if (newSchemaId != schema.schemaId()) {
+        newSchema = new Schema(newSchemaId, schema.columns(), schema.identifierFieldIds());
+      } else {
+        newSchema = schema;
+      }
+
+      if (!schemaFound) {
+        schemas.add(newSchema);
+        schemasById.put(newSchema.schemaId(), newSchema);
+      }
+
+      changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+
+      return newSchemaId;
+    }
+
+    private int reuseOrCreateNewSchemaId(Schema newSchema) {
+      // if the schema already exists, use its id; otherwise use the highest id + 1
+      int newSchemaId = currentSchemaId;
+      for (Schema schema : schemas) {
+        if (schema.sameSchema(newSchema)) {
+          return schema.schemaId();
+        } else if (schema.schemaId() >= newSchemaId) {
+          newSchemaId = schema.schemaId() + 1;
+        }
+      }
+      return newSchemaId;
+    }
+
+    private int addPartitionSpecInternal(PartitionSpec spec) {
+      int newSpecId = reuseOrCreateNewSpecId(spec);
+      if (specsById.containsKey(newSpecId)) {
+        return newSpecId;
+      }
+
+      Schema schema = schemasById.get(currentSchemaId);
+      PartitionSpec.checkCompatibility(spec, schema);
+      ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(spec),
+          "Spec does not use sequential IDs that are required in v1: %s", spec);
+
+      PartitionSpec newSpec = freshSpec(newSpecId, schema, spec);
+      this.lastAssignedPartitionId = Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId());
+      specs.add(newSpec);
+      specsById.put(newSpecId, newSpec);
+
+      changes.add(new MetadataUpdate.AddPartitionSpec(newSpec));
+
+      return newSpecId;
+    }
+
+    private int reuseOrCreateNewSpecId(PartitionSpec newSpec) {
+      // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
+      int newSpecId = INITIAL_SPEC_ID;
+      for (PartitionSpec spec : specs) {
+        if (newSpec.compatibleWith(spec)) {
+          return spec.specId();
+        } else if (newSpecId <= spec.specId()) {
+          newSpecId = spec.specId() + 1;
+        }
+      }
+
+      return newSpecId;
+    }
+
+    private int addSortOrderInternal(SortOrder order) {
+      int newOrderId = reuseOrCreateNewSortOrderId(order);
+      if (sortOrdersById.containsKey(newOrderId)) {
+        return newOrderId;
+      }
+
+      Schema schema = schemasById.get(currentSchemaId);
+      SortOrder.checkCompatibility(order, schema);
+
+      SortOrder newOrder;
+      if (order.isUnsorted()) {
+        newOrder = SortOrder.unsorted();
+      } else {
+        // rebuild the sort order using new column ids
+        newOrder = freshSortOrder(newOrderId, schema, order);
+      }
+
+      sortOrders.add(newOrder);
+      sortOrdersById.put(newOrderId, newOrder);
+
+      changes.add(new MetadataUpdate.AddSortOrder(newOrder));
+
+      return newOrderId;
+    }
+
+    private int reuseOrCreateNewSortOrderId(SortOrder newOrder) {
+      if (newOrder.isUnsorted()) {
+        return SortOrder.unsorted().orderId();
+      }
+
+      // determine the next order id
+      int newOrderId = INITIAL_SORT_ORDER_ID;
+      for (SortOrder order : sortOrders) {
+        if (order.sameOrder(newOrder)) {
+          return order.orderId();
+        } else if (newOrderId <= order.orderId()) {
+          newOrderId = order.orderId() + 1;
+        }
+      }
+
+      return newOrderId;
+    }
+
+    private void setCurrentSnapshot(Snapshot snapshot, Long currentTimestampMillis) {
+      if (snapshot == null) {
+        this.currentSnapshotId = -1;
+        snapshotLog.clear();
+        changes.add(new MetadataUpdate.SetCurrentSnapshot(null));
+        return;
+      }
+
+      if (currentSnapshotId == snapshot.snapshotId()) {
+        return;
+      }
+
+      ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
+          "Last sequence number %s is less than existing snapshot sequence number %s",
+          lastSequenceNumber, snapshot.sequenceNumber());
+
+      this.lastUpdatedMillis = currentTimestampMillis != null ? currentTimestampMillis : snapshot.timestampMillis();
+      this.currentSnapshotId = snapshot.snapshotId();
+      snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, snapshot.snapshotId()));
+      changes.add(new MetadataUpdate.SetCurrentSnapshot(snapshot.snapshotId()));
+    }
+
+    private static List<MetadataLogEntry> addPreviousFile(
+        List<MetadataLogEntry> previousFiles, String previousFileLocation, long timestampMillis,
+        Map<String, String> properties) {
+      if (previousFileLocation == null) {
+        return previousFiles;
+      }
+
+      int maxSize = Math.max(1, PropertyUtil.propertyAsInt(properties,
+          TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
+
+      List<MetadataLogEntry> newMetadataLog;
+      if (previousFiles.size() >= maxSize) {
+        int removeIndex = previousFiles.size() - maxSize + 1;
+        newMetadataLog = Lists.newArrayList(previousFiles.subList(removeIndex, previousFiles.size()));
+      } else {
+        newMetadataLog = Lists.newArrayList(previousFiles);
+      }
+      newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFileLocation));
+
+      return newMetadataLog;
+    }
+
+    /**
+     * Finds intermediate snapshots that have not been committed as the current snapshot.
+     *
+     * @return a set of snapshot ids for all added snapshots that were later replaced as the current snapshot in changes
+     */
+    private static Set<Long> intermediateSnapshotIdSet(List<MetadataUpdate> changes, long currentSnapshotId) {
+      Set<Long> addedSnapshotIds = Sets.newHashSet();
+      Set<Long> intermediateSnapshotIds = Sets.newHashSet();
+      for (MetadataUpdate update : changes) {
+        if (update instanceof MetadataUpdate.AddSnapshot) {
+          // adds must always come before set current snapshot
+          MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
+          addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
+        } else if (update instanceof MetadataUpdate.SetCurrentSnapshot) {
+          Long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
+          if (snapshotId != null && addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
+            intermediateSnapshotIds.add(snapshotId);
+          }
+        }
+      }
+
+      return intermediateSnapshotIds;
+    }
+
+    private static List<HistoryEntry> updateSnapshotLog(
+        List<HistoryEntry> snapshotLog, Map<Long, Snapshot> snapshotsById, long currentSnapshotId,
+        List<MetadataUpdate> changes) {
+      // find intermediate snapshots to suppress incorrect entries in the snapshot log.
+      //
+      // transactions can create snapshots that are never the current snapshot because several changes are combined
+      // by the transaction into one table metadata update. when each intermediate snapshot is added to table metadata,
+      // it is added to the snapshot log, assuming that it will be the current snapshot. when there are multiple
+      // snapshot updates, the log must be corrected by suppressing the intermediate snapshot entries.
+      //
+      // a snapshot is an intermediate snapshot if it was added but is not the current snapshot.
+      Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
+
+      // update the snapshot log
+      List<HistoryEntry> newSnapshotLog = Lists.newArrayList();
+      for (HistoryEntry logEntry : snapshotLog) {
+        long snapshotId = logEntry.snapshotId();
+        if (snapshotsById.containsKey(snapshotId) && !intermediateSnapshotIds.contains(snapshotId)) {
+          // copy the log entries that are still valid
+          newSnapshotLog.add(logEntry);
+        } else {
+          // any invalid entry causes the history before it to be removed. otherwise, there could be
+          // history gaps that cause time-travel queries to produce incorrect results. for example,
+          // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
+          // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
+          // and t3 when in fact s2 was the current snapshot.
+          newSnapshotLog.clear();
+        }
+      }
+
+      if (snapshotsById.get(currentSnapshotId) != null) {
+        ValidationException.check(Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
+            "Cannot set invalid snapshot log: latest entry is not the current snapshot");
+      }
+
+      return newSnapshotLog;
+    }
   }
 }
