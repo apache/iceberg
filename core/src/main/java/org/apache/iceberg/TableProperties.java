@@ -66,10 +66,10 @@ public class TableProperties {
   public static final int COMMIT_NUM_STATUS_CHECKS_DEFAULT = 3;
 
   public static final String COMMIT_STATUS_CHECKS_MIN_WAIT_MS = "commit.status-check.min-wait-ms";
-  public static final long COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT = 1000L; // 1s
+  public static final long COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT = 1000; // 1 second
 
   public static final String COMMIT_STATUS_CHECKS_MAX_WAIT_MS = "commit.status-check.max-wait-ms";
-  public static final long COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT = 60 * 1000L; // 1 minute
+  public static final long COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT = 60 * 1000; // 1 minute
 
   public static final String COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS = "commit.status-check.total-timeout-ms";
   public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT = 30 * 60 * 1000; // 30 minutes
