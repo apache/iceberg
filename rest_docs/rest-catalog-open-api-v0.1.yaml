@@ -37,9 +37,7 @@ servers:
         description: The port used when addressing the host
         default: "443"
       basePath:
-        default: v1
-  - url: http://127.0.0.1:1080/
-    description: URL Used for Mock-Server Unit Tests
+        default: ""
 # All routes are currently configured using an Authorization header.
 security:
   - BearerAuth: []
@@ -336,7 +334,6 @@ paths:
                 $ref: '#/components/schemas/DropTableResponse'
               example: { "data": { "dropped": true, "purged": false } }
         202:
-          # TODO - Add a callback or handle to check on the state of an async purge request
           description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
         404:
           $ref: '#/components/responses/NoSuchTableResponse'
@@ -449,7 +446,7 @@ components:
           example: NoSuchNamespaceException
         code:
           type: integer
-          minimum: 100
+          minimum: 400
           maximum: 600
           description: HTTP response code
           example: 404

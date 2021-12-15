@@ -30,9 +30,7 @@ Base URLs:
 
     * **port** - The port used when addressing the host Default: 443
 
-    * **basePath** -  Default: v1
-
-* <a href="http://127.0.0.1:1080/">http://127.0.0.1:1080/</a>
+    * **basePath** -  Default: 
 
 License: <a href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0</a>
 
