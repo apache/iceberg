@@ -101,6 +101,8 @@ public class HiveVectorizedReader {
       switch (format) {
         case ORC:
 
+          // Metadata information has to be passed along in the OrcSplit. Without specifying this, the vectorized
+          // reader will assume that the ORC file ends at the task's start + length, and might fail reading the tail..
           OrcTail orcTail = VectorizedReadUtils.getOrcTail(inputFile, job);
 
           InputSplit split = new OrcSplit(path, null, task.start(), task.length(), (String[]) null, orcTail,

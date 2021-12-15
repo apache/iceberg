@@ -26,7 +26,7 @@ import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
 
 /**
- * Utilities that rely on Iceberg code from org.apache.iceberg.orc package.
+ * Utilities that rely on Iceberg code from org.apache.iceberg.orc package and are required for ORC vectorization.
  */
 public class VectorizedReadUtils {
 
@@ -41,8 +41,7 @@ public class VectorizedReadUtils {
    * @param job - JobConf instance for the current task
    * @throws IOException - errors relating to accessing the ORC file
    */
-  public static OrcTail getOrcTail(InputFile inputFile, JobConf job)
-      throws IOException {
+  public static OrcTail getOrcTail(InputFile inputFile, JobConf job) throws IOException {
 
     try (ReaderImpl orcFileReader = (ReaderImpl) ORC.newFileReader(inputFile, job)) {
       return ReaderImpl.extractFileTail(orcFileReader.getSerializedFileFooter());

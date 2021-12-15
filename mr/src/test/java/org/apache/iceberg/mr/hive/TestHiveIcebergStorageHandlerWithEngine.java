@@ -790,28 +790,23 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testVectorizedOrcMultipleSplits() throws Exception {
     assumeTrue(isVectorized && FileFormat.ORC.equals(fileFormat));
 
-    try {
-      // This data will be held by a ~870kB ORC file
-      List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
-          20000, 0L);
+    // This data will be held by a ~870kB ORC file
+    List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        20000, 0L);
 
-      // To support splitting the ORC file, we need to specify the stripe size to a small value. It looks like the min
-      // value is about 220kB, no smaller stripes are written by ORC. Anyway, this setting will produce 4 stripes.
-      shell.getHiveConf().set("orc.stripe.size", "200000");
+    // To support splitting the ORC file, we need to specify the stripe size to a small value. It looks like the min
+    // value is about 220kB, no smaller stripes are written by ORC. Anyway, this setting will produce 4 stripes.
+    shell.setHiveSessionValue("orc.stripe.size", "210000");
 
-      testTables.createTable(shell, "targettab", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
-          fileFormat, records);
+    testTables.createTable(shell, "targettab", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        fileFormat, records);
 
-      // Will request 4 splits, separated on the exact stripe boundaries within the ORC file.
-      // (Would request 5 if ORC split generation wouldn't be split (aka stripe) offset aware).
-      shell.getHiveConf().set(InputFormatConfig.SPLIT_SIZE, "200000");
-      List<Object[]> result = shell.executeStatement("SELECT * FROM targettab ORDER BY last_name");
+    // Will request 4 splits, separated on the exact stripe boundaries within the ORC file.
+    // (Would request 5 if ORC split generation wouldn't be split (aka stripe) offset aware).
+    shell.setHiveSessionValue(InputFormatConfig.SPLIT_SIZE, "210000");
+    List<Object[]> result = shell.executeStatement("SELECT * FROM targettab ORDER BY last_name");
 
-      Assert.assertEquals(20000, result.size());
-    } finally {
-      shell.getHiveConf().unset(InputFormatConfig.SPLIT_SIZE);
-      shell.getHiveConf().unset("orc.stripe.size");
-    }
+    Assert.assertEquals(20000, result.size());
 
   }
 
