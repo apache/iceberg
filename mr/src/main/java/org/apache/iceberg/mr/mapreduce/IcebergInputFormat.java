@@ -210,6 +210,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.context = newContext;
       Table table = ((IcebergSplit) split).table();
       this.io = table.io();
+      this.io.initialize(conf.getValByRegex(""));
       this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);

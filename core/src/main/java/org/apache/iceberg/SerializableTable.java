@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -107,7 +108,13 @@ public class SerializableTable implements Table, Serializable {
 
   private FileIO fileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
+      HadoopConfigurable configurableIo = (HadoopConfigurable) table.io();
+      if ("true".equalsIgnoreCase(configurableIo.getConf().get(ConfigProperties.CONFIG_SERIALIZATION_DISABLED))) {
+        // serialize with an empty Configuration object - configs should be populated on the deserializer-side
+        configurableIo.serializeConfWith(conf -> new SerializableConfiguration(new Configuration(false))::get);
+      } else {
+        configurableIo.serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
+      }
     }
 
     return table.io();
