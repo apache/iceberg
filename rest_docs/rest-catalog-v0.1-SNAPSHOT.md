@@ -1264,7 +1264,7 @@ Server-provided configuration for the catalog.
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |rootPath|string|false|none|Root path to be used for all other requests. Server-side implementations are free to use another choice for root path, but must conform to the specification otherwise in order to interoperate with the URI generation that the REST catalog client will do.|
-|catalogProperties|object¦null|false|none|An optional field for storing catalog configuration properties that are stored server side. This could be beneifical to an administrator, for example to enforce that a given LocationProvider is used or to enforce that a certain FileIO implementation is used.|
+|catalogProperties|object|false|none|An optional field for storing catalog configuration properties that are stored server side. This could be beneficial to an administrator, for example to enforce that a given LocationProvider is used or to enforce that a certain FileIO implementation is used.|
 
 <h2 id="tocS_TableAlreadyExistsError">TableAlreadyExistsError</h2>
 <!-- backwards compatibility -->

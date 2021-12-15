@@ -576,10 +576,10 @@ components:
             that the REST catalog client will do.
         catalogProperties:
           type: object
-          nullable: true
+          nullable: false
           description:
             An optional field for storing catalog configuration properties that
-            are stored server side. This could be beneifical to an administrator,
+            are stored server side. This could be beneficial to an administrator,
             for example to enforce that a given LocationProvider is used or to
             enforce that a certain FileIO implementation is used.
 
