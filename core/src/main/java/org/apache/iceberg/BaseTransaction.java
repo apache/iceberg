@@ -362,8 +362,10 @@ class BaseTransaction implements Transaction {
             // fix up the snapshot log, which should not contain intermediate snapshots
             underlyingOps.commit(base, current);
           });
+
     } catch (CommitStateUnknownException e) {
       throw e;
+
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
       Tasks.foreach(updates)
