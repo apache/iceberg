@@ -94,7 +94,7 @@ import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 public class Spark3Util {
@@ -337,7 +337,7 @@ public class Spark3Util {
 
   public static DistributionMode distributionModeFor(org.apache.iceberg.Table table) {
     boolean isSortedTable = !table.sortOrder().isUnsorted();
-    String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_DEFAULT;
+    String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_NONE;
     String modeName = table.properties().getOrDefault(WRITE_DISTRIBUTION_MODE, defaultModeName);
     return DistributionMode.fromName(modeName);
   }
