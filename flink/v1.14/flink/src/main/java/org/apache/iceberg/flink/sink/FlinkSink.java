@@ -62,7 +62,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.UPSERT_ENABLED;
 import static org.apache.iceberg.TableProperties.UPSERT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
@@ -403,7 +403,7 @@ public class FlinkSink {
         // Fallback to use distribution mode parsed from table properties if don't specify in job level.
         String modeName = PropertyUtil.propertyAsString(properties,
             WRITE_DISTRIBUTION_MODE,
-            WRITE_DISTRIBUTION_MODE_DEFAULT);
+            WRITE_DISTRIBUTION_MODE_NONE);
 
         writeMode = DistributionMode.fromName(modeName);
       } else {

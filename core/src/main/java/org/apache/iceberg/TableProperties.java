@@ -210,6 +210,10 @@ public class TableProperties {
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
   public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
+  /**
+   * @deprecated will be removed in 0.14.0, use specific modes instead
+   */
+  @Deprecated
   public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = WRITE_DISTRIBUTION_MODE_NONE;
 
   public static final String GC_ENABLED = "gc.enabled";
