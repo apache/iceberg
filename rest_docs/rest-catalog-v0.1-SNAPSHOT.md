@@ -980,7 +980,7 @@ JSON error payload returned in a response with further details on the error
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
 |message|string|true|none|Human-readable error message|
-|type|string|true|none|Internal type of the error, such as an exception class|
+|type|string|true|none|Internal type definition of the error|
 |code|integer|true|none|HTTP response code|
 
 <h2 id="tocS_TableIdentifier">TableIdentifier</h2>

@@ -442,7 +442,7 @@ components:
           description: Human-readable error message
         type:
           type: string
-          description: Internal type of the error, such as an exception class
+          description: Internal type definition of the error
           example: NoSuchNamespaceException
         code:
           type: integer
