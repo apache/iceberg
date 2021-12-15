@@ -126,6 +126,5 @@ subprojects {
         sign publishing.publications.apache
       }
     }
-
   }
 }
