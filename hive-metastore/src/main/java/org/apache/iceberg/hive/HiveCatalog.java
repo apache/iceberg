@@ -161,16 +161,25 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     try {
-      clients.run(client -> {
-        client.dropTable(database, identifier.name(),
-            false /* do not delete data */,
-            false /* throw NoSuchObjectException if the table doesn't exist */);
-        return null;
+      boolean isExist = clients.run(client -> {
+        return client.tableExists(database, identifier.name());
       });
+
+      if (!isExist) {
+        LOG.warn("Drop table: {}", identifier);
+        throw new RuntimeException("Failed to drop " + identifier + " as the table doesn't exists in MetaStore.");
+      }
 
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
       }
+
+      clients.run(client -> {
+        client.dropTable(database, identifier.name(),
+                false /* do not delete data */,
+                false /* throw NoSuchObjectException if the table doesn't exist */);
+        return null;
+      });
 
       LOG.info("Dropped table: {}", identifier);
       return true;
@@ -201,7 +210,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       });
 
       if (isExist) {
-        LOG.warn("Cleaned table: {}", identifier);
+        LOG.warn("Failed to clean: {}", identifier);
         throw new RuntimeException("Failed to clean " + identifier + " as the table exists in MetaStore.");
       }
 
