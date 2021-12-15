@@ -166,7 +166,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       });
 
       if (!isExist) {
-        LOG.warn("Drop table: {}", identifier);
+        LOG.warn("Failed to drop: {}", identifier);
         throw new RuntimeException("Failed to drop " + identifier + " as the table doesn't exists in MetaStore.");
       }
 
