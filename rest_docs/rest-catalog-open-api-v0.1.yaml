@@ -454,6 +454,7 @@ components:
       type: object
       required:
         - namespace
+        - name
       properties:
         namespace:
           type: array
