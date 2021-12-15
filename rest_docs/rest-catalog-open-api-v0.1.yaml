@@ -75,7 +75,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IcebergConfiguration'
+                $ref: '#/components/schemas/CatalogConfiguration'
               example: {
                 "data": {
                   "overrides": {
@@ -561,7 +561,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableIdentifier'
-    IcebergConfiguration:
+    CatalogConfiguration:
       type: object
       description: "Server-provided configuration for the catalog."
       properties:
@@ -575,15 +575,25 @@ components:
             are free to use another choice for root path, but must conform to the
             specification otherwise in order to interoperate with the URI generation
             that the REST catalog client will do.
-        catalogProperties:
+        overrrides:
           type: object
           nullable: false
           description:
-            An optional field for storing catalog configuration properties that
-            are stored server side. This could be beneficial to an administrator,
+            Catalog configuration properties that are stored server-side.
+            The client must respect these values when configuring the catalog during
+            initialization. This could be beneficial to an administrator,
             for example to enforce that a given LocationProvider is used or to
             enforce that a certain FileIO implementation is used.
-
+        defaults:
+          type: object
+          nullable: false
+          description:
+            Catalog configuration properties that are stored server-side.
+            The client does not have to use thse values, and they are simply default
+            values that the user might choose to omit in their configuration. This could
+            be beneficial for users who don't want to have to configure every single property
+            available to them in their job, or for an administrator to centrally set the
+            suggested default values for certain catalog settings.
     TableAlreadyExistsError:
       allOf:
         - $ref: '#/components/schemas/ResponseErrorObject'
