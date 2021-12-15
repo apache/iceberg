@@ -162,7 +162,7 @@ System.out.println(response.toString());
 
 *List namespaces, optionally providing a parent namespace to list underneaath*
 
-List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a","b")
+List all namespaces at a certain level, optionally starting from a given parent namespace. For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate into `GET /namespaces?parent=a` and must return Namepace.of("a", "b").
 
 <h3 id="listnamespaces-parameters">Parameters</h3>
 
@@ -487,9 +487,9 @@ To perform this operation, you must be authenticated by means of one of the foll
 BearerAuth
 </aside>
 
-## setProperties _ removeProperties
+## updateProperties
 
-<a id="opIdsetProperties / removeProperties"></a>
+<a id="opIdupdateProperties"></a>
 
 > Code samples
 
@@ -537,7 +537,7 @@ Properties that are not in the request are not modified or removed by this call.
 }
 ```
 
-<h3 id="setproperties-_-removeproperties-parameters">Parameters</h3>
+<h3 id="updateproperties-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
@@ -578,7 +578,7 @@ Properties that are not in the request are not modified or removed by this call.
 }
 ```
 
-<h3 id="setproperties-_-removeproperties-responses">Responses</h3>
+<h3 id="updateproperties-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
