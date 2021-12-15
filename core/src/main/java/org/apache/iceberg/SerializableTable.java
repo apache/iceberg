@@ -109,7 +109,7 @@ public class SerializableTable implements Table, Serializable {
   private FileIO fileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
       HadoopConfigurable configurableIo = (HadoopConfigurable) table.io();
-      if ("true".equalsIgnoreCase(configurableIo.getConf().get(ConfigProperties.CONFIG_SERIALIZATION_DISABLED))) {
+      if (configurableIo.getConf().getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false)) {
         // serialize with an empty Configuration object - configs should be populated on the deserializer-side
         configurableIo.serializeConfWith(conf -> new SerializableConfiguration(new Configuration(false))::get);
       } else {
