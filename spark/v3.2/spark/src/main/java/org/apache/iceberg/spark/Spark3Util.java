@@ -762,19 +762,19 @@ public class Spark3Util {
     Map<String, String> emptyMap = Collections.emptyMap();
 
     InMemoryFileIndex fileIndex = new InMemoryFileIndex(
-            spark,
-            JavaConverters
-                .collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-                .asScala()
-                .toSeq(),
-            JavaConverters
-                .mapAsScalaMapConverter(emptyMap)
-                .asScala()
-                .toMap(Predef.conforms()),
-            Option.empty(),
-            fileStatusCache,
-            Option.empty(),
-            Option.empty());
+        spark,
+        JavaConverters
+            .collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+            .asScala()
+            .toSeq(),
+        JavaConverters
+            .mapAsScalaMapConverter(emptyMap)
+            .asScala()
+            .toMap(Predef.conforms()),
+        Option.empty(),
+        fileStatusCache,
+        Option.empty(),
+        Option.empty());
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
