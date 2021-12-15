@@ -213,7 +213,7 @@ paths:
       tags:
         - Catalog API
       summary: Set or remove properties on a namespace
-      operationId: setProperties / removeProperties
+      operationId: updateProperties
       description:
         Set and/or remove a collection or properties on a namespae.
         The request body specifies a list of properties to remove and a map
