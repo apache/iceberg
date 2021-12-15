@@ -197,6 +197,11 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     implementation project(':iceberg-spark:iceberg-spark3')
     implementation project(':iceberg-spark:iceberg-spark3-extensions')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
     implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
