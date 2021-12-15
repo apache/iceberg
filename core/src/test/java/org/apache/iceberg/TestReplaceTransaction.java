@@ -431,7 +431,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertNotNull("Table should have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
         schema.asStruct(), table.schema().asStruct());
-
+    Assert.assertEquals("Should have 4 files in metadata", 4, countAllMetadataFiles(tableDir));
     validateSnapshot(null, table.currentSnapshot(), FILE_B);
   }
 
@@ -468,7 +468,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
     Assert.assertEquals("Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_append"));
     Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
-
+    Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
     Assert.assertEquals("Table schema should match with reassigned IDs", assignFreshIds(SCHEMA).asStruct(),
         meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());

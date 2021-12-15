@@ -718,5 +718,6 @@ public class TestTransaction extends TableTestBase {
     List<ManifestFile> manifests = current.allManifests();
     Assert.assertEquals("Should have 1 manifest file", 1, manifests.size());
     Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
+    Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
   }
 }
