@@ -258,7 +258,8 @@ paths:
   /v1/namespaces/{namespace}/tables:
     parameters:
       - name: namespace
-        description: A namespace identifier under which to list tables
+        description:
+          A namespace identifier under which to list tables. Multipart namespaces should be separated with a dot. Parts which contain a dot in them should encode this using a null byte character, i.e. %00.
         in: path
         required: true
         schema:
