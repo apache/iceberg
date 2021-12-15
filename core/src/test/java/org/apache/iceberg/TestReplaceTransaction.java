@@ -416,22 +416,21 @@ public class TestReplaceTransaction extends TableTestBase {
 
     TestTables.TestTableOperations ops = TestTables.opsWithCommitSucceedButStateUnknown(tableDir, "test");
     Transaction replace = TestTables.beginReplace(tableDir, "test", newSchema, unpartitioned(),
-                                                  SortOrder.unsorted(),  ImmutableMap.of(), ops);
+        SortOrder.unsorted(),  ImmutableMap.of(), ops);
 
     replace.newAppend()
         .appendFile(FILE_B)
         .commit();
 
     AssertHelpers.assertThrows("Transaction commit should fail with CommitStateUnknownException",
-                               CommitStateUnknownException.class, "datacenter on fire",
-                               () -> replace.commitTransaction());
+        CommitStateUnknownException.class, "datacenter on fire", () -> replace.commitTransaction());
 
     table.refresh();
 
     Assert.assertEquals("Version should be 2", 2L, (long) version());
     Assert.assertNotNull("Table should have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
-                        schema.asStruct(), table.schema().asStruct());
+        schema.asStruct(), table.schema().asStruct());
 
     validateSnapshot(null, table.currentSnapshot(), FILE_B);
   }
@@ -444,15 +443,13 @@ public class TestReplaceTransaction extends TableTestBase {
     // this table doesn't exist.
     TestTables.TestTableOperations ops = TestTables.opsWithCommitSucceedButStateUnknown(tableDir, "test_append");
     Transaction replace = TestTables.beginReplace(tableDir, "test_append", SCHEMA, unpartitioned(),
-        SortOrder.unsorted(),  ImmutableMap.of(), ops);
+        SortOrder.unsorted(), ImmutableMap.of(), ops);
 
     Assert.assertNull("Starting a create transaction should not commit metadata",
-                      TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version",
-                      TestTables.metadataVersion("test_append"));
+        TestTables.readMetadata("test_append"));
+    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
 
-    Assert.assertTrue("Should return a transaction table",
-                      replace.table() instanceof BaseTransaction.TransactionTable);
+    Assert.assertTrue("Should return a transaction table", replace.table() instanceof BaseTransaction.TransactionTable);
 
     replace.newAppend()
         .appendFile(FILE_A)
@@ -465,8 +462,7 @@ public class TestReplaceTransaction extends TableTestBase {
                       TestTables.metadataVersion("test_append"));
 
     AssertHelpers.assertThrows("Transaction commit should fail with CommitStateUnknownException",
-                               CommitStateUnknownException.class, "datacenter on fire",
-                               () -> replace.commitTransaction());
+        CommitStateUnknownException.class, "datacenter on fire", () -> replace.commitTransaction());
 
     TableMetadata meta = TestTables.readMetadata("test_append");
     Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
@@ -474,7 +470,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
 
     Assert.assertEquals("Table schema should match with reassigned IDs", assignFreshIds(SCHEMA).asStruct(),
-                        meta.schema().asStruct());
+        meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
