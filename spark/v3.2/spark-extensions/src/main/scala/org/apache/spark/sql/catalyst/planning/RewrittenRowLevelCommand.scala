@@ -23,6 +23,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -48,9 +49,15 @@ object RewrittenRowLevelCommand {
       // both the write and read relations will share the same RowLevelOperationTable object
       // that's why it is safe to use reference equality to find the needed read relation
 
+      val allowScanDuplication = c match {
+        // group-based updates that rely on the union approach may have multiple identical scans
+        case _: UpdateIcebergTable if rewritePlan.isInstanceOf[ReplaceData] => true
+        case _ => false
+      }
+
       rewritePlan match {
         case rd @ ReplaceData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
-          val readRelation = findReadRelation(table, query)
+          val readRelation = findReadRelation(table, query, allowScanDuplication)
           readRelation.map((c, _, rd))
         case _ =>
           None
@@ -62,7 +69,8 @@ object RewrittenRowLevelCommand {
 
   private def findReadRelation(
       table: Table,
-      plan: LogicalPlan): Option[LogicalPlan] = {
+      plan: LogicalPlan,
+      allowScanDuplication: Boolean): Option[LogicalPlan] = {
 
     val readRelations = plan.collect {
       case r: DataSourceV2Relation if r.table eq table => r
@@ -79,6 +87,20 @@ object RewrittenRowLevelCommand {
 
       case Seq(relation) =>
         Some(relation)
+
+      case Seq(relation1: DataSourceV2Relation, relation2: DataSourceV2Relation)
+          if allowScanDuplication && (relation1.table eq relation2.table) =>
+        Some(relation1)
+
+      case Seq(relation1: DataSourceV2ScanRelation, relation2: DataSourceV2ScanRelation)
+          if allowScanDuplication && (relation1.scan eq relation2.scan) =>
+        Some(relation1)
+
+      case Seq(relation1, relation2) if allowScanDuplication =>
+        throw new AnalysisException(s"Row-level read relations don't match: $relation1, $relation2")
+
+      case relations if allowScanDuplication =>
+        throw new AnalysisException(s"Expected up to two row-level read relations: $relations")
 
       case relations =>
         throw new AnalysisException(s"Expected only one row-level read relation: $relations")

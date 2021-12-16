@@ -22,6 +22,8 @@ package org.apache.spark.sql.execution.dynamicpruning
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.AttributeMap
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.DynamicPruningSubquery
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
@@ -37,6 +39,7 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.logical.Subquery
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.PLAN_EXPRESSION
 import org.apache.spark.sql.catalyst.trees.TreePattern.SORT
@@ -86,6 +89,16 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
     val matchingRowsPlan = command match {
       case d: DeleteFromIcebergTable =>
         Filter(d.condition.get, relation)
+      case u: UpdateIcebergTable =>
+        // UPDATEs with subqueries may be rewritten using a UNION with two identical scan relations
+        // each scan relation will get its own dynamic filter that will be shared during execution
+        // the analyzer will assign different expr IDs for each scan relation output attributes
+        // that's why the condition may refer to invalid attr expr IDs and must be transformed
+        val attrMap = AttributeMap(u.table.output.zip(relation.output))
+        val transformedCond = u.condition.get transform {
+          case attr: AttributeReference if attrMap.contains(attr) => attrMap(attr)
+        }
+        Filter(transformedCond, relation)
     }
 
     // clone the original relation in the filtering plan and assign new expr IDs to avoid conflicts
