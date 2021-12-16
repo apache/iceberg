@@ -137,11 +137,9 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
       // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.
-      return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          ident);
+      return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME), ident);
     } else {
-      return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(),
-          ident);
+      return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(), ident);
     }
   }
 
@@ -171,6 +169,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     if (value != null) {
       return Long.parseLong(value);
     }
+
     return null;
   }
 

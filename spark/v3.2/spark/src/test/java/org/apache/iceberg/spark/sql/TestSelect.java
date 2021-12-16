@@ -21,12 +21,16 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -138,6 +142,14 @@ public class TestSelect extends SparkCatalogTestBase {
     // read the table at the snapshot
     List<Object[]> actual = sql("SELECT * FROM %s.%s", tableName, prefix + snapshotId);
     assertEquals("Snapshot at specific ID, prefix " + prefix, expected, actual);
+
+    // read the table using DataFrameReader option
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
   }
 
   @Test
@@ -156,6 +168,38 @@ public class TestSelect extends SparkCatalogTestBase {
     String prefix = "at_timestamp_";
     // read the table at the snapshot
     List<Object[]> actual = sql("SELECT * FROM %s.%s", tableName, prefix + timestamp);
-    assertEquals("Snapshot at time, prefix " + prefix, expected, actual);
+    assertEquals("Snapshot at timestamp, prefix " + prefix, expected, actual);
+
+    // read the table using DataFrameReader option
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
+  }
+
+  @Test
+  public void testSpecifySnapshotAndTimestamp() {
+    // get the snapshot ID of the last write
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    // get a timestamp just after the last write
+    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    AssertHelpers.assertThrows("Should not be able to specify both snapshot id and timestamp",
+        IllegalArgumentException.class,
+        String.format("Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)",
+          snapshotId, timestamp),
+        () -> {
+          spark.read()
+            .format("iceberg")
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+            .load(tableName)
+            .collectAsList();
+        });
   }
 }
