@@ -74,15 +74,15 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
     val rowAttrs = relation.output
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
 
-    // construct a scan relation and include all required metadata columns
-    val scanAttrs = dedupAttrs(rowAttrs ++ metadataAttrs)
-    val scanRelation = relation.copy(table = table, output = scanAttrs)
+    // construct a read relation and include all required metadata columns
+    val readAttrs = dedupAttrs(rowAttrs ++ metadataAttrs)
+    val readRelation = relation.copy(table = table, output = readAttrs)
 
     // construct a plan that contains unmatched rows in matched groups that must be carried over
     // such rows do not match the condition but have to be copied over as the source can replace
     // only groups of rows
     val remainingRowsFilter = Not(EqualNullSafe(cond, Literal.TrueLiteral))
-    val remainingRowsPlan = Filter(remainingRowsFilter, scanRelation)
+    val remainingRowsPlan = Filter(remainingRowsFilter, readRelation)
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = table)

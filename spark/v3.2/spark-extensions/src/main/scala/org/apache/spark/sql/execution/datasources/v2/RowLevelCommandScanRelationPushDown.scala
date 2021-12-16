@@ -59,7 +59,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
          """.stripMargin)
 
       // replace DataSourceV2Relation with DataSourceV2ScanRelation for the row operation table
-      // there may be multiple scan relations for UPDATEs that rely on the UNION approach
+      // there may be multiple read relations for UPDATEs that rely on the UNION approach
       val newRewritePlan = rewritePlan transform {
         case r: DataSourceV2Relation if r.table eq table =>
           DataSourceV2ScanRelation(r, scan, toOutputAttrs(scan.readSchema(), r))
