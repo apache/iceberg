@@ -110,8 +110,8 @@ public class SerializableTable implements Table, Serializable {
     if (table.io() instanceof HadoopConfigurable) {
       HadoopConfigurable configurableIo = (HadoopConfigurable) table.io();
       if (configurableIo.getConf().getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false)) {
-        // serialize with a null Configuration object - config should be set on the deserializer-side
-        configurableIo.serializeConfWith(conf -> new NullSerializedConfiguration()::get);
+        // serialize with an empty Configuration object - configs should be set on the deserializer-side
+        configurableIo.serializeConfWith(conf -> new EmptySerializedConfiguration()::get);
       } else {
         configurableIo.serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
       }
@@ -394,10 +394,19 @@ public class SerializableTable implements Table, Serializable {
     }
   }
 
-  private static class NullSerializedConfiguration implements Serializable {
+  private static class EmptySerializedConfiguration implements Serializable {
+
+    private transient volatile Configuration conf = null;
 
     public Configuration get() {
-      return null;
+      if (conf == null) {
+        synchronized (this) {
+          if (conf == null) {
+            this.conf = new Configuration(false);
+          }
+        }
+      }
+      return conf;
     }
   }
 }
