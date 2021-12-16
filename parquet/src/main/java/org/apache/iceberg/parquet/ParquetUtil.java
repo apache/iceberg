@@ -287,14 +287,16 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            Literal<CharSequence> truncatedMaxString = UnicodeUtil.truncateStringMax((Literal<CharSequence>) max, truncateLength);
+            Literal<CharSequence> truncatedMaxString = UnicodeUtil.truncateStringMax((Literal<CharSequence>) max,
+                truncateLength);
             if (truncatedMaxString != null) {
               upperBounds.put(id, truncatedMaxString);
             }
             break;
           case FIXED:
           case BINARY:
-            Literal<ByteBuffer> truncatedMaxBinary = BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength);
+            Literal<ByteBuffer> truncatedMaxBinary = BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max,
+                truncateLength);
             if (truncatedMaxBinary != null) {
               upperBounds.put(id, truncatedMaxBinary);
             }
