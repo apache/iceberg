@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -73,6 +74,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
  *   <li><code>default-namespace</code> - a namespace to use as the default</li>
  *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
+ *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from catalog cache.
+ *       Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further details and significant values.
+ *   </li>
  * </ul>
  * <p>
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
@@ -83,7 +87,7 @@ public class SparkCatalog extends BaseCatalog {
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
-  private boolean cacheEnabled = true;
+  private boolean cacheEnabled = CatalogProperties.CACHE_ENABLED_DEFAULT;
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
@@ -383,14 +387,26 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
+    this.cacheEnabled = PropertyUtil.propertyAsBoolean(options,
+        CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
+
+    long cacheExpirationIntervalMs = PropertyUtil.propertyAsLong(options,
+        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+
+    // An expiration interval of 0ms effectively disables caching.
+    // Do not wrap with CachingCatalog.
+    if (cacheExpirationIntervalMs == 0) {
+      this.cacheEnabled = false;
+    }
+
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
     this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
     this.tables = new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
-    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
+    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog, cacheExpirationIntervalMs) : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {
