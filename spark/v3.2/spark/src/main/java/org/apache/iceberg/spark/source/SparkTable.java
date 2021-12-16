@@ -184,19 +184,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       icebergTable.refresh();
     }
 
-    // If the table is loaded using the Spark DataFrame API, and option("snapshot-id", <snapshot_id>)
-    // or option("as-of-timestamp", <timestamp>)  is applied to the DataFrameReader, SparkTable will be
-    // constructed with a non-null snapshotId. Subsequently SparkTable#newScanBuilder will be called
-    // with the options, which will include "snapshot-id" or "as-of-timestamp".
-    // On the other hand, if the table is loaded using SQL, with the table suffixed with a snapshot
-    // or timestamp selector, then SparkTable will be constructed with a non-null snapshotId, but
-    // SparkTable#newScanBuilder will be called without the "snapshot-id" or "as-of-timestamp" option.
-    // We therefore add a "snapshot-id" option here in this latter case.
-    CaseInsensitiveStringMap scanOptions =
-        (snapshotId != null &&
-         options.get(SparkReadOptions.SNAPSHOT_ID) == null &&
-         options.get(SparkReadOptions.AS_OF_TIMESTAMP) == null) ? addSnapshotId(options, snapshotId) : options;
-
+    CaseInsensitiveStringMap scanOptions = addSnapshotId(options, snapshotId);
     return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
   }
 
@@ -303,12 +291,14 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
     if (snapshotId != null) {
       String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
-      Preconditions.checkArgument(snapshotIdFromOptions == null,
+      String value = snapshotId.toString();
+      Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
           "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
 
       Map<String, String> scanOptions = Maps.newHashMap();
       scanOptions.putAll(options.asCaseSensitiveMap());
-      scanOptions.put(SparkReadOptions.SNAPSHOT_ID, String.valueOf(snapshotId));
+      scanOptions.put(SparkReadOptions.SNAPSHOT_ID, value);
+      scanOptions.remove(SparkReadOptions.AS_OF_TIMESTAMP);
 
       return new CaseInsensitiveStringMap(scanOptions);
     }

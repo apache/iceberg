@@ -159,7 +159,8 @@ public class TestSelect extends SparkCatalogTestBase {
         "spark_catalog".equals(catalogName));
 
     // get a timestamp just after the last write and get the current row set as expected
-    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+    long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 2);
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
 
     // create a second snapshot

@@ -1180,7 +1180,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Records should match", originalRecords,
         resultDf.orderBy("id").collectAsList());
 
-    Snapshot snapshot1 = table.currentSnapshot();
+    Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
     table.updateSchema().addColumn("category", Types.StringType.get()).commit();
 
@@ -1212,7 +1212,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf3 = spark.read()
         .format("iceberg")
-        .option(SparkReadOptions.SNAPSHOT_ID, snapshot1.snapshotId())
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
         .load(loadLocation(tableIdentifier));
     Assert.assertEquals("Records should match", originalRecords,
         resultDf3.orderBy("id").collectAsList());
@@ -1318,7 +1318,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Records should match", originalRecords,
         resultDf.orderBy("id").collectAsList());
 
-    Snapshot snapshot1 = table.currentSnapshot();
+    Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
 
     table.updateSchema().addColumn("category", Types.StringType.get()).commit();
 
@@ -1365,7 +1365,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf4 = spark.read()
         .format("iceberg")
-        .option(SparkReadOptions.SNAPSHOT_ID, snapshot1.snapshotId())
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
         .load(loadLocation(tableIdentifier));
     Assert.assertEquals("Records should match", originalRecords,
         resultDf4.orderBy("id").collectAsList());
