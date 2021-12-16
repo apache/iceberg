@@ -73,6 +73,7 @@ class SparkCopyOnWriteScan extends SparkBatchScan implements SupportsRuntimeFilt
     if (scan == null) {
       this.files = Collections.emptyList();
       this.tasks = Collections.emptyList();
+      this.filteredLocations = Collections.emptySet();
     }
   }
 
