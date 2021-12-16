@@ -20,7 +20,6 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -89,18 +88,5 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable {
   @Override
   public void serializeConfWith(Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
     this.hadoopConf = confSerializer.apply(getConf());
-  }
-
-  /**
-   * In some use cases, the IO object might be serialized with an empty configuration object to save space.
-   * This init method can then be invoked on the deserializer-side to fill up the configuration object with values.
-   * If a key is already present in the config, it won't be overridden by what is in the input properties.
-   *
-   * @param properties The configuration properties that should be set, if not already present
-   */
-  @Override
-  public void initialize(Map<String, String> properties) {
-    Configuration conf = getConf();
-    properties.forEach(conf::setIfUnset);
   }
 }

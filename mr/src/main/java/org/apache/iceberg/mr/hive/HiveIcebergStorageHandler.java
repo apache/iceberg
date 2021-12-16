@@ -40,6 +40,8 @@ import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.ConfigProperties;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -165,12 +167,19 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   /**
    * Returns the Table serialized to the configuration based on the table name.
+   * If configuration is missing from the FileIO of the table, it will be populated with the input config.
+   *
    * @param config The configuration used to get the data from
    * @param name The name of the table we need as returned by TableDesc.getTableName()
    * @return The Table
    */
   public static Table table(Configuration config, String name) {
-    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+    Table table = SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+    boolean ioConfigNotSerialized = config.getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false);
+    if (ioConfigNotSerialized && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).setConf(config);
+    }
+    return table;
   }
 
   /**
