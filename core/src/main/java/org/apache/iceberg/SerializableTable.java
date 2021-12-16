@@ -110,8 +110,8 @@ public class SerializableTable implements Table, Serializable {
     if (table.io() instanceof HadoopConfigurable) {
       HadoopConfigurable configurableIo = (HadoopConfigurable) table.io();
       if (configurableIo.getConf().getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false)) {
-        // serialize with an empty Configuration object - configs should be set on the deserializer-side
-        configurableIo.serializeConfWith(conf -> new EmptySerializedConfiguration()::get);
+        // serialize with a dummy Configuration object - configs should be set on the deserializer-side
+        configurableIo.serializeConfWith(conf -> new DummySerializedConfiguration()::get);
       } else {
         configurableIo.serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
       }
@@ -394,19 +394,10 @@ public class SerializableTable implements Table, Serializable {
     }
   }
 
-  private static class EmptySerializedConfiguration implements Serializable {
-
-    private transient volatile Configuration conf = null;
+  private static class DummySerializedConfiguration implements Serializable {
 
     public Configuration get() {
-      if (conf == null) {
-        synchronized (this) {
-          if (conf == null) {
-            this.conf = new Configuration(false);
-          }
-        }
-      }
-      return conf;
+      throw new IllegalStateException("Should not attempt to access dummy serialized configuration.");
     }
   }
 }

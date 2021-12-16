@@ -175,11 +175,15 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    */
   public static Table table(Configuration config, String name) {
     Table table = SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+    checkAndSetIoConfig(config, table);
+    return table;
+  }
+
+  public static void checkAndSetIoConfig(Configuration config, Table table) {
     boolean ioConfigNotSerialized = config.getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false);
     if (ioConfigNotSerialized && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).setConf(config);
     }
-    return table;
   }
 
   /**

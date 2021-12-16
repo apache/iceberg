@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -132,25 +133,27 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filter);
     }
 
-    List<InputSplit> splits = Lists.newArrayList();
+    List<CombinedScanTask> tasks = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
         InputFormatConfig.InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-      Table serializableTable = SerializableTable.copyOf(table);
       tasksIterable.forEach(task -> {
         if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE ||
             model == InputFormatConfig.InMemoryDataModel.PIG)) {
           // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        splits.add(new IcebergSplit(serializableTable, conf, task));
+        tasks.add(task);
       });
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
     }
 
-    return splits;
+    Table serializableTable = SerializableTable.copyOf(table);
+    return tasks.stream()
+        .map(task -> new IcebergSplit(serializableTable, conf, task))
+        .collect(Collectors.toList());
   }
 
   private static void checkResiduals(CombinedScanTask task) {
@@ -209,6 +212,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
       Table table = ((IcebergSplit) split).table();
+      HiveIcebergStorageHandler.checkAndSetIoConfig(conf, table);
       this.io = table.io();
       this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
