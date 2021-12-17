@@ -53,6 +53,9 @@ import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations;
+import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationBuilder;
+import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
@@ -65,7 +68,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsMetadataColumns {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -198,6 +201,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
+  }
+
+  @Override
+  public RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info) {
+    return new SparkRowLevelOperationBuilder(sparkSession(), icebergTable, info);
   }
 
   @Override

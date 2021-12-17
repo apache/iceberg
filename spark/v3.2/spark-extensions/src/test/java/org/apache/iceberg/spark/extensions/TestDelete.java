@@ -35,6 +35,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.spark.SparkException;
@@ -43,12 +44,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
@@ -73,6 +74,22 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS deleted_id");
     sql("DROP TABLE IF EXISTS deleted_dep");
+  }
+
+  @Test
+  public void testDeleteWithFalseCondition() {
+    createAndInitUnpartitionedTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
+
+    sql("DELETE FROM %s WHERE id = 1 AND id > 20", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -153,7 +170,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "0", null, null);
+    String expectedOperation = fileFormat.equals("avro") ? "overwrite" : "delete";
+    validateSnapshot(currentSnapshot, expectedOperation, "0", null, null);
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -304,7 +322,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     validateSnapshot(currentSnapshot, "delete", "1", "1", null);
   }
 
-  @Ignore // TODO: fails due to SPARK-33267
+  @Test
   public void testDeleteWithInAndNotInConditions() {
     createAndInitUnpartitionedTable();
 
@@ -420,7 +438,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
-  @Ignore // TODO: not supported since SPARK-25154 fix is not yet available
+  @Test
   public void testDeleteWithNotInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -466,23 +484,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
-  public void testDeleteWithNotInSubqueryNotSupported() throws NoSuchTableException {
-    createAndInitUnpartitionedTable();
-
-    append(new Employee(1, "hr"), new Employee(2, "hardware"));
-
-    createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
-
-    AssertHelpers.assertThrows("Should complain about NOT IN subquery",
-        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
-        () -> sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id)", tableName));
-  }
-
-  @Test
-  public void testDeleteOnNonIcebergTableNotSupported() throws NoSuchTableException {
+  public void testDeleteOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
 
-    AssertHelpers.assertThrows("Delete is not supported for non iceberg table",
+    AssertHelpers.assertThrows("Delete is supported only for Iceberg tables",
         AnalysisException.class, "DELETE is only supported with v2 tables.",
         () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
   }
@@ -555,10 +560,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     createOrReplaceView("deleted_id", Arrays.asList(1, 100, null), Encoders.INT());
 
-    sql("DELETE FROM %s t WHERE id <= (SELECT min(value) FROM deleted_id)", tableName);
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+    // TODO: Spark does not support AQE and DPP with aggregates at the moment
+    withSQLConf(ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"), () -> {
+      sql("DELETE FROM %s t WHERE id <= (SELECT min(value) FROM deleted_id)", tableName);
+      assertEquals("Should have expected rows",
+          ImmutableList.of(row(2, "hardware"), row(null, "hr")),
+          sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+    });
   }
 
   @Test
@@ -611,11 +619,22 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // append thread
     Future<?> appendFuture = executorService.submit(() -> {
+      List<Integer> ids = ImmutableList.of(1, 2);
+      Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
+          .withColumnRenamed("value", "id")
+          .withColumn("dep", lit("hr"));
+
       for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
         }
-        sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+        try {
+          inputDF.coalesce(1).writeTo(tableName).append();
+        } catch (NoSuchTableException e) {
+          throw new RuntimeException(e);
+        }
+
         barrier.incrementAndGet();
       }
     });
@@ -665,11 +684,22 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // append thread
     Future<?> appendFuture = executorService.submit(() -> {
+      List<Integer> ids = ImmutableList.of(1, 2);
+      Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
+          .withColumnRenamed("value", "id")
+          .withColumn("dep", lit("hr"));
+
       for (int numOperations = 0; numOperations < 20; numOperations++) {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
         }
-        sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+        try {
+          inputDF.coalesce(1).writeTo(tableName).append();
+        } catch (NoSuchTableException e) {
+          throw new RuntimeException(e);
+        }
+
         barrier.incrementAndGet();
       }
     });

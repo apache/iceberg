@@ -106,6 +106,7 @@
                 org.apache.parquet.schema.OriginalType.*,
                 org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
                 org.apache.spark.sql.functions.*,
+                org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.*,
                 org.junit.Assert.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->

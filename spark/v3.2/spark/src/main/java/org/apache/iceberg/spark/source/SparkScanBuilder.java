@@ -25,7 +25,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
@@ -59,7 +62,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
-  private boolean ignoreResiduals = false;
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this.spark = spark;
@@ -141,11 +143,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         .forEach(metaColumns::add);
   }
 
-  public SparkScanBuilder ignoreResiduals() {
-    this.ignoreResiduals = true;
-    return this;
-  }
-
   private Schema schemaWithMetadataColumns() {
     // metadata columns
     List<Types.NestedField> fields = metaColumns.stream()
@@ -164,9 +161,45 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
   }
 
-  public Scan buildMergeScan() {
-    return new SparkMergeScan(
-        spark, table, readConf, ignoreResiduals,
-        schemaWithMetadataColumns(), filterExpressions);
+  public Scan buildCopyOnWriteScan() {
+    Snapshot snapshot = table.currentSnapshot();
+
+    if (snapshot == null) {
+      return new SparkCopyOnWriteScan(spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
+    }
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    TableScan scan = table.newScan()
+        .useSnapshot(snapshot.snapshotId())
+        .ignoreResiduals()
+        .caseSensitive(caseSensitive)
+        .filter(filterExpression())
+        .project(expectedSchema);
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkCopyOnWriteScan(spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
+  }
+
+  private TableScan configureSplitPlanning(TableScan scan) {
+    TableScan configuredScan = scan;
+
+    Long splitSize = readConf.splitSizeOption();
+    if (splitSize != null) {
+      configuredScan = configuredScan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
+    }
+
+    Integer splitLookback = readConf.splitLookbackOption();
+    if (splitLookback != null) {
+      configuredScan = configuredScan.option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback));
+    }
+
+    Long splitOpenFileCost = readConf.splitOpenFileCostOption();
+    if (splitOpenFileCost != null) {
+      configuredScan = configuredScan.option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
+    }
+
+    return configuredScan;
   }
 }

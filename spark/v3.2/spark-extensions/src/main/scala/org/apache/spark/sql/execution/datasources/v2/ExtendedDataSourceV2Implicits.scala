@@ -17,21 +17,24 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.execution.datasources.v2
 
-import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.write.RowLevelOperationTable
 
-public class TestCopyOnWriteDelete extends TestDelete {
-
-  public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
-  }
-
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
+/**
+ * A class similar to DataSourceV2Implicits in Spark but contains custom implicit helpers.
+ */
+object ExtendedDataSourceV2Implicits {
+  implicit class TableHelper(table: Table) {
+    def asRowLevelOperationTable: RowLevelOperationTable = {
+      table match {
+        case rowLevelOperationTable: RowLevelOperationTable =>
+          rowLevelOperationTable
+        case _ =>
+          throw new AnalysisException(s"Table ${table.name} is not a row-level operation table")
+      }
+    }
   }
 }
