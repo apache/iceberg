@@ -42,7 +42,6 @@ public interface PositionDeleteIndex {
 
   /**
    * Returns true if this collection contains no element.
-   * @return true if this collection contains no element.
    */
   boolean isEmpty();
 }
