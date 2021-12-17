@@ -33,6 +33,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
 class ApplyNameMapping extends ParquetTypeVisitor<Type> {
+  private static final String LIST_ELEMENT_NAME = "element";
   private final NameMapping nameMapping;
 
   ApplyNameMapping(NameMapping nameMapping) {
@@ -109,7 +110,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   private Type makeElement(Type element) {
     // List's element in 3-level lists can be named differently across different parquet writers.
     // For example, hive names it "array_element", whereas new parquet writers names it as "element".
-    if (element.getName().equals("element") || element.isPrimitive()) {
+    if (element.getName().equals(LIST_ELEMENT_NAME) || element.isPrimitive()) {
       return element;
     }
 
@@ -118,7 +119,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     if (element.getId() != null) {
       elementBuilder.id(element.getId().intValue());
     }
-    return elementBuilder.named("element");
+    return elementBuilder.named(LIST_ELEMENT_NAME);
   }
 
   @Override
