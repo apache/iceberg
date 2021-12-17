@@ -114,7 +114,6 @@ class BaseFileScanTask implements FileScanTask {
     OffsetsAwareTargetSplitSizeScanTaskIterator(List<Long> offsetList, FileScanTask parentScanTask) {
       this.offsets = ImmutableList.copyOf(offsetList);
       this.parentScanTask = parentScanTask;
-      this.targetSplitSize = targetSplitSize;
       this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
       if (offsets.size() > 0) {
         int lastIndex = offsets.size() - 1;
