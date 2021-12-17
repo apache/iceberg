@@ -573,9 +573,48 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   @Test
   public void testHiveStyleThreeLevelList() throws Exception {
-    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+    threeLevelList(true);
+  }
 
-    String tableName = sourceName("testHiveStyleThreeLevelList");
+  @Test
+  public void testThreeLevelList() throws Exception {
+    threeLevelList(false);
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelListWithNestedStruct() throws Exception {
+    threeLevelListWithNestedStruct(true);
+  }
+
+  @Test
+  public void testThreeLevelListWithNestedStruct() throws Exception {
+    threeLevelListWithNestedStruct(false);
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelLists() throws Exception {
+    threeLevelLists(true);
+  }
+
+  @Test
+  public void testThreeLevelLists() throws Exception {
+    threeLevelLists(false);
+  }
+
+  @Test
+  public void testHiveStyleStructOfThreeLevelLists() throws Exception {
+    structOfThreeLevelLists(true);
+  }
+
+  @Test
+  public void testStructOfThreeLevelLists() throws Exception {
+    structOfThreeLevelLists(false);
+  }
+
+  public void threeLevelList(boolean useLegacyMode) throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
+
+    String tableName = sourceName(String.format("threeLevelList_%s", useLegacyMode));
     File location = temp.newFolder();
     sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" +
         " STORED AS parquet" +
@@ -594,11 +633,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertEquals("Output must match", expected, results);
   }
 
-  @Test
-  public void testHiveStyleThreeLevelListWithNestedStruct() throws Exception {
-    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+  private void threeLevelListWithNestedStruct(boolean useLegacyMode) throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
-    String tableName = sourceName("testHiveStyleThreeLevelListWithNestedStruct");
+    String tableName = sourceName(String.format("threeLevelListWithNestedStruct_%s", useLegacyMode));
     File location = temp.newFolder();
     sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 STRUCT<col3 INT>>>)" +
         " STORED AS parquet" +
@@ -617,11 +655,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertEquals("Output must match", expected, results);
   }
 
-  @Test
-  public void testHiveStyleThreeLevelLists() throws Exception {
-    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+  private void threeLevelLists(boolean useLegacyMode) throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
-    String tableName = sourceName("testHiveStyleThreeLevelLists");
+    String tableName = sourceName(String.format("threeLevelLists_%s", useLegacyMode));
     File location = temp.newFolder();
     sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>, col3 ARRAY<STRUCT<col4 INT>>)" +
         " STORED AS parquet" +
@@ -642,11 +679,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertEquals("Output must match", expected, results);
   }
 
-  @Test
-  public void testHiveStyleStructOfThreeLevelLists() throws Exception {
-    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+  private void structOfThreeLevelLists(boolean useLegacyMode) throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
-    String tableName = sourceName("testHiveStyleStructOfThreeLevelLists");
+    String tableName = sourceName(String.format("structOfThreeLevelLists_%s", useLegacyMode));
     File location = temp.newFolder();
     sql("CREATE TABLE %s (col1 STRUCT<col2 ARRAY<STRUCT<col3 INT>>>)" +
         " STORED AS parquet" +
