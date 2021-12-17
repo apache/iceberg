@@ -73,7 +73,9 @@ import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -120,9 +122,6 @@ public class TestMetricsRowGroupFilterTypes {
       optional(16, "_fixed_decimal", Types.DecimalType.of(31, 2))
   );
 
-  private static final File ORC_FILE = new File("/tmp/stats-row-group-filter-types-test.orc");
-
-  private static final File PARQUET_FILE = new File("/tmp/stats-row-group-filter-types-test.parquet");
   private static MessageType parquetSchema = null;
   private static BlockMetaData rowGroupMetadata = null;
 
@@ -135,8 +134,17 @@ public class TestMetricsRowGroupFilterTypes {
       DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   private static final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  private File orcFile;
+  private File parquetFile;
+
   @Before
   public void createInputFile() throws IOException {
+    orcFile = temp.newFile();
+    parquetFile = temp.newFile();
+
     List<Record> records = new ArrayList<>();
     // create 50 records
     for (int i = 0; i < 50; i += 1) {
@@ -173,11 +181,7 @@ public class TestMetricsRowGroupFilterTypes {
   }
 
   public void createOrcInputFile(List<Record> records) throws IOException {
-    if (ORC_FILE.exists()) {
-      Assert.assertTrue(ORC_FILE.delete());
-    }
-
-    OutputFile outFile = Files.localOutput(ORC_FILE);
+    OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<Record> appender = ORC.write(outFile)
         .schema(FILE_SCHEMA)
         .createWriterFunc(GenericOrcWriter::buildWriter)
@@ -185,21 +189,15 @@ public class TestMetricsRowGroupFilterTypes {
       appender.addAll(records);
     }
 
-    InputFile inFile = Files.localInput(ORC_FILE);
+    InputFile inFile = Files.localInput(orcFile);
     try (Reader reader = OrcFile.createReader(new Path(inFile.location()),
         OrcFile.readerOptions(new Configuration()))) {
       Assert.assertEquals("Should create only one stripe", 1, reader.getStripes().size());
     }
-
-    ORC_FILE.deleteOnExit();
   }
 
   public void createParquetInputFile(List<Record> records) throws IOException {
-    if (PARQUET_FILE.exists()) {
-      Assert.assertTrue(PARQUET_FILE.delete());
-    }
-
-    OutputFile outFile = Files.localOutput(PARQUET_FILE);
+    OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender = Parquet.write(outFile)
         .schema(FILE_SCHEMA)
         .createWriterFunc(GenericParquetWriter::buildWriter)
@@ -207,14 +205,12 @@ public class TestMetricsRowGroupFilterTypes {
       appender.addAll(records);
     }
 
-    InputFile inFile = Files.localInput(PARQUET_FILE);
+    InputFile inFile = Files.localInput(parquetFile);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
       Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
       rowGroupMetadata = reader.getRowGroups().get(0);
       parquetSchema = reader.getFileMetaData().getSchema();
     }
-
-    PARQUET_FILE.deleteOnExit();
   }
 
   private final FileFormat format;
@@ -290,7 +286,7 @@ public class TestMetricsRowGroupFilterTypes {
   }
 
   private boolean shouldReadOrc(Object value) {
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(ORC_FILE))
+    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(orcFile))
         .project(SCHEMA)
         .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
         .filter(Expressions.equal(column, value))
