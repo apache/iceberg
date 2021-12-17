@@ -136,6 +136,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     spark.conf().set("hive.exec.dynamic.partition", "true");
     spark.conf().set("hive.exec.dynamic.partition.mode", "nonstrict");
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", false);
     spark.sql(String.format("DROP TABLE IF EXISTS %s", baseTableName));
 
     List<SimpleRecord> expected = Lists.newArrayList(
@@ -568,6 +569,101 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .commit();
     List<Object[]> afterMigarteAfterAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
     assertEquals("Output must match", expectedAfterAddColumn, afterMigarteAfterAddResults);
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelList() throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+
+    String tableName = sourceName("testHiveStyleThreeLevelList");
+    File location = temp.newFolder();
+    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location);
+
+    int testValue = 12345;
+    sql("INSERT INTO %s VALUES (ARRAY(STRUCT(%s)))", tableName, testValue);
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql("SELECT * FROM %s", tableName);
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelListWithNestedStruct() throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+
+    String tableName = sourceName("testHiveStyleThreeLevelListWithNestedStruct");
+    File location = temp.newFolder();
+    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 STRUCT<col3 INT>>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location);
+
+    int testValue = 12345;
+    sql("INSERT INTO %s VALUES (ARRAY(STRUCT(STRUCT(%s))))", tableName, testValue);
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql("SELECT * FROM %s", tableName);
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelLists() throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+
+    String tableName = sourceName("testHiveStyleThreeLevelLists");
+    File location = temp.newFolder();
+    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>, col3 ARRAY<STRUCT<col4 INT>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location);
+
+    int testValue1 = 12345;
+    int testValue2 = 987654;
+    sql("INSERT INTO %s VALUES (ARRAY(STRUCT(%s)), ARRAY(STRUCT(%s)))",
+        tableName, testValue1, testValue2);
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql("SELECT * FROM %s", tableName);
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
+
+  @Test
+  public void testHiveStyleStructOfThreeLevelLists() throws Exception {
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
+
+    String tableName = sourceName("testHiveStyleStructOfThreeLevelLists");
+    File location = temp.newFolder();
+    sql("CREATE TABLE %s (col1 STRUCT<col2 ARRAY<STRUCT<col3 INT>>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location);
+
+    int testValue1 = 12345;
+    sql("INSERT INTO %s VALUES (STRUCT(STRUCT(ARRAY(STRUCT(%s)))))",
+        tableName, testValue1);
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql("SELECT * FROM %s", tableName);
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
   }
 
 
