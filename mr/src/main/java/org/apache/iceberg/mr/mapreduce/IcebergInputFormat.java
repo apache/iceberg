@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -133,27 +132,25 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filter);
     }
 
-    List<CombinedScanTask> tasks = Lists.newArrayList();
+    List<InputSplit> splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
         InputFormatConfig.InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      Table serializableTable = SerializableTable.copyOf(table);
       tasksIterable.forEach(task -> {
         if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE ||
             model == InputFormatConfig.InMemoryDataModel.PIG)) {
           // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        tasks.add(task);
+        splits.add(new IcebergSplit(serializableTable, conf, task));
       });
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
     }
 
-    Table serializableTable = SerializableTable.copyOf(table);
-    return tasks.stream()
-        .map(task -> new IcebergSplit(serializableTable, conf, task))
-        .collect(Collectors.toList());
+    return splits;
   }
 
   private static void checkResiduals(CombinedScanTask task) {
