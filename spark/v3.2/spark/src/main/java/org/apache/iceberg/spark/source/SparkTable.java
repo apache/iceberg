@@ -27,6 +27,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -37,6 +38,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -45,6 +47,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
@@ -83,7 +86,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       TableCapability.OVERWRITE_DYNAMIC);
 
   private final Table icebergTable;
-  private final StructType requestedSchema;
+  private final Long snapshotId;
   private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
@@ -92,15 +95,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     this(icebergTable, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, StructType requestedSchema, boolean refreshEagerly) {
+  public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
-    this.requestedSchema = requestedSchema;
+    this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
-
-    if (requestedSchema != null) {
-      // convert the requested schema to throw an exception if any requested fields are unknown
-      SparkSchemaUtil.convert(icebergTable.schema(), requestedSchema);
-    }
   }
 
   private SparkSession sparkSession() {
@@ -120,14 +118,14 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.toString();
   }
 
+  private Schema snapshotSchema() {
+    return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+  }
+
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
-      if (requestedSchema != null) {
-        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(icebergTable.schema(), requestedSchema));
-      } else {
-        this.lazyTableSchema = SparkSchemaUtil.convert(icebergTable.schema());
-      }
+      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
     }
 
     return lazyTableSchema;
@@ -189,17 +187,16 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       icebergTable.refresh();
     }
 
-    SparkScanBuilder scanBuilder = new SparkScanBuilder(sparkSession(), icebergTable, options);
-
-    if (requestedSchema != null) {
-      scanBuilder.pruneColumns(requestedSchema);
-    }
-
-    return scanBuilder;
+    CaseInsensitiveStringMap scanOptions = addSnapshotId(options, snapshotId);
+    return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
   }
 
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot write to table at a specific snapshot: %s", snapshotId);
+
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
   }
 
@@ -210,6 +207,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot delete from table at a specific snapshot: %s", snapshotId);
+
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Filter filter : filters) {
@@ -293,5 +294,23 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public int hashCode() {
     // use only name in order to correctly invalidate Spark cache
     return icebergTable.name().hashCode();
+  }
+
+  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
+    if (snapshotId != null) {
+      String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
+      String value = snapshotId.toString();
+      Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
+          "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
+
+      Map<String, String> scanOptions = Maps.newHashMap();
+      scanOptions.putAll(options.asCaseSensitiveMap());
+      scanOptions.put(SparkReadOptions.SNAPSHOT_ID, value);
+      scanOptions.remove(SparkReadOptions.AS_OF_TIMESTAMP);
+
+      return new CaseInsensitiveStringMap(scanOptions);
+    }
+
+    return options;
   }
 }
