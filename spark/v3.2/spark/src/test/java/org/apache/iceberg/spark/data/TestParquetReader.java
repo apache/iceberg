@@ -20,33 +20,13 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.File;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.mapping.MappingUtil;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
-import org.apache.parquet.schema.MessageType;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.SaveMode;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.ArrayType;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.Metadata;
-import org.apache.spark.sql.types.StructField;
-import org.apache.spark.sql.types.StructType;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -54,17 +34,31 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestParquetReader {
+public class TestParquetReader extends SparkTestBaseWithCatalog {
   private static SparkSession spark = null;
+  private static String catalogName = "spark_catalog";
+  private static String implementation = SparkSessionCatalog.class.getName();
+  private static Map<String, String> config = ImmutableMap.of(
+      "type", "hive",
+      "default-namespace", "default",
+      "parquet-enabled", "true",
+      "cache-enabled", "false"
+  );
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+
+  public TestParquetReader() {
+    super(catalogName, implementation, config);
+    spark.sessionState().catalogManager().catalog(catalogName);
+  }
 
   @BeforeClass
   public static void startSpark() {
     TestParquetReader.spark = SparkSession.builder().master("local[2]")
             .config("spark.sql.parquet.writeLegacyFormat", true)
             .getOrCreate();
+    spark.sessionState().catalogManager().catalog("spark_catalog");
   }
 
   @AfterClass
@@ -75,66 +69,89 @@ public class TestParquetReader {
   }
 
   @Test
-  public void testHiveStyleThreeLevelList() throws IOException {
-    File location = new File(temp.getRoot(), "parquetReaderTest");
-    StructType sparkSchema =
-        new StructType(
-            new StructField[]{
-                new StructField(
-                    "col1", new ArrayType(
-                        new StructType(
-                            new StructField[]{
-                                new StructField(
-                                    "col2",
-                                    DataTypes.IntegerType,
-                                    false,
-                                    Metadata.empty())
-                            }), true), true, Metadata.empty())});
+  public void testHiveStyleThreeLevelList1() throws Exception {
+    String tableName = "default.testHiveStyleThreeLevelList";
+    File location = temp.newFolder();
+    sql(String.format("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location));
 
-    String expectedParquetSchema =
-        "message spark_schema {\n" +
-            "  optional group col1 (LIST) {\n" +
-            "    repeated group bag {\n" +
-            "      optional group array {\n" +
-            "        required int32 col2;\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}\n";
+    int testValue = 12345;
+    sql(String.format("INSERT INTO %s VALUES (ARRAY(STRUCT(%s)))", tableName, testValue));
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
 
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
 
-    // generate parquet file with required schema
-    List<String> testData = Collections.singletonList("{\"col1\": [{\"col2\": 1}]}");
-    spark.read().schema(sparkSchema).json(
-            JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(testData))
-        .coalesce(1).write().format("parquet").mode(SaveMode.Append).save(location.getPath());
+    // check migrated table is returning expected result
+    List<Object[]> results = sql(String.format("SELECT * FROM %s", tableName));
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
 
-    File parquetFile = Arrays.stream(Objects.requireNonNull(location.listFiles(new FilenameFilter() {
-      @Override
-      public boolean accept(File dir, String name) {
-        return name.endsWith("parquet");
-      }
-    }))).findAny().get();
+  @Test
+  public void testHiveStyleThreeLevelListWithNestedStruct() throws Exception {
+    String tableName = "default.testHiveStyleThreeLevelListWithNestedStruct";
+    File location = temp.newFolder();
+    sql(String.format("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 STRUCT<col3 INT>>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location));
 
-    // verify generated parquet file has expected schema
-    ParquetFileReader pqReader = ParquetFileReader.open(
-        HadoopInputFile.fromPath(new Path(parquetFile.getPath()), new Configuration()));
-    MessageType schema = pqReader.getFooter().getFileMetaData().getSchema();
-    Assert.assertEquals(expectedParquetSchema, schema.toString());
+    int testValue = 12345;
+    sql(String.format("INSERT INTO %s VALUES (ARRAY(STRUCT(STRUCT(%s))))", tableName, testValue));
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
 
-    // read from Iceberg's parquet reader and ensure data is read correctly into Spark's internal row
-    Schema icebergSchema = SparkSchemaUtil.convert(sparkSchema);
-    List<InternalRow> rows;
-    try (CloseableIterable<InternalRow> reader =
-             Parquet.read(Files.localInput(parquetFile.getPath()))
-                 .project(icebergSchema)
-                 .withNameMapping(MappingUtil.create(icebergSchema))
-                 .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
-                 .build()) {
-      rows = Lists.newArrayList(reader);
-    }
-    Assert.assertEquals(1, rows.size());
-    InternalRow row = rows.get(0);
-    Assert.assertEquals(1, row.getArray(0).getStruct(0, 1).getInt(0));
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql(String.format("SELECT * FROM %s", tableName));
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
+
+  @Test
+  public void testHiveStyleThreeLevelLists() throws Exception {
+    String tableName = "default.testHiveStyleThreeLevelLists";
+    File location = temp.newFolder();
+    sql(String.format("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>, col3 ARRAY<STRUCT<col4 INT>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location));
+
+    int testValue1 = 12345;
+    int testValue2 = 987654;
+    sql(String.format("INSERT INTO %s VALUES (ARRAY(STRUCT(%s)), ARRAY(STRUCT(%s)))",
+        tableName, testValue1, testValue2));
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql(String.format("SELECT * FROM %s", tableName));
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
+  }
+
+  @Test
+  public void testHiveStyleStructOfThreeLevelLists() throws Exception {
+    String tableName = "default.testHiveStyleStructOfThreeLevelLists";
+    File location = temp.newFolder();
+    sql(String.format("CREATE TABLE %s (col1 STRUCT<col2 ARRAY<STRUCT<col3 INT>>>)" +
+        " STORED AS parquet" +
+        " LOCATION '%s'", tableName, location));
+
+    int testValue1 = 12345;
+    sql(String.format("INSERT INTO %s VALUES (STRUCT(STRUCT(ARRAY(STRUCT(%s)))))",
+        tableName, testValue1));
+    List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+
+    // migrate table
+    SparkActions.get().migrateTable(tableName).execute();
+
+    // check migrated table is returning expected result
+    List<Object[]> results = sql(String.format("SELECT * FROM %s", tableName));
+    Assert.assertTrue(results.size() > 0);
+    assertEquals("Output must match", expected, results);
   }
 }
