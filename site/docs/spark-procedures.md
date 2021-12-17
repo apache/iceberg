@@ -334,6 +334,13 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false)
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.
 
+**Note** Parquet files written with Parquet writers that use names other than `list` and `element` for repeated group 
+and element of the list respectively are **read incorrectly as nulls** by Iceberg upto 0.12.1 Iceberg versions. Most 
+commonly such files are written by the following writers.
+
+1. *Hive*: when written to tables with `org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe` as it's SerDe.
+2. *Spark*: when written with `spark.sql.parquet.writeLegacyFormat` set to `true`.
+
 ### `snapshot`
 
 Create a light-weight temporary copy of a table for testing, without changing the source table.
