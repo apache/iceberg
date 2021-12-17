@@ -106,6 +106,7 @@ public class TestParquetDataWriter {
     Assert.assertEquals("Written records should match", records, writtenRecords);
   }
 
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
   @Test
   public void testCorruptString() throws Exception {
     OutputFile file = Files.localOutput(temp.newFile());
@@ -126,9 +127,9 @@ public class TestParquetDataWriter {
     GenericRecord genericRecord = GenericRecord.create(SCHEMA);
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
     char[] charArray = new char[61];
-    for (int i = 0; i < 60; i=i+2) {
+    for (int i = 0; i < 60; i = i + 2) {
       charArray[i] = '\uDBFF';
-      charArray[i+1] = '\uDFFF';
+      charArray[i + 1] = '\uDFFF';
     }
     builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "data", String.valueOf(charArray))));
     List<Record> records = builder.build();
