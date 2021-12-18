@@ -616,7 +616,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String tableName = sourceName(String.format("threeLevelList_%s", useLegacyMode));
     File location = temp.newFolder();
-    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" +
+    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2: INT>>)" +
         " STORED AS parquet" +
         " LOCATION '%s'", tableName, location);
 
@@ -638,7 +638,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String tableName = sourceName(String.format("threeLevelListWithNestedStruct_%s", useLegacyMode));
     File location = temp.newFolder();
-    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 STRUCT<col3 INT>>>)" +
+    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2: STRUCT<col3: INT>>>)" +
         " STORED AS parquet" +
         " LOCATION '%s'", tableName, location);
 
@@ -660,7 +660,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String tableName = sourceName(String.format("threeLevelLists_%s", useLegacyMode));
     File location = temp.newFolder();
-    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>, col3 ARRAY<STRUCT<col4 INT>>)" +
+    sql("CREATE TABLE %s (col1 ARRAY<STRUCT<col2: INT>>, col3 ARRAY<STRUCT<col4: INT>>)" +
         " STORED AS parquet" +
         " LOCATION '%s'", tableName, location);
 
@@ -684,7 +684,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String tableName = sourceName(String.format("structOfThreeLevelLists_%s", useLegacyMode));
     File location = temp.newFolder();
-    sql("CREATE TABLE %s (col1 STRUCT<col2 ARRAY<STRUCT<col3 INT>>>)" +
+    sql("CREATE TABLE %s (col1 STRUCT<col2: ARRAY<STRUCT<col3: INT>>>)" +
         " STORED AS parquet" +
         " LOCATION '%s'", tableName, location);
 
