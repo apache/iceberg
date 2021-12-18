@@ -20,7 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +102,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}, isVectorized={3}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
+    Collection<Object[]> testParams = Lists.newArrayList();
     String javaVersion = System.getProperty("java.specification.version");
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
@@ -376,7 +375,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers");
 
     // Check that everything is duplicated as expected
-    List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Record> records = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
@@ -396,7 +395,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers ORDER BY customer_id");
 
     // Check that everything is duplicated as expected
-    List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Record> records = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
   }

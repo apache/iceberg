@@ -25,7 +25,6 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -433,7 +432,7 @@ public abstract class TestMetrics {
     Assume.assumeTrue("Skip test for formats that do not support small row groups", supportsSmallRowGroups());
 
     int recordCount = 201;
-    List<Record> records = new ArrayList<>(recordCount);
+    List<Record> records = Lists.newArrayListWithExpectedSize(recordCount);
 
     for (int i = 0; i < recordCount; i++) {
       Record newRecord = GenericRecord.create(SIMPLE_SCHEMA);

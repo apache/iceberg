@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +29,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.EntriesResponse;
@@ -81,7 +81,7 @@ public final class NessieUtil {
   }
 
   static ContentKey toKey(TableIdentifier tableIdentifier) {
-    List<String> identifiers = new ArrayList<>();
+    List<String> identifiers = Lists.newArrayList();
     if (tableIdentifier.hasNamespace()) {
       identifiers.addAll(Arrays.asList(tableIdentifier.namespace().levels()));
     }

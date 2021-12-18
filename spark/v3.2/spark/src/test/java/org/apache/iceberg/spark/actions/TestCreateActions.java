@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -759,7 +758,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     CatalogTable sourceTable = loadSessionTable(source);
     List<URI> uris;
     if (sourceTable.partitionColumnNames().size() == 0) {
-      uris = new ArrayList<>();
+      uris = Lists.newArrayList();
       uris.add(sourceTable.location());
     } else {
       Seq<CatalogTablePartition> catalogTablePartitionSeq =
