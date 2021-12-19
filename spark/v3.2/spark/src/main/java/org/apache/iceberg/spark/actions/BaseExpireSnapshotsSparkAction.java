@@ -94,6 +94,7 @@ public class BaseExpireSnapshotsSparkAction
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private Dataset<Row> expiredFiles = null;
+  private boolean cleanEnabled = true;
 
   public BaseExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -107,6 +108,12 @@ public class BaseExpireSnapshotsSparkAction
 
   @Override
   protected ExpireSnapshots self() {
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots cleanExpiredFiles(boolean cleanEnabled) {
+    this.cleanEnabled = cleanEnabled;
     return this;
   }
 
@@ -172,11 +179,14 @@ public class BaseExpireSnapshotsSparkAction
 
       expireSnapshots.commit();
 
-      // fetch metadata after expiration
-      Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
+      if (cleanEnabled) {
+        // fetch metadata after expiration
+        Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
 
-      // determine expired files
-      this.expiredFiles = originalFiles.except(validFiles);
+        // determine expired files
+        this.expiredFiles = originalFiles.except(validFiles);
+      }
+
     }
 
     return expiredFiles;
@@ -213,10 +223,16 @@ public class BaseExpireSnapshotsSparkAction
 
   private ExpireSnapshots.Result doExecute() {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    if (streamResults) {
-      return deleteFiles(expire().toLocalIterator());
+    expire();
+    if (cleanEnabled) {
+      if (streamResults) {
+        return deleteFiles(expiredFiles.toLocalIterator());
+      } else {
+        return deleteFiles(expiredFiles.collectAsList().iterator());
+      }
     } else {
-      return deleteFiles(expire().collectAsList().iterator());
+      LOG.info("Cleaning up manifest and data files disabled, leaving them in place.");
+      return new BaseExpireSnapshotsActionResult(0, 0, 0);
     }
   }
 

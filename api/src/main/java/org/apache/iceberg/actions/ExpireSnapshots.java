@@ -93,6 +93,16 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
   /**
+   * Allows expiration of snapshots without any cleanup of underlying manifest or data files.
+   * <p>
+   * If {@code cleanEnabled} is set to false, data and manifest files should not been cleaned after expiration.
+   *
+   * @param cleanEnabled setting this to false will skip deleting expired manifests and files
+   * @return this for method chaining
+   */
+  ExpireSnapshots cleanExpiredFiles(boolean cleanEnabled);
+
+  /**
    * The action result that contains a summary of the execution.
    */
   interface Result {

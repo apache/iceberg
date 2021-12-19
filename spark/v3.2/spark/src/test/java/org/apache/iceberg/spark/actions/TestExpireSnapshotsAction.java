@@ -157,6 +157,31 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
+  public void testNotCleanupExpiredFiles() throws Exception {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    long end = rightAfterSnapshot();
+
+    ExpireSnapshots.Result results =
+        SparkActions.get().expireSnapshots(table).expireOlderThan(end).cleanExpiredFiles(false).execute();
+
+    Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
+
+    checkExpirationResults(0L, 0L, 0L, results);
+  }
+
+  @Test
   public void dataFilesCleanupWithParallelTasks() throws IOException {
 
     table.newFastAppend()
