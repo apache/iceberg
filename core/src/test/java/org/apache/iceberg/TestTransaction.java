@@ -709,9 +709,11 @@ public class TestTransaction extends TableTestBase {
     transaction.newAppend()
         .appendFile(FILE_A)
         .commit();
-    AssertHelpers.assertThrows("Transaction commit should fail with CommitStateUnknownException",
-                               CommitStateUnknownException.class, "datacenter on fire",
-                               () -> transaction.commitTransaction());
+
+    AssertHelpers.assertThrows(
+        "Transaction commit should fail with CommitStateUnknownException",
+        CommitStateUnknownException.class, "datacenter on fire",
+        () -> transaction.commitTransaction());
 
     // Make sure metadata files still exist
     Snapshot current = table.currentSnapshot();
