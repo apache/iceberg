@@ -20,15 +20,13 @@
 package org.apache.iceberg.flink.source.split;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
@@ -46,57 +44,43 @@ public class SplitHelpers {
   private static final AtomicLong splitLengthIncrement = new AtomicLong();
 
   private SplitHelpers() {
-
-  }
-
-  public static List<IcebergSourceSplit> createMockedSplits(int splitCount) {
-    List<IcebergSourceSplit> splits = new ArrayList<>();
-    for (int i = 0; i < splitCount; ++i) {
-      // make sure each task has a different length,
-      // as it is part of the splitId calculation.
-      // This way, we can make sure all generated splits have different splitIds
-      FileScanTask fileScanTask = new MockFileScanTask(1024 + splitLengthIncrement.incrementAndGet());
-      CombinedScanTask combinedScanTask = new BaseCombinedScanTask(fileScanTask);
-      splits.add(IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
-    }
-    return splits;
   }
 
   /**
-   * Unlike {@link SplitHelpers#createMockedSplits(int)} above, this is to generate some
-   * realistic IcebergSourceSplit with actual file paths.
-   *
-   * Actual data files are already deleted before return. Caller shouldn't attempt to read the
-   * data files. They are intended for serializer or enumerator unit test (without actual reading).
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit} limit
+   * <li>Delete the Hadoop table
    */
-  public static List<IcebergSourceSplit> createFileSplits(
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
-    File warehouseFile = temporaryFolder.newFolder();
+    final File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
-    String warehouse = "file:" + warehouseFile;
-    org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
-    HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
+    final String warehouse = "file:" + warehouseFile;
+    Configuration hadoopConf = new Configuration();
+    final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
     try {
-      Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
-      GenericAppenderHelper dataAppender = new GenericAppenderHelper(
+      final Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+      final GenericAppenderHelper dataAppender = new GenericAppenderHelper(
           table, FileFormat.PARQUET, temporaryFolder);
       for (int i = 0; i < fileCount; ++i) {
         List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 2, i);
         dataAppender.appendToTable(records);
       }
 
-      ScanContext scanContext = ScanContext.builder().build();
-      List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext);
+      final ScanContext scanContext = ScanContext.builder().build();
+      final List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext);
       return splits.stream()
           .flatMap(split -> {
-            List<List<FileScanTask>> filesList = Lists.partition(new ArrayList<>(split.task().files()), filesPerSplit);
+            List<List<FileScanTask>> filesList = Lists.partition(
+                Lists.newArrayList(split.task().files()), filesPerSplit);
             return filesList.stream()
                 .map(files ->  new BaseCombinedScanTask(files))
-                .map(IcebergSourceSplit::fromCombinedScanTask);
+                .map(combinedScanTask -> IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
           })
           .collect(Collectors.toList());
     } finally {
-      // drop the table and data files as caller shouldn't actually read the data files
       catalog.dropTable(TestFixtures.TABLE_IDENTIFIER);
       catalog.close();
     }

@@ -33,14 +33,14 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * </ul>
  */
 @Internal
-public class Position implements Serializable {
+public class SplitPosition implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
   private int fileOffset;
   private long recordOffset;
 
-  public Position(int fileOffset, long recordOffset) {
+  public SplitPosition(int fileOffset, long recordOffset) {
     this.fileOffset = fileOffset;
     this.recordOffset = recordOffset;
   }
@@ -54,7 +54,7 @@ public class Position implements Serializable {
     this.recordOffset += 1L;
   }
 
-  public void update(int newFileOffset, long newRecordOffset) {
+  public void set(int newFileOffset, long newRecordOffset) {
     this.fileOffset = newFileOffset;
     this.recordOffset = newRecordOffset;
   }
@@ -75,9 +75,9 @@ public class Position implements Serializable {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Position that = (Position) o;
-    return Objects.equals(fileOffset, that.fileOffset) &&
-        Objects.equals(recordOffset, that.recordOffset);
+    final SplitPosition that = (SplitPosition) o;
+    return fileOffset == that.fileOffset &&
+        recordOffset == that.recordOffset;
   }
 
   @Override

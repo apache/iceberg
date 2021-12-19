@@ -21,9 +21,7 @@ package org.apache.iceberg.flink.source.split;
 
 import java.io.IOException;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.util.InstantiationUtil;
 
 /**
  * TODO: use Java serialization for now.
@@ -42,35 +40,17 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public byte[] serialize(IcebergSourceSplit split) throws IOException {
-    if (split.serializedBytesCache() == null) {
-      byte[] result = serializeV1(split);
-      split.serializedBytesCache(result);
-    }
-    return split.serializedBytesCache();
+    return split.serializeV1(split);
   }
 
   @Override
   public IcebergSourceSplit deserialize(int version, byte[] serialized) throws IOException {
     switch (version) {
       case 1:
-        return deserializeV1(serialized);
+        return IcebergSourceSplit.deserializeV1(serialized);
       default:
         throw new IOException(String.format("Failed to deserialize IcebergSourceSplit. " +
             "Encountered unsupported version: %d. Supported version are [1]", version));
-    }
-  }
-
-  @VisibleForTesting
-  byte[] serializeV1(IcebergSourceSplit split) throws IOException {
-    return InstantiationUtil.serializeObject(split);
-  }
-
-  @VisibleForTesting
-  IcebergSourceSplit deserializeV1(byte[] serialized) throws IOException {
-    try {
-      return InstantiationUtil.deserializeObject(serialized, getClass().getClassLoader());
-    } catch (ClassNotFoundException e) {
-      throw new RuntimeException("Failed to deserialize the split.", e);
     }
   }
 }

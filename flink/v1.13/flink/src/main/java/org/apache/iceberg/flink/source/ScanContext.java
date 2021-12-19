@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
@@ -34,6 +35,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 /**
  * Context object with optional arguments for a Flink Scan.
  */
+@Internal
 public class ScanContext implements Serializable {
 
   private static final long serialVersionUID = 1L;

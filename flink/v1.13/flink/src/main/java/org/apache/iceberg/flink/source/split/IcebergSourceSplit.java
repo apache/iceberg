@@ -19,17 +19,18 @@
 
 package org.apache.iceberg.flink.source.split;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceSplit;
+import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.flink.source.Position;
+import org.apache.iceberg.flink.source.SplitPosition;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 @Internal
@@ -41,7 +42,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
    * Position field is mutable
    */
   @Nullable
-  private final Position position;
+  private final SplitPosition splitPosition;
 
   /**
    * The splits are frequently serialized into checkpoints.
@@ -50,9 +51,9 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   @Nullable
   private transient byte[] serializedBytesCache;
 
-  private IcebergSourceSplit(CombinedScanTask task, Position position) {
+  private IcebergSourceSplit(CombinedScanTask task, SplitPosition splitPosition) {
     this.task = task;
-    this.position = position;
+    this.splitPosition = splitPosition;
   }
 
   public static IcebergSourceSplit fromCombinedScanTask(CombinedScanTask combinedScanTask) {
@@ -61,23 +62,15 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   public static IcebergSourceSplit fromCombinedScanTask(
       CombinedScanTask combinedScanTask, int fileOffset, long recordOffset) {
-    return new IcebergSourceSplit(combinedScanTask, new Position(fileOffset, recordOffset));
+    return new IcebergSourceSplit(combinedScanTask, new SplitPosition(fileOffset, recordOffset));
   }
 
   public CombinedScanTask task() {
     return task;
   }
 
-  public Position position() {
-    return position;
-  }
-
-  byte[] serializedBytesCache() {
-    return serializedBytesCache;
-  }
-
-  void serializedBytesCache(byte[] cachedBytes) {
-    this.serializedBytesCache = cachedBytes;
+  public SplitPosition position() {
+    return splitPosition;
   }
 
   @Override
@@ -88,43 +81,40 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   }
 
   public void updatePosition(int newFileOffset, long newRecordOffset) {
-    position.update(newFileOffset, newRecordOffset);
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    IcebergSourceSplit split = (IcebergSourceSplit) o;
-    return Objects.equal(splitId(), split.splitId()) &&
-        Objects.equal(position, split.position());
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hashCode(splitId());
+    // invalidate the cache after position change
+    serializedBytesCache = null;
+    splitPosition.set(newFileOffset, newRecordOffset);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("files", toString(task.files()))
-        .add("position", position)
+        .add("position", splitPosition)
         .toString();
   }
 
   private String toString(Collection<FileScanTask> files) {
     return Iterables.toString(files.stream().map(fileScanTask ->
         MoreObjects.toStringHelper(fileScanTask)
-            .add("file", fileScanTask.file() != null ?
-                fileScanTask.file().path().toString() :
-                "NoDataFile")
+            .add("file", fileScanTask.file().path().toString())
             .add("start", fileScanTask.start())
             .add("length", fileScanTask.length())
             .toString()).collect(Collectors.toList()));
+  }
+
+  byte[] serializeV1(IcebergSourceSplit split) throws IOException {
+    if (serializedBytesCache == null) {
+      serializedBytesCache = InstantiationUtil.serializeObject(split);
+    }
+    return serializedBytesCache;
+  }
+
+  static IcebergSourceSplit deserializeV1(byte[] serialized) throws IOException {
+    try {
+      return InstantiationUtil.deserializeObject(serialized, IcebergSourceSplit.class.getClassLoader());
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("Failed to deserialize the split.", e);
+    }
   }
 }

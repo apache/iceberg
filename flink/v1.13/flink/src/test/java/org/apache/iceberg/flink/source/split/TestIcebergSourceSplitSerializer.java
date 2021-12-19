@@ -41,16 +41,27 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void serializeAndDeserialize(int splitCount, int filesPerSplit) throws Exception {
-    List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    final List<IcebergSourceSplit> splits = SplitHelpers
+        .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
-      Assert.assertEquals(split, deserialized);
+      Assert.assertEquals(split.splitId(), deserialized.splitId());
+      Assert.assertEquals(split.position(), deserialized.position());
 
       byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
       IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
-      Assert.assertEquals(split, deserialized2);
+      Assert.assertEquals(split.splitId(), deserialized2.splitId());
+      Assert.assertEquals(split.position(), deserialized2.position());
+
+      split.updatePosition(0, 100);
+      byte[] resultAfterUpdatePosition = serializer.serialize(split);
+      // after position change, serialized bytes should have changed
+      Assert.assertNotSame(cachedResult, resultAfterUpdatePosition);
+      IcebergSourceSplit deserialized3 = serializer.deserialize(serializer.getVersion(), resultAfterUpdatePosition);
+      Assert.assertEquals(split.splitId(), deserialized3.splitId());
+      Assert.assertEquals(split.position(), deserialized3.position());
     }
   }
 
@@ -61,18 +72,21 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void serializeAndDeserializeV1(int splitCount, int filesPerSplit) throws Exception {
-    List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    final List<IcebergSourceSplit> splits = SplitHelpers
+        .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
-      byte[] result = serializer.serializeV1(split);
-      IcebergSourceSplit deserialized = serializer.deserializeV1(result);
-      Assert.assertEquals(split, deserialized);
+      byte[] result = split.serializeV1(split);
+      IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV1(result);
+      Assert.assertEquals(split.splitId(), deserialized.splitId());
+      Assert.assertEquals(split.position(), deserialized.position());
     }
   }
 
   @Test
   public void testCheckpointedPosition() throws Exception {
-    AtomicInteger index = new AtomicInteger();
-    List<IcebergSourceSplit> splits = SplitHelpers.createFileSplits(TEMPORARY_FOLDER, 10, 2).stream()
+    final AtomicInteger index = new AtomicInteger();
+    final List<IcebergSourceSplit> splits = SplitHelpers
+        .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 10, 2).stream()
         .map(split -> {
           IcebergSourceSplit result;
           if (index.get() % 2 == 0) {
@@ -88,12 +102,14 @@ public class TestIcebergSourceSplitSerializer {
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
-      Assert.assertEquals(split, deserialized);
+      Assert.assertEquals(split.splitId(), deserialized.splitId());
+      Assert.assertEquals(split.position(), deserialized.position());
 
       byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
       IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
-      Assert.assertEquals(split, deserialized2);
+      Assert.assertEquals(split.splitId(), deserialized2.splitId());
+      Assert.assertEquals(split.position(), deserialized2.position());
     }
   }
 }
