@@ -38,16 +38,12 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   private static final long serialVersionUID = 1L;
 
   private final CombinedScanTask task;
-  /**
-   * Position field is mutable
-   */
+  // SplitPosition object is mutable
   @Nullable
   private final SplitPosition splitPosition;
 
-  /**
-   * The splits are frequently serialized into checkpoints.
-   * Caching the byte representation makes repeated serialization cheap.
-   */
+  // The splits are frequently serialized into checkpoints.
+  // Caching the byte representation makes repeated serialization cheap.
   @Nullable
   private transient byte[] serializedBytesCache;
 

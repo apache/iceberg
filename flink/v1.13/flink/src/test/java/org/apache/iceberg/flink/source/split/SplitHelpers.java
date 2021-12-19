@@ -52,6 +52,9 @@ public class SplitHelpers {
    * <li>write {@code fileCount} number of files to the new Iceberg table
    * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit} limit
    * <li>Delete the Hadoop table
+   *
+   * Since the table and data files are deleted before this method return,
+   * caller shouldn't attempt to read the data files.
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
