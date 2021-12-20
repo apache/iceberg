@@ -32,11 +32,7 @@ object AlignRowLevelCommandAssignments
   extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case u: UpdateIcebergTable if u.resolved && !aligned(u) =>
+    case u: UpdateIcebergTable if u.resolved && !u.aligned =>
       u.copy(assignments = alignAssignments(u.table, u.assignments))
-  }
-
-  private def aligned(update: UpdateIcebergTable): Boolean = {
-    aligned(update.table, update.assignments)
   }
 }

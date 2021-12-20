@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
+import org.apache.spark.sql.catalyst.expressions.AssignmentUtils
 import org.apache.spark.sql.catalyst.expressions.Expression
 
 case class UpdateIcebergTable(
@@ -26,6 +27,8 @@ case class UpdateIcebergTable(
     assignments: Seq[Assignment],
     condition: Option[Expression],
     rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
+
+  lazy val aligned: Boolean = AssignmentUtils.aligned(table, assignments)
 
   override def children: Seq[LogicalPlan] = if (rewritePlan.isDefined) {
     table :: rewritePlan.get :: Nil

@@ -51,18 +51,19 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 object RewriteUpdateTable extends RewriteRowLevelCommand {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case u @ UpdateIcebergTable(aliasedTable, assignments, cond, None) if u.resolved =>
+    case u @ UpdateIcebergTable(aliasedTable, assignments, cond, None) if u.resolved && u.aligned =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
           val operation = buildRowLevelOperation(tbl, UPDATE)
           val table = RowLevelOperationTable(tbl, operation)
+          val updateCond = cond.getOrElse(Literal.TrueLiteral)
           val rewritePlan = operation match {
             case _: SupportsDelta =>
               throw new AnalysisException("Delta updates are currently not supported")
-            case _ if cond.exists(SubqueryExpression.hasSubquery) =>
-              buildReplaceDataWithUnionPlan(r, table, assignments, cond)
+            case _ if SubqueryExpression.hasSubquery(updateCond) =>
+              buildReplaceDataWithUnionPlan(r, table, assignments, updateCond)
             case _ =>
-              buildReplaceDataPlan(r, table, assignments, cond)
+              buildReplaceDataPlan(r, table, assignments, updateCond)
           }
           UpdateIcebergTable(r, assignments, cond, Some(rewritePlan))
 
@@ -77,7 +78,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
       relation: DataSourceV2Relation,
       table: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Option[Expression]): ReplaceData = {
+      cond: Expression): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
@@ -86,13 +87,12 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     val readAttrs = dedupAttrs(relation.output ++ metadataAttrs)
     val readRelation = relation.copy(table = table, output = readAttrs)
 
-    // build a plan with updated rows
-    val updateCond = cond.getOrElse(Literal.TrueLiteral)
-    val allRowsPlan = buildUpdateProjection(readRelation, assignments, updateCond)
+    // build a plan with updated and copied over records
+    val updatedAndRemainingRowsPlan = buildUpdateProjection(readRelation, assignments, cond)
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = table)
-    ReplaceData(writeRelation, allRowsPlan, relation)
+    ReplaceData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
@@ -101,7 +101,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
       relation: DataSourceV2Relation,
       table: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Option[Expression]): ReplaceData = {
+      cond: Expression): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
@@ -113,20 +113,19 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     val readRelation = relation.copy(table = table, output = readAttrs)
 
     // build a plan for records that match the cond and should be updated
-    val updateCond = cond.getOrElse(Literal.TrueLiteral)
-    val matchedRowsPlan = Filter(updateCond, readRelation)
+    val matchedRowsPlan = Filter(cond, readRelation)
     val updatedRowsPlan = buildUpdateProjection(matchedRowsPlan, assignments)
 
     // build a plan for records that did not match the cond but had to be copied over
-    val remainingRowFilter = Not(EqualNullSafe(updateCond, Literal.TrueLiteral))
+    val remainingRowFilter = Not(EqualNullSafe(cond, Literal.TrueLiteral))
     val remainingRowsPlan = Filter(remainingRowFilter, readRelation)
 
     // new state is a union of updated and copied over records
-    val allRowsPlan = Union(updatedRowsPlan, remainingRowsPlan)
+    val updatedAndRemainingRowsPlan = Union(updatedRowsPlan, remainingRowsPlan)
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = table)
-    ReplaceData(writeRelation, allRowsPlan, relation)
+    ReplaceData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
   // this method assumes the assignments have been already aligned before
