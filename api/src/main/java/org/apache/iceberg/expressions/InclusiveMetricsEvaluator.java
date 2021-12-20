@@ -427,7 +427,7 @@ public class InclusiveMetricsEvaluator {
       if (lowerBounds != null && upperBounds != null &&
           lowerBounds.containsKey(id) && upperBounds.containsKey(id)) {
         ByteBuffer lower = lowerBounds.get(id);
-        // if lower is shorter than the prefix, it can't start with the prefix
+        // if lower is shorter than the prefix then lower doesn't start with the prefix
         if (lower.remaining() < prefixAsBytes.remaining()) {
           return ROWS_MIGHT_MATCH;
         }
@@ -435,7 +435,7 @@ public class InclusiveMetricsEvaluator {
         int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
         if (cmp == 0) {
           ByteBuffer upper = upperBounds.get(id);
-          // if upper is shorter than the prefix, it can't start with the prefix
+          // if upper is shorter than the prefix then upper can't start with the prefix
           if (upper.remaining() < prefixAsBytes.remaining()) {
             return ROWS_MIGHT_MATCH;
           }
