@@ -179,6 +179,13 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     return table;
   }
 
+  /**
+   * If enabled, it populates the FileIO's hadoop configuration with the input config object.
+   * This might be necessary when the table object was serialized without the FileIO config.
+   *
+   * @param config Configuration to set for FileIO, if enabled
+   * @param table The Iceberg table object
+   */
   public static void checkAndSetIoConfig(Configuration config, Table table) {
     if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, false)
         && table.io() instanceof HadoopConfigurable) {
@@ -186,6 +193,16 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     }
   }
 
+  /**
+   * If enabled, it ensures that the FileIO's hadoop configuration will not be serialized.
+   * This might be desirable for decreasing the overall size of serialized table objects.
+   *
+   * Note: Skipping FileIO config serialization in this fashion might in turn necessitate calling
+   * {@link #checkAndSetIoConfig(Configuration, Table)} on the deserializer-side to enable subsequent use of the FileIO.
+   *
+   * @param config Configuration to set for FileIO in a transient manner, if enabled
+   * @param table The Iceberg table object
+   */
   public static void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
     if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, false)
         && table.io() instanceof HadoopConfigurable) {
