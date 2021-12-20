@@ -102,7 +102,7 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the first snapshot after the given timestamp.
+   * Traverses the history of the table's current snapshot and finds the first snapshot committed after the given time.
    *
    * @param table a table
    * @param timestampMillis a timestamp in milliseconds
@@ -117,8 +117,10 @@ public class SnapshotUtil {
 
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
-      if (snapshot.timestampMillis() <= timestampMillis) {
+      if (snapshot.timestampMillis() < timestampMillis) {
         return lastSnapshot;
+      } else if (snapshot.timestampMillis() == timestampMillis) {
+        return snapshot;
       }
 
       lastSnapshot = snapshot;
