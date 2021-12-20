@@ -48,16 +48,19 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType array, Type item) {
-    return Types.list(array.getRepetition())
-        .element(item)
+    GroupType repeatedElement = array.getType(0).asGroupType();
+    return Types.buildGroup(array.getRepetition())
+        .as(array.getLogicalTypeAnnotation())
+        .addField(repeatedElement.withNewFields(item))
         .named(array.getName());
   }
 
   @Override
   public Type map(GroupType map, Type key, Type value) {
-    return Types.map(map.getRepetition())
-        .key(key)
-        .value(value)
+    GroupType repeatedKeyValue = map.getType(0).asGroupType();
+    return Types.buildGroup(map.getRepetition())
+        .as(map.getLogicalTypeAnnotation())
+        .addField(repeatedKeyValue.withNewFields(key, value))
         .named(map.getName());
   }
 
