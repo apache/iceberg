@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -284,7 +283,7 @@ public class TestJdbcCatalog {
     Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     // append file and commit!
     String data = temp.newFile("data.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -294,7 +293,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(1, table.history().size());
     catalog.dropTable(tableIdentifier);
     data = temp.newFile("data2.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile2 = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -313,7 +312,7 @@ public class TestJdbcCatalog {
     Table table = catalog.loadTable(testTable);
 
     String data = temp.newFile("data.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -323,7 +322,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(1, table.history().size());
 
     data = temp.newFile("data2.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -333,7 +332,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(2, table.history().size());
 
     data = temp.newFile("data3.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)

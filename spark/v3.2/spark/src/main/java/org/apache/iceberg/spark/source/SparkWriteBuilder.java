@@ -38,6 +38,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.expressions.SortOrder;
+import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
@@ -68,8 +69,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private boolean overwriteByFilter = false;
   private Expression overwriteExpr = null;
   private boolean overwriteFiles = false;
-  private SparkMergeScan mergeScan = null;
-  private IsolationLevel isolationLevel = null;
+  private SparkCopyOnWriteScan copyOnWriteScan = null;
+  private Command copyOnWriteCommand = null;
+  private IsolationLevel copyOnWriteIsolationLevel = null;
 
   SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
     this.spark = spark;
@@ -83,15 +85,16 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.useTableDistributionAndOrdering = writeConf.useTableDistributionAndOrdering();
   }
 
-  public WriteBuilder overwriteFiles(Scan scan, IsolationLevel writeIsolationLevel) {
-    Preconditions.checkArgument(scan instanceof SparkMergeScan, "%s is not SparkMergeScan", scan);
+  public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
+    Preconditions.checkArgument(scan instanceof SparkCopyOnWriteScan, "%s is not SparkCopyOnWriteScan", scan);
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
     Preconditions.checkState(!overwriteDynamic, "Cannot overwrite individual files and dynamically");
     Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite individual files and rewrite");
 
     this.overwriteFiles = true;
-    this.mergeScan = (SparkMergeScan) scan;
-    this.isolationLevel = writeIsolationLevel;
+    this.copyOnWriteScan = (SparkCopyOnWriteScan) scan;
+    this.copyOnWriteCommand = command;
+    this.copyOnWriteIsolationLevel = isolationLevel;
     return this;
   }
 
@@ -163,7 +166,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         } else if (overwriteDynamic) {
           return asDynamicOverwrite();
         } else if (overwriteFiles) {
-          return asCopyOnWriteMergeWrite(mergeScan, isolationLevel);
+          return asCopyOnWriteOperation(copyOnWriteScan, copyOnWriteIsolationLevel);
         } else {
           return asBatchAppend();
         }
@@ -189,16 +192,26 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   private Distribution buildRequiredDistribution() {
     if (overwriteFiles) {
-      throw new UnsupportedOperationException("Copy-on-write operations are temporarily not supported");
+      DistributionMode distributionMode = copyOnWriteDistributionMode();
+      return SparkDistributionAndOrderingUtil.buildCopyOnWriteDistribution(table, copyOnWriteCommand, distributionMode);
     } else {
       DistributionMode distributionMode = writeConf.distributionMode();
       return SparkDistributionAndOrderingUtil.buildRequiredDistribution(table, distributionMode);
     }
   }
 
+  private DistributionMode copyOnWriteDistributionMode() {
+    switch (copyOnWriteCommand) {
+      case DELETE:
+        return writeConf.copyOnWriteDeleteDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + copyOnWriteCommand);
+    }
+  }
+
   private SortOrder[] buildRequiredOrdering(Distribution requiredDistribution) {
     if (overwriteFiles) {
-      throw new UnsupportedOperationException("Copy-on-write operations are temporarily not supported");
+      return SparkDistributionAndOrderingUtil.buildCopyOnWriteOrdering(table, copyOnWriteCommand, requiredDistribution);
     } else {
       return SparkDistributionAndOrderingUtil.buildRequiredOrdering(table, requiredDistribution);
     }

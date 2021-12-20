@@ -22,9 +22,16 @@ package org.apache.iceberg.spark.extensions
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
+import org.apache.spark.sql.catalyst.analysis.RewriteDeleteFromTable
+import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
+import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 import org.apache.spark.sql.execution.datasources.v2.ExtendedV2Writes
+import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable
+import org.apache.spark.sql.execution.datasources.v2.ReplaceRewrittenRowLevelCommand
+import org.apache.spark.sql.execution.datasources.v2.RowLevelCommandScanRelationPushDown
+import org.apache.spark.sql.execution.dynamicpruning.RowLevelCommandDynamicPruning
 
 class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
@@ -35,9 +42,20 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
+    extensions.injectResolutionRule { _ => RewriteDeleteFromTable }
 
     // optimizer extensions
+    extensions.injectOptimizerRule { _ => ExtendedSimplifyConditionalsInPredicate }
+    extensions.injectOptimizerRule { _ => ExtendedReplaceNullWithFalseInPredicate }
+    // pre-CBO rules run only once and the order of the rules is important
+    // - metadata deletes have to be attempted immediately after the operator optimization
+    // - dynamic filters should be added before replacing commands with rewrite plans
+    // - scans must be planned before building writes
+    extensions.injectPreCBORule { _ => OptimizeMetadataOnlyDeleteFromTable }
+    extensions.injectPreCBORule { _ => RowLevelCommandScanRelationPushDown }
     extensions.injectPreCBORule { _ => ExtendedV2Writes }
+    extensions.injectPreCBORule { spark => RowLevelCommandDynamicPruning(spark) }
+    extensions.injectPreCBORule { _ => ReplaceRewrittenRowLevelCommand }
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

@@ -24,8 +24,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -33,77 +35,91 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.Expressions;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
+import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
+import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.sources.In;
 
-class SparkMergeScan extends SparkBatchScan {
+class SparkCopyOnWriteScan extends SparkBatchScan implements SupportsRuntimeFiltering {
 
-  private final Table table;
-  private final boolean ignoreResiduals;
-  private final Schema expectedSchema;
-  private final Long snapshotId;
-  private final long splitSize;
-  private final int splitLookback;
-  private final long splitOpenFileCost;
+  private final TableScan scan;
+  private final Snapshot snapshot;
 
   // lazy variables
   private List<FileScanTask> files = null; // lazy cache of files
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Set<String> filteredLocations = null;
 
-  SparkMergeScan(SparkSession spark, Table table, SparkReadConf readConf, boolean ignoreResiduals,
-                 Schema expectedSchema, List<Expression> filters) {
+  SparkCopyOnWriteScan(SparkSession spark, Table table, SparkReadConf readConf,
+                       Schema expectedSchema, List<Expression> filters) {
+    this(spark, table, null, null, readConf, expectedSchema, filters);
+  }
+
+  SparkCopyOnWriteScan(SparkSession spark, Table table, TableScan scan, Snapshot snapshot,
+                       SparkReadConf readConf, Schema expectedSchema, List<Expression> filters) {
 
     super(spark, table, readConf, expectedSchema, filters);
 
-    this.table = table;
-    this.ignoreResiduals = ignoreResiduals;
-    this.expectedSchema = expectedSchema;
-    this.splitSize = readConf.splitSize();
-    this.splitLookback = readConf.splitLookback();
-    this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.scan = scan;
+    this.snapshot = snapshot;
 
-    Preconditions.checkArgument(readConf.snapshotId() == null, "Can't set snapshot-id in options");
-    Snapshot currentSnapshot = table.currentSnapshot();
-    this.snapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
-
-    // init files with an empty list if the table is empty to avoid picking any concurrent changes
-    this.files = currentSnapshot == null ? Collections.emptyList() : null;
+    if (scan == null) {
+      this.files = Collections.emptyList();
+      this.tasks = Collections.emptyList();
+      this.filteredLocations = Collections.emptySet();
+    }
   }
 
   Long snapshotId() {
-    return snapshotId;
+    return snapshot != null ? snapshot.snapshotId() : null;
   }
 
   @Override
   public Statistics estimateStatistics() {
-    if (snapshotId == null) {
-      return new Stats(0L, 0L);
+    return estimateStatistics(snapshot);
+  }
+
+  public NamedReference[] filterAttributes() {
+    NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
+    return new NamedReference[]{file};
+  }
+
+  @Override
+  public void filter(Filter[] filters) {
+    for (Filter filter : filters) {
+      // Spark can only pass In filters at the moment
+      if (filter instanceof In && ((In) filter).attribute().equalsIgnoreCase(MetadataColumns.FILE_PATH.name())) {
+        In in = (In) filter;
+
+        Set<String> fileLocations = Sets.newHashSet();
+        for (Object value : in.values()) {
+          fileLocations.add((String) value);
+        }
+
+        // Spark may call this multiple times for UPDATEs with subqueries
+        // as such cases are rewritten using UNION and the same scan on both sides
+        // so filter files only if it is beneficial
+        if (filteredLocations == null || fileLocations.size() < filteredLocations.size()) {
+          this.tasks = null;
+          this.filteredLocations = fileLocations;
+          this.files = files().stream()
+              .filter(file -> fileLocations.contains(file.file().path().toString()))
+              .collect(Collectors.toList());
+        }
+      }
     }
-    return super.estimateStatistics();
   }
 
   // should be accessible to the write
   synchronized List<FileScanTask> files() {
     if (files == null) {
-      TableScan scan = table
-          .newScan()
-          .caseSensitive(caseSensitive())
-          .useSnapshot(snapshotId)
-          .project(expectedSchema);
-
-      for (Expression filter : filterExpressions()) {
-        scan = scan.filter(filter);
-      }
-
-      if (ignoreResiduals) {
-        scan = scan.ignoreResiduals();
-      }
-
       try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
         this.files = Lists.newArrayList(filesIterable);
       } catch (IOException e) {
@@ -119,10 +135,10 @@ class SparkMergeScan extends SparkBatchScan {
     if (tasks == null) {
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files()),
-          splitSize);
+          scan.targetSplitSize());
       CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, splitSize,
-          splitLookback, splitOpenFileCost);
+          splitFiles, scan.targetSplitSize(),
+          scan.splitLookback(), scan.splitOpenFileCost());
       tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -139,12 +155,11 @@ class SparkMergeScan extends SparkBatchScan {
       return false;
     }
 
-    SparkMergeScan that = (SparkMergeScan) o;
+    SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name()) &&
         readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
         filterExpressions().toString().equals(that.filterExpressions().toString()) &&
-        ignoreResiduals == that.ignoreResiduals &&
-        Objects.equals(snapshotId, that.snapshotId) &&
+        Objects.equals(snapshotId(), that.snapshotId()) &&
         Objects.equals(filteredLocations, that.filteredLocations);
   }
 
@@ -152,13 +167,13 @@ class SparkMergeScan extends SparkBatchScan {
   public int hashCode() {
     return Objects.hash(
         table().name(), readSchema(), filterExpressions().toString(),
-        ignoreResiduals, snapshotId, filteredLocations);
+        snapshotId(), filteredLocations);
   }
 
   @Override
   public String toString() {
     return String.format(
-        "IcebergMergeScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
+        "IcebergCopyOnWriteScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
         table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
   }
 }

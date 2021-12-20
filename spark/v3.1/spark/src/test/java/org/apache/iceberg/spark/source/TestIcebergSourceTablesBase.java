@@ -55,7 +55,9 @@ import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -69,6 +71,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
+  );
+
+  private static final Schema SCHEMA2 = new Schema(
+      optional(1, "id", Types.IntegerType.get()),
+      optional(2, "data", Types.StringType.get()),
+      optional(3, "category", Types.StringType.get())
+  );
+
+  private static final Schema SCHEMA3 = new Schema(
+      optional(1, "id", Types.IntegerType.get()),
+      optional(3, "category", Types.StringType.get())
   );
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
@@ -1140,6 +1153,223 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
+  }
+
+  @Test
+  public synchronized void testSnapshotReadAfterAddColumn() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<Row> originalRecords = Lists.newArrayList(
+        RowFactory.create(1, "x"),
+        RowFactory.create(2, "y"),
+        RowFactory.create(3, "z"));
+
+    StructType originalSparkSchema = SparkSchemaUtil.convert(SCHEMA);
+    Dataset<Row> inputDf = spark.createDataFrame(originalRecords, originalSparkSchema);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf.orderBy("id").collectAsList());
+
+    Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
+
+    table.updateSchema().addColumn("category", Types.StringType.get()).commit();
+
+    List<Row> newRecords = Lists.newArrayList(
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+
+    StructType newSparkSchema = SparkSchemaUtil.convert(SCHEMA2);
+    Dataset<Row> inputDf2 = spark.createDataFrame(newRecords, newSparkSchema);
+    inputDf2.select("id", "data", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    List<Row> updatedRecords = Lists.newArrayList(
+        RowFactory.create(1, "x", null),
+        RowFactory.create(2, "y", null),
+        RowFactory.create(3, "z", null),
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+
+    Dataset<Row> resultDf2 = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", updatedRecords,
+        resultDf2.orderBy("id").collectAsList());
+
+    Dataset<Row> resultDf3 = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf3.orderBy("id").collectAsList());
+    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf3.schema());
+  }
+
+  @Test
+  public synchronized void testSnapshotReadAfterDropColumn() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA2, PartitionSpec.unpartitioned());
+
+    List<Row> originalRecords = Lists.newArrayList(
+        RowFactory.create(1, "x", "A"),
+        RowFactory.create(2, "y", "A"),
+        RowFactory.create(3, "z", "B"));
+
+    StructType originalSparkSchema = SparkSchemaUtil.convert(SCHEMA2);
+    Dataset<Row> inputDf = spark.createDataFrame(originalRecords, originalSparkSchema);
+    inputDf.select("id", "data", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf.orderBy("id").collectAsList());
+
+    long tsBeforeDropColumn = waitUntilAfter(System.currentTimeMillis());
+    table.updateSchema().deleteColumn("data").commit();
+    long tsAfterDropColumn = waitUntilAfter(System.currentTimeMillis());
+
+    List<Row> newRecords = Lists.newArrayList(
+        RowFactory.create(4, "B"),
+        RowFactory.create(5, "C"));
+
+    StructType newSparkSchema = SparkSchemaUtil.convert(SCHEMA3);
+    Dataset<Row> inputDf2 = spark.createDataFrame(newRecords, newSparkSchema);
+    inputDf2.select("id", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    List<Row> updatedRecords = Lists.newArrayList(
+        RowFactory.create(1, "A"),
+        RowFactory.create(2, "A"),
+        RowFactory.create(3, "B"),
+        RowFactory.create(4, "B"),
+        RowFactory.create(5, "C"));
+
+    Dataset<Row> resultDf2 = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", updatedRecords,
+        resultDf2.orderBy("id").collectAsList());
+
+    Dataset<Row> resultDf3 = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf3.orderBy("id").collectAsList());
+    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf3.schema());
+
+    // At tsAfterDropColumn, there has been a schema change, but no new snapshot,
+    // so the snapshot as of tsAfterDropColumn is the same as that as of tsBeforeDropColumn.
+    Dataset<Row> resultDf4 = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf4.orderBy("id").collectAsList());
+    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf4.schema());
+  }
+
+  @Test
+  public synchronized void testSnapshotReadAfterAddAndDropColumn() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<Row> originalRecords = Lists.newArrayList(
+        RowFactory.create(1, "x"),
+        RowFactory.create(2, "y"),
+        RowFactory.create(3, "z"));
+
+    StructType originalSparkSchema = SparkSchemaUtil.convert(SCHEMA);
+    Dataset<Row> inputDf = spark.createDataFrame(originalRecords, originalSparkSchema);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf.orderBy("id").collectAsList());
+
+    Snapshot snapshotBeforeAddColumn = table.currentSnapshot();
+
+    table.updateSchema().addColumn("category", Types.StringType.get()).commit();
+
+    List<Row> newRecords = Lists.newArrayList(
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+
+    StructType sparkSchemaAfterAddColumn = SparkSchemaUtil.convert(SCHEMA2);
+    Dataset<Row> inputDf2 = spark.createDataFrame(newRecords, sparkSchemaAfterAddColumn);
+    inputDf2.select("id", "data", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    List<Row> updatedRecords = Lists.newArrayList(
+        RowFactory.create(1, "x", null),
+        RowFactory.create(2, "y", null),
+        RowFactory.create(3, "z", null),
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+
+    Dataset<Row> resultDf2 = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", updatedRecords,
+        resultDf2.orderBy("id").collectAsList());
+
+    table.updateSchema().deleteColumn("data").commit();
+
+    List<Row> recordsAfterDropColumn = Lists.newArrayList(
+        RowFactory.create(1, null),
+        RowFactory.create(2, null),
+        RowFactory.create(3, null),
+        RowFactory.create(4, "B"),
+        RowFactory.create(5, "C"));
+
+    Dataset<Row> resultDf3 = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", recordsAfterDropColumn,
+        resultDf3.orderBy("id").collectAsList());
+
+    Dataset<Row> resultDf4 = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
+        .load(loadLocation(tableIdentifier));
+    Assert.assertEquals("Records should match", originalRecords,
+        resultDf4.orderBy("id").collectAsList());
+    Assert.assertEquals("Schemas should match", originalSparkSchema, resultDf4.schema());
   }
 
   @Test
