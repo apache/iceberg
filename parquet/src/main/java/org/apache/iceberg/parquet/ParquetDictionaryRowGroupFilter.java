@@ -368,10 +368,6 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       Set<T> dictionary = dict(id, lit.comparator());
-      if (dictionary.contains(null)) {
-        return ROWS_MIGHT_MATCH;
-      }
-
       for (T item : dictionary) {
         if (item.toString().startsWith(lit.value().toString())) {
           return ROWS_MIGHT_MATCH;
@@ -391,12 +387,6 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       Set<T> dictionary = dict(id, lit.comparator());
-
-      // Allow query engine to make its own decisions regarding SQL 3-valued boolean logic.
-      if (dictionary.contains(null)) {
-        return ROWS_MIGHT_MATCH;
-      }
-
       for (T item : dictionary) {
         if (!item.toString().startsWith(lit.value().toString())) {
           return ROWS_MIGHT_MATCH;
