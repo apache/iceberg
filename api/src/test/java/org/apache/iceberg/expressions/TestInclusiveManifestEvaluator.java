@@ -65,7 +65,8 @@ public class TestInclusiveManifestEvaluator {
       optional(11, "both_nan_and_null", Types.FloatType.get()),
       optional(12, "no_nan_or_null", Types.DoubleType.get()),
       optional(13, "all_nulls_missing_nan_float", Types.FloatType.get()),
-      optional(14, "all_same_value_or_null", Types.StringType.get())
+      optional(14, "all_same_value_or_null", Types.StringType.get()),
+      optional(15, "no_nulls_same_value_a", Types.StringType.get())
   );
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
@@ -82,6 +83,7 @@ public class TestInclusiveManifestEvaluator {
       .identity("no_nan_or_null")
       .identity("all_nulls_missing_nan_float")
       .identity("all_same_value_or_null")
+      .identity("no_nulls_same_value_a")
       .build();
 
   private static final int INT_MIN_VALUE = 30;
@@ -113,7 +115,8 @@ public class TestInclusiveManifestEvaluator {
               toByteBuffer(Types.FloatType.get(), 0F),
               toByteBuffer(Types.FloatType.get(), 20F)),
           new TestHelpers.TestFieldSummary(true, null, null),
-          new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MIN)
+          new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MIN),
+          new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN)
       ), null);
 
   @Test
@@ -482,6 +485,9 @@ public class TestInclusiveManifestEvaluator {
     // by definition in order to surface more values to the query engine to allow it to make its own decision.
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_nulls_missing_nan", "A"), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("no_nulls_same_value_a", "a"), SPEC, false).eval(FILE);
+    Assert.assertFalse("Should not read: all values start with the prefix", shouldRead);
   }
 
   @Test
