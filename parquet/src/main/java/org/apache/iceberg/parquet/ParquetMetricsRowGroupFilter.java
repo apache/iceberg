@@ -479,9 +479,6 @@ public class ParquetMetricsRowGroupFilter {
       int id = ref.fieldId();
       Long valueCount = valueCounts.get(id);
 
-      // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
-      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
-      // null does not start with any non-null value.
       if (valueCount == null) {
         // the column is not present and is all nulls
         return ROWS_MIGHT_MATCH;
@@ -497,14 +494,15 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
-        ByteBuffer prefix = lit.toByteBuffer();
-
-        Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
-
         Binary lower = colStats.genericGetMin();
+        Binary upper = colStats.genericGetMax();
+
         // notStartsWith will match unless all values must start with the prefix. this happens when the lower and upper
         // bounds both start with the prefix.
-        if (lower != null) {
+        if (lower != null && upper != null) {
+          ByteBuffer prefix = lit.toByteBuffer();
+          Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
           // if lower is shorter than the prefix, it can't start with the prefix
           if (lower.length() < prefix.remaining()) {
             return ROWS_MIGHT_MATCH;
@@ -514,7 +512,6 @@ public class ParquetMetricsRowGroupFilter {
           int cmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), prefix.remaining()), prefix);
           if (cmp == 0) {
             // the lower bound starts with the prefix; check the upper bound
-            Binary upper = colStats.genericGetMax();
             // if upper is shorter than the prefix, it can't start with the prefix
             if (upper.length() < prefix.remaining()) {
               return ROWS_MIGHT_MATCH;
