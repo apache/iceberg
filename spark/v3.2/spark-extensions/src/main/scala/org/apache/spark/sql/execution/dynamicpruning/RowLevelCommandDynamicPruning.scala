@@ -127,9 +127,10 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
       tableAttrs: Seq[Attribute],
       scanAttrs: Seq[Attribute]): AttributeMap[Attribute] = {
 
+    val resolver = conf.resolver
     val attrMapping = tableAttrs.flatMap { tableAttr =>
       scanAttrs
-        .find(scanAttr => scanAttr.name == tableAttr.name)
+        .find(scanAttr => resolver(scanAttr.name, tableAttr.name))
         .map(scanAttr => tableAttr -> scanAttr)
     }
     AttributeMap(attrMapping)
