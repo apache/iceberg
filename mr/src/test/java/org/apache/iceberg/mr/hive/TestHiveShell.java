@@ -32,8 +32,8 @@ import org.apache.hive.service.cli.RowSet;
 import org.apache.hive.service.cli.SessionHandle;
 import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.hive.service.server.HiveServer2;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -190,8 +190,8 @@ public class TestHiveShell {
     // Disable vectorization for HiveIcebergInputFormat
     hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED, false);
 
-    // do not serialize the table IO config
-    hiveConf.set(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, "true");
+    // do not serialize the FileIO config
+    hiveConf.set(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, "true");
 
     return hiveConf;
   }

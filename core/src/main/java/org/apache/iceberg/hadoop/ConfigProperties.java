@@ -26,5 +26,4 @@ public class ConfigProperties {
 
   public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
   public static final String KEEP_HIVE_STATS = "iceberg.hive.keep.stats";
-  public static final String CONFIG_SERIALIZATION_DISABLED = "iceberg.hive.config.serialization.disabled";
 }

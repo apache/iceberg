@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -108,13 +107,7 @@ public class SerializableTable implements Table, Serializable {
 
   private FileIO fileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
-      HadoopConfigurable configurableIo = (HadoopConfigurable) table.io();
-      if (configurableIo.getConf().getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false)) {
-        // do not serialize the Configuration object - configs should be set on the deserializer-side
-        configurableIo.serializeConfWith(conf -> new SkipSerializableConfiguration(conf)::get);
-      } else {
-        configurableIo.serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
-      }
+      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
     }
 
     return table.io();
@@ -388,23 +381,6 @@ public class SerializableTable implements Table, Serializable {
             this.conf = newConf;
           }
         }
-      }
-
-      return conf;
-    }
-  }
-
-  private static class SkipSerializableConfiguration implements Serializable {
-
-    private transient volatile Configuration conf;
-
-    SkipSerializableConfiguration(Configuration conf) {
-      this.conf = conf;
-    }
-
-    public Configuration get() {
-      if (conf == null) {
-        throw new IllegalStateException("Configuration was not serialized on purpose but was not set manually either");
       }
 
       return conf;

@@ -39,8 +39,8 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -180,9 +180,16 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   public static void checkAndSetIoConfig(Configuration config, Table table) {
-    boolean ioConfigNotSerialized = config.getBoolean(ConfigProperties.CONFIG_SERIALIZATION_DISABLED, false);
-    if (ioConfigNotSerialized && table.io() instanceof HadoopConfigurable) {
+    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, false)
+        && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).setConf(config);
+    }
+  }
+
+  public static void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
+    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, false)
+        && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new NonSerializingConfig(config)::get);
     }
   }
 
@@ -245,8 +252,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
 
     if (table instanceof Serializable) {
+      Table serializableTable = SerializableTable.copyOf(table);
+      checkAndSkipIoConfigSerialization(configuration, serializableTable);
       map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
-          SerializationUtil.serializeToBase64(table));
+          SerializationUtil.serializeToBase64(serializableTable));
     }
 
     // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
@@ -256,5 +265,22 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
     // this is an exception to the interface documentation, but it's a safe operation to add this property
     props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
+  }
+
+  private static class NonSerializingConfig implements Serializable {
+
+    private transient volatile Configuration conf;
+
+    NonSerializingConfig(Configuration conf) {
+      this.conf = conf;
+    }
+
+    public Configuration get() {
+      if (conf == null) {
+        throw new IllegalStateException("Configuration was not serialized on purpose but was not set manually either");
+      }
+
+      return conf;
+    }
   }
 }
