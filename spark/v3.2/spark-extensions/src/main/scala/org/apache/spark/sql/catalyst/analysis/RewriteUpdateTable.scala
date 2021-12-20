@@ -84,8 +84,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
 
     // construct a read relation and include all required metadata columns
-    val readAttrs = dedupAttrs(relation.output ++ metadataAttrs)
-    val readRelation = relation.copy(table = table, output = readAttrs)
+    val readRelation = buildReadRelation(relation, table, metadataAttrs)
 
     // build a plan with updated and copied over records
     val updatedAndRemainingRowsPlan = buildUpdateProjection(readRelation, assignments, cond)
@@ -109,8 +108,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     // construct a read relation and include all required metadata columns
     // the same read relation will be used to read records that must be updated and be copied over
     // DeduplicateRelations will take care of duplicated attr IDs
-    val readAttrs = dedupAttrs(relation.output ++ metadataAttrs)
-    val readRelation = relation.copy(table = table, output = readAttrs)
+    val readRelation = buildReadRelation(relation, table, metadataAttrs)
 
     // build a plan for records that match the cond and should be updated
     val matchedRowsPlan = Filter(cond, readRelation)

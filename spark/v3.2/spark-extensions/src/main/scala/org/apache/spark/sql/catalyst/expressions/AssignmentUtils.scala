@@ -24,6 +24,7 @@ import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
+import org.apache.spark.sql.types.DataType
 
 object AssignmentUtils extends SQLConfHelper {
 
@@ -39,7 +40,9 @@ object AssignmentUtils extends SQLConfHelper {
     sameSize && table.output.zip(assignments).forall { case (attr, assignment) =>
       val key = assignment.key
       val value = assignment.value
-      toAssignmentRef(attr) == toAssignmentRef(key) && attr.dataType == value.dataType
+      toAssignmentRef(attr) == toAssignmentRef(key) &&
+        DataType.equalsIgnoreCompatibleNullability(value.dataType, attr.dataType) &&
+        (attr.nullable || !value.nullable)
     }
   }
 
