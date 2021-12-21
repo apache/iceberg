@@ -32,7 +32,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
