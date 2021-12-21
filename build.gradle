@@ -449,6 +449,7 @@ project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported

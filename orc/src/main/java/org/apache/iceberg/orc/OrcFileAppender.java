@@ -50,6 +50,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final int batchSize;
   private final OutputFile file;
   private final Writer writer;
+  private final TreeWriter treeWriter;
   private final VectorizedRowBatch batch;
   private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
@@ -74,6 +75,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
+    this.treeWriter =  treeWriterHiddenInORC();
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
 
@@ -99,9 +101,27 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
   @Override
   public long length() {
-    Preconditions.checkState(isClosed,
-        "Cannot return length while appending to an open file.");
-    return file.toInputFile().getLength();
+    if (isClosed) {
+      return file.toInputFile().getLength();
+    }
+    if (this.treeWriter == null) {
+      throw new RuntimeException("Can't get the length!");
+    }
+    long estimateMemory = this.treeWriter.estimateMemory();
+
+    long dataLength = 0;
+    try {
+      List<StripeInformation> stripes = writer.getStripes();
+      if (!stripes.isEmpty()) {
+        StripeInformation stripeInformation = stripes.get(stripes.size() - 1);
+        dataLength = stripeInformation != null ? stripeInformation.getOffset() + stripeInformation.getLength() : 0;
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(String.format("Can't get stripes from file %s", file.location()), e);
+    }
+
+    // This value is estimated, not actual.
+    return dataLength + estimateMemory + batch.size;
   }
 
   @Override
@@ -152,5 +172,11 @@ class OrcFileAppender<D> implements FileAppender<D> {
                                                      BiFunction<Schema, TypeDescription, OrcRowWriter<?>>
                                                          createWriterFunc) {
     return (OrcRowWriter<D>) createWriterFunc.apply(schema, orcSchema);
+  }
+
+  private TreeWriter treeWriterHiddenInORC() {
+    DynFields.BoundField<TreeWriter> treeWriterFiled =
+        DynFields.builder().hiddenImpl(writer.getClass(), "treeWriter").build(writer);
+    return treeWriterFiled.get();
   }
 }
