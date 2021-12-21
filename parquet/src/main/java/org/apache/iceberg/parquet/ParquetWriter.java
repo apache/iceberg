@@ -46,14 +46,16 @@ import org.apache.parquet.schema.MessageType;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
-  private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet = DynConstructors
-          .builder(PageWriteStore.class)
-          .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
-              CodecFactory.BytesCompressor.class,
-              MessageType.class,
-              ByteBufferAllocator.class,
-              int.class)
-          .build();
+  private static final Metrics EMPTY_METRICS = new Metrics(0L, null, null, null, null);
+
+  private static final DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet = DynConstructors
+      .builder(PageWriteStore.class)
+      .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
+          CodecFactory.BytesCompressor.class,
+          MessageType.class,
+          ByteBufferAllocator.class,
+          int.class)
+      .build();
 
   private static final DynMethods.UnboundMethod flushToWriter = DynMethods
       .builder("flushToFileWriter")
@@ -105,8 +107,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     startRowGroup();
   }
 
-  private ParquetFileWriter writer() {
-    if (this.fileWriter == null) {
+  private void ensureWriterInitialized() {
+    if (fileWriter == null) {
       try {
         this.fileWriter = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
            writeMode, targetRowGroupSize, 0);
@@ -120,8 +122,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         throw new RuntimeIOException(e, "Failed to start Parquet file writer");
       }
     }
-
-    return fileWriter;
   }
 
   @Override
@@ -134,7 +134,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetUtil.footerMetrics(writer().getFooter(), model.metrics(), metricsConfig);
+    Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
+    if (fileWriter != null) {
+      return ParquetUtil.footerMetrics(fileWriter.getFooter(), model.metrics(), metricsConfig);
+    }
+    return EMPTY_METRICS;
   }
 
   /**
@@ -150,9 +154,15 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public long length() {
     try {
       if (closed) {
-        return writer().getPos();
+        if (fileWriter != null) {
+          return fileWriter.getPos();
+        } else {
+          return 0L;
+        }
+      } else if (fileWriter != null) {
+        return fileWriter.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
       } else {
-        return writer().getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+        return writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0;
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
@@ -161,7 +171,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public List<Long> splitOffsets() {
-    return ParquetUtil.getSplitOffsets(writer().getFooter());
+    if (fileWriter != null) {
+      return ParquetUtil.getSplitOffsets(fileWriter.getFooter());
+    }
+    return null;
   }
 
   private void checkSize() {
@@ -182,10 +195,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private void flushRowGroup(boolean finished) {
     try {
       if (recordCount > 0) {
-        writer().startBlock(recordCount);
+        ensureWriterInitialized();
+        fileWriter.startBlock(recordCount);
         writeStore.flush();
-        flushPageStoreToWriter.invoke(writer());
-        writer().endBlock();
+        flushPageStoreToWriter.invoke(fileWriter);
+        fileWriter.endBlock();
         if (!finished) {
           startRowGroup();
         }
@@ -216,7 +230,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       this.closed = true;
       flushRowGroup(true);
       writeStore.close();
-      writer().end(metadata);
+      if (fileWriter != null) {
+        fileWriter.end(metadata);
+      }
     }
   }
 }
