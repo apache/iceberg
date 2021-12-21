@@ -220,14 +220,8 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer.write(createUpdateBefore(1, "aaa"));
     writer.write(createUpdateAfter(1, "bbb"));
 
-    if (partitioned) {
-      writer.complete();
-    }
-
     writer.write(createUpdateBefore(2, "aaa"));
     writer.write(createUpdateAfter(2, "bbb"));
-
-    writer.complete();
 
     // Assert the current data/delete file count.
     List<Path> files = Files.walk(Paths.get(tableDir.getPath(), "data"))
