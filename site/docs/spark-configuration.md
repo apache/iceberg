@@ -60,7 +60,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
 | spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
-| spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds)          | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true` and its set to some positive value, `-1` disables cache expiration (same behavior as Iceberg prior to version 0.13.0), and `0` disables caching entirely regardless of the value of `cache-enabled`. Default is `30000` (30 sec) ||                                                    |                               |                                                          |
+| spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true` and this is set to some positive value. `-1` disables cache expiration and `0` disables caching entirely without consideration for `cache-enabled`. Default is `30000` (30 sec) ||                                                    |                               |                                                          |
 
 Additional properties can be found in common [catalog configuration](./configuration.md#catalog-properties).
 
