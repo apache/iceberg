@@ -779,7 +779,7 @@ public class Spark3Util {
             int fieldIndex = schema.fieldIndex(field.name());
             Object catalystValue = partition.values().get(fieldIndex, field.dataType());
             Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-            values.put(field.name(), value.toString());
+            values.put(field.name(), String.valueOf(value));
           });
           return new SparkPartition(values, partition.path().toString(), format);
         }).collect(Collectors.toList());
