@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
@@ -31,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -281,7 +283,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         currentWriter.close();
 
         if (currentRows == 0L) {
-          io.deleteFile(currentFile.encryptingOutputFile());
+          try {
+            io.deleteFile(currentFile.encryptingOutputFile());
+          } catch (UncheckedIOException e) {
+            // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+          }
         } else {
           complete(currentWriter);
         }
