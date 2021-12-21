@@ -28,6 +28,7 @@ import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command
 import org.apache.spark.sql.connector.write.RowLevelOperationInfoImpl
+import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import scala.collection.mutable
@@ -40,6 +41,16 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
     val info = RowLevelOperationInfoImpl(command, CaseInsensitiveStringMap.empty())
     val builder = table.newRowLevelOperationBuilder(info)
     builder.build()
+  }
+
+  protected def buildReadRelation(
+      relation: DataSourceV2Relation,
+      table: RowLevelOperationTable,
+      metadataAttrs: Seq[AttributeReference],
+      rowIdAttrs: Seq[AttributeReference] = Nil): DataSourceV2Relation = {
+
+    val attrs = dedupAttrs(relation.output ++ rowIdAttrs ++ metadataAttrs)
+    relation.copy(table = table, output = attrs)
   }
 
   protected def dedupAttrs(attrs: Seq[AttributeReference]): Seq[AttributeReference] = {

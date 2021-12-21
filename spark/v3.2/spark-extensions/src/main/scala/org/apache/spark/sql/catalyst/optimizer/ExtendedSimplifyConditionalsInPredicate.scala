@@ -43,6 +43,7 @@ object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(CASE_WHEN, IF)) {
     case d @ DeleteFromIcebergTable(_, Some(cond), _) => d.copy(condition = Some(simplifyConditional(cond)))
+    case u @ UpdateIcebergTable(_, _, Some(cond), _) => u.copy(condition = Some(simplifyConditional(cond)))
   }
 
   private def simplifyConditional(e: Expression): Expression = e match {

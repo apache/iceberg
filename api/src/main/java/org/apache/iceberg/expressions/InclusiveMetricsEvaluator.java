@@ -408,6 +408,52 @@ public class InclusiveMetricsEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      Integer id = ref.fieldId();
+
+      if (mayContainNull(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      // notStartsWith will match unless all values must start with the prefix. This happens when the lower and upper
+      // bounds both start with the prefix.
+      if (lowerBounds != null && upperBounds != null &&
+          lowerBounds.containsKey(id) && upperBounds.containsKey(id)) {
+        ByteBuffer lower = lowerBounds.get(id);
+        // if lower is shorter than the prefix then lower doesn't start with the prefix
+        if (lower.remaining() < prefixAsBytes.remaining()) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
+        if (cmp == 0) {
+          ByteBuffer upper = upperBounds.get(id);
+          // if upper is shorter than the prefix then upper can't start with the prefix
+          if (upper.remaining() < prefixAsBytes.remaining()) {
+            return ROWS_MIGHT_MATCH;
+          }
+
+          cmp = comparator.compare(BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
+          if (cmp == 0) {
+            // both bounds match the prefix, so all rows must match the prefix and therefore do not satisfy
+            // the predicate
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean mayContainNull(Integer id) {
+      return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) != 0);
+    }
+
     private boolean containsNullsOnly(Integer id) {
       return valueCounts != null && valueCounts.containsKey(id) &&
           nullCounts != null && nullCounts.containsKey(id) &&

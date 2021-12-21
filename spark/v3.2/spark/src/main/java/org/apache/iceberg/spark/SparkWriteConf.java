@@ -166,15 +166,19 @@ public class SparkWriteConf {
 
     if (modeName != null) {
       DistributionMode mode = DistributionMode.fromName(modeName);
-      if (mode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-        return NONE;
-      } else if (mode == HASH && table.spec().isUnpartitioned()) {
-        return NONE;
-      } else {
-        return mode;
-      }
+      return adjustWriteDistributionMode(mode);
     } else {
       return table.sortOrder().isSorted() ? RANGE : NONE;
+    }
+  }
+
+  private DistributionMode adjustWriteDistributionMode(DistributionMode mode) {
+    if (mode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
+      return NONE;
+    } else if (mode == HASH && table.spec().isUnpartitioned()) {
+      return NONE;
+    } else {
+      return mode;
     }
   }
 
@@ -196,6 +200,20 @@ public class SparkWriteConf {
       // avoid range-based shuffles unless the user asks explicitly
       DistributionMode writeMode = distributionMode();
       return writeMode != NONE ? HASH : NONE;
+    }
+  }
+
+  public DistributionMode copyOnWriteUpdateDistributionMode() {
+    String updateModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
+        .parseOptional();
+
+    if (updateModeName != null) {
+      DistributionMode updateMode = DistributionMode.fromName(updateModeName);
+      return adjustWriteDistributionMode(updateMode);
+    } else {
+      return distributionMode();
     }
   }
 
