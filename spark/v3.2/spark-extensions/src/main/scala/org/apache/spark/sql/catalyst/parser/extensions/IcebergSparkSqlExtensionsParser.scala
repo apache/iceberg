@@ -41,6 +41,8 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableCatalog
@@ -128,6 +130,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan match {
     case DeleteFromTable(UnresolvedIcebergTable(aliasedTable), condition) =>
       DeleteFromIcebergTable(aliasedTable, condition)
+    case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
+      UpdateIcebergTable(aliasedTable, assignments, condition)
     case _ =>
       plan
   }

@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions;
+package org.apache.spark.sql.catalyst.analysis
 
-import java.util.Map;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.rules.Rule
 
-public class TestCopyOnWriteUpdate extends TestUpdate {
+/**
+ * A rule that aligns assignments in UPDATE and MERGE operations.
+ *
+ * Note that this rule must be run before rewriting row-level commands.
+ */
+object AlignRowLevelCommandAssignments
+  extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
 
-  public TestCopyOnWriteUpdate(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
-  }
-
-  @Override
-  protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.UPDATE_MODE, "copy-on-write");
+  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+    case u: UpdateIcebergTable if u.resolved && !u.aligned =>
+      u.copy(assignments = alignAssignments(u.table, u.assignments))
   }
 }

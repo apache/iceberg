@@ -22,6 +22,8 @@ package org.apache.spark.sql.execution.dynamicpruning
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.AttributeMap
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.DynamicPruningSubquery
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
@@ -37,6 +39,7 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.logical.Subquery
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.PLAN_EXPRESSION
 import org.apache.spark.sql.catalyst.trees.TreePattern.SORT
@@ -86,6 +89,17 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
     val matchingRowsPlan = command match {
       case d: DeleteFromIcebergTable =>
         Filter(d.condition.get, relation)
+      case u: UpdateIcebergTable =>
+        // UPDATEs with subqueries are rewritten using a UNION with two identical scan relations
+        // the analyzer clones of them and assigns fresh expr IDs so that attributes don't collide
+        // this rule assigns dynamic filters to both scan relations based on the update condition
+        // the condition always refers to the original expr IDs and must be transformed
+        // see RewriteUpdateTable for more details
+        val attrMap = buildAttrMap(u.table.output, relation.output)
+        val transformedCond = u.condition.get transform {
+          case attr: AttributeReference if attrMap.contains(attr) => attrMap(attr)
+        }
+        Filter(transformedCond, relation)
     }
 
     // clone the original relation in the filtering plan and assign new expr IDs to avoid conflicts
@@ -107,6 +121,19 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
 
     // combine all dynamic subqueries to produce the final condition
     dynamicPruningSubqueries.reduce(And)
+  }
+
+  private def buildAttrMap(
+      tableAttrs: Seq[Attribute],
+      scanAttrs: Seq[Attribute]): AttributeMap[Attribute] = {
+
+    val resolver = conf.resolver
+    val attrMapping = tableAttrs.flatMap { tableAttr =>
+      scanAttrs
+        .find(scanAttr => resolver(scanAttr.name, tableAttr.name))
+        .map(scanAttr => tableAttr -> scanAttr)
+    }
+    AttributeMap(attrMapping)
   }
 
   // borrowed from OptimizeSubqueries in Spark
