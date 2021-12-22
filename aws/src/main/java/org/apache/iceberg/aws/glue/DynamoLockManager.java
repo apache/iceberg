@@ -25,13 +25,13 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.LockManagerProperties;
 import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -171,7 +171,7 @@ class DynamoLockManager extends LockManagers.BaseLockManager {
   public void initialize(Map<String, String> properties) {
     super.initialize(properties);
     this.dynamo = AwsClientFactories.from(properties).dynamo();
-    this.lockTableName = properties.get(LockManagerProperties.LOCK_TABLE);
+    this.lockTableName = properties.get(CatalogProperties.LOCK_TABLE);
     Preconditions.checkNotNull(lockTableName, "DynamoDB lock table name must not be null");
     ensureLockTableExistsOrCreate();
   }

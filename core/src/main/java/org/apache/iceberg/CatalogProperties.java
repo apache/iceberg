@@ -39,4 +39,22 @@ public class CatalogProperties {
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
 
+  public static final String LOCK_IMPL = "lock-impl";
+
+  public static final String LOCK_HEARTBEAT_INTERVAL_MS = "lock.heartbeat-interval-ms";
+  public static final long LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(3);
+
+  public static final String LOCK_HEARTBEAT_TIMEOUT_MS = "lock.heartbeat-timeout-ms";
+  public static final long LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT = TimeUnit.SECONDS.toMillis(15);
+
+  public static final String LOCK_HEARTBEAT_THREADS = "lock.heartbeat-threads";
+  public static final int LOCK_HEARTBEAT_THREADS_DEFAULT = 4;
+
+  public static final String LOCK_ACQUIRE_INTERVAL_MS = "lock.acquire-interval-ms";
+  public static final long LOCK_ACQUIRE_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(5);
+
+  public static final String LOCK_ACQUIRE_TIMEOUT_MS = "lock.acquire-timeout-ms";
+  public static final long LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(3);
+
+  public static final String LOCK_TABLE = "lock.table";
 }

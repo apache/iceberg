@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -34,7 +35,7 @@ public class TestLockManagers {
   @Test
   public void testLoadCustomLockManager() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(LockManagerProperties.LOCK_IMPL, CustomLockManager.class.getName());
+    properties.put(CatalogProperties.LOCK_IMPL, CustomLockManager.class.getName());
     Assertions.assertThat(LockManagers.from(properties)).isInstanceOf(CustomLockManager.class);
   }
 

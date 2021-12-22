@@ -25,6 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -45,8 +46,8 @@ public class LockManagers {
   }
 
   public static LockManager from(Map<String, String> properties) {
-    if (properties.containsKey(LockManagerProperties.LOCK_IMPL)) {
-      return loadLockManager(properties.get(LockManagerProperties.LOCK_IMPL), properties);
+    if (properties.containsKey(CatalogProperties.LOCK_IMPL)) {
+      return loadLockManager(properties.get(CatalogProperties.LOCK_IMPL), properties);
     } else {
       return defaultLockManager();
     }
@@ -124,15 +125,15 @@ public class LockManagers {
     @Override
     public void initialize(Map<String, String> properties) {
       this.acquireTimeoutMs = PropertyUtil.propertyAsLong(properties,
-          LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT);
+          CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT);
       this.acquireIntervalMs = PropertyUtil.propertyAsLong(properties,
-          LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS_DEFAULT);
+          CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS_DEFAULT);
       this.heartbeatIntervalMs = PropertyUtil.propertyAsLong(properties,
-          LockManagerProperties.LOCK_HEARTBEAT_INTERVAL_MS, LockManagerProperties.LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
+          CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
       this.heartbeatTimeoutMs = PropertyUtil.propertyAsLong(properties,
-          LockManagerProperties.LOCK_HEARTBEAT_TIMEOUT_MS, LockManagerProperties.LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT);
+          CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS, CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT);
       this.heartbeatThreads = PropertyUtil.propertyAsInt(properties,
-          LockManagerProperties.LOCK_HEARTBEAT_THREADS, LockManagerProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
+          CatalogProperties.LOCK_HEARTBEAT_THREADS, CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
     }
   }
 

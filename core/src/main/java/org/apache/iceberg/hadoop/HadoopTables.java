@@ -59,6 +59,9 @@ import org.slf4j.LoggerFactory;
  * to store metadata and manifests.
  */
 public class HadoopTables implements Tables, Configurable {
+
+  public static final String LOCK_PROPERTY_PREFIX = "iceberg.tables.hadoop.";
+
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTables.class);
   private static final String METADATA_JSON = "metadata.json";
 
@@ -214,8 +217,8 @@ public class HadoopTables implements Tables, Configurable {
     while (configEntries.hasNext()) {
       Map.Entry<String, String> entry = configEntries.next();
       String key = entry.getKey();
-      if (key.startsWith("iceberg.lock.")) {
-        properties.put(key.substring("iceberg.".length()), entry.getValue());
+      if (key.startsWith(LOCK_PROPERTY_PREFIX)) {
+        properties.put(key.substring(LOCK_PROPERTY_PREFIX.length()), entry.getValue());
       }
     }
     LockManager mgr = LockManagers.from(properties);

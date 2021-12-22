@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
@@ -99,8 +100,8 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireSingleProcess() throws Exception {
     lockManager.initialize(ImmutableMap.of(
-        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
+        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
     ));
     Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
     String oldOwner = ownerId;
@@ -125,7 +126,7 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireMultiProcessAllSucceed() {
     lockManager.initialize(ImmutableMap.of(
-        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"
+        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"
     ));
     long start = System.currentTimeMillis();
     List<Boolean> results = IntStream.range(0, 3).parallel()
@@ -151,9 +152,9 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireMultiProcessOnlyOneSucceed() {
     lockManager.initialize(ImmutableMap.of(
-        LockManagerProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
-        LockManagerProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        LockManagerProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
+        CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
+        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
     ));
 
     List<Boolean> results = IntStream.range(0, 3).parallel()
