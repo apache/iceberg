@@ -48,6 +48,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LockManager;
 import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.Pair;
@@ -209,7 +210,7 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   private LockManager createOrGetLockManager(String location) {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     Iterator<Map.Entry<String, String>> configEntries = conf.iterator();
     while (configEntries.hasNext()) {
       Map.Entry<String, String> entry = configEntries.next();
