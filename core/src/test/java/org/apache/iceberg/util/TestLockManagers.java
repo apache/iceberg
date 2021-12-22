@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
