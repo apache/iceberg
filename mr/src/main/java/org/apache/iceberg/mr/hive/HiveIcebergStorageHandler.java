@@ -187,8 +187,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @param table The Iceberg table object
    */
   public static void checkAndSetIoConfig(Configuration config, Table table) {
-    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, false) &&
-        table.io() instanceof HadoopConfigurable) {
+    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+        InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).setConf(config);
     }
   }
@@ -204,8 +204,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @param table The Iceberg table object
    */
   public static void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
-    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, false) &&
-        table.io() instanceof HadoopConfigurable) {
+    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+        InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new NonSerializingConfig(config)::get);
     }
   }
@@ -268,12 +268,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
 
-    if (table instanceof Serializable) {
-      Table serializableTable = SerializableTable.copyOf(table);
-      checkAndSkipIoConfigSerialization(configuration, serializableTable);
-      map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
-          SerializationUtil.serializeToBase64(serializableTable));
-    }
+    // serialize table object into config
+    Table serializableTable = SerializableTable.copyOf(table);
+    checkAndSkipIoConfigSerialization(configuration, serializableTable);
+    map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
+        SerializationUtil.serializeToBase64(serializableTable));
 
     // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
     // the serialization utils fail to serialize this character
@@ -286,7 +285,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   private static class NonSerializingConfig implements Serializable {
 
-    private transient volatile Configuration conf;
+    private final transient Configuration conf;
 
     NonSerializingConfig(Configuration conf) {
       this.conf = conf;
