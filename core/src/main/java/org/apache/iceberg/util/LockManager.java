@@ -22,7 +22,7 @@ package org.apache.iceberg.util;
 import java.util.Map;
 
 /**
- * An interface for locking, used to ensure Glue catalog commit isolation.
+ * An interface for locking, used to ensure commit isolation.
  */
 public interface LockManager extends AutoCloseable {
 
