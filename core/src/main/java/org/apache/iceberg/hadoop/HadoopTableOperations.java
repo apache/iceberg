@@ -70,11 +70,11 @@ public class HadoopTableOperations implements TableOperations {
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf, LockManager lockMgr) {
+  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
-    this.lockManager = lockMgr;
+    this.lockManager = lockManager;
   }
 
   @Override
@@ -348,10 +348,11 @@ public class HadoopTableOperations implements TableOperations {
    */
   private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
     try {
-      lockManager.acquire(dst.toString(), Thread.currentThread().getName());
+      lockManager.acquire(dst.toString(), src.toString());
       if (fs.exists(dst)) {
         throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
+
       if (!fs.rename(src, dst)) {
         CommitFailedException cfe = new CommitFailedException(
             "Failed to commit changes using rename: %s", dst);
@@ -370,7 +371,7 @@ public class HadoopTableOperations implements TableOperations {
       }
       throw cfe;
     } finally {
-      lockManager.release(dst.toString(), Thread.currentThread().getName());
+      lockManager.release(dst.toString(), src.toString());
     }
   }
 

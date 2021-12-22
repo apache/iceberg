@@ -63,7 +63,7 @@ public class HadoopTables implements Tables, Configurable {
   private static final String METADATA_JSON = "metadata.json";
 
   private static final ConcurrentHashMap<String, LockManager> tableOperationLocks =
-          new ConcurrentHashMap<>();
+      new ConcurrentHashMap<>();
 
   private Configuration conf;
 
@@ -210,7 +210,7 @@ public class HadoopTables implements Tables, Configurable {
 
   private LockManager createOrGetLockManager(String location) {
     Map<String, String> properties = new HashMap<>();
-    Iterator<Map.Entry<String, String>> configEntries = this.conf.iterator();
+    Iterator<Map.Entry<String, String>> configEntries = conf.iterator();
     while (configEntries.hasNext()) {
       Map.Entry<String, String> entry = configEntries.next();
       String key = entry.getKey();
