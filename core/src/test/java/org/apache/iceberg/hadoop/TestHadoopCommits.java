@@ -25,6 +25,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.AssertHelpers;
@@ -41,6 +44,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Tasks;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -435,18 +439,15 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         put(TableProperties.COMMIT_NUM_RETRIES, String.valueOf(threadsCount));
       }
     }, dir.toURI().toString());
-    Thread[] threads = new Thread[threadsCount];
-    for (int i = 0; i < threadsCount; i++) {
-      threads[i] = new Thread(() -> tableWithHighRetries.newAppend().appendFile(FILE_A).commit());
-      threads[i].start();
-    }
-    Arrays.stream(threads).forEach(t -> {
-      try {
-        t.join();
-      } catch (InterruptedException e) {
-        // intentionally swallow to check result later
-      }
-    });
+    ExecutorService executorService = Executors.newFixedThreadPool(threadsCount);
+    Tasks
+        .range(threadsCount)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(index -> {
+          tableWithHighRetries.newAppend().appendFile(FILE_A).commit();
+        });
     tableWithHighRetries.refresh();
     assertEquals(threadsCount, Lists.newArrayList(tableWithHighRetries.snapshots()).size());
   }
