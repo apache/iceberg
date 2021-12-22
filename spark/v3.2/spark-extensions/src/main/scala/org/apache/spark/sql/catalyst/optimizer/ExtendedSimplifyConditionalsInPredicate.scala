@@ -42,8 +42,18 @@ object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
 
   def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(CASE_WHEN, IF)) {
-    case d @ DeleteFromIcebergTable(_, Some(cond), _) => d.copy(condition = Some(simplifyConditional(cond)))
-    case u @ UpdateIcebergTable(_, _, Some(cond), _) => u.copy(condition = Some(simplifyConditional(cond)))
+
+    case d @ DeleteFromIcebergTable(_, Some(cond), _) =>
+      d.copy(condition = Some(simplifyConditional(cond)))
+
+    case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
+      u.copy(condition = Some(simplifyConditional(cond)))
+
+    case m @ MergeIntoIcebergTable(_, _, mergeCond, matchedActions, notMatchedActions, _) =>
+      m.copy(
+        mergeCondition = simplifyConditional(mergeCond),
+        matchedActions = simplifyConditional(matchedActions),
+        notMatchedActions = simplifyConditional(notMatchedActions))
   }
 
   private def simplifyConditional(e: Expression): Expression = e match {
@@ -69,5 +79,16 @@ object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
         "Expected a Boolean type expression in ExtendedSimplifyConditionalsInPredicate, " +
         s"but got the type `${e.dataType.catalogString}` in `${e.sql}`.")
       e
+  }
+
+  private def simplifyConditional(mergeActions: Seq[MergeAction]): Seq[MergeAction] = {
+    mergeActions.map {
+      case u @ UpdateAction(Some(cond), _) => u.copy(condition = Some(simplifyConditional(cond)))
+      case u @ UpdateStarAction(Some(cond)) => u.copy(condition = Some(simplifyConditional(cond)))
+      case d @ DeleteAction(Some(cond)) => d.copy(condition = Some(simplifyConditional(cond)))
+      case i @ InsertAction(Some(cond), _) => i.copy(condition = Some(simplifyConditional(cond)))
+      case i @ InsertStarAction(Some(cond)) => i.copy(condition = Some(simplifyConditional(cond)))
+      case other => other
+    }
   }
 }
