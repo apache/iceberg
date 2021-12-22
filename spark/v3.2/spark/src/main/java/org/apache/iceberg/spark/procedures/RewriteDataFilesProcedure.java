@@ -28,8 +28,6 @@ import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering;
 import org.apache.spark.sql.catalyst.plans.logical.SortOrderParserUtil;
@@ -109,7 +107,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       }
 
       String where = args.isNullAt(4) ? null : args.getString(4);
-      action = checkAndApplyFilter(action, where);
+      action = checkAndApplyFilter(action, where, table.name());
 
       RewriteDataFiles.Result result = action.execute();
 
@@ -117,13 +115,12 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     });
   }
 
-  private RewriteDataFiles checkAndApplyFilter(RewriteDataFiles action, String where) {
+  private RewriteDataFiles checkAndApplyFilter(RewriteDataFiles action, String where, String tableName) {
     if (where != null) {
-      ParserInterface sqlParser = spark().sessionState().sqlParser();
       try {
-        Expression expression = sqlParser.parseExpression(where);
+        Expression expression = SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
         return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
-      } catch (ParseException e) {
+      } catch (AnalysisException e) {
         throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
       }
     }
