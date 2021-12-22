@@ -151,7 +151,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     transformToAddedField.put(validationKey, newField);
 
     PartitionField existingField = nameToField.get(newField.name());
-
     if (existingField != null && !deletes.contains(existingField.fieldId())) {
       if (isVoidTransform(existingField)) {
         // rename the old deleted field that is being replaced by the new field
@@ -160,8 +159,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         throw new IllegalArgumentException(String.format("Cannot add duplicate partition field name: %s", name));
       }
     } else if (existingField != null && deletes.contains(existingField.fieldId())) {
-      renameFieldInternal(existingField.name(), existingField.name() + "_" + existingField.fieldId(),
-              true);
+      renames.put(existingField.name(), existingField.name() + "_" + existingField.fieldId());
     }
 
     nameToAddedField.put(newField.name(), newField);
@@ -209,10 +207,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec renameField(String name, String newName) {
-    return renameFieldInternal(name, newName, false);
-  }
-
-  private BaseUpdatePartitionSpec renameFieldInternal(String name, String newName, boolean allowDeleteFirst) {
     PartitionField existingField = nameToField.get(newName);
     if (existingField != null && isVoidTransform(existingField)) {
       // rename the old deleted field that is being replaced by the new field
@@ -226,10 +220,8 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     PartitionField field = nameToField.get(name);
     Preconditions.checkArgument(field != null,
         "Cannot find partition field to rename: %s", name);
-    if (!allowDeleteFirst) {
-      Preconditions.checkArgument(!deletes.contains(field.fieldId()),
-          "Cannot delete and rename partition field: %s", name);
-    }
+    Preconditions.checkArgument(!deletes.contains(field.fieldId()),
+        "Cannot delete and rename partition field: %s", name);
 
     renames.put(name, newName);
 

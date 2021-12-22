@@ -618,19 +618,19 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     if (formatVersion == 1) {
       Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
       Assert.assertEquals("Should match expected field name", "ts_1000",
-              updated.fields().get(0).name());
+          updated.fields().get(0).name());
       Assert.assertEquals("Should match expected field name", "ts",
-              updated.fields().get(1).name());
+          updated.fields().get(1).name());
       Assert.assertEquals("Should match expected field transform", "void",
-              updated.fields().get(0).transform().toString());
+          updated.fields().get(0).transform().toString());
       Assert.assertEquals("Should match expected field transform", "identity",
-              updated.fields().get(1).transform().toString());
+          updated.fields().get(1).transform().toString());
     } else {
       Assert.assertEquals("Should match expected spec field size", 1, updated.fields().size());
       Assert.assertEquals("Should match expected field name", "ts",
-              updated.fields().get(0).name());
+          updated.fields().get(0).name());
       Assert.assertEquals("Should match expected field transform", "identity",
-              updated.fields().get(0).transform().toString());
+          updated.fields().get(0).transform().toString());
     }
   }
 
