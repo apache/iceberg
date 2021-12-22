@@ -29,6 +29,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -112,6 +113,9 @@ public class TestHiveMetastore {
   public void start(HiveConf conf, int poolSize) {
     try {
       this.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+      // Ideally we can delete the folder in stop(), but tests would fail if we do that, probably because we are not
+      // clearing some static fields in the metastore. So for now delete it in a shutdown hook
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(hiveLocalDir)));
       File derbyLogFile = new File(hiveLocalDir, "derby.log");
       System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
       setupMetastoreDB("jdbc:derby:" + getDerbyPath() + ";create=true");
@@ -143,9 +147,6 @@ public class TestHiveMetastore {
     }
     if (executorService != null) {
       executorService.shutdown();
-    }
-    if (hiveLocalDir != null) {
-      hiveLocalDir.delete();
     }
     if (baseHandler != null) {
       baseHandler.shutdown();

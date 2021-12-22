@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Map;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -59,9 +60,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   @AfterClass
   public static void dropWarehouse() {
-    if (warehouse != null && warehouse.exists()) {
-      warehouse.delete();
-    }
+    FileUtils.deleteQuietly(warehouse);
   }
 
   @Test
