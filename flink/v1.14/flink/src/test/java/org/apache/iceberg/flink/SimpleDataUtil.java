@@ -86,30 +86,6 @@ public class SimpleDataUtil {
 
   public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
 
-  public static final Schema SCHEMA_NUM_TYPE = new Schema(
-      Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-      Types.NestedField.optional(2, "int", Types.IntegerType.get()),
-      Types.NestedField.optional(3, "float", Types.FloatType.get()),
-      Types.NestedField.optional(4, "double", Types.DoubleType.get()),
-      Types.NestedField.optional(5, "date", Types.DateType.get()),
-      Types.NestedField.optional(6, "time", Types.TimeType.get()),
-      Types.NestedField.optional(7, "timestamp", Types.TimestampType.withoutZone()),
-      Types.NestedField.optional(8, "bigint", Types.LongType.get()),
-      Types.NestedField.optional(9, "decimal", Types.DecimalType.of(4, 2))
-  );
-
-  public static final TableSchema FLINK_SCHEMA_NUM_TYPE = TableSchema.builder()
-      .field("id", DataTypes.INT())
-      .field("int", DataTypes.INT())
-      .field("float", DataTypes.FLOAT())
-      .field("double", DataTypes.DOUBLE())
-      .field("date", DataTypes.DATE())
-      .field("time", DataTypes.TIME())
-      .field("timestamp", DataTypes.TIMESTAMP())
-      .field("bigint", DataTypes.BIGINT())
-      .field("decimal", DataTypes.DECIMAL(4, 2))
-      .build();
-
   public static final Record RECORD = GenericRecord.create(SCHEMA);
 
   public static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
