@@ -24,10 +24,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 
 /**
@@ -122,7 +122,7 @@ public class DynConstructors {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Ctor ctor = null;
-    private Map<String, Throwable> problems = new HashMap<String, Throwable>();
+    private Map<String, Throwable> problems = Maps.newHashMap();
 
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;

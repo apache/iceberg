@@ -412,6 +412,46 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnId() {
+    createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (id, dept)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnDept() {
+    createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (id, dept)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(6L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void addWeirdCaseHiveTable() {
     createWeirdCaseTable();
 
@@ -748,10 +788,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
 
   private static final StructField[] struct = {
-      new StructField("id", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("name", DataTypes.StringType, false, Metadata.empty()),
-      new StructField("dept", DataTypes.StringType, false, Metadata.empty()),
-      new StructField("subdept", DataTypes.StringType, false, Metadata.empty())
+      new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+      new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("subdept", DataTypes.StringType, true, Metadata.empty())
   };
 
   private static final Dataset<Row> unpartitionedDF =
@@ -763,11 +803,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
               RowFactory.create(4, "Will Doe", "facilities", "all")),
           new StructType(struct)).repartition(1);
 
+  private static final Dataset<Row> singleNullRecordDF =
+      spark.createDataFrame(
+          ImmutableList.of(
+              RowFactory.create(null, null, null, null)),
+          new StructType(struct)).repartition(1);
+
   private static final Dataset<Row> partitionedDF =
       unpartitionedDF.select("name", "dept", "subdept", "id");
 
   private static final Dataset<Row> compositePartitionedDF =
       unpartitionedDF.select("name", "subdept", "id", "dept");
+
+  private static final Dataset<Row> compositePartitionedNullRecordDF =
+      singleNullRecordDF.select("name", "subdept", "id", "dept");
 
   private static final Dataset<Row> weirdColumnNamesDF =
       unpartitionedDF.select(
@@ -804,6 +853,19 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     compositePartitionedDF.write().insertInto(sourceTableName);
     compositePartitionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void createCompositePartitionedTableWithNullValueInPartitionColumn(String format) {
+    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s " +
+        "PARTITIONED BY (id, dept) LOCATION '%s'";
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    Dataset<Row> unionedDF = compositePartitionedDF.unionAll(compositePartitionedNullRecordDF)
+        .select("name", "subdept", "id", "dept")
+        .repartition(1);
+
+    unionedDF.write().insertInto(sourceTableName);
+    unionedDF.write().insertInto(sourceTableName);
   }
 
   private void createWeirdCaseTable() {

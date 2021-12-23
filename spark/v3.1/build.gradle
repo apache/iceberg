@@ -19,8 +19,8 @@
 
 def sparkProjects = [
     project(':iceberg-spark:iceberg-spark-3.1_2.12'),
-    project(":iceberg-spark:iceberg-spark-3.1-extensions_2.12"),
-    project(':iceberg-spark:iceberg-spark-3.1-runtime_2.12')
+    project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12"),
+    project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12')
 ]
 
 configure(sparkProjects) {
@@ -57,7 +57,6 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
@@ -84,6 +83,7 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -104,7 +104,7 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
   }
 }
 
-project(":iceberg-spark:iceberg-spark-3.1-extensions_2.12") {
+project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
   apply plugin: 'antlr'
@@ -131,13 +131,13 @@ project(":iceberg-spark:iceberg-spark-3.1-extensions_2.12") {
     compileOnly project(':iceberg-orc')
     compileOnly project(':iceberg-common')
     compileOnly project(':iceberg-spark:iceberg-spark-3.1_2.12')
-    compileOnly project(':iceberg-hive-metastore')
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.roaringbitmap'
     }
 
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
@@ -160,7 +160,7 @@ project(":iceberg-spark:iceberg-spark-3.1-extensions_2.12") {
   }
 }
 
-project(':iceberg-spark:iceberg-spark-3.1-runtime_2.12') {
+project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -195,8 +195,14 @@ project(':iceberg-spark:iceberg-spark-3.1-runtime_2.12') {
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-spark:iceberg-spark-3.1_2.12')
-    implementation project(':iceberg-spark:iceberg-spark-3.1-extensions_2.12')
+    implementation project(':iceberg-spark:iceberg-spark-extensions-3.1_2.12')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -207,9 +213,9 @@ project(':iceberg-spark:iceberg-spark-3.1-runtime_2.12') {
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.1_2.12', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.1-extensions_2.12', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-extensions-3.1_2.12', configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.1-extensions_2.12')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-extensions-3.1_2.12')
     integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.1_2.12')
     integrationCompileOnly project(':iceberg-api')
   }

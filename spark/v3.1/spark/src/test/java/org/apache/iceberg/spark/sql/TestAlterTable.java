@@ -91,6 +91,54 @@ public class TestAlterTable extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testAddColumnWithArray() {
+    sql("ALTER TABLE %s ADD COLUMN data2 array<struct<a:INT,b:INT,c:int>>", tableName);
+    // use the implicit column name 'element' to access member of array and add column d to struct.
+    sql("ALTER TABLE %s ADD COLUMN data2.element.d int", tableName);
+    Types.StructType expectedSchema = Types.StructType.of(
+        NestedField.required(1, "id", Types.LongType.get()),
+        NestedField.optional(2, "data", Types.StringType.get()),
+        NestedField.optional(3, "data2", Types.ListType.ofOptional(
+            4,
+            Types.StructType.of(
+                NestedField.optional(5, "a", Types.IntegerType.get()),
+                NestedField.optional(6, "b", Types.IntegerType.get()),
+                NestedField.optional(7, "c", Types.IntegerType.get()),
+                NestedField.optional(8, "d", Types.IntegerType.get()))
+        )));
+    Assert.assertEquals("Schema should match expected",
+        expectedSchema, validationCatalog.loadTable(tableIdent).schema().asStruct());
+  }
+
+  @Test
+  public void testAddColumnWithMap() {
+    sql("ALTER TABLE %s ADD COLUMN data2 map<struct<x:INT>, struct<a:INT,b:INT>>", tableName);
+    // use the implicit column name 'key' and 'value' to access member of map.
+    // add column to value struct column
+    sql("ALTER TABLE %s ADD COLUMN data2.value.c int", tableName);
+    Types.StructType expectedSchema = Types.StructType.of(
+        NestedField.required(1, "id", Types.LongType.get()),
+        NestedField.optional(2, "data", Types.StringType.get()),
+        NestedField.optional(3, "data2", Types.MapType.ofOptional(
+            4,
+            5,
+            Types.StructType.of(
+                NestedField.optional(6, "x", Types.IntegerType.get())),
+            Types.StructType.of(
+                NestedField.optional(7, "a", Types.IntegerType.get()),
+                NestedField.optional(8, "b", Types.IntegerType.get()),
+                NestedField.optional(9, "c", Types.IntegerType.get()))
+        )));
+    Assert.assertEquals("Schema should match expected",
+        expectedSchema, validationCatalog.loadTable(tableIdent).schema().asStruct());
+
+    // should not allow changing map key column
+    AssertHelpers.assertThrows("Should reject changing key of the map column",
+        SparkException.class, "Unsupported table change: Cannot add fields to map keys:",
+        () -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName));
+  }
+
+  @Test
   public void testDropColumn() {
     sql("ALTER TABLE %s DROP COLUMN data", tableName);
 

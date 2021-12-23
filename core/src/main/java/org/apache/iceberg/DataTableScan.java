@@ -30,7 +30,7 @@ import org.apache.iceberg.util.ThreadPools;
 public class DataTableScan extends BaseTableScan {
   static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition", "key_metadata"
+      "file_size_in_bytes", "record_count", "partition", "key_metadata", "split_offsets"
   );
   static final ImmutableList<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
       .addAll(SCAN_COLUMNS)

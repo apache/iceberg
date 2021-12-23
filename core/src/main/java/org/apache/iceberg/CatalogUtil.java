@@ -118,7 +118,7 @@ public class CatalogUtil {
 
     Tasks.foreach(metadata.metadataFileLocation())
         .noRetry().suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
+        .onFailure((metadataFile, exc) -> LOG.warn("Delete failed for metadata file: {}", metadataFile, exc))
         .run(io::deleteFile);
   }
 

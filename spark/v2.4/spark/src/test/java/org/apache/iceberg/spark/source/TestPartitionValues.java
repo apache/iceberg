@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
@@ -412,7 +411,7 @@ public class TestPartitionValues {
         )
     };
 
-    List<Row> rows = new ArrayList<>();
+    List<Row> rows = Lists.newArrayList();
     rows.add(RowFactory.create(RowFactory.create("nested_string_value")));
     Dataset<Row> sourceDF = spark.createDataFrame(rows, new StructType(structFields));
 

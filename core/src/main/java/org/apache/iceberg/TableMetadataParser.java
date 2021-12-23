@@ -433,6 +433,6 @@ public class TableMetadataParser {
     return new TableMetadata(metadataLocation, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build());
+        snapshots, entries.build(), metadataEntries.build(), ImmutableList.of() /* no changes from the file */);
   }
 }

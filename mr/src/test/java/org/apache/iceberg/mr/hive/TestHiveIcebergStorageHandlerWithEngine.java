@@ -20,12 +20,12 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.mr.ExecMapper;
 import org.apache.iceberg.FileFormat;
@@ -35,8 +35,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,6 +59,7 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
 
@@ -99,7 +102,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}, isVectorized={3}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
+    Collection<Object[]> testParams = Lists.newArrayList();
     String javaVersion = System.getProperty("java.specification.version");
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
@@ -372,7 +375,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers");
 
     // Check that everything is duplicated as expected
-    List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Record> records = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
@@ -392,7 +395,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers ORDER BY customer_id");
 
     // Check that everything is duplicated as expected
-    List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Record> records = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
@@ -737,6 +740,73 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     shell.executeStatement("INSERT INTO target SELECT * FROM source WHERE first_name = 'Nobody'");
     HiveIcebergTestUtils.validateData(target, ImmutableList.of(), 0);
+  }
+
+  @Test
+  public void testStatsPopulation() throws Exception {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+    Assume.assumeTrue("Only HiveCatalog can remove stats which become obsolete",
+        testTableType == TestTables.TestTableType.HIVE_CATALOG);
+    shell.setHiveSessionValue(HiveConf.ConfVars.HIVESTATSAUTOGATHER.varname, true);
+
+    // create the table using a catalog which supports updating Hive stats (KEEP_HIVE_STATS is true)
+    shell.setHiveSessionValue(ConfigProperties.KEEP_HIVE_STATS, true);
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    testTables.createTable(shell, identifier.name(), HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        PartitionSpec.unpartitioned(), fileFormat, ImmutableList.of());
+
+    // insert some data and check the stats are up-to-date
+    String insert = testTables.getInsertQuery(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, identifier, false);
+    shell.executeStatement(insert);
+    String stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
+    Assert.assertTrue(stats.startsWith("{\"BASIC_STATS\":\"true\"")); // it's followed by column stats in Hive3
+
+    // Create a Catalog where the KEEP_HIVE_STATS is false
+    shell.metastore().hiveConf().set(ConfigProperties.KEEP_HIVE_STATS, StatsSetupConst.FALSE);
+    TestTables nonHiveTestTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, testTableType, temp);
+    Table nonHiveTable = nonHiveTestTables.loadTable(identifier);
+
+    // Append data to the table through a non-Hive engine (in this case, via the java API) -> should remove stats
+    nonHiveTestTables.appendIcebergTable(shell.getHiveConf(), nonHiveTable, fileFormat, null,
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
+    Assert.assertNull(stats);
+
+    // insert some data again using Hive catalog, and check the stats are back
+    shell.executeStatement(insert);
+    stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
+    Assert.assertTrue(stats.startsWith("{\"BASIC_STATS\":\"true\"")); // it's followed by column stats in Hive3
+  }
+
+  /**
+   * Tests that vectorized ORC reading code path correctly handles when the same ORC file is split into multiple parts.
+   * Although the split offsets and length will not always include the file tail that contains the metadata, the
+   * vectorized reader needs to make sure to handle the tail reading regardless of the offsets. If this is not done
+   * correctly, the last SELECT query will fail.
+   * @throws Exception - any test error
+   */
+  @Test
+  public void testVectorizedOrcMultipleSplits() throws Exception {
+    assumeTrue(isVectorized && FileFormat.ORC.equals(fileFormat));
+
+    // This data will be held by a ~870kB ORC file
+    List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        20000, 0L);
+
+    // To support splitting the ORC file, we need to specify the stripe size to a small value. It looks like the min
+    // value is about 220kB, no smaller stripes are written by ORC. Anyway, this setting will produce 4 stripes.
+    shell.setHiveSessionValue("orc.stripe.size", "210000");
+
+    testTables.createTable(shell, "targettab", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        fileFormat, records);
+
+    // Will request 4 splits, separated on the exact stripe boundaries within the ORC file.
+    // (Would request 5 if ORC split generation wouldn't be split (aka stripe) offset aware).
+    shell.setHiveSessionValue(InputFormatConfig.SPLIT_SIZE, "210000");
+    List<Object[]> result = shell.executeStatement("SELECT * FROM targettab ORDER BY last_name");
+
+    Assert.assertEquals(20000, result.size());
+
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {

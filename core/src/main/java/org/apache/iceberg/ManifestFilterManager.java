@@ -77,6 +77,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
+  private boolean caseSensitive = true;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -137,6 +138,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkArgument(sequenceNumber >= 0,
         "Invalid minimum data sequence number: %s", sequenceNumber);
     this.minSequenceNumber = sequenceNumber;
+  }
+
+  void caseSensitive(boolean newCaseSensitive) {
+    this.caseSensitive = newCaseSensitive;
   }
 
   /**
@@ -311,7 +316,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     boolean canContainExpressionDeletes;
     if (deleteExpression != null && deleteExpression != Expressions.alwaysFalse()) {
       ManifestEvaluator manifestEvaluator =
-          ManifestEvaluator.forRowFilter(deleteExpression, specsById.get(manifest.partitionSpecId()), true);
+          ManifestEvaluator.forRowFilter(deleteExpression, specsById.get(manifest.partitionSpecId()), caseSensitive);
       canContainExpressionDeletes = manifestEvaluator.eval(manifest);
     } else {
       canContainExpressionDeletes = false;
@@ -434,10 +439,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     private final ResidualEvaluator residualEvaluator;
     private final StructLikeMap<Pair<InclusiveMetricsEvaluator, StrictMetricsEvaluator>> metricsEvaluators;
 
-    // TODO: support case sensitive flags
     PartitionAndMetricsEvaluator(Schema tableSchema, PartitionSpec spec, Expression expr) {
       this.tableSchema = tableSchema;
-      this.residualEvaluator = ResidualEvaluator.of(spec, expr, true);
+      this.residualEvaluator = ResidualEvaluator.of(spec, expr, caseSensitive);
       this.metricsEvaluators = StructLikeMap.create(spec.partitionType());
     }
 
@@ -462,8 +466,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // for rows in the given partition using metrics
       return metricsEvaluators.computeIfAbsent(file.partition(), partition -> {
         Expression residual = residualEvaluator.residualFor(partition);
-        InclusiveMetricsEvaluator inclusive = new InclusiveMetricsEvaluator(tableSchema, residual);
-        StrictMetricsEvaluator strict = new StrictMetricsEvaluator(tableSchema, residual);
+        InclusiveMetricsEvaluator inclusive = new InclusiveMetricsEvaluator(tableSchema, residual, caseSensitive);
+        StrictMetricsEvaluator strict = new StrictMetricsEvaluator(tableSchema, residual, caseSensitive);
         return Pair.of(inclusive, strict);
       });
     }

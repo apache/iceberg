@@ -100,6 +100,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     return fileFormat;
   }
 
+  @Override
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();

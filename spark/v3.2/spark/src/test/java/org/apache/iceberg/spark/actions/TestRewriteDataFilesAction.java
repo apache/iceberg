@@ -348,9 +348,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .execute();
 
     Assert.assertEquals("Action should delete 1 data files", 1, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFilesCount());
+    Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFilesCount());
 
-    shouldHaveFiles(table, 2);
+    shouldHaveFiles(table, 3);
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);

@@ -263,7 +263,18 @@ public class SortOrder implements Serializable {
       return this;
     }
 
+    Builder addSortField(Transform<?, ?> transform, int sourceId, SortDirection direction, NullOrder nullOrder) {
+      fields.add(new SortField(transform, sourceId, direction, nullOrder));
+      return this;
+    }
+
     public SortOrder build() {
+      SortOrder sortOrder = buildUnchecked();
+      checkCompatibility(sortOrder, schema);
+      return sortOrder;
+    }
+
+    SortOrder buildUnchecked() {
       if (fields.isEmpty()) {
         if (orderId != null && orderId != 0) {
           throw new IllegalArgumentException("Unsorted order ID must be 0");
@@ -277,9 +288,7 @@ public class SortOrder implements Serializable {
 
       // default ID to 1 as 0 is reserved for unsorted order
       int actualOrderId = orderId != null ? orderId : 1;
-      SortOrder sortOrder = new SortOrder(schema, actualOrderId, fields);
-      checkCompatibility(sortOrder, schema);
-      return sortOrder;
+      return new SortOrder(schema, actualOrderId, fields);
     }
 
     private Transform<?, ?> toTransform(BoundTerm<?> term) {

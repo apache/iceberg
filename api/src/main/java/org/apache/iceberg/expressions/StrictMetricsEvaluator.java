@@ -57,9 +57,13 @@ public class StrictMetricsEvaluator {
   private final Expression expr;
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
+    this(schema, unbound, true);
+  }
+
+  public StrictMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
+    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -434,6 +438,12 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds are ["a", "b"].
       return ROWS_MIGHT_NOT_MATCH;
     }
 

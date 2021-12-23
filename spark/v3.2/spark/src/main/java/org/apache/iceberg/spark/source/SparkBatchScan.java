@@ -30,6 +30,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -172,13 +173,11 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
-    boolean hasNoEqDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasEqDeletes);
-
     boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
     boolean batchReadOrc = hasNoDeleteFiles && allOrcFileScanTasks;
 
-    boolean batchReadParquet = hasNoEqDeleteFiles && allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
+    boolean batchReadParquet = allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
 
     boolean readUsingBatch = batchReadsEnabled && (batchReadOrc || batchReadParquet);
 
@@ -209,15 +208,19 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
+    return estimateStatistics(table.currentSnapshot());
+  }
+
+  protected Statistics estimateStatistics(Snapshot snapshot) {
     // its a fresh table, no data
-    if (table.currentSnapshot() == null) {
+    if (snapshot == null) {
       return new Stats(0L, 0L);
     }
 
     // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
       LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+      long totalRecords = PropertyUtil.propertyAsLong(snapshot.summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
       return new Stats(
           SparkSchemaUtil.estimateSize(readSchema(), totalRecords),

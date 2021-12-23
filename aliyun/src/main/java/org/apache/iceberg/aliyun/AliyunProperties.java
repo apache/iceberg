@@ -40,17 +40,17 @@ public class AliyunProperties implements Serializable {
    * For more information about how to obtain an AccessKey pair, see:
    * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
-  public static final String ACCESS_KEY_ID = "access.key.id";
+  public static final String CLIENT_ACCESS_KEY_ID = "client.access-key-id";
 
   /**
    * Aliyun uses an AccessKey pair, which includes an AccessKey ID and an AccessKey secret to implement symmetric
-   * encryption and verify the identity of a requester.  The AccessKey secret is used to encrypt and verify the
+   * encryption and verify the identity of a requester. The AccessKey secret is used to encrypt and verify the
    * signature string.
    * <p>
    * For more information about how to obtain an AccessKey pair, see:
    * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
-  public static final String ACCESS_KEY_SECRET = "access.key.secret";
+  public static final String CLIENT_ACCESS_KEY_SECRET = "client.access-key-secret";
 
   /**
    * The implementation class of {@link AliyunClientFactory} to customize Aliyun client configurations.
@@ -76,8 +76,8 @@ public class AliyunProperties implements Serializable {
   public AliyunProperties(Map<String, String> properties) {
     // OSS endpoint, accessKeyId, accessKeySecret.
     this.ossEndpoint = properties.get(OSS_ENDPOINT);
-    this.accessKeyId = properties.get(ACCESS_KEY_ID);
-    this.accessKeySecret = properties.get(ACCESS_KEY_SECRET);
+    this.accessKeyId = properties.get(CLIENT_ACCESS_KEY_ID);
+    this.accessKeySecret = properties.get(CLIENT_ACCESS_KEY_SECRET);
 
     this.ossStagingDirectory = PropertyUtil.propertyAsString(properties, OSS_STAGING_DIRECTORY,
         System.getProperty("java.io.tmpdir"));
