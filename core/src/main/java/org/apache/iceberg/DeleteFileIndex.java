@@ -54,6 +54,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.Tasks;
 
@@ -333,6 +334,7 @@ class DeleteFileIndex {
     private Expression partitionFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
+    private PartitionSet partitionSet = null;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -366,6 +368,11 @@ class DeleteFileIndex {
 
     Builder planWith(ExecutorService newExecutorService) {
       this.executorService = newExecutorService;
+      return this;
+    }
+
+    Builder filterPartitions(PartitionSet newPartitionSet) {
+      this.partitionSet = newPartitionSet;
       return this;
     }
 
@@ -467,13 +474,25 @@ class DeleteFileIndex {
 
       return Iterables.transform(
           matchingManifests,
-          manifest ->
-              ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                  .filterRows(dataFilter)
-                  .filterPartitions(partitionFilter)
-                  .caseSensitive(caseSensitive)
-                  .liveEntries()
-      );
+          manifest -> deleteManifestEntries(
+              manifest, partitionSet, specsById, dataFilter, partitionFilter, io, caseSensitive));
     }
   }
+
+  private static CloseableIterable<ManifestEntry<DeleteFile>> deleteManifestEntries(ManifestFile manifest,
+      PartitionSet partitionSet, Map<Integer, PartitionSpec> specsById, Expression dataFilter,
+      Expression partitionFilter, FileIO io, boolean caseSensitive) {
+    CloseableIterable<ManifestEntry<DeleteFile>> result = ManifestFiles.readDeleteManifest(manifest, io, specsById)
+        .filterRows(dataFilter)
+        .filterPartitions(partitionFilter)
+        .caseSensitive(caseSensitive)
+        .liveEntries();
+    if (partitionSet == null) {
+      return result;
+    } else {
+      return CloseableIterable.filter(result,
+          f -> partitionSet.contains(f.file().specId(), f.file().partition()));
+    }
+  }
+
 }

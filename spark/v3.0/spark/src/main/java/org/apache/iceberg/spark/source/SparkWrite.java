@@ -90,14 +90,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.REPLACE_PARTITION_LEVEL;
-import static org.apache.iceberg.TableProperties.REPLACE_PARTITION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 class SparkWrite {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
@@ -113,7 +105,6 @@ class SparkWrite {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
-  private final long validateFromSnapshotId;
 
   SparkWrite(SparkSession spark, Table table, SparkWriteConf writeConf,
              LogicalWriteInfo writeInfo, String applicationId,
@@ -136,10 +127,7 @@ class SparkWrite {
   }
 
   BatchWrite asDynamicOverwrite() {
-    String isolationLevelAsString = table.properties().getOrDefault(REPLACE_PARTITION_LEVEL,
-        REPLACE_PARTITION_LEVEL_DEFAULT);
-    IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
-    return new DynamicOverwrite(level, validateFromSnapshotId);
+    return new DynamicOverwrite();
   }
 
   BatchWrite asOverwriteByFilter(Expression overwriteExpr) {
@@ -254,14 +242,6 @@ class SparkWrite {
   }
 
   private class DynamicOverwrite extends BaseBatchWrite {
-    private final IsolationLevel isolationLevel;
-    private final long startingSnapshotId;
-
-    private DynamicOverwrite(IsolationLevel isolationLevel, long startingSnapshotId) {
-      this.isolationLevel = isolationLevel;
-      this.startingSnapshotId = startingSnapshotId;
-    }
-
     @Override
     public void commit(WriterCommitMessage[] messages) {
       Iterable<DataFile> files = files(messages);
@@ -272,16 +252,11 @@ class SparkWrite {
       }
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
-      dynamicOverwrite.validateFromSnapshot(startingSnapshotId);
 
       int numFiles = 0;
       for (DataFile file : files) {
         numFiles += 1;
         dynamicOverwrite.addFile(file);
-      }
-
-      if (isolationLevel == SERIALIZABLE) {
-        dynamicOverwrite.validateNoConflictingAppends();
       }
 
       commitOperation(dynamicOverwrite, String.format("dynamic partition overwrite with %d new data files", numFiles));

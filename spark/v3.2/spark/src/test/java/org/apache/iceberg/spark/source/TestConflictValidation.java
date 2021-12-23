@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
@@ -54,7 +53,6 @@ public class TestConflictValidation extends SparkCatalogTestBase {
   @Test
   public void testValidationException() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
-    table.updateProperties().set(TableProperties.REPLACE_PARTITION_LEVEL, "serializable").commit();
     long snapshotId = table.currentSnapshot().snapshotId();
 
     List<SimpleRecord> records = Lists.newArrayList(

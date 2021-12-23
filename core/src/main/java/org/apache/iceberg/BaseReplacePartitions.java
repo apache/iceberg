@@ -29,12 +29,12 @@ public class BaseReplacePartitions
 
   private final PartitionSet deletedPartitions;
   private Long startingSnapshotId = null;
-  private boolean validateNoConflictingAppends = false;
+  private boolean validateNoConflicts = false;
 
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
-    deletedPartitions = PartitionSet.create(super.getSpecsById());
+    deletedPartitions = PartitionSet.create(ops.current().specsById());
   }
 
   @Override
@@ -68,19 +68,20 @@ public class BaseReplacePartitions
   }
 
   @Override
-  public ReplacePartitions validateNoConflictingAppends() {
-    this.validateNoConflictingAppends = true;
+  public ReplacePartitions validateNoConflicts() {
+    this.validateNoConflicts = true;
     return this;
   }
 
   @Override
   public void validate(TableMetadata currentMetadata) {
-    if (validateNoConflictingAppends) {
+    if (validateNoConflicts) {
       if (dataSpec().isUnpartitioned()) {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), false);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
       } else {
         validateAddedDataFiles(currentMetadata, startingSnapshotId, deletedPartitions);
       }
+      validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, deletedPartitions);
     }
   }
 

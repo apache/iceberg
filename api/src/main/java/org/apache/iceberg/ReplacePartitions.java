@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+
 /**
  * Not recommended: API for overwriting files in a table by partition.
  * <p>
@@ -62,15 +63,15 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
   ReplacePartitions validateFromSnapshot(long snapshotId);
 
   /**
-   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * Enables validation that data and delete files added concurrently do not conflict with this commit's operation.
    * <p>
    * This method should be called when the table is first queried to determine which files to overwrite.
-   * If a concurrent operation commits a new file after the data was read and that file might
+   * If a concurrent operation commits a new file or row delta after the data was read that might
    * contain rows matching a partition marked for deletion, the overwrite operation will detect this and fail.
    * <p>
    * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
    *
    * @return this for method chaining
    */
-  ReplacePartitions validateNoConflictingAppends();
+  ReplacePartitions validateNoConflicts();
 }

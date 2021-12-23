@@ -252,4 +252,11 @@ public class SparkWriteConf {
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .parse();
   }
+
+  public long validateFromSnapshotId() {
+    return confParser.longConf()
+        .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID)
+        .defaultValue(0)
+        .parse();
+  }
 }
