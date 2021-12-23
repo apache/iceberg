@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -118,6 +119,8 @@ public abstract class SparkTestBase {
             return row.getList(pos);
           } else if (value instanceof scala.collection.Map) {
             return row.getJavaMap(pos);
+          } else if (value instanceof byte[]) {
+            return IntStream.range(0, Array.getLength(value)).mapToObj(i -> Array.get(value, i)).toArray();
           } else {
             return value;
           }

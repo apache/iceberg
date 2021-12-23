@@ -598,7 +598,8 @@ public class Spark3Util {
       if (lit.value() instanceof String) {
         return "'" + lit.value() + "'";
       } else if (lit.value() instanceof ByteBuffer) {
-        throw new IllegalArgumentException("Cannot convert bytes to SQL literal: " + lit);
+        // produce a literal value that Spark can parse
+        return lit.toString();
       } else {
         return lit.value().toString();
       }
