@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -44,6 +45,7 @@ public class ThreadPools {
           new ThreadFactoryBuilder()
               .setDaemon(true)
               .setNameFormat("iceberg-worker-pool-%d")
+              .setThreadFactory(new ContextClassloaderFixedThreadFactory())
               .build()));
 
   /**
@@ -71,5 +73,15 @@ public class ThreadPools {
       }
     }
     return defaultSize;
+  }
+
+  private static final class ContextClassloaderFixedThreadFactory implements ThreadFactory {
+
+    @Override
+    public Thread newThread(Runnable runnable) {
+      final Thread thread = Executors.defaultThreadFactory().newThread(runnable);
+      thread.setContextClassLoader(getClass().getClassLoader());
+      return thread;
+    }
   }
 }
