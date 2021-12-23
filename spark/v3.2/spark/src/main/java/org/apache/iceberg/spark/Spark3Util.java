@@ -808,8 +808,8 @@ public class Spark3Util {
         }).collect(Collectors.toList());
   }
 
-  private static List getPartitionFilterExpressions(SparkSession spark, String tableName,
-                                                    Map<String, String> partitionFilter) {
+  private static List<org.apache.spark.sql.catalyst.expressions.Expression> getPartitionFilterExpressions(
+      SparkSession spark, String tableName, Map<String, String> partitionFilter) {
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions = Lists.newArrayList();
     for (Map.Entry<String, String> entry : partitionFilter.entrySet()) {
       String filter = entry.getKey() + " = '" + entry.getValue() + "'";
@@ -818,11 +818,12 @@ public class Spark3Util {
             SparkExpressionConverter.collectResolvedSparkExpression(spark, tableName, filter);
         filterExpressions.add(expression);
       } catch (AnalysisException e) {
-        // ignore if filter cannot be converted to Spark expression
+        throw new IllegalArgumentException("filter " + filter + " cannot be converted to Spark expression");
       }
     }
     return filterExpressions;
   }
+
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(Identifier identifier) {
     String[] namespace = identifier.namespace();
 
