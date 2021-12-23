@@ -244,6 +244,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public void deleteWhere(Filter[] filters) {
+    canDeleteWhere(filters);
     Expression deleteExpr = SparkFilters.convert(filters);
 
     if (deleteExpr == Expressions.alwaysFalse()) {
