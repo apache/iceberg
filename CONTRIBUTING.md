@@ -122,3 +122,10 @@ When passing boolean arguments to existing or external methods, use inline comme
   dropTable(identifier, true /* purge data */);
   dropTable(identifier, purge);
 ```
+
+#### Config naming
+
+1. Use `-` to link words in one concept
+    * For example, preferred convection `access-key-id` rather than `access.key.id`
+2. Use `.` to create a hierarchy of config groups
+    * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
