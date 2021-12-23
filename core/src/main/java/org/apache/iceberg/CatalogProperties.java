@@ -36,9 +36,6 @@ public class CatalogProperties {
   public static final String CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS = "client.pool.cache.eviction-interval-ms";
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
 
-  public static final String APP_ID = "app-id";
-  public static final String USER = "user";
-
   public static final String LOCK_IMPL = "lock-impl";
 
   public static final String LOCK_HEARTBEAT_INTERVAL_MS = "lock.heartbeat-interval-ms";
@@ -57,4 +54,7 @@ public class CatalogProperties {
   public static final long LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(3);
 
   public static final String LOCK_TABLE = "lock.table";
+
+  public static final String APP_ID = "app-id";
+  public static final String USER = "user";
 }
