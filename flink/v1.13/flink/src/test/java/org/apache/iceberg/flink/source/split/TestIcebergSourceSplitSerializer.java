@@ -75,7 +75,7 @@ public class TestIcebergSourceSplitSerializer {
     final List<IcebergSourceSplit> splits = SplitHelpers
         .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
-      byte[] result = split.serializeV1(split);
+      byte[] result = split.serializeV1();
       IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV1(result);
       Assert.assertEquals(split.splitId(), deserialized.splitId());
       Assert.assertEquals(split.position(), deserialized.position());

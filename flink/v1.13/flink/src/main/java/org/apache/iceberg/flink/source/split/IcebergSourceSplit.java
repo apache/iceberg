@@ -99,9 +99,9 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
             .toString()).collect(Collectors.toList()));
   }
 
-  byte[] serializeV1(IcebergSourceSplit split) throws IOException {
+  byte[] serializeV1() throws IOException {
     if (serializedBytesCache == null) {
-      serializedBytesCache = InstantiationUtil.serializeObject(split);
+      serializedBytesCache = InstantiationUtil.serializeObject(this);
     }
     return serializedBytesCache;
   }
