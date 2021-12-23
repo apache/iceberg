@@ -159,7 +159,8 @@ class AddFilesProcedure extends BaseProcedure {
   private void importFileTable(Table table, Path tableLocation, String format, Map<String, String> partitionFilter,
                                boolean checkDuplicateFiles) {
     // List Partitions via Spark InMemory file search interface
-    List<SparkPartition> partitions = Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter);
+    List<SparkPartition> partitions =
+        Spark3Util.getPartitions(spark(), table.name(), tableLocation, format, partitionFilter);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(partitions.isEmpty(), "Cannot add partitioned files to an unpartitioned table");

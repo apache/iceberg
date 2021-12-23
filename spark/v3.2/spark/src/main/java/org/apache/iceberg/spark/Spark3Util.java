@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -60,13 +59,12 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.CatalystTypeConverters;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.expressions.BoundReference;
-import org.apache.spark.sql.catalyst.expressions.EqualTo;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -83,8 +81,8 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
+import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
@@ -755,7 +753,7 @@ public class Spark3Util {
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format,
+  public static List<SparkPartition> getPartitions(SparkSession spark, String tableName, Path rootPath, String format,
                                                    Map<String, String> partitionFilter) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
     Map<String, String> emptyMap = Collections.emptyMap();
@@ -782,7 +780,7 @@ public class Spark3Util {
     }
 
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions =
-        getPartitionFilterExpressions(schema, partitionFilter);
+        getPartitionFilterExpressions(spark, tableName, partitionFilter);
 
     List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = Lists.newArrayList();
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaPartitionFilters =
@@ -810,86 +808,21 @@ public class Spark3Util {
         }).collect(Collectors.toList());
   }
 
-  private static List getPartitionFilterExpressions(StructType schema,
+  private static List getPartitionFilterExpressions(SparkSession spark, String tableName,
                                                     Map<String, String> partitionFilter) {
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions = Lists.newArrayList();
     for (Map.Entry<String, String> entry : partitionFilter.entrySet()) {
+      String filter = entry.getKey() + " = '" + entry.getValue() + "'";
       try {
-        // IllegalArgumentException is thrown if schema doesn't contain this entry,
-        // which means partition filter is not on partition columns.
-        int index = schema.fieldIndex(entry.getKey());
-        org.apache.spark.sql.types.DataType dataType = schema.fields()[index].dataType();
-        BoundReference ref = new BoundReference(index, dataType, true);
-        switch (dataType.typeName()) {
-          case "integer":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Integer.parseInt(entry.getValue()),
-                DataTypes.IntegerType)));
-            break;
-          case "string":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(), DataTypes.StringType)));
-            break;
-          case "short":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Short.parseShort(entry.getValue()),
-                DataTypes.ShortType)));
-            break;
-          case "byte":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Byte.parseByte(entry.getValue()),
-                DataTypes.ByteType)));
-            break;
-          case "long":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Long.parseLong(entry.getValue()),
-                DataTypes.LongType)));
-            break;
-          case "float":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Float.parseFloat(entry.getValue()),
-                DataTypes.FloatType)));
-            break;
-          case "double":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Double.parseDouble(entry.getValue()),
-                DataTypes.DoubleType)));
-            break;
-          case "boolean":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(Boolean.parseBoolean(entry.getValue()),
-                DataTypes.BooleanType)));
-            break;
-          case "binary":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(
-                entry.getValue().getBytes(StandardCharsets.UTF_8), DataTypes.BinaryType)));
-            break;
-          case "date":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
-                DataTypes.DateType)));
-            break;
-          case "timestamp":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
-                DataTypes.TimestampType)));
-            break;
-          case "interval":
-            filterExpressions.add(new EqualTo(ref,
-                org.apache.spark.sql.catalyst.expressions.Literal.create(entry.getValue(),
-                DataTypes.CalendarIntervalType)));
-            break;
-          default:
-            throw new IllegalStateException("Unexpected data type in partition filters: " + dataType);
-        }
-      } catch (IllegalArgumentException e) {
-        // ignore if filter is not on a partition column
+        org.apache.spark.sql.catalyst.expressions.Expression expression =
+            SparkExpressionConverter.collectResolvedSparkExpression(spark, tableName, filter);
+        filterExpressions.add(expression);
+      } catch (AnalysisException e) {
+        // ignore if filter cannot be converted to Spark expression
       }
     }
     return filterExpressions;
   }
-
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(Identifier identifier) {
     String[] namespace = identifier.namespace();
 
