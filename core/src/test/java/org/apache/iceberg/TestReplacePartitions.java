@@ -283,6 +283,42 @@ public class TestReplacePartitions extends TableTestBase {
   }
 
   @Test
+  public void testConcurrentReplaceNoConflict() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long id1 = base.currentSnapshot().snapshotId();
+
+    // Concurrent Replace Partitions should not fail if concerning different partitions
+    table.newReplacePartitions()
+        .addFile(FILE_A)
+        .validateFromSnapshot(id1)
+        .validateNoConflicts()
+        .commit();
+    long id2 = readMetadata().currentSnapshot().snapshotId();
+
+    table.newReplacePartitions()
+        .validateFromSnapshot(id1)
+        .validateNoConflicts()
+        .addFile(FILE_B)
+        .commit();
+
+    long id3 = readMetadata().currentSnapshot().snapshotId();
+    Assert.assertEquals("Table should have 2 manifests",
+        2, table.currentSnapshot().allManifests().size());
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        ids(id3),
+        files(FILE_B),
+        statuses(Status.ADDED));
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+        ids(id2),
+        files(FILE_A),
+        statuses(Status.ADDED));
+  }
+
+  @Test
   public void testConcurrentAppendReplaceConflict() {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -366,6 +402,47 @@ public class TestReplacePartitions extends TableTestBase {
   }
 
   @Test
+  public void testDeleteReplaceNoConflict() {
+    Assume.assumeTrue(formatVersion == 2);
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    long id1 = readMetadata().currentSnapshot().snapshotId();
+
+    // Concurrent Delta and ReplacePartition should not conflict if concerning different partitions
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(id1)
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles()
+        .commit();
+    long id2 = readMetadata().currentSnapshot().snapshotId();
+
+    table.newReplacePartitions()
+        .validateFromSnapshot(id1)
+        .validateNoConflicts()
+        .addFile(FILE_B)
+        .commit();
+    long id3 = readMetadata().currentSnapshot().snapshotId();
+
+    Assert.assertEquals("Table should have 3 manifest",
+        3, table.currentSnapshot().allManifests().size());
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        ids(id3),
+        files(FILE_B),
+        statuses(Status.ADDED));
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+        ids(id1),
+        files(FILE_A),
+        statuses(Status.ADDED));
+    validateDeleteManifest(table.currentSnapshot().allManifests().get(2),
+        seqs(2),
+        ids(id2),
+        files(FILE_A_DELETES),
+        statuses(Status.ADDED));
+  }
+
+  @Test
   public void testConcurrentReplaceValidationDisabled() {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -394,42 +471,6 @@ public class TestReplacePartitions extends TableTestBase {
     validateManifestEntries(table.currentSnapshot().allManifests().get(1),
         ids(replaceId),
         files(FILE_E),
-        statuses(Status.DELETED));
-  }
-
-  @Test
-  public void testConcurrentAppendReplaceValidationDisabled() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
-
-    TableMetadata base = readMetadata();
-    long baseId = base.currentSnapshot().snapshotId();
-
-    // Concurrent Append and ReplacePartition with Validation Disabled
-    table.newFastAppend()
-        .appendFile(FILE_B)
-        .commit();
-    table.newReplacePartitions()
-        .validateFromSnapshot(baseId)
-        .addFile(FILE_E) // Replaces FILE_A which becomes Deleted
-        .addFile(FILE_F) // Replaces FILE_B which becomes Deleted
-        .commit();
-
-    long replaceId = readMetadata().currentSnapshot().snapshotId();
-    Assert.assertEquals("Table should have 3 manifest",
-        3, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
-        ids(replaceId, replaceId),
-        files(FILE_E, FILE_F),
-        statuses(Status.ADDED, Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
-        ids(replaceId),
-        files(FILE_B),
-        statuses(Status.DELETED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(2),
-        ids(replaceId),
-        files(FILE_A),
         statuses(Status.DELETED));
   }
 
