@@ -113,9 +113,6 @@ public class TestHiveMetastore {
   public void start(HiveConf conf, int poolSize) {
     try {
       this.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
-      // Ideally we can delete the folder in stop(), but tests would fail if we do that, probably because we are not
-      // clearing some static fields in the metastore. So for now delete it in a shutdown hook
-      Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(hiveLocalDir)));
       File derbyLogFile = new File(hiveLocalDir, "derby.log");
       System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
       setupMetastoreDB("jdbc:derby:" + getDerbyPath() + ";create=true");
@@ -152,6 +149,13 @@ public class TestHiveMetastore {
       baseHandler.shutdown();
     }
     METASTORE_THREADS_SHUTDOWN.invoke();
+    if (hiveLocalDir != null && hiveLocalDir.exists()) {
+      try {
+        FileUtils.forceDelete(hiveLocalDir);
+      } catch (IOException e) {
+        throw new RuntimeException("Failed to delete local dir " + hiveLocalDir.getAbsolutePath(), e);
+      }
+    }
   }
 
   public HiveConf hiveConf() {

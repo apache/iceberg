@@ -298,7 +298,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace2, newMeta);
     Database database2 = metastoreClient.getDatabase(namespace2.toString());
     Assert.assertEquals("There no same location for db and namespace",
-            hiveLocalDir, database2.getLocationUri());
+        hiveLocalDir, database2.getLocationUri());
   }
 
   @Test

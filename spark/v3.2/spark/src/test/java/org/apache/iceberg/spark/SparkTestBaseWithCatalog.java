@@ -44,8 +44,10 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   }
 
   @AfterClass
-  public static void dropWarehouse() {
-    FileUtils.deleteQuietly(warehouse);
+  public static void dropWarehouse() throws IOException {
+    if (warehouse != null && warehouse.exists()) {
+      FileUtils.forceDelete(warehouse);
+    }
   }
 
   @Rule
