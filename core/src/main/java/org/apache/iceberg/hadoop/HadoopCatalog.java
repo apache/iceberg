@@ -51,6 +51,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -86,6 +87,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private String catalogName;
   private Configuration conf;
+  private CloseableGroup closeableGroup;
   private String warehouseLocation;
   private FileSystem fs;
   private FileIO fileIO;
@@ -108,6 +110,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.lockManager = LockManagers.from(properties);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(lockManager);
+    closeableGroup.setSuppressCloseFailure(true);
 
     this.suppressPermissionError = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_PERMISSION_ERROR));
   }
@@ -360,6 +366,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public void close() throws IOException {
+    closeableGroup.close();
   }
 
   @Override

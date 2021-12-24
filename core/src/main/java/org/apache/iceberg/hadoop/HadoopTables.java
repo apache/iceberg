@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -65,8 +64,7 @@ public class HadoopTables implements Tables, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTables.class);
   private static final String METADATA_JSON = "metadata.json";
 
-  private static final ConcurrentHashMap<String, LockManager> tableOperationLocks =
-      new ConcurrentHashMap<>();
+  private static LockManager lockManager;
 
   private Configuration conf;
 
@@ -207,23 +205,24 @@ public class HadoopTables implements Tables, Configurable {
       return new StaticTableOperations(location, new HadoopFileIO(conf));
     } else {
       return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf,
-              createOrGetLockManager(location));
+          createOrGetLockManager(this));
     }
   }
 
-  private LockManager createOrGetLockManager(String location) {
-    Map<String, String> properties = Maps.newHashMap();
-    Iterator<Map.Entry<String, String>> configEntries = conf.iterator();
-    while (configEntries.hasNext()) {
-      Map.Entry<String, String> entry = configEntries.next();
-      String key = entry.getKey();
-      if (key.startsWith(LOCK_PROPERTY_PREFIX)) {
-        properties.put(key.substring(LOCK_PROPERTY_PREFIX.length()), entry.getValue());
+  private static synchronized LockManager createOrGetLockManager(HadoopTables table) {
+    if (lockManager == null) {
+      Map<String, String> properties = Maps.newHashMap();
+      Iterator<Map.Entry<String, String>> configEntries = table.conf.iterator();
+      while (configEntries.hasNext()) {
+        Map.Entry<String, String> entry = configEntries.next();
+        String key = entry.getKey();
+        if (key.startsWith(LOCK_PROPERTY_PREFIX)) {
+          properties.put(key.substring(LOCK_PROPERTY_PREFIX.length()), entry.getValue());
+        }
       }
+      lockManager = LockManagers.from(properties);
     }
-    LockManager mgr = LockManagers.from(properties);
-    LockManager currentMgr = tableOperationLocks.putIfAbsent(location, mgr);
-    return currentMgr != null ? currentMgr : tableOperationLocks.get(location);
+    return lockManager;
   }
 
   private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
