@@ -440,11 +440,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * Validates that no delete files matching a filter have been added to the table since a starting snapshot.
+   * Validates that no delete files matching a partition set have been added to the table since a starting snapshot.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param partitionSet partition set to validate against
+   * @param partitionSet partition set to match against delete files
    */
   protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
     // if there is no current table state, no files have been added

@@ -94,8 +94,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.REPLACE_PARTITION_LEVEL;
-import static org.apache.iceberg.TableProperties.REPLACE_PARTITION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.DYNAMIC_OVERWRITE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DYNAMIC_OVERWRITE_LEVEL_DEFAULT;
 
 abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
@@ -281,8 +281,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       if (validateFromSnapshotId != 0) {
         dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
       }
-      String isolationLevelAsString = table.properties().getOrDefault(REPLACE_PARTITION_LEVEL,
-          REPLACE_PARTITION_LEVEL_DEFAULT);
+      String isolationLevelAsString = table.properties().getOrDefault(DYNAMIC_OVERWRITE_ISOLATION_LEVEL,
+          DYNAMIC_OVERWRITE_LEVEL_DEFAULT);
       IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
       if (level == SERIALIZABLE) {
         dynamicOverwrite.validateNoConflicts();
