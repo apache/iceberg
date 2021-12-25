@@ -48,6 +48,17 @@ public interface TableScan {
    */
   TableScan useSnapshot(long snapshotId);
 
+
+  /**
+   * Create a new {@link TableScan} from this scan's configuration that will scan the manifests
+   * specified by the parameters.
+   *
+   * @param manifests specified manifest group which will be scanned
+   * @return a new scan based on this with the given manifest group
+   * @throws IllegalArgumentException if the snapshot cannot be found
+   */
+  TableScan useManifests(Iterable<ManifestFile> manifests);
+
   /**
    * Create a new {@link TableScan} from this scan's configuration that will use the most recent
    * snapshot as of the given time in milliseconds.

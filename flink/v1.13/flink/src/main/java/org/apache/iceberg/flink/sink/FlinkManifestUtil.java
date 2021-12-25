@@ -67,8 +67,8 @@ class FlinkManifestUtil {
   }
 
   static ManifestFile referenceDataFiles(OutputFile outputFile,
-                                         long snapshotId,
                                          long sequenceNumber,
+                                         long snapshotId,
                                          PartitionSpec spec,
                                          List<DataFile> dataFiles) throws IOException {
     ManifestWriter<DataFile> writer = ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
@@ -81,8 +81,8 @@ class FlinkManifestUtil {
   }
 
   static ManifestFile referenceDeleteFiles(OutputFile outputFile,
-                                           long snapshotId,
                                            long sequenceNumber,
+                                           long snapshotId,
                                            PartitionSpec spec,
                                            List<DeleteFile> deleteFiles) throws IOException {
     ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(FORMAT_V2, spec, outputFile,
@@ -134,9 +134,10 @@ class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  static DeltaManifests writeExistingFiles(long snapshotId,
-                                           long sequenceNumber,
-                                           WriteResult result,
+  static DeltaManifests writeExistingFiles(long sequenceNumber,
+                                           long snapshotId,
+                                           DataFile[] dataFiles,
+                                           DeleteFile[] deleteFiles,
                                            Supplier<OutputFile> outputFileSupplier,
                                            PartitionSpec spec) throws IOException {
 
@@ -144,18 +145,18 @@ class FlinkManifestUtil {
     ManifestFile deleteManifest = null;
 
     // Write the exists data files into a newly created data manifest file.
-    if (result.dataFiles() != null && result.dataFiles().length > 0) {
-      dataManifest = referenceDataFiles(outputFileSupplier.get(), snapshotId, sequenceNumber, spec,
-          Lists.newArrayList(result.dataFiles()));
+    if (dataFiles != null && dataFiles.length > 0) {
+      dataManifest = referenceDataFiles(outputFileSupplier.get(), sequenceNumber, snapshotId, spec,
+          Lists.newArrayList(dataFiles));
     }
 
     // Write the exists delete files into a newly created delete manifest file.
-    if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
-      deleteManifest = referenceDeleteFiles(outputFileSupplier.get(), snapshotId, sequenceNumber, spec,
-          Lists.newArrayList(result.deleteFiles()));
+    if (deleteFiles != null && deleteFiles.length > 0) {
+      deleteManifest = referenceDeleteFiles(outputFileSupplier.get(), sequenceNumber, snapshotId, spec,
+          Lists.newArrayList(deleteFiles));
     }
 
-    return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
+    return new DeltaManifests(dataManifest, deleteManifest);
   }
 
   static WriteResult readCompletedFiles(DeltaManifests deltaManifests, FileIO io) throws IOException {

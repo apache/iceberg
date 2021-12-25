@@ -29,6 +29,7 @@ import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -42,12 +43,9 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.SerializableTable;
-import org.apache.iceberg.StaticDataTableScan;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -65,31 +63,22 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
-
 class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
-    implements OneInputStreamOperator<CommitResult, RewriteResult>, BoundedOneInput {
+    implements OneInputStreamOperator<PartitionFileGroup, RewriteResult>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
+  public static final double MAX_FILE_SIZE_DEFAULT_RATIO = 1.80d;
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergStreamRewriter.class);
 
-  public static final String MAX_FILES_COUNT = "flink.rewrite.max-files-count";
-  public static final int MAX_FILES_COUNT_DEFAULT = Integer.MAX_VALUE;
-  public static final String TARGET_FILE_SIZE = "flink.rewrite.target-file-size-bytes";
-  public static final long TARGET_FILE_SIZE_DEFAULT = TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
-
   private final TableLoader tableLoader;
+
   private transient Table table;
-  private transient TableOperations ops;
-  private transient ManifestOutputFileFactory manifestOutputFileFactory;
+  private transient String nameMapping;
+  private transient boolean caseSensitive;
   private transient RowDataFileScanTaskReader rowDataReader;
   private transient TaskWriterFactory<RowData> taskWriterFactory;
+  private transient ManifestOutputFileFactory manifestOutputFileFactory;
 
   private transient int maxFilesCount;
   private transient long targetSizeInBytes;
@@ -97,11 +86,10 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
   private transient Integer splitLookback;
   private transient Long splitOpenFileCost;
 
-  private final Map<StructLikeWrapper, DataFileGroup> dataFileGroupByPartition = Maps.newHashMap();
+  private final Map<StructLikeWrapper, RewriteFileGroup> rewriteFileGroupByPartition = Maps.newHashMap();
 
-  private static final ListStateDescriptor<Map<StructLikeWrapper, DataFileGroup>> STATE_DESCRIPTOR =
-      buildStateDescriptor();
-  private transient ListState<Map<StructLikeWrapper, DataFileGroup>> dataFileGroupsState;
+  private static final ListStateDescriptor<Map<StructLikeWrapper, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
+  private transient ListState<Map<StructLikeWrapper, byte[]>> rewriteFileGroupsState;
 
   IcebergStreamRewriter(TableLoader tableLoader) {
     this.tableLoader = tableLoader;
@@ -114,7 +102,6 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     // Open the table loader and load the table.
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
-    this.ops = ((HasTableOperations) table).operations();
 
     validateAndInitOptions(table.properties());
 
@@ -123,10 +110,10 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
 
-    this.rowDataReader = new RowDataFileScanTaskReader(table.schema(), table.schema(), null, false);
+    this.rowDataReader = new RowDataFileScanTaskReader(table.schema(), table.schema(), nameMapping, caseSensitive);
 
-    String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
-        TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    String formatString = PropertyUtil.propertyAsString(table.properties(),
+        TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory = new RowDataTaskWriterFactory(
@@ -136,9 +123,18 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
 
     // restore state
-    this.dataFileGroupsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
+    this.rewriteFileGroupsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      dataFileGroupByPartition.putAll(dataFileGroupsState.get().iterator().next());
+      Map<StructLikeWrapper, byte[]> rewriteFileGroupsMap = rewriteFileGroupsState.get().iterator().next();
+      Preconditions.checkState(rewriteFileGroupsMap != null,
+              "Rewrite file groups restore from checkpoint shouldn't be null");
+
+      for (Map.Entry<StructLikeWrapper, byte[]> e : rewriteFileGroupsMap.entrySet()) {
+        StructLikeWrapper partition = e.getKey();
+        RewriteFileGroup rewriteFileGroup = SimpleVersionedSerialization.readVersionAndDeSerialize(
+                RewriteFileGroup.Serializer.INSTANCE, e.getValue());
+        rewriteFileGroupByPartition.put(partition, rewriteFileGroup);
+      }
     }
   }
 
@@ -148,42 +144,48 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
   }
 
   @Override
-  public void processElement(StreamRecord<CommitResult> record) throws Exception {
-    CommitResult result = record.getValue();
-    DataFileGroup fileGroup = dataFileGroupByPartition.getOrDefault(result.partition(), new DataFileGroup());
-
-    int dataFilesCount = result.writeResult().dataFiles().length;
-    long dataFilesSize = Arrays.stream(result.writeResult().dataFiles())
-        .map(ContentFile::fileSizeInBytes)
-        .reduce(0L, (acc, size) -> acc += size);
-    DeltaManifests deltaManifests = FlinkManifestUtil.writeExistingFiles(
-        result.snapshotId(), result.sequenceNumber(), result.writeResult(),
-        () -> manifestOutputFileFactory.createTmp(), table.specs().get(result.specId())
-    );
-    fileGroup.append(dataFilesCount, dataFilesSize, result.snapshotId(), result.sequenceNumber(), deltaManifests);
-
-    dataFileGroupByPartition.put(result.partition(), fileGroup);
-
-    rewriteFileGroup(result.partition(), fileGroup);
-  }
-
-  private void emit(RewriteResult result) {
-    output.collect(new StreamRecord<>(result));
-  }
-
-  @Override
   public void snapshotState(StateSnapshotContext context) throws Exception {
     super.snapshotState(context);
 
-    dataFileGroupsState.clear();
-    dataFileGroupsState.add(dataFileGroupByPartition);
+    Map<StructLikeWrapper, byte[]> rewriteFileGroupsMap = Maps.newHashMapWithExpectedSize(
+            rewriteFileGroupByPartition.size());
+    for (Map.Entry<StructLikeWrapper, RewriteFileGroup> e : rewriteFileGroupByPartition.entrySet()) {
+      StructLikeWrapper partition = e.getKey();
+      byte[] rewriteFileGroup = SimpleVersionedSerialization.writeVersionAndSerialize(
+              RewriteFileGroup.Serializer.INSTANCE, e.getValue());
+      rewriteFileGroupsMap.put(partition, rewriteFileGroup);
+    }
+    rewriteFileGroupsState.clear();
+    rewriteFileGroupsState.add(rewriteFileGroupsMap);
   }
 
-  private void rewriteFileGroup(StructLikeWrapper partition, DataFileGroup fileGroup) {
+  @Override
+  public void processElement(StreamRecord<PartitionFileGroup> record) throws Exception {
+    PartitionFileGroup partitionFileGroup = record.getValue();
+    RewriteFileGroup rewriteFileGroup = rewriteFileGroupByPartition.getOrDefault(
+        partitionFileGroup.partition(), new RewriteFileGroup());
+
+    int dataFilesCount = partitionFileGroup.dataFiles().length;
+    long dataFilesSize = Arrays.stream(partitionFileGroup.dataFiles()).mapToLong(ContentFile::fileSizeInBytes).sum();
+    DeltaManifests deltaManifests = FlinkManifestUtil.writeExistingFiles(
+        partitionFileGroup.sequenceNumber(), partitionFileGroup.snapshotId(),
+        partitionFileGroup.dataFiles(), partitionFileGroup.deleteFiles(),
+        () -> manifestOutputFileFactory.createTmp(), table.specs().get(partitionFileGroup.specId())
+    );
+    rewriteFileGroup.append(dataFilesCount, dataFilesSize,
+        partitionFileGroup.sequenceNumber(), partitionFileGroup.snapshotId(), deltaManifests);
+
+    rewriteFileGroupByPartition.put(partitionFileGroup.partition(), rewriteFileGroup);
+
+    rewriteFiles(partitionFileGroup.partition(), rewriteFileGroup);
+  }
+
+  private void rewriteFiles(StructLikeWrapper partition, RewriteFileGroup fileGroup) {
     if (fileGroup.filesSize() < targetSizeInBytes && fileGroup.filesCount() < maxFilesCount) {
       return;
     }
-    String description = MoreObjects.toStringHelper(DataFileGroup.class)
+
+    String description = MoreObjects.toStringHelper(RewriteFileGroup.class)
         .add("partition", partition.get())
         .add("latestSequenceNumber", fileGroup.latestSequenceNumber())
         .add("latestSnapshotId", fileGroup.latestSnapshotId())
@@ -203,7 +205,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     long duration = System.currentTimeMillis() - start;
     LOG.info("Rewritten file group {} in {} ms.", description, duration);
 
-    dataFileGroupByPartition.remove(partition);
+    rewriteFileGroupByPartition.remove(partition);
     for (ManifestFile file : fileGroup.manifestFiles()) {
       try {
         table.io().deleteFile(file.path());
@@ -214,9 +216,11 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     }
   }
 
-  private RewriteResult rewrite(StructLikeWrapper partition, DataFileGroup fileGroup) throws IOException {
-    CloseableIterable<FileScanTask> fileScanTasks = StaticDataTableScan.of(table, ops)
-        .scan(fileGroup.manifestFiles())
+  private RewriteResult rewrite(StructLikeWrapper partition, RewriteFileGroup fileGroup) throws IOException {
+    CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
+        .useManifests(fileGroup.manifestFiles())
+        .caseSensitive(caseSensitive)
+        .ignoreResiduals()
         .planFiles();
 
     CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSizeInBytes);
@@ -262,9 +266,13 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
         .build();
   }
 
+  private void emit(RewriteResult result) {
+    output.collect(new StreamRecord<>(result));
+  }
+
   @Override
   public void endInput() throws Exception {
-    dataFileGroupByPartition.forEach(this::rewriteFileGroup);
+    rewriteFileGroupByPartition.forEach(this::rewriteFiles);
   }
 
   @Override
@@ -275,37 +283,39 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     }
   }
 
-  private static ListStateDescriptor<Map<StructLikeWrapper, DataFileGroup>> buildStateDescriptor() {
-    TypeInformation<Map<StructLikeWrapper, DataFileGroup>> info = TypeInformation.of(
-        new TypeHint<Map<StructLikeWrapper, DataFileGroup>>() {}
+  private static ListStateDescriptor<Map<StructLikeWrapper, byte[]>> buildStateDescriptor() {
+    TypeInformation<Map<StructLikeWrapper, byte[]>> info = TypeInformation.of(
+        new TypeHint<Map<StructLikeWrapper, byte[]>>() {}
     );
-    return new ListStateDescriptor<>("iceberg-stream-rewriter-state", info);
+    return new ListStateDescriptor<>("iceberg-streaming-rewriter-state", info);
   }
 
   private void validateAndInitOptions(Map<String, String> properties) {
-    maxFilesCount = PropertyUtil.propertyAsInt(properties, MAX_FILES_COUNT, MAX_FILES_COUNT_DEFAULT);
-    Preconditions.checkArgument(maxFilesCount > 0,
-        "Cannot set %s to a negative number, %d < 0", MAX_FILES_COUNT, maxFilesCount);
+    nameMapping = PropertyUtil.propertyAsString(properties, TableProperties.DEFAULT_NAME_MAPPING, null);
+    caseSensitive = PropertyUtil.propertyAsBoolean(properties, FlinkSinkOptions.STREAMING_REWRITE_CASE_SENSITIVE,
+            FlinkSinkOptions.STREAMING_REWRITE_CASE_SENSITIVE_DEFAULT);
 
-    long splitSize = PropertyUtil.propertyAsLong(properties, SPLIT_SIZE, SPLIT_SIZE_DEFAULT);
-    Preconditions.checkArgument(splitSize > 0,
-        "Cannot set %s to a negative number or zero, %d <= 0", SPLIT_SIZE, splitSize);
+    maxFilesCount = PropertyUtil.propertyAsInt(properties, FlinkSinkOptions.STREAMING_REWRITE_MAX_FILES_COUNT,
+        FlinkSinkOptions.STREAMING_REWRITE_MAX_FILES_COUNT_DEFAULT);
+    Preconditions.checkArgument(maxFilesCount > 0, "Cannot set %s to a negative number, %d < 0",
+        FlinkSinkOptions.STREAMING_REWRITE_MAX_FILES_COUNT, maxFilesCount);
 
-    long targetFileSize = PropertyUtil.propertyAsLong(properties, TARGET_FILE_SIZE, TARGET_FILE_SIZE_DEFAULT);
-    Preconditions.checkArgument(targetFileSize > 0,
-        "Cannot set %s to a negative number, %d < 0", TARGET_FILE_SIZE, targetFileSize);
-
-    targetSizeInBytes = Math.min(splitSize, targetFileSize);
+    targetSizeInBytes = PropertyUtil.propertyAsLong(properties, FlinkSinkOptions.STREAMING_REWRITE_TARGET_FILE_SIZE,
+        FlinkSinkOptions.STREAMING_REWRITE_TARGET_FILE_SIZE_DEFAULT);
+    Preconditions.checkArgument(targetSizeInBytes > 0, "Cannot set %s to a negative number, %d < 0",
+        FlinkSinkOptions.STREAMING_REWRITE_TARGET_FILE_SIZE, targetSizeInBytes);
 
     // Use a larger max target file size than target size to avoid creating tiny remainder files.
-    maxFileSizeInBytes = (long) (targetFileSize * 1.5);
+    maxFileSizeInBytes = (long) (targetSizeInBytes * MAX_FILE_SIZE_DEFAULT_RATIO);
 
-    splitLookback = PropertyUtil.propertyAsInt(properties, SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
-    Preconditions.checkArgument(splitLookback > 0,
-        "Cannot set %s to a negative number or zero, %d <= 0", SPLIT_LOOKBACK, splitLookback);
+    splitLookback = PropertyUtil.propertyAsInt(properties,
+        TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    Preconditions.checkArgument(splitLookback > 0, "Cannot set %s to a negative number or zero, %d <= 0",
+        TableProperties.SPLIT_LOOKBACK, splitLookback);
 
-    splitOpenFileCost = PropertyUtil.propertyAsLong(properties, SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
-    Preconditions.checkArgument(splitOpenFileCost >= 0,
-        "Cannot set %s to a negative number, %d < 0", SPLIT_OPEN_FILE_COST, splitOpenFileCost);
+    splitOpenFileCost = PropertyUtil.propertyAsLong(properties,
+        TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    Preconditions.checkArgument(splitOpenFileCost >= 0, "Cannot set %s to a negative number, %d < 0",
+        TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost);
   }
 }

@@ -20,94 +20,62 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
-import java.util.Collection;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.io.WriteResult;
-import org.apache.iceberg.util.StructLikeWrapper;
 
 class CommitResult implements Serializable {
 
-  private final long snapshotId;
   private final long sequenceNumber;
-  private final int specId;
-  private final StructLikeWrapper partition;
+  private final long snapshotId;
   private final WriteResult writeResult;
 
   private CommitResult(long snapshotId,
                        long sequenceNumber,
-                       int specId,
-                       StructLikeWrapper partition,
                        WriteResult writeResult) {
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
-    this.specId = specId;
-    this.partition = partition;
     this.writeResult = writeResult;
-  }
-
-  long snapshotId() {
-    return snapshotId;
   }
 
   long sequenceNumber() {
     return sequenceNumber;
   }
 
-  public int specId() {
-    return specId;
-  }
-
-  StructLikeWrapper partition() {
-    return partition;
+  long snapshotId() {
+    return snapshotId;
   }
 
   WriteResult writeResult() {
     return writeResult;
   }
 
-  static Builder builder(int specId, long snapshotId, long sequenceNumber) {
-    return new Builder(specId, snapshotId, sequenceNumber);
+  static Builder builder(long sequenceNumber, long snapshotId) {
+    return new Builder(sequenceNumber, snapshotId);
   }
 
   static class Builder {
 
-    private final long snapshotId;
     private final long sequenceNumber;
-    private final int specId;
-    private StructLikeWrapper partition;
+    private final long snapshotId;
     private final WriteResult.Builder writeResult;
 
-    private Builder(int specId, long snapshotId, long sequenceNumber) {
-      this.snapshotId = snapshotId;
+    private Builder(long sequenceNumber, long snapshotId) {
       this.sequenceNumber = sequenceNumber;
-      this.specId = specId;
-      this.partition = null;
+      this.snapshotId = snapshotId;
       this.writeResult = WriteResult.builder();
     }
 
-    Builder partition(StructLikeWrapper newPartition) {
-      this.partition = newPartition;
+    Builder add(WriteResult result) {
+      this.writeResult.add(result);
       return this;
     }
 
-    Builder addDataFile(Collection<DataFile> files) {
-      writeResult.addDataFiles(files);
-      return this;
-    }
-
-    Builder addDeleteFile(Collection<DeleteFile> files) {
-      writeResult.addDeleteFiles(files);
-      return this;
-    }
-
-    Builder addReferencedDataFile(Collection<CharSequence> files) {
-      writeResult.addReferencedDataFiles(files);
+    Builder addAll(Iterable<WriteResult> results) {
+      this.writeResult.addAll(results);
       return this;
     }
 
     CommitResult build() {
-      return new CommitResult(snapshotId, sequenceNumber, specId, partition, writeResult.build());
+      return new CommitResult(snapshotId, sequenceNumber, writeResult.build());
     }
   }
 }

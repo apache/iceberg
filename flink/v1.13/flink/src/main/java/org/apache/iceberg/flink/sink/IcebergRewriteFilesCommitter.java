@@ -45,10 +45,8 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergRewriteFilesCommitter.class);
 
-  public static final String COMMIT_GROUP_SIZE = "flink.rewrite.commit-groups-size";
-  public static final int COMMIT_GROUP_SIZE_DEFAULT = Integer.MAX_VALUE;
-
   private final TableLoader tableLoader;
+
   private transient Table table;
   private transient TableOperations ops;
 
@@ -66,9 +64,11 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
     this.table = tableLoader.loadTable();
     this.ops = ((HasTableOperations) table).operations();
 
-    commitGroupSize = PropertyUtil.propertyAsInt(table.properties(), COMMIT_GROUP_SIZE, COMMIT_GROUP_SIZE_DEFAULT);
-    Preconditions.checkArgument(commitGroupSize > 0,
-        "Cannot set %s to a negative number, %d < 0", COMMIT_GROUP_SIZE, commitGroupSize);
+    commitGroupSize = PropertyUtil.propertyAsInt(table.properties(),
+        FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE,
+        FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE_DEFAULT);
+    Preconditions.checkArgument(commitGroupSize > 0, "Cannot set %s to a negative number, %d < 0",
+        FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE, commitGroupSize);
   }
 
   @Override

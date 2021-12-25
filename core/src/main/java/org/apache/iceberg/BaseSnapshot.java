@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableCollection;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,8 +51,10 @@ class BaseSnapshot implements Snapshot {
   private transient List<ManifestFile> allManifests = null;
   private transient List<ManifestFile> dataManifests = null;
   private transient List<ManifestFile> deleteManifests = null;
-  private transient List<DataFile> cachedAdds = null;
-  private transient List<DataFile> cachedDeletes = null;
+  private transient List<DataFile> cachedAddedDataFiles = null;
+  private transient List<DataFile> cachedDeletedDataFiles = null;
+  private transient List<DeleteFile> cachedAddedDeleteFiles = null;
+  private transient List<DeleteFile> cachedDeletedDeleteFiles = null;
 
   /**
    * For testing only.
@@ -171,18 +175,34 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public List<DataFile> addedFiles() {
-    if (cachedAdds == null) {
-      cacheChanges();
+    if (cachedAddedDataFiles == null) {
+      cacheDataFileChanges();
     }
-    return cachedAdds;
+    return cachedAddedDataFiles;
   }
 
   @Override
   public List<DataFile> deletedFiles() {
-    if (cachedDeletes == null) {
-      cacheChanges();
+    if (cachedDeletedDataFiles == null) {
+      cacheDataFileChanges();
     }
-    return cachedDeletes;
+    return cachedDeletedDataFiles;
+  }
+
+  @Override
+  public Iterable<DeleteFile> addedDeleteFiles() {
+    if (cachedAddedDeleteFiles == null) {
+      cacheDeleteFileChanges();
+    }
+    return cachedAddedDeleteFiles;
+  }
+
+  @Override
+  public Iterable<DeleteFile> deletedDeleteFiles() {
+    if (cachedDeletedDeleteFiles == null) {
+      cacheDeleteFileChanges();
+    }
+    return cachedDeletedDeleteFiles;
   }
 
   @Override
@@ -190,17 +210,38 @@ class BaseSnapshot implements Snapshot {
     return manifestListLocation;
   }
 
-  private void cacheChanges() {
+  private void cacheDataFileChanges() {
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
+    collectFileChanges(adds, deletes, dataManifests(),
+        manifest -> ManifestFiles.read(manifest, io, null).entries()
+    );
+    this.cachedAddedDataFiles = adds.build();
+    this.cachedDeletedDataFiles = deletes.build();
+  }
 
+  private void cacheDeleteFileChanges() {
+    ImmutableList.Builder<DeleteFile> adds = ImmutableList.builder();
+    ImmutableList.Builder<DeleteFile> deletes = ImmutableList.builder();
+    collectFileChanges(adds, deletes, deleteManifests(),
+        manifest -> ManifestFiles.readDeleteManifest(manifest, io, null).entries()
+    );
+    this.cachedAddedDeleteFiles = adds.build();
+    this.cachedDeletedDeleteFiles = deletes.build();
+  }
+
+  private <F extends ContentFile<F>> void collectFileChanges(
+      ImmutableCollection.Builder<F> adds, ImmutableCollection.Builder<F> deletes, Iterable<ManifestFile> manifests,
+      Function<ManifestFile, CloseableIterable<ManifestEntry<F>>> manifestReader) {
     // read only manifests that were created by this snapshot
-    Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
+    Iterable<ManifestFile> changedManifests = Iterables.filter(manifests,
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
-        .ignoreExisting()
-        .entries()) {
-      for (ManifestEntry<DataFile> entry : entries) {
+
+    try (CloseableIterable<ManifestEntry<F>> entries = CloseableIterable.filter(
+        CloseableIterable.concat(Iterables.transform(changedManifests, manifestReader::apply)),
+        entry -> entry.status() != ManifestEntry.Status.EXISTING
+    )) {
+      for (ManifestEntry<F> entry : entries) {
         switch (entry.status()) {
           case ADDED:
             adds.add(entry.file().copy());
@@ -216,9 +257,6 @@ class BaseSnapshot implements Snapshot {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close entries while caching changes");
     }
-
-    this.cachedAdds = adds.build();
-    this.cachedDeletes = deletes.build();
   }
 
   @Override

@@ -65,6 +65,14 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
+  public TableScan useManifests(Iterable<ManifestFile> manifests) {
+    Long scanSnapshotId = snapshotId();
+    Preconditions.checkState(scanSnapshotId == null,
+        "Cannot enable specific manifests scan, scan-snapshot set to id=%s", scanSnapshotId);
+    return new ManifestsDataTableScan(tableOps(), table(), schema(), context().useManifests(manifests));
+  }
+
+  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     // call method in superclass just for the side effect of argument validation;
     // we do not use its return value

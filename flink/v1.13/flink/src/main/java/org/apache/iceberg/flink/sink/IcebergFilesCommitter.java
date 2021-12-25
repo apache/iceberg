@@ -21,16 +21,12 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
-import java.util.Set;
 import java.util.SortedMap;
-import java.util.stream.Collectors;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -44,10 +40,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
@@ -61,14 +54,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,7 +80,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
-  private final boolean emitResults;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -124,10 +111,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions, boolean emitResults) {
+  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
-    this.emitResults = emitResults;
   }
 
   @Override
@@ -335,54 +321,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
   }
 
   private void emitCommitResult(SnapshotUpdate<?> operation, Iterable<WriteResult> results) {
-    if (!emitResults) {
-      return;
-    }
-
     Preconditions.checkArgument(operation.updateEvent() instanceof CreateSnapshotEvent,
         "Operation update event should be instance of CreateSnapshotEvent, but not %s", operation.updateEvent());
+
     CreateSnapshotEvent event = (CreateSnapshotEvent) operation.updateEvent();
-
-    Multimap<Pair<Integer, StructLikeWrapper>, DataFile> dataFilesByPartition = Multimaps.newListMultimap(
-        Maps.newHashMap(), Lists::newArrayList);
-    Multimap<Pair<Integer, StructLikeWrapper>, DeleteFile> deleteFilesByPartition = Multimaps.newListMultimap(
-        Maps.newHashMap(), Lists::newArrayList);
-    Set<CharSequence> referencedDataFilesSet = Sets.newHashSet();
-    for (WriteResult writeResult : results) {
-
-      for (DataFile dataFile : writeResult.dataFiles()) {
-        PartitionSpec spec = table.specs().get(dataFile.specId());
-        StructLikeWrapper wrapper = StructLikeWrapper.forType(spec.partitionType()).set(dataFile.partition());
-        dataFilesByPartition.put(Pair.of(dataFile.specId(), wrapper), dataFile);
-      }
-
-      for (DeleteFile deleteFile : writeResult.deleteFiles()) {
-        PartitionSpec spec = table.specs().get(deleteFile.specId());
-        StructLikeWrapper wrapper = StructLikeWrapper.forType(spec.partitionType()).set(deleteFile.partition());
-        deleteFilesByPartition.put(Pair.of(deleteFile.specId(), wrapper), deleteFile);
-      }
-
-      Collections.addAll(referencedDataFilesSet, writeResult.referencedDataFiles());
-    }
-
-    Set<Pair<Integer, StructLikeWrapper>> pairs = Sets.union(dataFilesByPartition.keySet(),
-        deleteFilesByPartition.keySet());
-    for (Pair<Integer, StructLikeWrapper> pair : pairs) {
-      Collection<DataFile> dataFiles = dataFilesByPartition.get(pair);
-      Collection<DeleteFile> deleteFiles = deleteFilesByPartition.get(pair);
-      Collection<CharSequence> referencedDataFiles = dataFiles.stream()
-          .map(file -> referencedDataFilesSet.contains(file.path()) ? file.path() : null)
-          .filter(Objects::nonNull)
-          .collect(Collectors.toList());
-
-      CommitResult commitResult = CommitResult.builder(pair.first(), event.snapshotId(), event.sequenceNumber())
-          .partition(pair.second())
-          .addDataFile(dataFiles)
-          .addDeleteFile(deleteFiles)
-          .addReferencedDataFile(referencedDataFiles)
-          .build();
-      emit(commitResult);
-    }
+    CommitResult commitResult = CommitResult.builder(event.sequenceNumber(), event.snapshotId())
+        .addAll(results)
+        .build();
+    emit(commitResult);
   }
 
   @Override
