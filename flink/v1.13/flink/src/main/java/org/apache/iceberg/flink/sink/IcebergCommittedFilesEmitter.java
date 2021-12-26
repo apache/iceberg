@@ -111,7 +111,7 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
           "Last emitted snapshot id restore from checkpoint shouldn't be negative or 0");
 
       long lastCommittedSnapshotId = getLastCommittedSnapshotId(table, restoredFlinkJobId);
-      if (SnapshotUtil.ancestorOf(table, lastCommittedSnapshotId, lastEmittedSnapshotId)) {
+      if (SnapshotUtil.isAncestorOf(table, lastCommittedSnapshotId, lastEmittedSnapshotId)) {
         // Restore last emitted snapshot id from state will lose the last committed snapshot of restored flink job,
         // because the committer emit committed result after checkpoint so that the last emitted snapshot id
         // has not updated when checkpointing. Therefore, we need to emit all data and delete files
@@ -219,7 +219,7 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
   public void endInput() throws Exception {
     if (lastEmittedSnapshotId != DUMMY_SNAPSHOT_ID) {
       long lastCommittedSnapshotId = getLastCommittedSnapshotId(table, flinkJobId);
-      if (SnapshotUtil.ancestorOf(table, lastCommittedSnapshotId, lastEmittedSnapshotId)) {
+      if (SnapshotUtil.isAncestorOf(table, lastCommittedSnapshotId, lastEmittedSnapshotId)) {
         emitPartitionFileGroupsWithin(lastEmittedSnapshotId, lastCommittedSnapshotId, flinkJobId);
         this.lastEmittedSnapshotId = lastCommittedSnapshotId;
       }
