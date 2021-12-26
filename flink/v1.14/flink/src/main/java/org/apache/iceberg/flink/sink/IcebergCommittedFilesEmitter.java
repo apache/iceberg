@@ -226,6 +226,14 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
     }
   }
 
+  @Override
+  public void close() throws Exception {
+    super.close();
+    if (tableLoader != null) {
+      tableLoader.close();
+    }
+  }
+
   private static long getLastCommittedSnapshotId(Table table, String flinkJobId) {
     Snapshot snapshot = table.currentSnapshot();
     while (snapshot != null) {

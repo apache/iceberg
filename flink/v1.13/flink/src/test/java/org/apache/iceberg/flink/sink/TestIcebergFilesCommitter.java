@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -41,7 +40,6 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -49,7 +47,6 @@ import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -77,7 +74,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private String tablePath;
   private File flinkManifestFolder;
-  private FileAppenderFactory<RowData> appenderFactory;
 
   private final FileFormat format;
 
@@ -89,7 +85,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         new Object[] {"parquet", 1},
         new Object[] {"parquet", 2},
         new Object[] {"orc", 1},
-        new Object[] {"orc", 2},
+        new Object[] {"orc", 2}
     };
   }
 
@@ -117,8 +113,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath())
         .set(MAX_CONTINUOUS_EMPTY_COMMITS, "1")
         .commit();
-
-    appenderFactory = createDeletableAppenderFactory();
   }
 
   @Test
@@ -126,7 +120,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long checkpointId = 0;
     long timestamp = 0;
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
@@ -158,7 +152,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     JobID jobId = new JobID();
     long checkpointId = 0;
     long timestamp = 0;
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
@@ -189,7 +183,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long timestamp = 0;
 
     JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobID)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
       harness.setup();
       harness.open();
       assertSnapshotSize(0);
@@ -197,7 +191,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
       for (int i = 1; i <= 3; i++) {
         RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
-        DataFile dataFile = writeDataFile("data-" + i, null, ImmutableList.of(rowData));
+        DataFile dataFile = writeDataFile("data-" + i, ImmutableList.of(rowData));
         harness.processElement(of(dataFile), ++timestamp);
         rows.add(rowData);
 
@@ -224,14 +218,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long timestamp = 0;
 
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
       assertMaxCommittedCheckpointId(jobId, -1L);
 
       RowData row1 = SimpleDataUtil.createRowData(1, "hello");
-      DataFile dataFile1 = writeDataFile("data-1", null, ImmutableList.of(row1));
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
       harness.processElement(of(dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
@@ -242,7 +236,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       assertFlinkManifests(1);
 
       RowData row2 = SimpleDataUtil.createRowData(2, "world");
-      DataFile dataFile2 = writeDataFile("data-2", null, ImmutableList.of(row2));
+      DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
       harness.processElement(of(dataFile2), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
 
@@ -275,14 +269,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long timestamp = 0;
 
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
       assertMaxCommittedCheckpointId(jobId, -1L);
 
       RowData row1 = SimpleDataUtil.createRowData(1, "hello");
-      DataFile dataFile1 = writeDataFile("data-1", null, ImmutableList.of(row1));
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
       harness.processElement(of(dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
@@ -293,7 +287,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       assertFlinkManifests(1);
 
       RowData row2 = SimpleDataUtil.createRowData(2, "world");
-      DataFile dataFile2 = writeDataFile("data-2", null, ImmutableList.of(row2));
+      DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
       harness.processElement(of(dataFile2), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
 
@@ -324,7 +318,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     OperatorSubtaskState snapshot;
 
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
@@ -333,7 +327,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData row = SimpleDataUtil.createRowData(1, "hello");
       expectedRows.add(row);
-      DataFile dataFile1 = writeDataFile("data-1", null, ImmutableList.of(row));
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row));
 
       harness.processElement(of(dataFile1), ++timestamp);
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
@@ -348,7 +342,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
 
     // Restore from the given snapshot
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.initializeState(snapshot);
       harness.open();
@@ -359,7 +353,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData row = SimpleDataUtil.createRowData(2, "world");
       expectedRows.add(row);
-      DataFile dataFile = writeDataFile("data-2", null, ImmutableList.of(row));
+      DataFile dataFile = writeDataFile("data-2", ImmutableList.of(row));
       harness.processElement(of(dataFile), ++timestamp);
 
       harness.snapshot(++checkpointId, ++timestamp);
@@ -383,7 +377,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     OperatorSubtaskState snapshot;
     List<RowData> expectedRows = Lists.newArrayList();
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
@@ -392,7 +386,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData row = SimpleDataUtil.createRowData(1, "hello");
       expectedRows.add(row);
-      DataFile dataFile = writeDataFile("data-1", null, ImmutableList.of(row));
+      DataFile dataFile = writeDataFile("data-1", ImmutableList.of(row));
       harness.processElement(of(dataFile), ++timestamp);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
@@ -401,7 +395,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       assertFlinkManifests(1);
     }
 
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.initializeState(snapshot);
       harness.open();
@@ -425,7 +419,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData row = SimpleDataUtil.createRowData(2, "world");
       expectedRows.add(row);
-      DataFile dataFile = writeDataFile("data-2", null, ImmutableList.of(row));
+      DataFile dataFile = writeDataFile("data-2", ImmutableList.of(row));
       harness.processElement(of(dataFile), ++timestamp);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
@@ -434,7 +428,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
     // Redeploying flink job from external checkpoint.
     JobID newJobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(newJobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(newJobId)) {
       harness.setup();
       harness.initializeState(snapshot);
       harness.open();
@@ -449,7 +443,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData row = SimpleDataUtil.createRowData(3, "foo");
       expectedRows.add(row);
-      DataFile dataFile = writeDataFile("data-3", null, ImmutableList.of(row));
+      DataFile dataFile = writeDataFile("data-3", ImmutableList.of(row));
       harness.processElement(of(dataFile), ++timestamp);
 
       harness.snapshot(++checkpointId, ++timestamp);
@@ -472,7 +466,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     List<RowData> tableRows = Lists.newArrayList();
 
     JobID oldJobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(oldJobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(oldJobId)) {
       harness.setup();
       harness.open();
 
@@ -483,7 +477,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         rows.add(SimpleDataUtil.createRowData(i, "hello" + i));
         tableRows.addAll(rows);
 
-        DataFile dataFile = writeDataFile(String.format("data-%d", i), null, rows);
+        DataFile dataFile = writeDataFile(String.format("data-%d", i), rows);
         harness.processElement(of(dataFile), ++timestamp);
         harness.snapshot(++checkpointId, ++timestamp);
         assertFlinkManifests(1);
@@ -501,7 +495,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     checkpointId = 0;
     timestamp = 0;
     JobID newJobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(newJobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(newJobId)) {
       harness.setup();
       harness.open();
 
@@ -512,7 +506,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       rows.add(SimpleDataUtil.createRowData(2, "world"));
       tableRows.addAll(rows);
 
-      DataFile dataFile = writeDataFile("data-new-1", null, rows);
+      DataFile dataFile = writeDataFile("data-new-1", rows);
       harness.processElement(of(dataFile), ++timestamp);
       harness.snapshot(++checkpointId, ++timestamp);
       assertFlinkManifests(1);
@@ -535,7 +529,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       int jobIndex = i % 3;
       int checkpointId = i / 3;
       JobID jobId = jobs[jobIndex];
-      try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+      try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
         harness.setup();
         harness.open();
 
@@ -545,7 +539,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         List<RowData> rows = Lists.newArrayList(SimpleDataUtil.createRowData(i, "word-" + i));
         tableRows.addAll(rows);
 
-        DataFile dataFile = writeDataFile(String.format("data-%d", i), null, rows);
+        DataFile dataFile = writeDataFile(String.format("data-%d", i), rows);
         harness.processElement(of(dataFile), ++timestamp);
         harness.snapshot(checkpointId + 1, ++timestamp);
         assertFlinkManifests(1);
@@ -562,7 +556,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   @Test
   public void testBoundedStream() throws Exception {
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
@@ -572,7 +566,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       List<RowData> tableRows = Lists.newArrayList(SimpleDataUtil.createRowData(1, "word-1"));
 
-      DataFile dataFile = writeDataFile("data-1", null, tableRows);
+      DataFile dataFile = writeDataFile("data-1", tableRows);
       harness.processElement(of(dataFile), 1);
       ((BoundedOneInput) harness.getOneInputOperator()).endInput();
 
@@ -589,14 +583,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     final long checkpoint = 10;
 
     JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
       assertMaxCommittedCheckpointId(jobId, -1L);
 
       RowData row1 = SimpleDataUtil.createRowData(1, "hello");
-      DataFile dataFile1 = writeDataFile("data-1", null, ImmutableList.of(row1));
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
       harness.processElement(of(dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
@@ -629,15 +623,16 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long checkpoint = 10;
 
     JobID jobId = new JobID();
+    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
 
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
       assertMaxCommittedCheckpointId(jobId, -1L);
 
       RowData row1 = SimpleDataUtil.createInsert(1, "aaa");
-      DataFile dataFile1 = writeDataFile("data-file-1", null, ImmutableList.of(row1));
+      DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(row1));
       harness.processElement(of(dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
 
@@ -661,10 +656,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 4. process both data files and delete files.
       RowData row2 = SimpleDataUtil.createInsert(2, "bbb");
-      DataFile dataFile2 = writeDataFile("data-file-2", null, ImmutableList.of(row2));
+      DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(row2));
 
       RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
-      DeleteFile deleteFile1 = writeEqDeleteFile("delete-file-1", null, ImmutableList.of(delete1));
+      DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
       harness.processElement(WriteResult.builder()
               .addDataFiles(dataFile2)
               .addDeleteFiles(deleteFile1)
@@ -692,8 +687,9 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long checkpoint = 10;
 
     JobID jobId = new JobID();
+    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
 
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
 
@@ -702,8 +698,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       RowData insert1 = SimpleDataUtil.createInsert(1, "aaa");
       RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
       RowData delete3 = SimpleDataUtil.createDelete(3, "ccc");
-      DataFile dataFile1 = writeDataFile("data-file-1", null, ImmutableList.of(insert1, insert2));
-      DeleteFile deleteFile1 = writeEqDeleteFile("delete-file-1", null, ImmutableList.of(delete3));
+      DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(insert1, insert2));
+      DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete3));
       harness.processElement(WriteResult.builder()
               .addDataFiles(dataFile1)
               .addDeleteFiles(deleteFile1)
@@ -715,8 +711,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData insert4 = SimpleDataUtil.createInsert(4, "ddd");
       RowData delete2 = SimpleDataUtil.createDelete(2, "bbb");
-      DataFile dataFile2 = writeDataFile("data-file-2", null, ImmutableList.of(insert4));
-      DeleteFile deleteFile2 = writeEqDeleteFile("delete-file-2", null, ImmutableList.of(delete2));
+      DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(insert4));
+      DeleteFile deleteFile2 = writeEqDeleteFile(appenderFactory, "delete-file-2", ImmutableList.of(delete2));
       harness.processElement(WriteResult.builder()
               .addDataFiles(dataFile2)
               .addDeleteFiles(deleteFile2)
@@ -735,91 +731,16 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
-  @Test
-  public void testEmitCommitResult() throws Exception {
-    long timestamp = 0;
-    long checkpoint = 10;
-
-    JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, CommitResult> harness = createStreamSink(jobId)) {
-      harness.setup();
-      harness.open();
-
-      assertMaxCommittedCheckpointId(jobId, -1L);
-
-      // construct write results
-      DataFile dataFile = writeDataFile("data-file", null, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "ccc")
-      ));
-      DeleteFile deleteFile = writePosDeleteFile("pos-delete", null, ImmutableList.of(
-          Pair.of(dataFile.path(), 0L),
-          Pair.of(dataFile.path(), 2L)
-      ));
-
-      WriteResult writeResult = formatVersion < 2 ? WriteResult.builder().addDataFiles(dataFile).build() :
-          WriteResult.builder()
-              .addDataFiles(dataFile)
-              .addDeleteFiles(deleteFile)
-              .addReferencedDataFiles(dataFile.path())
-              .build();
-
-      // construct expect result
-      List<RowData> expected = formatVersion < 2 ? ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "ccc")
-      ) : ImmutableList.of(SimpleDataUtil.createRowData(2, "bbb"));
-
-      // 0. process all write result
-      harness.processElement(writeResult, ++timestamp);
-      assertMaxCommittedCheckpointId(jobId, -1L);
-
-      // 1. snapshotState for checkpoint#1
-      harness.snapshot(checkpoint, ++timestamp);
-      assertFlinkManifests(formatVersion < 2 ? 1 : 2);
-
-      // 2. notifyCheckpointComplete for checkpoint
-      harness.notifyOfCompletedCheckpoint(checkpoint);
-      SimpleDataUtil.assertTableRows(table, expected);
-      assertMaxCommittedCheckpointId(jobId, checkpoint);
-      assertFlinkManifests(0);
-
-      // 3. emit commit results
-      List<CommitResult> commitResults = harness.extractOutputValues();
-      Assert.assertEquals(1, commitResults.size());
-
-      CommitResult commitResult = commitResults.get(0);
-      Assert.assertEquals(table.currentSnapshot().sequenceNumber(), commitResult.sequenceNumber());
-      Assert.assertEquals(table.currentSnapshot().snapshotId(), commitResult.snapshotId());
-      Assert.assertEquals(
-          Arrays.stream(writeResult.dataFiles()).map(ContentFile::path).collect(Collectors.toSet()),
-          Arrays.stream(commitResult.writeResult().dataFiles()).map(ContentFile::path).collect(Collectors.toSet())
-      );
-      Assert.assertEquals(
-          Arrays.stream(writeResult.deleteFiles()).map(ContentFile::path).collect(Collectors.toSet()),
-          Arrays.stream(commitResult.writeResult().deleteFiles()).map(ContentFile::path).collect(Collectors.toSet())
-      );
-      Assert.assertEquals(
-          Arrays.stream(writeResult.referencedDataFiles()).collect(Collectors.toSet()),
-          Arrays.stream(commitResult.writeResult().referencedDataFiles()).collect(Collectors.toSet())
-      );
-    }
+  private DeleteFile writeEqDeleteFile(FileAppenderFactory<RowData> appenderFactory,
+                                       String filename, List<RowData> deletes) throws IOException {
+    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
   }
 
-  private DataFile writeDataFile(String filename, StructLike partition, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeDataFile(table, format, filename, appenderFactory, partition, rows);
-  }
-
-  private DeleteFile writeEqDeleteFile(String filename, StructLike partition, List<RowData> deletes)
-      throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, format, filename, appenderFactory, partition, deletes);
-  }
-
-  private DeleteFile writePosDeleteFile(String filename, StructLike partition, List<Pair<CharSequence, Long>> positions)
-      throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, format, filename, appenderFactory, partition, positions);
+  private DeleteFile writePosDeleteFile(FileAppenderFactory<RowData> appenderFactory,
+                                        String filename,
+                                        List<Pair<CharSequence, Long>> positions) throws IOException {
+    return SimpleDataUtil.writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory,
+        positions);
   }
 
   private FileAppenderFactory<RowData> createDeletableAppenderFactory() {
@@ -846,6 +767,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     return manifests;
   }
 
+  private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
+    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
+  }
+
   private void assertMaxCommittedCheckpointId(JobID jobID, long expectedId) {
     table.refresh();
     long actualId = IcebergFilesCommitter.getMaxCommittedCheckpointId(table, jobID.toString());
@@ -857,7 +782,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     Assert.assertEquals(expectedSnapshotSize, Lists.newArrayList(table.snapshots()).size());
   }
 
-  private OneInputStreamOperatorTestHarness<WriteResult, CommitResult> createStreamSink(JobID jobID)
+  private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
     TestOperatorFactory factory = TestOperatorFactory.of(tablePath);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
@@ -876,8 +801,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         .build();
   }
 
-  private static class TestOperatorFactory extends AbstractStreamOperatorFactory<CommitResult>
-      implements OneInputStreamOperatorFactory<WriteResult, CommitResult> {
+  private static class TestOperatorFactory extends AbstractStreamOperatorFactory<Void>
+      implements OneInputStreamOperatorFactory<WriteResult, Void> {
     private final String tablePath;
 
     private TestOperatorFactory(String tablePath) {
@@ -890,8 +815,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends StreamOperator<CommitResult>> T createStreamOperator(
-        StreamOperatorParameters<CommitResult> param) {
+    public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
       IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;

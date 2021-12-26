@@ -274,8 +274,8 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
   }
 
   @Override
-  public void dispose() throws Exception {
-    super.dispose();
+  public void close() throws Exception {
+    super.close();
     if (tableLoader != null) {
       tableLoader.close();
     }

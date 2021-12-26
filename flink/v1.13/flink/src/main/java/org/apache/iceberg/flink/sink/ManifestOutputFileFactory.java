@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableOperations;
@@ -50,31 +49,23 @@ class ManifestOutputFileFactory {
     this.attemptNumber = attemptNumber;
   }
 
-  private String generatePath(String version) {
-    return FileFormat.AVRO.addExtension(String.format("%s-%05d-%d-%s-%05d", flinkJobId, subTaskId,
-        attemptNumber, version, fileCount.incrementAndGet()));
+  private String generatePath(long checkpointId) {
+    return FileFormat.AVRO.addExtension(String.format("%s-%05d-%d-%d-%05d", flinkJobId, subTaskId,
+        attemptNumber, checkpointId, fileCount.incrementAndGet()));
   }
 
-  private OutputFile create(String filePath) {
+  OutputFile create(long checkpointId) {
     String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
 
     String newManifestFullPath;
     if (Strings.isNullOrEmpty(flinkManifestDir)) {
       // User don't specify any flink manifest directory, so just use the default metadata path.
-      newManifestFullPath = ops.metadataFileLocation(filePath);
+      newManifestFullPath = ops.metadataFileLocation(generatePath(checkpointId));
     } else {
-      newManifestFullPath = String.format("%s/%s", stripTrailingSlash(flinkManifestDir), filePath);
+      newManifestFullPath = String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
     }
 
     return io.newOutputFile(newManifestFullPath);
-  }
-
-  OutputFile create(long checkpointId) {
-    return create(generatePath(String.valueOf(checkpointId)));
-  }
-
-  OutputFile createTmp() {
-    return create(generatePath(UUID.randomUUID().toString()));
   }
 
   private static String stripTrailingSlash(String path) {

@@ -34,13 +34,14 @@ import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
@@ -49,15 +50,12 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -105,6 +103,13 @@ public class SimpleDataUtil {
     return record;
   }
 
+  public static StructLike createPartition(String data) {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    PartitionKey wrapper = new PartitionKey(spec, SCHEMA);
+    wrapper.partition(createRecord(null, data));
+    return wrapper;
+  }
+
   public static RowData createRowData(Integer id, String data) {
     return GenericRowData.of(id, StringData.fromString(data));
   }
@@ -125,49 +130,46 @@ public class SimpleDataUtil {
     return GenericRowData.ofKind(RowKind.UPDATE_AFTER, id, StringData.fromString(data));
   }
 
-  public static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
-                                   String location, String filename, List<RowData> rows)
+  public static DataFile writeDataFile(Table table, FileFormat format, String filename,
+                                       FileAppenderFactory<RowData> appenderFactory,
+                                       StructLike partition, List<RowData> rows)
       throws IOException {
-    Path path = new Path(location, filename);
-    FileFormat fileFormat = FileFormat.fromFileName(filename);
-    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
+    String location = partition == null ? table.locationProvider().newDataLocation(filename) :
+        table.locationProvider().newDataLocation(table.spec(), partition, filename);
+    EncryptedOutputFile outputFile = table.encryption().encrypt(fromPath(new Path(location), new Configuration()));
 
-    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
-    FileAppenderFactory<RowData> appenderFactory =
-        new FlinkAppenderFactory(schema, flinkSchema, ImmutableMap.of(), spec);
-
-    FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
-    try (FileAppender<RowData> closeableAppender = appender) {
-      closeableAppender.addAll(rows);
+    DataWriter<RowData> dataWriter = appenderFactory.newDataWriter(outputFile, format, partition);
+    try (DataWriter<RowData> writer = dataWriter) {
+      writer.write(rows);
     }
 
-    return DataFiles.builder(spec)
-        .withInputFile(HadoopInputFile.fromPath(path, conf))
-        .withMetrics(appender.metrics())
-        .build();
+    return dataWriter.toDataFile();
   }
 
-  public static DeleteFile writeEqDeleteFile(Table table, FileFormat format, String tablePath, String filename,
+  public static DeleteFile writeEqDeleteFile(Table table, FileFormat format, String filename,
                                              FileAppenderFactory<RowData> appenderFactory,
-                                             List<RowData> deletes) throws IOException {
-    EncryptedOutputFile outputFile =
-        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+                                             StructLike partition, List<RowData> deletes)
+      throws IOException {
+    String location = partition == null ? table.locationProvider().newDataLocation(filename) :
+        table.locationProvider().newDataLocation(table.spec(), partition, filename);
+    EncryptedOutputFile outputFile = table.encryption().encrypt(fromPath(new Path(location), new Configuration()));
 
-    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, null);
+    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, partition);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
       writer.deleteAll(deletes);
     }
     return eqWriter.toDeleteFile();
   }
 
-  public static DeleteFile writePosDeleteFile(Table table, FileFormat format, String tablePath,
-                                              String filename,
+  public static DeleteFile writePosDeleteFile(Table table, FileFormat format, String filename,
                                               FileAppenderFactory<RowData> appenderFactory,
-                                              List<Pair<CharSequence, Long>> positions) throws IOException {
-    EncryptedOutputFile outputFile =
-        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+                                              StructLike partition, List<Pair<CharSequence, Long>> positions)
+      throws IOException {
+    String location = partition == null ? table.locationProvider().newDataLocation(filename) :
+        table.locationProvider().newDataLocation(table.spec(), partition, filename);
+    EncryptedOutputFile outputFile = table.encryption().encrypt(fromPath(new Path(location), new Configuration()));
 
-    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, null);
+    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, partition);
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
         writer.delete(p.first(), p.second());

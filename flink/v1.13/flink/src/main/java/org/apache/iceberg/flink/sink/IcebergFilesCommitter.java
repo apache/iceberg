@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +45,6 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -60,8 +58,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
-    implements OneInputStreamOperator<WriteResult, CommitResult>, BoundedOneInput {
+class IcebergFilesCommitter extends AbstractStreamOperator<Void>
+    implements OneInputStreamOperator<WriteResult, Void>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -276,8 +274,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
       }
 
       commitOperation(appendFiles, numFiles, 0, "append", newFlinkJobId, checkpointId);
-
-      emitCommitResult(appendFiles, pendingResults.values());
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -301,8 +297,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
         commitOperation(rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, e.getKey());
-
-        emitCommitResult(rowDelta, Collections.singleton(result));
       }
     }
   }
@@ -320,24 +314,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
     LOG.info("Committed in {} ms", duration);
   }
 
-  private void emitCommitResult(SnapshotUpdate<?> operation, Iterable<WriteResult> results) {
-    Preconditions.checkArgument(operation.updateEvent() instanceof CreateSnapshotEvent,
-        "Operation update event should be instance of CreateSnapshotEvent, but not %s", operation.updateEvent());
-
-    CreateSnapshotEvent event = (CreateSnapshotEvent) operation.updateEvent();
-    CommitResult commitResult = CommitResult.builder(event.sequenceNumber(), event.snapshotId())
-        .addAll(results)
-        .build();
-    emit(commitResult);
-  }
-
   @Override
   public void processElement(StreamRecord<WriteResult> element) {
     this.writeResultsOfCurrentCkpt.add(element.getValue());
-  }
-
-  private void emit(CommitResult result) {
-    output.collect(new StreamRecord<>(result));
   }
 
   @Override
