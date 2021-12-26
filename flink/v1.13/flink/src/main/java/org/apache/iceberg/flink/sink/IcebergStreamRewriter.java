@@ -127,12 +127,12 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     if (context.isRestored()) {
       Map<StructLikeWrapper, byte[]> rewriteFileGroupsMap = rewriteFileGroupsState.get().iterator().next();
       Preconditions.checkState(rewriteFileGroupsMap != null,
-              "Rewrite file groups restore from checkpoint shouldn't be null");
+          "Rewrite file groups restore from checkpoint shouldn't be null");
 
       for (Map.Entry<StructLikeWrapper, byte[]> e : rewriteFileGroupsMap.entrySet()) {
         StructLikeWrapper partition = e.getKey();
         RewriteFileGroup rewriteFileGroup = SimpleVersionedSerialization.readVersionAndDeSerialize(
-                RewriteFileGroup.Serializer.INSTANCE, e.getValue());
+            RewriteFileGroup.Serializer.INSTANCE, e.getValue());
         rewriteFileGroupByPartition.put(partition, rewriteFileGroup);
       }
     }
@@ -148,11 +148,11 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     super.snapshotState(context);
 
     Map<StructLikeWrapper, byte[]> rewriteFileGroupsMap = Maps.newHashMapWithExpectedSize(
-            rewriteFileGroupByPartition.size());
+        rewriteFileGroupByPartition.size());
     for (Map.Entry<StructLikeWrapper, RewriteFileGroup> e : rewriteFileGroupByPartition.entrySet()) {
       StructLikeWrapper partition = e.getKey();
       byte[] rewriteFileGroup = SimpleVersionedSerialization.writeVersionAndSerialize(
-              RewriteFileGroup.Serializer.INSTANCE, e.getValue());
+          RewriteFileGroup.Serializer.INSTANCE, e.getValue());
       rewriteFileGroupsMap.put(partition, rewriteFileGroup);
     }
     rewriteFileGroupsState.clear();
@@ -180,7 +180,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     rewriteFiles(partitionFileGroup.partition(), rewriteFileGroup);
   }
 
-  private void rewriteFiles(StructLikeWrapper partition, RewriteFileGroup fileGroup) {
+  private void rewriteFiles(StructLikeWrapper partition, RewriteFileGroup fileGroup) throws IOException {
     if (fileGroup.filesSize() < targetSizeInBytes && fileGroup.filesCount() < maxFilesCount) {
       return;
     }
@@ -195,15 +195,11 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     LOG.info("Rewriting file group of table {}: {}.", table, description);
 
     long start = System.currentTimeMillis();
-    try {
-      RewriteResult rewriteResult = rewrite(partition, fileGroup);
-      emit(rewriteResult);
-    } catch (Exception e) {
-      LOG.error("Rewrite file group {} is fail and will retry in next record.", description, e);
-      return;
-    }
+    RewriteResult rewriteResult = rewrite(partition, fileGroup);
     long duration = System.currentTimeMillis() - start;
     LOG.info("Rewritten file group {} in {} ms.", description, duration);
+
+    emit(rewriteResult);
 
     rewriteFileGroupByPartition.remove(partition);
     for (ManifestFile file : fileGroup.manifestFiles()) {
@@ -272,7 +268,9 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
 
   @Override
   public void endInput() throws Exception {
-    rewriteFileGroupByPartition.forEach(this::rewriteFiles);
+    for (Map.Entry<StructLikeWrapper, RewriteFileGroup> entry : rewriteFileGroupByPartition.entrySet()) {
+      rewriteFiles(entry.getKey(), entry.getValue());
+    }
   }
 
   @Override
@@ -293,7 +291,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
   private void validateAndInitOptions(Map<String, String> properties) {
     nameMapping = PropertyUtil.propertyAsString(properties, TableProperties.DEFAULT_NAME_MAPPING, null);
     caseSensitive = PropertyUtil.propertyAsBoolean(properties, FlinkSinkOptions.STREAMING_REWRITE_CASE_SENSITIVE,
-            FlinkSinkOptions.STREAMING_REWRITE_CASE_SENSITIVE_DEFAULT);
+        FlinkSinkOptions.STREAMING_REWRITE_CASE_SENSITIVE_DEFAULT);
 
     maxFilesCount = PropertyUtil.propertyAsInt(properties, FlinkSinkOptions.STREAMING_REWRITE_MAX_FILES_COUNT,
         FlinkSinkOptions.STREAMING_REWRITE_MAX_FILES_COUNT_DEFAULT);
