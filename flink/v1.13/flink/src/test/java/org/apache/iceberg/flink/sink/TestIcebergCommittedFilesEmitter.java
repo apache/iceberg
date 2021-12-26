@@ -733,29 +733,32 @@ public class TestIcebergCommittedFilesEmitter {
     return CommitResult.builder(event.sequenceNumber(), event.snapshotId()).add(writeResult).build();
   }
 
-  private void assertPartitionFileGroups(List<PartitionFileGroup> expected, List<PartitionFileGroup> actual) {
+  private void assertPartitionFileGroups(List<PartitionFileGroup> expectedFileGroups,
+                                         List<PartitionFileGroup> actualFileGroups) {
     Assert.assertEquals("expected PartitionFileGroups and actual PartitionFileGroups should have same size",
-        expected.size(), actual.size());
+        expectedFileGroups.size(), actualFileGroups.size());
 
     if (partitioned) {
-      expected.sort(Comparator.comparing(o -> o.partition().get().get(0, String.class)));
-      actual.sort(Comparator.comparing(o -> o.partition().get().get(0, String.class)));
+      expectedFileGroups.sort(Comparator.comparing(o -> o.partition().get().get(0, String.class)));
+      actualFileGroups.sort(Comparator.comparing(o -> o.partition().get().get(0, String.class)));
     }
 
-    for (int i = 0; i < actual.size(); i++) {
-      PartitionFileGroup expectedFileGroup = expected.get(i);
-      PartitionFileGroup actualFileGroup = actual.get(i);
-      Assert.assertEquals(expectedFileGroup.sequenceNumber(), actualFileGroup.sequenceNumber());
-      Assert.assertEquals(expectedFileGroup.snapshotId(), actualFileGroup.snapshotId());
-      Assert.assertEquals(expectedFileGroup.specId(), actualFileGroup.specId());
-      Assert.assertEquals(expectedFileGroup.partition(), actualFileGroup.partition());
+    for (int i = 0; i < actualFileGroups.size(); i++) {
+      PartitionFileGroup expected = expectedFileGroups.get(i);
+      PartitionFileGroup actual = actualFileGroups.get(i);
+      Assert.assertEquals("Sequence number should match", expected.sequenceNumber(), actual.sequenceNumber());
+      Assert.assertEquals("Snapshot id should match", expected.snapshotId(), actual.snapshotId());
+      Assert.assertEquals("Spec id should match", expected.specId(), actual.specId());
+      Assert.assertEquals("Partition should match", expected.partition(), actual.partition());
       Assert.assertEquals(
-          Arrays.stream(expectedFileGroup.dataFiles()).map(ContentFile::path).collect(Collectors.toSet()),
-          Arrays.stream(actualFileGroup.dataFiles()).map(ContentFile::path).collect(Collectors.toSet())
+          "Data files should match",
+          Arrays.stream(expected.dataFiles()).map(ContentFile::path).collect(Collectors.toSet()),
+          Arrays.stream(actual.dataFiles()).map(ContentFile::path).collect(Collectors.toSet())
       );
       Assert.assertEquals(
-          Arrays.stream(expectedFileGroup.deleteFiles()).map(ContentFile::path).collect(Collectors.toSet()),
-          Arrays.stream(actualFileGroup.deleteFiles()).map(ContentFile::path).collect(Collectors.toSet())
+          "Delete files should match",
+          Arrays.stream(expected.deleteFiles()).map(ContentFile::path).collect(Collectors.toSet()),
+          Arrays.stream(actual.deleteFiles()).map(ContentFile::path).collect(Collectors.toSet())
       );
     }
   }

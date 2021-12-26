@@ -370,7 +370,7 @@ public class TableTestBase {
       expectedFilePaths.add(file.path());
     }
     Set<CharSequence> actualFilePaths = Sets.newHashSet(Iterables.transform(deleteFiles, DeleteFile::path));
-    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
@@ -382,7 +382,7 @@ public class TableTestBase {
     for (FileScanTask task : tbl.newScan().planFiles()) {
       actualFilePaths.add(task.file().path());
     }
-    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
   void validateTableDeleteFiles(Table tbl, DeleteFile... expectedFiles) {
