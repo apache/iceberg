@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
@@ -32,7 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -44,11 +43,7 @@ import org.junit.Test;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
-public class TestRuntimeFiltering extends SparkCatalogTestBase {
-
-  public TestRuntimeFiltering(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
   @After
   public void removeTables() {

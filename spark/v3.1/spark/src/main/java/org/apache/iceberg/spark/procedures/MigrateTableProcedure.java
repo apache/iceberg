@@ -20,10 +20,10 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
-import org.apache.iceberg.actions.CreateAction;
-import org.apache.iceberg.actions.Spark3MigrateAction;
+import org.apache.iceberg.actions.MigrateTable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -70,7 +70,8 @@ class MigrateTableProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String tableName = args.getString(0);
-    CatalogAndIdentifier catalogAndIdent = toCatalogAndIdentifier(tableName, PARAMETERS[0].name(), tableCatalog());
+    Preconditions.checkArgument(tableName != null && !tableName.isEmpty(),
+        "Cannot handle an empty identifier for argument table");
 
     Map<String, String> properties = Maps.newHashMap();
     if (!args.isNullAt(1)) {
@@ -81,10 +82,8 @@ class MigrateTableProcedure extends BaseProcedure {
           });
     }
 
-    CreateAction action = new Spark3MigrateAction(spark(), catalogAndIdent.catalog(), catalogAndIdent.identifier());
-
-    long numMigratedFiles = action.withProperties(properties).execute();
-    return new InternalRow[] {newInternalRow(numMigratedFiles)};
+    MigrateTable.Result result = SparkActions.get().migrateTable(tableName).tableProperties(properties).execute();
+    return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 
   @Override

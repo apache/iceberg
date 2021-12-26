@@ -10,15 +10,21 @@
     </span>
   </a>
   {%- elif nav_item.title == "Trino" -%}
-  <a href="{{ nav_item.url }}" class="block wm-toc-text">
+  <a href="{{ nav_item.url }}" target="_blank" rel="noopener noreferrer" class="block wm-toc-text">
     <span>
       <img src="img/trino-logo.png" class="navigation-icon fa-fw"/> {{ nav_item.title }}
     </span>
   </a>
   {%- elif nav_item.title == "PrestoDB" -%}
-  <a href="{{ nav_item.url }}" class="block wm-toc-text">
+  <a href="{{ nav_item.url }}" target="_blank" rel="noopener noreferrer" class="block wm-toc-text">
     <span>
       <img src="img/prestodb-logo.png" class="navigation-icon fa-fw"/> {{ nav_item.title }}
+    </span>
+  </a>
+  {%- elif nav_item.title == "Dremio" -%}
+  <a href="{{ nav_item.url }}" target="_blank" rel="noopener noreferrer" class="block wm-toc-text">
+    <span>
+      <img src="img/dremio-logo.png" class="navigation-icon fa-fw"/> {{ nav_item.title }}
     </span>
   </a>
   {%- else -%}

@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.aws.s3;
 
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 
 public class TestS3URI {
 
@@ -49,18 +49,27 @@ public class TestS3URI {
   }
 
   @Test
-  public void testMissingKey() {
-    assertThrows(ValidationException.class, () -> new S3URI("https://bucket/"));
+  public void testEmptyPath() {
+    AssertHelpers.assertThrows("Should not allow missing object key",
+        ValidationException.class,
+        "Invalid S3 URI, path is empty",
+        () -> new S3URI("https://bucket/"));
   }
 
   @Test
-  public void testRelativePathing() {
-    assertThrows(ValidationException.class, () -> new S3URI("/path/to/file"));
+  public void testMissingScheme() {
+    AssertHelpers.assertThrows("Should not allow missing scheme",
+        ValidationException.class,
+        "Invalid S3 URI, cannot determine scheme",
+        () -> new S3URI("/path/to/file"));
   }
 
   @Test
-  public void testInvalidScheme() {
-    assertThrows(ValidationException.class, () -> new S3URI("http://bucket/"));
+  public void testMissingBucket() {
+    AssertHelpers.assertThrows("Should not allow missing bucket",
+        ValidationException.class,
+        "Invalid S3 URI, cannot determine bucket",
+        () -> new S3URI("https://bucket"));
   }
 
   @Test
@@ -75,7 +84,7 @@ public class TestS3URI {
 
   @Test
   public void testValidSchemes() {
-    for (String scheme : Lists.newArrayList("https", "s3", "s3a", "s3n")) {
+    for (String scheme : Lists.newArrayList("https", "s3", "s3a", "s3n", "gs")) {
       S3URI uri = new S3URI(scheme + "://bucket/path/to/file");
       assertEquals("bucket", uri.bucket());
       assertEquals("path/to/file", uri.key());

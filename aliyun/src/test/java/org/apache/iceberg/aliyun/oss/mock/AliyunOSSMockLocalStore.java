@@ -35,6 +35,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
 import org.apache.directory.api.util.Hex;
@@ -88,7 +89,7 @@ public class AliyunOSSMockLocalStore {
     while ((numBytes = is.read(bytes)) != -1) {
       md.update(bytes, 0, numBytes);
     }
-    return new String(Hex.encodeHex(md.digest()));
+    return new String(Hex.encodeHex(md.digest())).toUpperCase(Locale.ROOT);
   }
 
   private static void inputStreamToFile(InputStream inputStream, File targetFile) throws IOException {

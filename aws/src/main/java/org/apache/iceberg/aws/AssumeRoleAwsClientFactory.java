@@ -44,10 +44,14 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private String externalId;
   private int timeout;
   private String region;
+  private String s3Endpoint;
 
   @Override
   public S3Client s3() {
-    return S3Client.builder().applyMutation(this::configure).build();
+    return S3Client.builder()
+        .applyMutation(this::configure)
+        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
+        .build();
   }
 
   @Override
@@ -76,6 +80,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     region = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_REGION);
     Preconditions.checkNotNull(region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
+
+    this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
   }
 
   private <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {

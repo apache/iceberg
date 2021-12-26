@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -36,6 +35,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -910,7 +910,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
 
-    List<Integer> ids = new ArrayList<>();
+    List<Integer> ids = Lists.newArrayList();
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }

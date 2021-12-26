@@ -71,6 +71,7 @@ public abstract class DeleteFilter<T> {
   private final Accessor<StructLike> posAccessor;
 
   private PositionDeleteIndex deleteRowPositions = null;
+  private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
@@ -103,6 +104,10 @@ public abstract class DeleteFilter<T> {
 
   public boolean hasPosDeletes() {
     return !posDeletes.isEmpty();
+  }
+
+  public boolean hasEqDeletes() {
+    return !eqDeletes.isEmpty();
   }
 
   Accessor<StructLike> posAccessor() {
@@ -190,6 +195,16 @@ public abstract class DeleteFilter<T> {
     };
 
     return remainingRowsFilter.filter(records);
+  }
+
+  public Predicate<T> eqDeletedRowFilter() {
+    if (eqDeleteRows == null) {
+      eqDeleteRows = applyEqDeletes().stream()
+          .map(Predicate::negate)
+          .reduce(Predicate::and)
+          .orElse(t -> true);
+    }
+    return eqDeleteRows;
   }
 
   public PositionDeleteIndex deletedRowPositions() {

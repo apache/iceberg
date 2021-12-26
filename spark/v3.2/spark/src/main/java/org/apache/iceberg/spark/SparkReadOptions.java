@@ -66,4 +66,7 @@ public class SparkReadOptions {
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "locality";
+
+  // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
+  public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
 }

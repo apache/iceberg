@@ -196,6 +196,7 @@ Supported predicate expressions are:
 * `in`
 * `notIn`
 * `startsWith`
+* `notStartsWith`
 
 Supported expression operations are:
 

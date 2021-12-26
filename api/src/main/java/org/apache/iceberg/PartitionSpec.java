@@ -499,9 +499,13 @@ public class PartitionSpec implements Serializable {
     }
 
     public PartitionSpec build() {
-      PartitionSpec spec = new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
+      PartitionSpec spec = buildUnchecked();
       checkCompatibility(spec, schema);
       return spec;
+    }
+
+    PartitionSpec buildUnchecked() {
+      return new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
     }
   }
 

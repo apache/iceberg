@@ -136,6 +136,10 @@ class BaseSnapshot implements Snapshot {
   }
 
   private void cacheManifests() {
+    if (io == null) {
+      throw new IllegalStateException("Cannot cache changes: FileIO is null");
+    }
+
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation));
@@ -211,6 +215,10 @@ class BaseSnapshot implements Snapshot {
   }
 
   private void cacheDataFileChanges() {
+    if (io == null) {
+      throw new IllegalStateException("Cannot cache data file changes: FileIO is null");
+    }
+
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
     collectFileChanges(adds, deletes, dataManifests(),
@@ -221,6 +229,10 @@ class BaseSnapshot implements Snapshot {
   }
 
   private void cacheDeleteFileChanges() {
+    if (io == null) {
+      throw new IllegalStateException("Cannot cache delete file changes: FileIO is null");
+    }
+
     ImmutableList.Builder<DeleteFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> deletes = ImmutableList.builder();
     collectFileChanges(adds, deletes, deleteManifests(),

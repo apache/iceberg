@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.data;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.arrow.vector.NullCheckingForGet;
@@ -130,7 +129,7 @@ public class TestSparkParquetReadMetadataColumns {
 
   @Before
   public void writeFile() throws IOException {
-    List<Path> fileSplits = new ArrayList<>();
+    List<Path> fileSplits = Lists.newArrayList();
     StructType struct = SparkSchemaUtil.convert(DATA_SCHEMA);
     Configuration conf = new Configuration();
 

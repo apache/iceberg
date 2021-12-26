@@ -22,7 +22,6 @@ package org.apache.iceberg.examples;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -31,6 +30,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -58,7 +58,7 @@ public class ConcurrencyTest {
   private File tableLocation;
   private Table table;
 
-  private List<SimpleRecord> data = new ArrayList<>();
+  private List<SimpleRecord> data = Lists.newArrayList();
 
   @Before
   public void before() throws IOException {
@@ -84,7 +84,7 @@ public class ConcurrencyTest {
   @Test
   public void writingAndReadingConcurrently() throws InterruptedException {
     ExecutorService threadPool = Executors.newFixedThreadPool(5);
-    List<Callable<Void>> tasks = new ArrayList<>();
+    List<Callable<Void>> tasks = Lists.newArrayList();
 
     Callable<Void> write = () -> writeToTable(data);
     tasks.add(write);

@@ -32,10 +32,6 @@ abstract class BaseOSSFile {
   private AliyunProperties aliyunProperties;
   private SimplifiedObjectMeta metadata;
 
-  BaseOSSFile(OSS client, OSSURI uri) {
-    this(client, uri, new AliyunProperties());
-  }
-
   BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     this.client = client;
     this.uri = uri;

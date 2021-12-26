@@ -57,25 +57,25 @@ public class TableProperties {
   public static final int COMMIT_MIN_RETRY_WAIT_MS_DEFAULT = 100;
 
   public static final String COMMIT_MAX_RETRY_WAIT_MS = "commit.retry.max-wait-ms";
-  public static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60000; // 1 minute
+  public static final int COMMIT_MAX_RETRY_WAIT_MS_DEFAULT = 60 * 1000; // 1 minute
 
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
-  public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 1800000; // 30 minutes
+  public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 30 * 60 * 1000; // 30 minutes
 
   public static final String COMMIT_NUM_STATUS_CHECKS = "commit.status-check.num-retries";
   public static final int COMMIT_NUM_STATUS_CHECKS_DEFAULT = 3;
 
   public static final String COMMIT_STATUS_CHECKS_MIN_WAIT_MS = "commit.status-check.min-wait-ms";
-  public static final long COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT = 1000L; // 1s
+  public static final long COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT = 1000; // 1 second
 
   public static final String COMMIT_STATUS_CHECKS_MAX_WAIT_MS = "commit.status-check.max-wait-ms";
-  public static final long COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT = 60000L; // 1 minute
+  public static final long COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT = 60 * 1000; // 1 minute
 
   public static final String COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS = "commit.status-check.total-timeout-ms";
-  public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT = 1800000; // 30 minutes
+  public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT = 30 * 60 * 1000; // 30 minutes
 
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
-  public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
+  public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8 * 1024 * 1024; // 8 MB
 
   public static final String MANIFEST_MIN_MERGE_COUNT = "commit.manifest.min-count-to-merge";
   public static final int MANIFEST_MIN_MERGE_COUNT_DEFAULT = 100;
@@ -112,7 +112,7 @@ public class TableProperties {
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
-  public static final long SPLIT_SIZE_DEFAULT = 134217728; // 128 MB
+  public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
   public static final String METADATA_SPLIT_SIZE = "read.split.metadata-target-size";
   public static final long METADATA_SPLIT_SIZE_DEFAULT = 32 * 1024 * 1024; // 32 MB
@@ -195,7 +195,7 @@ public class TableProperties {
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
   public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
-  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 536870912; // 512 MB
+  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 512 * 1024 * 1024; // 512 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
@@ -210,6 +210,10 @@ public class TableProperties {
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
   public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
+  /**
+   * @deprecated will be removed in 0.14.0, use specific modes instead
+   */
+  @Deprecated
   public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = WRITE_DISTRIBUTION_MODE_NONE;
 
   public static final String GC_ENABLED = "gc.enabled";
