@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +30,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import javax.jdo.PersistenceManagerFactory;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -37,11 +39,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
+import org.apache.hadoop.hive.metastore.ObjectStore;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.thrift.TException;
@@ -82,6 +87,33 @@ public class TestHiveMetastore {
           .impl("org.apache.hadoop.hive.metastore.ThreadPool")
           .orNoop()
           .buildStatic();
+
+  private static final ThreadLocal<?> HMS_HANDLER_THREAD_LOCAL_CONF =
+          (ThreadLocal<?>) DynFields.builder()
+                  .hiddenImpl(HiveMetaStore.HMSHandler.class, "threadLocalConf")
+                  .buildStatic()
+                  .get();
+  private static final ThreadLocal<?> HMS_HANDLER_THREAD_LOCAL_TXN =
+          (ThreadLocal<?>) DynFields.builder()
+                  .hiddenImpl(HiveMetaStore.HMSHandler.class, "threadLocalTxn")
+                  .buildStatic()
+                  .get();
+  private static final Class<?> TXN_HANDLER_CLASS =
+          DynClasses.builder()
+                  .impl("org.apache.hadoop.hive.metastore.txn.TxnHandler")
+                  .build();
+  private static final DynFields.StaticField<?> CONN_POOL =
+          DynFields.builder()
+                  .hiddenImpl(TXN_HANDLER_CLASS, "connPool")
+                  .buildStatic();
+  private static final DynFields.StaticField<?> OBJECT_STORE_PROP =
+          DynFields.builder()
+                  .hiddenImpl(ObjectStore.class, "prop")
+                  .buildStatic();
+  private static final DynFields.StaticField<PersistenceManagerFactory> OBJECT_STORE_PMF =
+          DynFields.builder()
+                  .hiddenImpl(ObjectStore.class, "pmf")
+                  .buildStatic();
 
   private File hiveLocalDir;
   private HiveConf hiveConf;
@@ -149,6 +181,22 @@ public class TestHiveMetastore {
       baseHandler.shutdown();
     }
     METASTORE_THREADS_SHUTDOWN.invoke();
+    HMS_HANDLER_THREAD_LOCAL_CONF.remove();
+    HMS_HANDLER_THREAD_LOCAL_TXN.remove();
+    Object connPool = CONN_POOL.get();
+    CONN_POOL.set(null);
+    if (connPool instanceof Closeable) {
+      try {
+        ((Closeable) connPool).close();
+      } catch (IOException e) {
+        throw new RuntimeException("Failed to close connection pool in TxnHandler", e);
+      }
+    }
+    OBJECT_STORE_PROP.set(null);
+    PersistenceManagerFactory pmf = OBJECT_STORE_PMF.get();
+    if (pmf != null) {
+      pmf.close();
+    }
     if (hiveLocalDir != null && hiveLocalDir.exists()) {
       try {
         FileUtils.forceDelete(hiveLocalDir);
@@ -225,6 +273,8 @@ public class TestHiveMetastore {
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");
+    // hive 1.x requires a valid DN connection pool, use bonecp as it exposes a close method
+    conf.set("datanucleus.connectionPoolingType", "BONECP");
   }
 
   private void setupMetastoreDB(String dbURL) throws SQLException, IOException {
