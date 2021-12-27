@@ -34,7 +34,7 @@ class StaticTableScan extends BaseMetadataTableScan {
     this.tableType = tableType;
   }
 
-  private StaticTableScan(TableOperations ops, Table table, Schema schema, String tableType,
+  StaticTableScan(TableOperations ops, Table table, Schema schema, String tableType,
                           Function<StaticTableScan, DataTask> buildTask, TableScanContext context) {
     super(ops, table, schema, context);
     this.buildTask = buildTask;
