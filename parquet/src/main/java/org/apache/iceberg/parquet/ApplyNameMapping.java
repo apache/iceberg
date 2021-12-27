@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.parquet;
 
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -34,7 +36,10 @@ import org.apache.parquet.schema.Types;
 
 class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   private static final String LIST_ELEMENT_NAME = "element";
+  private static final String MAP_KEY_NAME = "key";
+  private static final String MAP_VALUE_NAME = "value";
   private final NameMapping nameMapping;
+  private final Deque<String> fieldNames = Lists.newLinkedList();
 
   ApplyNameMapping(NameMapping nameMapping) {
     this.nameMapping = nameMapping;
@@ -63,18 +68,12 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "List type must have element field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type listType = makeListType(list, elementType);
+    Type listType = Types.buildGroup(list.getRepetition())
+        .as(LogicalTypeAnnotation.listType())
+        .repeatedGroup().addFields(elementType).named(list.getFieldName(0))
+        .named(list.getName());
 
     return field == null ? listType : listType.withId(field.id());
-  }
-
-  private Type makeListType(GroupType list, Type elementType) {
-    // List's repeated group in 3-level lists can be named differently across different parquet writers.
-    // For example, hive names it "bag", whereas new parquet writers names it as "list".
-    return Types.buildGroup(list.getRepetition())
-            .as(LogicalTypeAnnotation.listType())
-            .repeatedGroup().addFields(elementType).named(list.getFieldName(0))
-            .named(list.getName());
   }
 
   @Override
@@ -83,9 +82,9 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "Map type must have both key field and value field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type mapType = Types.map(map.getRepetition())
-        .key(keyType)
-        .value(valueType)
+    Type mapType = Types.buildGroup(map.getRepetition())
+        .as(LogicalTypeAnnotation.mapType())
+        .repeatedGroup().addFields(keyType, valueType).named(map.getFieldName(0))
         .named(map.getName());
 
     return field == null ? mapType : mapType.withId(field.id());
@@ -97,29 +96,30 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     return field == null ? primitive : primitive.withId(field.id());
   }
 
+  public void beforeField(Type type) {
+    fieldNames.push(type.getName());
+  }
+
+  public void afterField(Type type) {
+    fieldNames.pop();
+  }
+
   @Override
   public void beforeElementField(Type element) {
-    super.beforeElementField(makeElement(element));
+    // normalize the name to "element" so that the mapping will match structures with alternative names
+    fieldNames.push(LIST_ELEMENT_NAME);
   }
 
   @Override
-  public void afterElementField(Type element) {
-    super.afterElementField(makeElement(element));
+  public void beforeKeyField(Type key) {
+    // normalize the name to "key" so that the mapping will match structures with alternative names
+    fieldNames.push(MAP_KEY_NAME);
   }
 
-  private Type makeElement(Type element) {
-    // List's element in 3-level lists can be named differently across different parquet writers.
-    // For example, hive names it "array_element", whereas new parquet writers names it as "element".
-    if (element.getName().equals(LIST_ELEMENT_NAME) || element.isPrimitive()) {
-      return element;
-    }
-
-    Types.GroupBuilder<GroupType> elementBuilder = Types.buildGroup(element.getRepetition())
-            .addFields(element.asGroupType().getFields().toArray(new Type[0]));
-    if (element.getId() != null) {
-      elementBuilder.id(element.getId().intValue());
-    }
-    return elementBuilder.named(LIST_ELEMENT_NAME);
+  @Override
+  public void beforeValueField(Type key) {
+    // normalize the name to "value" so that the mapping will match structures with alternative names
+    fieldNames.push(MAP_VALUE_NAME);
   }
 
   @Override
@@ -140,5 +140,17 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   @Override
   public void afterRepeatedKeyValue(Type keyValue) {
     // do not remove the repeated element's name
+  }
+
+  @Override
+  protected String[] currentPath() {
+    return Lists.newArrayList(fieldNames.descendingIterator()).toArray(new String[0]);
+  }
+
+  @Override
+  protected String[] path(String name) {
+    List<String> list = Lists.newArrayList(fieldNames.descendingIterator());
+    list.add(name);
+    return list.toArray(new String[0]);
   }
 }
