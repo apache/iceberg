@@ -35,7 +35,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -85,6 +85,7 @@ public class TestS3OutputStream {
 
   @Before
   public void before() {
+    properties.setETagCheckEnabled(false);
     s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
   }
 
@@ -98,28 +99,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testWrite() {
-    // Run tests for both byte and array write paths
-    Stream.of(true, false).forEach(arrayWrite -> {
-      // Test small file write (less than multipart threshold)
-      writeAndVerify(s3mock, randomURI(), randomData(1024), arrayWrite);
-      verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
-      reset(s3mock);
-
-      // Test file larger than part size but less than multipart threshold
-      writeAndVerify(s3mock, randomURI(), randomData(6 * 1024 * 1024), arrayWrite);
-      verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
-      reset(s3mock);
-
-      // Test file large enough to trigger multipart upload
-      writeAndVerify(s3mock, randomURI(), randomData(10 * 1024 * 1024), arrayWrite);
-      verify(s3mock, times(2)).uploadPart((UploadPartRequest) any(), (RequestBody) any());
-      reset(s3mock);
-
-      // Test uploading many parts
-      writeAndVerify(s3mock, randomURI(), randomData(22 * 1024 * 1024), arrayWrite);
-      verify(s3mock, times(5)).uploadPart((UploadPartRequest) any(), (RequestBody) any());
-      reset(s3mock);
-    });
+    writeTest();
   }
 
   @Test
@@ -157,6 +137,37 @@ public class TestS3OutputStream {
         AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
     S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties);
     stream.close();
+  }
+
+  @Test
+  public void testWriteWithEtagEnabled() {
+    properties.setETagCheckEnabled(true);
+    writeTest();
+  }
+
+  private void writeTest() {
+    // Run tests for both byte and array write paths
+    Stream.of(true, false).forEach(arrayWrite -> {
+      // Test small file write (less than multipart threshold)
+      writeAndVerify(s3mock, randomURI(), randomData(1024), arrayWrite);
+      verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
+      reset(s3mock);
+
+      // Test file larger than part size but less than multipart threshold
+      writeAndVerify(s3mock, randomURI(), randomData(6 * 1024 * 1024), arrayWrite);
+      verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
+      reset(s3mock);
+
+      // Test file large enough to trigger multipart upload
+      writeAndVerify(s3mock, randomURI(), randomData(10 * 1024 * 1024), arrayWrite);
+      verify(s3mock, times(2)).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+      reset(s3mock);
+
+      // Test uploading many parts
+      writeAndVerify(s3mock, randomURI(), randomData(22 * 1024 * 1024), arrayWrite);
+      verify(s3mock, times(5)).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+      reset(s3mock);
+    });
   }
 
   private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {

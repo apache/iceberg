@@ -209,6 +209,12 @@ public class AwsProperties implements Serializable {
    */
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
+  /**
+   * Enables eTag checks for S3 PUT and MULTIPART upload requests.
+   */
+  public static final String CLIENT_ENABLE_ETAG_CHECK = "client.enable.etag-check";
+  public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -222,6 +228,8 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
 
   private String dynamoDbTableName;
+
+  private boolean isEtagCheckEnabled;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
@@ -284,6 +292,9 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
+
+    this.isEtagCheckEnabled = PropertyUtil.propertyAsBoolean(properties, CLIENT_ENABLE_ETAG_CHECK,
+        CLIENT_ENABLE_ETAG_CHECK_DEFAULT);
   }
 
   public String s3FileIoSseType() {
@@ -372,5 +383,13 @@ public class AwsProperties implements Serializable {
 
   public void setDynamoDbTableName(String name) {
     this.dynamoDbTableName = name;
+  }
+
+  public boolean isETagCheckEnabled() {
+    return this.isEtagCheckEnabled;
+  }
+
+  public void setETagCheckEnabled(boolean eTagCheckEnabled) {
+    this.isEtagCheckEnabled = eTagCheckEnabled;
   }
 }

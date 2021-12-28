@@ -30,6 +30,8 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -60,6 +62,7 @@ import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
@@ -74,13 +77,18 @@ class S3OutputStream extends PositionOutputStream {
   private final AwsProperties awsProperties;
 
   private CountingOutputStream stream;
-  private final List<File> stagingFiles = Lists.newArrayList();
+  private final List<FileWithEtag> stagingFilesWithETags = Lists.newArrayList();
   private final File stagingDirectory;
   private File currentStagingFile;
   private String multipartUploadId;
   private final Map<File, CompletableFuture<CompletedPart>> multiPartMap = Maps.newHashMap();
   private final int multiPartSize;
   private final int multiPartThresholdSize;
+  private static final String digestAlgorithm = "MD5";
+  private final List<MessageDigest> partMessageDigests = Lists.newArrayList();
+  private MessageDigest currentPartMessageDigest;
+  private static MessageDigest completeMessageDigest = null;
+  private boolean isEtagCheckEnabled;
 
   private long pos = 0;
   private boolean closed = false;
@@ -110,6 +118,14 @@ class S3OutputStream extends PositionOutputStream {
     multiPartSize = awsProperties.s3FileIoMultiPartSize();
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
+    isEtagCheckEnabled = awsProperties.isETagCheckEnabled();
+    if (isEtagCheckEnabled) {
+      try {
+        completeMessageDigest = MessageDigest.getInstance(digestAlgorithm);
+      } catch (NoSuchAlgorithmException e) {
+        throw new IOException("Failed to create message digest needed for eTag checks.", e);
+      }
+    }
 
     newStream();
   }
@@ -132,6 +148,11 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stream.write(b);
+    if (isEtagCheckEnabled) {
+      byte byteValue = ((Integer) b).byteValue();
+      currentPartMessageDigest.update(byteValue);
+      completeMessageDigest.update(byteValue);
+    }
     pos += 1;
 
     // switch to multipart upload
@@ -153,6 +174,10 @@ class S3OutputStream extends PositionOutputStream {
       int writeSize = multiPartSize - (int) stream.getCount();
 
       stream.write(b, relativeOffset, writeSize);
+      if (isEtagCheckEnabled) {
+        currentPartMessageDigest.update(b, relativeOffset, writeSize);
+        completeMessageDigest.update(b, relativeOffset, writeSize);
+      }
       remaining -= writeSize;
       relativeOffset += writeSize;
 
@@ -161,6 +186,10 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stream.write(b, relativeOffset, remaining);
+    if (isEtagCheckEnabled) {
+      currentPartMessageDigest.update(b, relativeOffset, remaining);
+      completeMessageDigest.update(b, relativeOffset, remaining);
+    }
     pos += len;
 
     // switch to multipart upload
@@ -178,7 +207,15 @@ class S3OutputStream extends PositionOutputStream {
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
-    stagingFiles.add(currentStagingFile);
+    if (isEtagCheckEnabled) {
+      try {
+        currentPartMessageDigest = MessageDigest.getInstance(digestAlgorithm);
+      } catch (NoSuchAlgorithmException e) {
+        throw new IOException(e);
+      }
+      partMessageDigests.add(currentPartMessageDigest);
+    }
+    stagingFilesWithETags.add(new FileWithEtag(currentStagingFile, currentPartMessageDigest));
 
     stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
   }
@@ -216,18 +253,18 @@ class S3OutputStream extends PositionOutputStream {
       return;
     }
 
-    stagingFiles.stream()
+    stagingFilesWithETags.stream()
         // do not upload the file currently being written
-        .filter(f -> closed || !f.equals(currentStagingFile))
+        .filter(f -> closed || !f.file().equals(currentStagingFile))
         // do not upload any files that have already been processed
-        .filter(Predicates.not(multiPartMap::containsKey))
+        .filter(Predicates.not(f -> multiPartMap.containsKey(f.file())))
         .forEach(f -> {
           UploadPartRequest.Builder requestBuilder = UploadPartRequest.builder()
               .bucket(location.bucket())
               .key(location.key())
               .uploadId(multipartUploadId)
-              .partNumber(stagingFiles.indexOf(f) + 1)
-              .contentLength(f.length());
+              .partNumber(stagingFilesWithETags.indexOf(f) + 1)
+              .contentLength(f.file().length());
 
           S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
@@ -235,15 +272,22 @@ class S3OutputStream extends PositionOutputStream {
 
           CompletableFuture<CompletedPart> future = CompletableFuture.supplyAsync(
               () -> {
-                UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
+                UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f.file()));
+                if (isEtagCheckEnabled) {
+                  try {
+                    checkEtag(getHexString(f.eTag().digest()), response.eTag());
+                  } catch (IOException e) {
+                    throw new AssertionError(e);
+                  }
+                }
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
               },
               executorService
           ).whenComplete((result, thrown) -> {
             try {
-              Files.deleteIfExists(f.toPath());
+              Files.deleteIfExists(f.file().toPath());
             } catch (IOException e) {
-              LOG.warn("Failed to delete staging file: {}", f, e);
+              LOG.warn("Failed to delete staging file: {}", f.file(), e);
             }
 
             if (thrown != null) {
@@ -251,8 +295,7 @@ class S3OutputStream extends PositionOutputStream {
               abortUpload();
             }
           });
-
-          multiPartMap.put(f, future);
+          multiPartMap.put(f.file(), future);
         });
   }
 
@@ -293,16 +336,17 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void cleanUpStagingFiles() {
-    Tasks.foreach(stagingFiles)
+    Tasks.foreach(stagingFilesWithETags.stream().map(FileWithEtag::file))
         .suppressFailureWhenFinished()
         .onFailure((file, thrown) -> LOG.warn("Failed to delete staging file: {}", file, thrown))
         .run(File::delete);
   }
 
-  private void completeUploads() {
+  private void completeUploads() throws IOException {
     if (multipartUploadId == null) {
-      long contentLength = stagingFiles.stream().mapToLong(File::length).sum();
-      InputStream contentStream = new BufferedInputStream(stagingFiles.stream()
+      long contentLength = stagingFilesWithETags.stream().map(FileWithEtag::file).mapToLong(File::length).sum();
+      InputStream contentStream = new BufferedInputStream(stagingFilesWithETags.stream()
+          .map(FileWithEtag::file)
           .map(S3OutputStream::uncheckedInputStream)
           .reduce(SequenceInputStream::new)
           .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
@@ -314,11 +358,33 @@ class S3OutputStream extends PositionOutputStream {
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
-      s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
+      PutObjectResponse putObjectResponse = s3.putObject(requestBuilder.build(),
+          RequestBody.fromInputStream(contentStream, contentLength));
+      if (isEtagCheckEnabled) {
+        String actualEtag = putObjectResponse.eTag();
+        checkEtag(getHexString(completeMessageDigest.digest()), actualEtag);
+      }
     } else {
       uploadParts();
       completeMultiPartUpload();
     }
+  }
+
+  private void checkEtag(String expectedETags, String actualETags) throws IOException {
+    if (!expectedETags.equals(actualETags)) {
+      throw new IOException(String.format("S3 eTag mismatch.\nExpected: %s.\nActual: %s",
+          expectedETags, actualETags));
+    }
+  }
+
+  private static String getHexString(byte[] bytes) {
+    StringBuilder hex = new StringBuilder();
+    hex.append("\"");
+    for (byte b : bytes) {
+      hex.append(String.format("%02x", b));
+    }
+    hex.append("\"");
+    return hex.toString();
   }
 
   private static InputStream uncheckedInputStream(File file) {
@@ -358,6 +424,24 @@ class S3OutputStream extends PositionOutputStream {
       String trace = Joiner.on("\n\t").join(
           Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+    }
+  }
+
+  private static class FileWithEtag {
+    private final File file;
+    private final MessageDigest eTag;
+
+    public FileWithEtag(File file, MessageDigest eTag) {
+      this.file = file;
+      this.eTag = eTag;
+    }
+
+    public File file() {
+      return file;
+    }
+
+    public MessageDigest eTag() {
+      return eTag;
     }
   }
 }
