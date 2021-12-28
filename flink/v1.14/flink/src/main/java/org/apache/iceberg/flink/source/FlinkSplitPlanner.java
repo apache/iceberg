@@ -29,8 +29,11 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 @Internal
 public class FlinkSplitPlanner {
@@ -41,9 +44,19 @@ public class FlinkSplitPlanner {
     try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
       List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
       FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
-      for (int i = 0; i < tasks.size(); i++) {
-        splits[i] = new FlinkInputSplit(i, tasks.get(i));
-      }
+      boolean exposeLocality = context.exposeLocality();
+
+      Tasks.range(tasks.size())
+          .stopOnFailure()
+          .executeWith(exposeLocality ? ThreadPools.getWorkerPool() : null)
+          .run(index -> {
+            CombinedScanTask task = tasks.get(index);
+            String[] hostnames = null;
+            if (exposeLocality) {
+              hostnames = Util.blockLocations(table.io(), task);
+            }
+            splits[index] = new FlinkInputSplit(index, task, hostnames);
+          });
       return splits;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process tasks iterable", e);
