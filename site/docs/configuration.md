@@ -52,6 +52,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 | write.spark.fanout.enabled       | false        | Enables Partitioned-Fanout-Writer writes in Spark |
+| orc.bloom.filter.columns         | null         | Orc bloom filter config key     |
+| orc.bloom.filter.fpp             | null         | Orc bloom filter fpp config key |
 
 ### Table behavior properties
 

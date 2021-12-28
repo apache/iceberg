@@ -129,6 +129,8 @@ public class TableProperties {
   public static final String PARQUET_BATCH_SIZE = "read.parquet.vectorization.batch-size";
   public static final int PARQUET_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String ORC_BLOOM_FILTER_COLUMNS = "orc.bloom.filter.columns";
+  public static final String ORC_BLOOM_FILTER_FPP = "orc.bloom.filter.fpp";
   public static final String ORC_VECTORIZATION_ENABLED = "read.orc.vectorization.enabled";
   public static final boolean ORC_VECTORIZATION_ENABLED_DEFAULT = false;
 
