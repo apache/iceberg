@@ -96,10 +96,12 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     return field == null ? primitive : primitive.withId(field.id());
   }
 
+  @Override
   public void beforeField(Type type) {
     fieldNames.push(type.getName());
   }
 
+  @Override
   public void afterField(Type type) {
     fieldNames.pop();
   }
