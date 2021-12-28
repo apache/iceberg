@@ -85,10 +85,9 @@ class S3OutputStream extends PositionOutputStream {
   private final int multiPartSize;
   private final int multiPartThresholdSize;
   private static final String digestAlgorithm = "MD5";
-  private final List<MessageDigest> partMessageDigests = Lists.newArrayList();
+  private final boolean isEtagCheckEnabled;
+  private final MessageDigest completeMessageDigest;
   private MessageDigest currentPartMessageDigest;
-  private static MessageDigest completeMessageDigest = null;
-  private boolean isEtagCheckEnabled;
 
   private long pos = 0;
   private boolean closed = false;
@@ -119,12 +118,10 @@ class S3OutputStream extends PositionOutputStream {
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
     isEtagCheckEnabled = awsProperties.isETagCheckEnabled();
-    if (isEtagCheckEnabled) {
-      try {
-        completeMessageDigest = MessageDigest.getInstance(digestAlgorithm);
-      } catch (NoSuchAlgorithmException e) {
-        throw new IOException("Failed to create message digest needed for eTag checks.", e);
-      }
+    try {
+      completeMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+    } catch (NoSuchAlgorithmException e) {
+      throw new IOException("Failed to create message digest needed for eTag checks.", e);
     }
 
     newStream();
@@ -207,13 +204,10 @@ class S3OutputStream extends PositionOutputStream {
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
-    if (isEtagCheckEnabled) {
-      try {
-        currentPartMessageDigest = MessageDigest.getInstance(digestAlgorithm);
-      } catch (NoSuchAlgorithmException e) {
-        throw new IOException(e);
-      }
-      partMessageDigests.add(currentPartMessageDigest);
+    try {
+      currentPartMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+    } catch (NoSuchAlgorithmException e) {
+      throw new IOException(e);
     }
     stagingFilesWithETags.add(new FileWithEtag(currentStagingFile, currentPartMessageDigest));
 
@@ -273,13 +267,7 @@ class S3OutputStream extends PositionOutputStream {
           CompletableFuture<CompletedPart> future = CompletableFuture.supplyAsync(
               () -> {
                 UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f.file()));
-                if (isEtagCheckEnabled) {
-                  try {
-                    checkEtag(getHexString(f.eTag().digest()), response.eTag());
-                  } catch (IOException e) {
-                    throw new AssertionError(e);
-                  }
-                }
+                checkEtag(f.eTag(), response.eTag());
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
               },
               executorService
@@ -360,20 +348,20 @@ class S3OutputStream extends PositionOutputStream {
 
       PutObjectResponse putObjectResponse = s3.putObject(requestBuilder.build(),
           RequestBody.fromInputStream(contentStream, contentLength));
-      if (isEtagCheckEnabled) {
-        String actualEtag = putObjectResponse.eTag();
-        checkEtag(getHexString(completeMessageDigest.digest()), actualEtag);
-      }
+      checkEtag(completeMessageDigest, putObjectResponse.eTag());
     } else {
       uploadParts();
       completeMultiPartUpload();
     }
   }
 
-  private void checkEtag(String expectedETags, String actualETags) throws IOException {
-    if (!expectedETags.equals(actualETags)) {
-      throw new IOException(String.format("S3 eTag mismatch.\nExpected: %s.\nActual: %s",
-          expectedETags, actualETags));
+  private void checkEtag(MessageDigest expectedMessageDigest, String actualETag) {
+    if (isEtagCheckEnabled) {
+      String expectedETag = getHexString(expectedMessageDigest.digest());
+      if (!expectedETag.equals(actualETag)) {
+        throw new AssertionError(String.format("S3 eTag mismatch.\nExpected: %s.\nActual: %s",
+            expectedETag, actualETag));
+      }
     }
   }
 
@@ -431,16 +419,16 @@ class S3OutputStream extends PositionOutputStream {
     private final File file;
     private final MessageDigest eTag;
 
-    public FileWithEtag(File file, MessageDigest eTag) {
+    FileWithEtag(File file, MessageDigest eTag) {
       this.file = file;
       this.eTag = eTag;
     }
 
-    public File file() {
+    File file() {
       return file;
     }
 
-    public MessageDigest eTag() {
+    MessageDigest eTag() {
       return eTag;
     }
   }
