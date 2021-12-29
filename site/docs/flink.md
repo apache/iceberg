@@ -17,8 +17,8 @@
 
 # Flink
 
-Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API to write records into an Iceberg table. Currently,
-we only integrate Iceberg with Apache Flink 1.12.x\1.13.x\1.14.x
+Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. Currently,
+Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13, and 1.14. Previous versions of Iceberg also support Flink 1.11.
 
 | Feature support                                             | Flink | Notes                                                        |
 | ----------------------------------------------------------- | ----- | ------------------------------------------------------------ |
@@ -26,7 +26,7 @@ we only integrate Iceberg with Apache Flink 1.12.x\1.13.x\1.14.x
 | [SQL create database](#create-database)                     | ✔️     |                                                              |
 | [SQL create table](#create-table)                           | ✔️     |                                                              |
 | [SQL create table like](#create-table-like)                 | ✔️     |                                                              |
-| [SQL alter table](#alter-table)                             | ✔️     | Only support altering table properties, Columns/PartitionKey changes are not supported now |
+| [SQL alter table](#alter-table)                             | ✔️     | Only support altering table properties, column and partition changes are not supported |
 | [SQL drop_table](#drop-table)                               | ✔️     |                                                              |
 | [SQL select](#querying-with-sql)                            | ✔️     | Support both streaming and batch mode                        |
 | [SQL insert into](#insert-into)                             | ✔️ ️    | Support both streaming and batch mode                        |
