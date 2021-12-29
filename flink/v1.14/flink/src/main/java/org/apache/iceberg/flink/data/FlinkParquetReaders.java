@@ -284,7 +284,6 @@ public class FlinkParquetReaders {
     public DecimalData read(DecimalData ignored) {
       Binary binary = column.nextBinary();
       BigDecimal bigDecimal = new BigDecimal(new BigInteger(binary.getBytes()), scale);
-      // TODO: need a unit test to write-read-validate decimal via FlinkParquetWrite/Reader
       return DecimalData.fromBigDecimal(bigDecimal, precision, scale);
     }
   }

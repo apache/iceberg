@@ -121,6 +121,32 @@ public class TestHelpers {
     assertRowData(schema.asStruct(), FlinkSchemaUtil.convert(schema), expected, actual);
   }
 
+  public static void assertRowData(
+      Types.StructType structType, LogicalType rowType, RowData expectedRecord,
+      RowData actualRowData) {
+    if (expectedRecord == null && actualRowData == null) {
+      return;
+    }
+
+    Assert.assertTrue(
+        "expected Record and actual RowData should be both null or not null",
+        expectedRecord != null && actualRowData != null);
+
+    List<Type> types = Lists.newArrayList();
+    for (Types.NestedField field : structType.fields()) {
+      types.add(field.type());
+    }
+
+    for (int i = 0; i < types.size(); i += 1) {
+      LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
+      Object expected = expectedRecord.isNullAt(i) ? null :
+          RowData.createFieldGetter(logicalType, i).getFieldOrNull(expectedRecord);
+      Object actual = actualRowData.isNullAt(i) ? null :
+          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+      assertLogicalTypeEquals(types.get(i), logicalType, expected, actual);
+    }
+  }
+
   public static void assertRowData(Types.StructType structType, LogicalType rowType, StructLike expectedRecord,
                                    RowData actualRowData) {
     if (expectedRecord == null && actualRowData == null) {
@@ -240,6 +266,86 @@ public class TestHelpers {
     }
   }
 
+  private static void assertLogicalTypeEquals(Type type, LogicalType logicalType, Object expected, Object actual) {
+
+    if (expected == null && actual == null) {
+      return;
+    }
+
+    Assert.assertTrue(
+        "expected and actual should be both null or not null",
+        expected != null && actual != null);
+
+    switch (type.typeId()) {
+      case BOOLEAN:
+      case INTEGER:
+      case LONG:
+      case FLOAT:
+      case TIME:
+      case DOUBLE:
+        Assert.assertEquals("value should be equal", expected, actual);
+        break;
+      case STRING:
+        Assert.assertEquals("string should be equal", expected.toString(), actual.toString());
+        break;
+      case DATE:
+        LocalDate dateActual = DateTimeUtil.dateFromDays((int) actual);
+        LocalDate dateExpected = DateTimeUtil.dateFromDays((int) expected);
+        Assert.assertEquals("date should be equal", dateExpected, dateActual);
+        break;
+      case TIMESTAMP:
+        Assert.assertEquals("OffsetDataTime should be equal", ((TimestampData) expected).toLocalDateTime(),
+            ((TimestampData) actual).toLocalDateTime());
+        break;
+      case BINARY:
+        Assert.assertEquals(
+            "binary should be equal",
+            ByteBuffer.wrap((byte[]) expected),
+            ByteBuffer.wrap((byte[]) actual));
+        break;
+      case DECIMAL:
+        Assert.assertEquals("decimal value should be equal", ((DecimalData) expected).toBigDecimal(),
+            ((DecimalData) actual).toBigDecimal());
+        break;
+      case LIST:
+        ArrayData expectedArrayData = (ArrayData) expected;
+        ArrayData actualArrayData = (ArrayData) actual;
+        LogicalType elementType = ((ArrayType) logicalType).getElementType();
+        Assert.assertEquals("array length should be equal", expectedArrayData.size(), actualArrayData.size());
+        assertArrayValues(type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
+        break;
+      case MAP:
+        assertMapValues(type.asMapType(), logicalType, (MapData) expected, (MapData) actual);
+        break;
+      case STRUCT:
+        assertRowData(type.asStructType(), logicalType, (RowData) actual, (RowData) actual);
+        break;
+      case UUID:
+        Assert.assertEquals("UUID should be equal", UUID.nameUUIDFromBytes((byte[]) actual).toString(),
+            UUID.nameUUIDFromBytes((byte[]) actual).toString());
+        break;
+      case FIXED:
+        Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
+        Assert.assertArrayEquals("binary should be equal", (byte[]) expected, (byte[]) actual);
+        break;
+      default:
+        throw new IllegalArgumentException("Not a supported type: " + type);
+    }
+  }
+
+  private static void assertArrayValues(Type type, LogicalType logicalType, ArrayData expectedArray,
+                                        ArrayData actualArray) {
+    ArrayData.ElementGetter elementGetter = ArrayData.createElementGetter(logicalType);
+
+    for (int i = 0; i < expectedArray.size(); i += 1) {
+      if (actualArray.isNullAt(i)) {
+        Assert.assertTrue(actualArray.isNullAt(i));
+        continue;
+      }
+      assertLogicalTypeEquals(type, logicalType, elementGetter.getElementOrNull(expectedArray, i),
+          elementGetter.getElementOrNull(actualArray, i));
+    }
+  }
   private static void assertArrayValues(Type type, LogicalType logicalType, Collection<?> expectedArray,
                                         ArrayData actualArray) {
     List<?> expectedElements = Lists.newArrayList(expectedArray);
@@ -286,6 +392,45 @@ public class TestHelpers {
       Assert.assertNotNull("Should have a matching key", matchedActualKey);
       final int valueIndex = matchedKeyIndex;
       assertEquals(valueType, actualValueType, entry.getValue(),
+          valueGetter.getElementOrNull(actualValueArrayData, valueIndex));
+    }
+  }
+
+  private static void assertMapValues(Types.MapType mapType, LogicalType type, MapData expected, MapData actual) {
+    Assert.assertEquals("map size should be equal", expected.size(), actual.size());
+
+    ArrayData actualKeyArrayData = actual.keyArray();
+    ArrayData actualValueArrayData = actual.valueArray();
+    ArrayData expectedKeyArrayData = expected.keyArray();
+    ArrayData expectedValueArrayData = expected.valueArray();
+    LogicalType actualKeyType = ((MapType) type).getKeyType();
+    LogicalType actualValueType = ((MapType) type).getValueType();
+
+    Type keyType = mapType.keyType();
+    Type valueType = mapType.valueType();
+
+    ArrayData.ElementGetter keyGetter = ArrayData.createElementGetter(actualKeyType);
+    ArrayData.ElementGetter valueGetter = ArrayData.createElementGetter(actualValueType);
+    for (int l = 0; l < expected.size(); l++) {
+      Object matchedActualKey = null;
+      int matchedKeyIndex = 0;
+      for (int i = 0; i < actual.size(); i += 1) {
+        try {
+          Object actualKey = keyGetter.getElementOrNull(actualKeyArrayData, i);
+          Object expectedKey = keyGetter.getElementOrNull(expectedKeyArrayData, i);
+          assertLogicalTypeEquals(keyType, actualKeyType, expectedKey, actualKey);
+          matchedActualKey = actualKey;
+          matchedKeyIndex = i;
+          break;
+        } catch (AssertionError e) {
+          // not found
+        }
+      }
+      Assert.assertNotNull("Should have a matching key", matchedActualKey);
+      final int valueIndex = matchedKeyIndex;
+      assertLogicalTypeEquals(valueType,
+          actualValueType,
+          valueGetter.getElementOrNull(expectedValueArrayData, valueIndex),
           valueGetter.getElementOrNull(actualValueArrayData, valueIndex));
     }
   }
