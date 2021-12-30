@@ -522,6 +522,20 @@ FlinkSink.forRowData(input)
 env.execute("Test Iceberg DataStream");
 ```
 
+## Streaming upsert write
+
+Iceberg supports upsert based on the primary key when writing streaming data into v2 table format.
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+  `id`  INT UNIQUE COMMENT 'unique id',
+  `data` STRING NOT NULL,
+ PRIMARY KEY(`id`) NOT ENFORCED
+) with ('format-version'='2', 'write.upsert.enabled'='true');
+```
+!!! Note
+    OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.
+
 ## Inspecting tables.
 
 Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](./api.md) to read iceberg's meta data to get those table information.
