@@ -222,9 +222,9 @@ public class TestDeltaTaskWriter extends TableTestBase {
     TaskWriter<RowData> writer = taskWriterFactory.create();
     for (int i = 0; i < 8_000; i += 2) {
       writer.write(createUpdateBefore(i + 1, "aaa"));
-      writer.write(createUpdateAfter(i + 1, "bbb"));
+      writer.write(createUpdateAfter(i + 1, "aaa"));
 
-      writer.write(createUpdateBefore(i + 2, "aaa"));
+      writer.write(createUpdateBefore(i + 2, "bbb"));
       writer.write(createUpdateAfter(i + 2, "bbb"));
     }
 
