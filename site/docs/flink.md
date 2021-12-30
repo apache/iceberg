@@ -290,18 +290,33 @@ USE iceberg_db;
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-    id BIGINT COMMENT 'unique id',
+    id BIGINT PRIMARY KEY NOT ENFORCED COMMENT 'unique id',
     data STRING
 );
 ```
 
 Table create commands support the most commonly used [flink create clauses](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table) now, including: 
 
+* `PRIMARY KEY NOT ENFORCED` to declare table primary key(s).
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, apache flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
 * `WITH ('key'='value', ...)` to set [table configuration](./configuration.md) which will be stored in apache iceberg table properties.
 
-Currently, it does not support computed column, primary key and watermark definition etc.
+Currently, it does not support computed column and watermark definition etc.
+
+### `PRIMARY KEY`
+
+To declare primary key(s) in a table, use `PRIMARY KEY NOT ENFORCED`:
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+    id BIGINT PRIMARY KEY NOT ENFORCED COMMENT 'unique id',
+    data STRING
+);
+```
+Or declare primary key(s) in a single column, like `PRIMARY KEY (id) NOT ENFORCED`.
+
+Note that flink only support declare primary key(s) in not enforced mode. 
 
 ### `PARTITIONED BY`
 
