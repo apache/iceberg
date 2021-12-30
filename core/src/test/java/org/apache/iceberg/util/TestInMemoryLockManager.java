@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg.util;
 
 import java.util.List;
 import java.util.UUID;
