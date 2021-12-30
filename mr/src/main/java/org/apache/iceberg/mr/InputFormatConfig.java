@@ -76,6 +76,8 @@ public class InputFormatConfig {
   public static final String SELECTED_COLUMNS = "iceberg.mr.selected.columns";
   public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
 
+  public static final String CONFIG_SERIALIZATION_DISABLED = "iceberg.mr.config.serialization.disabled";
+  public static final boolean CONFIG_SERIALIZATION_DISABLED_DEFAULT = false;
   public static final String OUTPUT_TABLES = "iceberg.mr.output.tables";
   public static final String COMMIT_TABLE_THREAD_POOL_SIZE = "iceberg.mr.commit.table.thread.pool.size";
   public static final int COMMIT_TABLE_THREAD_POOL_SIZE_DEFAULT = 10;
