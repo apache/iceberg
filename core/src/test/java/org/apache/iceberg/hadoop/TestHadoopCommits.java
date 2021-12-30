@@ -431,15 +431,15 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
-  public void testConcurrentAppend() throws Exception {
-    assertTrue("Should create v1 metadata",
-            version(1).exists() && version(1).isFile());
+  public void testConcurrentFastAppends() throws Exception {
+    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
     File dir = temp.newFolder();
     dir.delete();
     int threadsCount = 5;
     int numberOfCommitedFilesPerThread = 10;
     Table tableWithHighRetries = TABLES.create(SCHEMA, SPEC,
         ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)), dir.toURI().toString());
+
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(tableWithHighRetries.spec())
         .withPath(FileFormat.PARQUET.addExtension(fileName))
@@ -447,6 +447,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .withFileSizeInBytes(0)
         .build();
     ExecutorService executorService = Executors.newFixedThreadPool(threadsCount);
+
     AtomicInteger barrier = new AtomicInteger(0);
     Tasks
         .range(threadsCount)
@@ -466,6 +467,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
             barrier.incrementAndGet();
           }
         });
+
     tableWithHighRetries.refresh();
     assertEquals(threadsCount * numberOfCommitedFilesPerThread,
         Lists.newArrayList(tableWithHighRetries.snapshots()).size());

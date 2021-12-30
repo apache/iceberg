@@ -220,8 +220,10 @@ public class HadoopTables implements Tables, Configurable {
           properties.put(key.substring(LOCK_PROPERTY_PREFIX.length()), entry.getValue());
         }
       }
+
       lockManager = LockManagers.from(properties);
     }
+
     return lockManager;
   }
 
