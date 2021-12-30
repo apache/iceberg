@@ -133,7 +133,9 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Pair<Integer, String> validationKey = Pair.of(sourceTransform.first(), sourceTransform.second().toString());
 
     PartitionField existing = transformToField.get(validationKey);
-    Preconditions.checkArgument(existing == null || deletes.contains(existing.fieldId()),
+    Preconditions.checkArgument(existing == null ||
+        (deletes.contains(existing.fieldId()) &&
+            !existing.transform().dedupName().equals(sourceTransform.second().dedupName())),
         "Cannot add duplicate partition field %s=%s, conflicts with %s", name, term, existing);
 
     PartitionField added = transformToAddedField.get(validationKey);

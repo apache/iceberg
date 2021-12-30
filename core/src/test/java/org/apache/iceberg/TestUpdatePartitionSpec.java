@@ -477,6 +477,15 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
+  public void testAddDeletedField() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .removeField("shard")
+            .addField(bucket("id", 16))); // duplicates shard
+  }
+
+  @Test
   public void testAddDuplicateByName() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
@@ -603,35 +612,6 @@ public class TestUpdatePartitionSpec extends TableTestBase {
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
-  }
-
-  @Test
-  public void testRemoveAndUpdateWithIdentity() {
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
-         .identity("ts")
-         .build();
-    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
-         .removeField("ts")
-         .addField("ts")
-         .apply();
-
-    if (formatVersion == 1) {
-      Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
-      Assert.assertEquals("Should match expected field name", "ts_1000",
-          updated.fields().get(0).name());
-      Assert.assertEquals("Should match expected field name", "ts",
-          updated.fields().get(1).name());
-      Assert.assertEquals("Should match expected field transform", "void",
-          updated.fields().get(0).transform().toString());
-      Assert.assertEquals("Should match expected field transform", "identity",
-          updated.fields().get(1).transform().toString());
-    } else {
-      Assert.assertEquals("Should match expected spec field size", 1, updated.fields().size());
-      Assert.assertEquals("Should match expected field name", "ts",
-          updated.fields().get(0).name());
-      Assert.assertEquals("Should match expected field transform", "identity",
-          updated.fields().get(0).transform().toString());
-    }
   }
 
   @Test
