@@ -360,3 +360,29 @@ ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NUL
 !!! Note
     Table write order does not guarantee data order for queries. It only affects how data is written to the table.
 
+Only local sorting can be set at the same time, use `LOCALLY ORDERED BY`
+
+```sql
+ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category, id
+-- use optional ASC/DEC keyword to specify sort order of each field (default ASC)
+ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category ASC, id DESC
+-- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
+ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
+```
+### `ALTER TABLE ... WRITE DISTRIBUTED BY PARTITION` 
+
+Iceberg tables can be configured with a hash distribution where tuples that share the same values for clustering expressions are
+co-located in the same partition.
+
+To set the write hash for a table, use `WRITE DISTRIBUTED BY PARTITION`:
+
+```sql
+ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION
+```
+Iceberg tables can also be configured to use hash distribution and use local sort order.
+
+```sql
+ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY category, id
+```
+
+
