@@ -22,7 +22,8 @@ package org.apache.iceberg.spark;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
-import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -46,7 +47,9 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   @AfterClass
   public static void dropWarehouse() throws IOException {
     if (warehouse != null && warehouse.exists()) {
-      FileUtils.forceDelete(warehouse);
+      Path warehousePath = new Path(warehouse.getAbsolutePath());
+      FileSystem fs = warehousePath.getFileSystem(hiveConf);
+      Assert.assertTrue("Failed to delete " + warehousePath, fs.delete(warehousePath, true));
     }
   }
 

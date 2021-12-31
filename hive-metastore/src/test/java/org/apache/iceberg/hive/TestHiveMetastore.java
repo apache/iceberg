@@ -31,7 +31,6 @@ import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.jdo.PersistenceManagerFactory;
-import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -49,6 +48,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
@@ -88,32 +88,26 @@ public class TestHiveMetastore {
           .orNoop()
           .buildStatic();
 
-  private static final ThreadLocal<?> HMS_HANDLER_THREAD_LOCAL_CONF =
-          (ThreadLocal<?>) DynFields.builder()
-                  .hiddenImpl(HiveMetaStore.HMSHandler.class, "threadLocalConf")
-                  .buildStatic()
-                  .get();
-  private static final ThreadLocal<?> HMS_HANDLER_THREAD_LOCAL_TXN =
-          (ThreadLocal<?>) DynFields.builder()
-                  .hiddenImpl(HiveMetaStore.HMSHandler.class, "threadLocalTxn")
-                  .buildStatic()
-                  .get();
-  private static final Class<?> TXN_HANDLER_CLASS =
-          DynClasses.builder()
-                  .impl("org.apache.hadoop.hive.metastore.txn.TxnHandler")
-                  .build();
-  private static final DynFields.StaticField<?> CONN_POOL =
-          DynFields.builder()
-                  .hiddenImpl(TXN_HANDLER_CLASS, "connPool")
-                  .buildStatic();
-  private static final DynFields.StaticField<?> OBJECT_STORE_PROP =
-          DynFields.builder()
-                  .hiddenImpl(ObjectStore.class, "prop")
-                  .buildStatic();
-  private static final DynFields.StaticField<PersistenceManagerFactory> OBJECT_STORE_PMF =
-          DynFields.builder()
-                  .hiddenImpl(ObjectStore.class, "pmf")
-                  .buildStatic();
+  private static final ThreadLocal<?> HMS_HANDLER_THREAD_LOCAL_CONF = (ThreadLocal<?>) DynFields.builder()
+          .hiddenImpl(HiveMetaStore.HMSHandler.class, "threadLocalConf")
+          .buildStatic()
+          .get();
+  private static final ThreadLocal<?> HMS_HANDLER_THREAD_LOCAL_TXN = (ThreadLocal<?>) DynFields.builder()
+          .hiddenImpl(HiveMetaStore.HMSHandler.class, "threadLocalTxn")
+          .buildStatic()
+          .get();
+  private static final Class<?> TXN_HANDLER_CLASS = DynClasses.builder()
+          .impl("org.apache.hadoop.hive.metastore.txn.TxnHandler")
+          .build();
+  private static final DynFields.StaticField<?> CONN_POOL = DynFields.builder()
+          .hiddenImpl(TXN_HANDLER_CLASS, "connPool")
+          .buildStatic();
+  private static final DynFields.StaticField<?> OBJECT_STORE_PROP = DynFields.builder()
+          .hiddenImpl(ObjectStore.class, "prop")
+          .buildStatic();
+  private static final DynFields.StaticField<PersistenceManagerFactory> OBJECT_STORE_PMF = DynFields.builder()
+          .hiddenImpl(ObjectStore.class, "pmf")
+          .buildStatic();
 
   private File hiveLocalDir;
   private HiveConf hiveConf;
@@ -199,7 +193,9 @@ public class TestHiveMetastore {
     }
     if (hiveLocalDir != null && hiveLocalDir.exists()) {
       try {
-        FileUtils.forceDelete(hiveLocalDir);
+        Path localDirPath = new Path(hiveLocalDir.getAbsolutePath());
+        FileSystem fs = Util.getFs(localDirPath, hiveConf);
+        Preconditions.checkState(fs.delete(localDirPath, true), "Failed to delete " + localDirPath);
       } catch (IOException e) {
         throw new RuntimeException("Failed to delete local dir " + hiveLocalDir.getAbsolutePath(), e);
       }
