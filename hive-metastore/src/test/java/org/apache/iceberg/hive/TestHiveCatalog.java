@@ -53,7 +53,7 @@ import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
-  private static final ImmutableMap<String, String> meta = ImmutableMap.of(
+  private static ImmutableMap meta = ImmutableMap.of(
       "owner", "apache",
       "group", "iceberg",
       "comment", "iceberg  hiveCatalog test");
@@ -289,7 +289,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     if (hiveLocalDir.endsWith("/")) {
       hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
     }
-    ImmutableMap<String, String> newMeta = ImmutableMap.<String, String>builder()
+    ImmutableMap newMeta = ImmutableMap.<String, String>builder()
         .putAll(meta)
         .put("location", hiveLocalDir)
         .build();
@@ -298,7 +298,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     catalog.createNamespace(namespace2, newMeta);
     Database database2 = metastoreClient.getDatabase(namespace2.toString());
     Assert.assertEquals("There no same location for db and namespace",
-        hiveLocalDir, database2.getLocationUri());
+        database2.getLocationUri(), hiveLocalDir);
   }
 
   @Test
