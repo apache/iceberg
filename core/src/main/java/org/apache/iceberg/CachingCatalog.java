@@ -164,19 +164,20 @@ public class CachingCatalog implements Catalog {
   @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, purge);
-    invalidate(canonicalizeIdentifier(ident));
+    invalidate(ident);
     return dropped;
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     catalog.renameTable(from, to);
-    invalidate(canonicalizeIdentifier(from));
+    invalidate(from);
   }
 
-  private void invalidate(TableIdentifier ident) {
-    tableCache.invalidate(ident);
-    tableCache.invalidateAll(metadataTableIdentifiers(ident));
+  public void invalidate(TableIdentifier ident) {
+    TableIdentifier canonicalized = canonicalizeIdentifier(ident);
+    tableCache.invalidate(canonicalized);
+    tableCache.invalidateAll(metadataTableIdentifiers(canonicalized));
   }
 
   private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
@@ -264,7 +265,7 @@ public class CachingCatalog implements Catalog {
       // committed. when the transaction commits, invalidate the table in the cache if it is present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.replaceTransaction(),
-          () -> invalidate(canonicalizeIdentifier(ident)));
+          () -> invalidate(ident));
     }
 
     @Override
@@ -273,7 +274,7 @@ public class CachingCatalog implements Catalog {
       // committed. when the transaction commits, invalidate the table in the cache if it is present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.createOrReplaceTransaction(),
-          () -> invalidate(canonicalizeIdentifier(ident)));
+          () -> invalidate(ident));
     }
   }
 }

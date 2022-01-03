@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
@@ -76,5 +77,23 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
         "Altering a table to add a new property should add the correct value",
         propsValue,
         table.properties().get(propsKey));
+  }
+
+  @Test
+  public void testInvalidateTable() {
+    if (!catalogName.equals(SparkCatalogConfig.HIVE.catalogName())) {
+      return;
+    }
+
+    // load table to CachingCatalog
+    sql("SELECT count(1) FROM %s", tableName);
+
+    // recreate table from another catalog or program
+    Schema schema = catalog.loadTable(tableIdent).schema();
+    catalog.dropTable(tableIdent);
+    catalog.createTable(tableIdent, schema);
+
+    // refresh table
+    sql("REFRESH TABLE %s", tableName);
   }
 }
