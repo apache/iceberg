@@ -18,7 +18,7 @@
 from typing import Optional
 
 
-class Type(object):
+class Type:
     def __init__(self, type_string: str, repr_string: str, is_primitive=False):
         self._type_string = type_string
         self._repr_string = repr_string
@@ -157,15 +157,107 @@ class MapType(Type):
         return self._value_field
 
 
-BooleanType = Type("boolean", "BooleanType", is_primitive=True)
-IntegerType = Type("int", "IntegerType", is_primitive=True)
-LongType = Type("long", "LongType", is_primitive=True)
-FloatType = Type("float", "FloatType", is_primitive=True)
-DoubleType = Type("double", "DoubleType", is_primitive=True)
-DateType = Type("date", "DateType", is_primitive=True)
-TimeType = Type("time", "TimeType", is_primitive=True)
-TimestampType = Type("timestamp", "TimestampType", is_primitive=True)
-TimestamptzType = Type("timestamptz", "TimestamptzType", is_primitive=True)
-StringType = Type("string", "StringType", is_primitive=True)
-UUIDType = Type("uuid", "UUIDType", is_primitive=True)
-BinaryType = Type("binary", "BinaryType", is_primitive=True)
+class Boolean(Type):
+    """`boolean` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("boolean", "BooleanType", is_primitive=True)
+
+
+class Integer(Type):
+    """32-bit signed integers: `int` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    max: int = 2147483647
+
+    min: int = -2147483648
+
+    def __init__(self):
+        super().__init__("int", "IntegerType", is_primitive=True)
+
+
+class Long(Type):
+    """64-bit signed integers: `long` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    max: int = 9223372036854775807
+
+    min: int = -9223372036854775808
+
+    def __init__(self):
+        super().__init__("long", "LongType", is_primitive=True)
+
+
+class Float(Type):
+    """32-bit IEEE 754 floating point: `float` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("float", "FloatType", is_primitive=True)
+
+
+class Double(Type):
+    """64-bit IEEE 754 floating point: `double` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("double", "DoubleType", is_primitive=True)
+
+
+class Date(Type):
+    """`date` type from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("date", "DateType", is_primitive=True)
+
+
+class Time(Type):
+    """`time` type from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("time", "TimeType", is_primitive=True)
+
+
+class Timestamp(Type):
+    """`timestamp` type from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("timestamp", "TimestampType", is_primitive=True)
+
+
+class Timestamptz(Type):
+    """`timestamptz` type from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("timestamptz", "TimestamptzType", is_primitive=True)
+
+
+class String(Type):
+    """Arbitrary-length character sequences Encoded with UTF-8: `string` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("string", "StringType", is_primitive=True)
+
+
+class UUID(Type):
+    """Universally unique identifiers: `uuid` from https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("uuid", "UUIDType", is_primitive=True)
+
+
+class Binary(Type):
+    """Arbitrary-length byte array from  https://iceberg.apache.org/#spec/#primitive-types"""
+
+    def __init__(self):
+        super().__init__("binary", "BinaryType", is_primitive=True)
+
+
+BooleanType = Boolean()
+IntegerType = Integer()
+LongType = Long()
+FloatType = Float()
+DoubleType = Double()
+DateType = Date()
+TimeType = Time()
+TimestampType = Timestamp()
+TimestamptzType = Timestamptz()
+StringType = String()
+UUIDType = UUID()
+BinaryType = Binary()
