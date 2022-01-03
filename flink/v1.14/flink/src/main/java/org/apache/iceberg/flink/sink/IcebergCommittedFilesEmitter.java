@@ -52,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.slf4j.Logger;
@@ -107,11 +106,10 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
 
       this.lastEmittedSnapshotId = emittedSnapshotIdState.get().iterator().next();
-      Preconditions.checkState(lastEmittedSnapshotId > 0,
-          "Last emitted snapshot id restore from checkpoint shouldn't be negative or 0");
-
       long lastCommittedSnapshotId = getLastCommittedSnapshotId(table, restoredFlinkJobId);
-      if (SnapshotUtil.isAncestorOf(table, lastCommittedSnapshotId, lastEmittedSnapshotId)) {
+      // The last emitted snapshot id would be negative on first commit.
+      if (lastCommittedSnapshotId > 0 && (lastEmittedSnapshotId == DUMMY_SNAPSHOT_ID ||
+          SnapshotUtil.isAncestorOf(table, lastCommittedSnapshotId, lastEmittedSnapshotId))) {
         // Restore last emitted snapshot id from state will lose the last committed snapshot of restored flink job,
         // because the committer emit committed result after checkpoint so that the last emitted snapshot id
         // has not updated when checkpointing. Therefore, we need to emit all data and delete files
@@ -126,6 +124,8 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
   @Override
   public void snapshotState(StateSnapshotContext context) throws Exception {
     super.snapshotState(context);
+    long checkpointId = context.getCheckpointId();
+    LOG.info("Start to flush emitted state to state backend, table: {}, checkpointId: {}", table, checkpointId);
 
     jobIdState.clear();
     jobIdState.add(flinkJobId);
@@ -185,13 +185,13 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
 
   private void emitPartitionFileGroups(long sequenceNumber, long snapshotId,
                                        Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles) {
-    Map<Pair<Integer, StructLikeWrapper>, Collection<DataFile>> dataFileGroup = groupFilesByPartition(dataFiles);
-    Map<Pair<Integer, StructLikeWrapper>, Collection<DeleteFile>> deleteFileGroup = groupFilesByPartition(deleteFiles);
+    Map<StructLikeWrapper, Collection<DataFile>> dataFileGroup = groupFilesByPartition(dataFiles);
+    Map<StructLikeWrapper, Collection<DeleteFile>> deleteFileGroup = groupFilesByPartition(deleteFiles);
 
-    Set<Pair<Integer, StructLikeWrapper>> partitions = Sets.union(dataFileGroup.keySet(), deleteFileGroup.keySet());
-    for (Pair<Integer, StructLikeWrapper> partition : partitions) {
+    Set<StructLikeWrapper> partitions = Sets.union(dataFileGroup.keySet(), deleteFileGroup.keySet());
+    for (StructLikeWrapper partition : partitions) {
       PartitionFileGroup partitionFileGroup = PartitionFileGroup
-          .builder(sequenceNumber, snapshotId, partition.first(), partition.second())
+          .builder(sequenceNumber, snapshotId, partition.get())
           .addDataFile(dataFileGroup.getOrDefault(partition, Collections.emptyList()))
           .addDeleteFile(deleteFileGroup.getOrDefault(partition, Collections.emptyList()))
           .build();
@@ -199,14 +199,13 @@ public class IcebergCommittedFilesEmitter extends AbstractStreamOperator<Partiti
     }
   }
 
-  private <F extends ContentFile<F>> Map<Pair<Integer, StructLikeWrapper>, Collection<F>> groupFilesByPartition(
+  private <F extends ContentFile<F>> Map<StructLikeWrapper, Collection<F>> groupFilesByPartition(
       Iterable<F> files) {
-    Multimap<Pair<Integer, StructLikeWrapper>, F> filesByPartition = Multimaps
-        .newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+    Multimap<StructLikeWrapper, F> filesByPartition = Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
     for (F file : files) {
       PartitionSpec spec = table.specs().get(file.specId());
       StructLikeWrapper partition = StructLikeWrapper.forType(spec.partitionType()).set(file.partition());
-      filesByPartition.put(Pair.of(file.specId(), partition), file);
+      filesByPartition.put(partition, file);
     }
     return filesByPartition.asMap();
   }

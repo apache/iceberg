@@ -393,7 +393,7 @@ public class FlinkSink {
 
       IcebergStreamRewriter fileRewriter = new IcebergStreamRewriter(tableLoader);
       SingleOutputStreamOperator<RewriteResult> rewriterStream = emitterStream
-          .keyBy(PartitionFileGroup::partition)
+          .keyBy(group -> group.partition().toString())
           .transform(operatorName(ICEBERG_STREAM_REWRITER_NAME), TypeInformation.of(RewriteResult.class), fileRewriter);
       if (fileRewriterParallelism != null) {
         rewriterStream = rewriterStream.setParallelism(fileRewriterParallelism);

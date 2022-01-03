@@ -25,23 +25,21 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.StructLikeWrapper;
 
 class PartitionFileGroup implements Serializable {
 
   private final long sequenceNumber;
   private final long snapshotId;
-  private final int specId;
-  private final StructLikeWrapper partition;
+  private final StructLike partition;
   private final DataFile[] dataFiles;
   private final DeleteFile[] deleteFiles;
 
-  private PartitionFileGroup(long sequenceNumber, long snapshotId, int specId, StructLikeWrapper partition,
+  private PartitionFileGroup(long sequenceNumber, long snapshotId, StructLike partition,
                              List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
-    this.specId = specId;
     this.partition = partition;
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
@@ -55,11 +53,7 @@ class PartitionFileGroup implements Serializable {
     return snapshotId;
   }
 
-  int specId() {
-    return specId;
-  }
-
-  StructLikeWrapper partition() {
+  StructLike partition() {
     return partition;
   }
 
@@ -71,23 +65,21 @@ class PartitionFileGroup implements Serializable {
     return deleteFiles;
   }
 
-  static Builder builder(long sequenceNumber, long snapshotId, int specId, StructLikeWrapper partition) {
-    return new Builder(sequenceNumber, snapshotId, specId, partition);
+  static Builder builder(long sequenceNumber, long snapshotId, StructLike partition) {
+    return new Builder(sequenceNumber, snapshotId, partition);
   }
 
   static class Builder {
 
     private final long sequenceNumber;
     private final long snapshotId;
-    private final int specId;
-    private final StructLikeWrapper partition;
+    private final StructLike partition;
     private final List<DataFile> dataFiles;
     private final List<DeleteFile> deleteFiles;
 
-    private Builder(long sequenceNumber, long snapshotId, int specId, StructLikeWrapper partition) {
+    private Builder(long sequenceNumber, long snapshotId, StructLike partition) {
       this.sequenceNumber = sequenceNumber;
       this.snapshotId = snapshotId;
-      this.specId = specId;
       this.partition = partition;
       this.dataFiles = Lists.newArrayList();
       this.deleteFiles = Lists.newArrayList();
@@ -114,7 +106,7 @@ class PartitionFileGroup implements Serializable {
     }
 
     PartitionFileGroup build() {
-      return new PartitionFileGroup(sequenceNumber, snapshotId, specId, partition, dataFiles, deleteFiles);
+      return new PartitionFileGroup(sequenceNumber, snapshotId, partition, dataFiles, deleteFiles);
     }
   }
 }

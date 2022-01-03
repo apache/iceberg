@@ -21,12 +21,11 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.operators.testutils.MockEnvironment;
@@ -37,27 +36,25 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
-import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
-import org.apache.iceberg.ManifestContent;
-import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.events.CreateSnapshotEvent;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.io.FileAppenderFactory;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.StructLikeWrapper;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -67,8 +64,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.flink.sink.FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE;
-
 @RunWith(Parameterized.class)
 public class TestIcebergRewriteFilesCommitter {
 
@@ -77,8 +72,6 @@ public class TestIcebergRewriteFilesCommitter {
 
   private Table table;
   private String tablePath;
-  private File flinkManifestFolder;
-  private FileAppenderFactory<RowData> appenderFactory;
 
   private final FileFormat format;
   private final int formatVersion;
@@ -106,7 +99,7 @@ public class TestIcebergRewriteFilesCommitter {
     Assert.assertTrue(tableDir.delete());
 
     tablePath = tableDir.getAbsolutePath();
-    flinkManifestFolder = temp.newFolder();
+    File flinkManifestFolder = temp.newFolder();
 
     // Construct the iceberg table.
     Map<String, String> props = ImmutableMap.of(
@@ -114,272 +107,176 @@ public class TestIcebergRewriteFilesCommitter {
         TableProperties.FORMAT_VERSION, String.valueOf(formatVersion),
         ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath()
     );
-    table = SimpleDataUtil.createTable(tablePath, props, false);
-
-    appenderFactory = createDeletableAppenderFactory();
+    table = SimpleDataUtil.createTable(tablePath, props, true);
   }
 
   @Test
-  public void testCommitRewriteResult() throws Exception {
-    table.updateProperties()
-        .set(STREAMING_REWRITE_COMMIT_GROUP_SIZE, "2")
-        .commit();
+  public void testCommitPreCheckpoint() throws Exception {
+    long timestamp = 0;
+    long checkpointId = 0;
+    JobID jobID = new JobID();
+    try (OneInputStreamOperatorTestHarness<RewriteResult, Void> harness = createStreamOpr(jobID)) {
+      harness.setup();
+      harness.open();
+
+      StructLike partitionA = SimpleDataUtil.createPartition("aaa");
+      StructLike partitionB = SimpleDataUtil.createPartition("bbb");
+
+      DataFile rewrittenFileA1 = createDataFile("data-old-1", partitionA);
+      DataFile rewrittenFileA2 = createDataFile("data-old-2", partitionA);
+      DataFile rewrittenFileB1 = createDataFile("data-old-1", partitionB);
+      DataFile rewrittenFileB2 = createDataFile("data-old-2", partitionB);
+      long snapshot1 = commit(rewrittenFileA1, rewrittenFileA2, rewrittenFileB1, rewrittenFileB2);
+
+      DataFile addedFileA1 = createDataFile("data-new-1", partitionA);
+      RewriteResult rewriteResultA1 = RewriteResult.builder(snapshot1)
+          .partition(partitionA)
+          .addRewrittenDataFiles(ImmutableList.of(rewrittenFileA1, rewrittenFileA2))
+          .addAddedDataFiles(ImmutableList.of(addedFileA1))
+          .build();
+      harness.processElement(rewriteResultA1, ++timestamp);
+      assertSnapshots(1);
+
+      DataFile addedFileB1 = createDataFile("data-new-1", partitionB);
+      RewriteResult rewriteResultB1 = RewriteResult.builder(snapshot1)
+          .partition(partitionB)
+          .addRewrittenDataFiles(ImmutableList.of(rewrittenFileB1, rewrittenFileB2))
+          .addAddedDataFiles(ImmutableList.of(addedFileB1))
+          .build();
+      harness.processElement(rewriteResultB1, ++timestamp);
+      assertSnapshots(1);
+
+      DataFile rewrittenFileA3 = createDataFile("data-old-3", partitionA);
+      long snapshot2 = commit(rewrittenFileA3);
+
+      DataFile addedFileA2 = createDataFile("data-new-2", partitionA);
+      DataFile addedFileA3 = createDataFile("data-new-3", partitionA);
+      RewriteResult rewriteResultA2 = RewriteResult.builder(snapshot2)
+          .partition(partitionA)
+          .addRewrittenDataFiles(ImmutableList.of(rewrittenFileA3))
+          .addAddedDataFiles(ImmutableList.of(addedFileA2, addedFileA3))
+          .build();
+      harness.processElement(rewriteResultA2, ++timestamp);
+      assertSnapshots(2);
+
+      // rewrite results should be committed in same time if they have same snapshot id.
+      harness.snapshot(++checkpointId, ++timestamp);
+      assertSnapshots(4);
+
+      List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+      Assert.assertEquals("Snapshot id should equal", snapshot1, snapshots.get(0).snapshotId());
+      Assert.assertEquals("Snapshot id should equal", snapshot2, snapshots.get(1).snapshotId());
+      validateSnapshotFiles(snapshots.get(2).snapshotId(), addedFileA1, addedFileB1, rewrittenFileA3);
+      validateSnapshotFiles(snapshots.get(3).snapshotId(), addedFileA1, addedFileB1, addedFileA2, addedFileA3);
+    }
+  }
+
+  @Test
+  public void testCommitRewriteValidation() throws Exception {
+    Assume.assumeTrue("Sequence number is only supported in iceberg format v2.", formatVersion > 1);
 
     long timestamp = 0;
+    long checkpointId = 0;
     JobID jobID = new JobID();
     try (OneInputStreamOperatorTestHarness<RewriteResult, Void> harness = createStreamOpr(jobID)) {
       harness.setup();
       harness.open();
 
       StructLike partition = SimpleDataUtil.createPartition(null);
-      StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
 
-      List<RowData> rows = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "xxx"),
-          SimpleDataUtil.createRowData(2, "xxx"),
-          SimpleDataUtil.createRowData(3, "xxx"),
-          SimpleDataUtil.createRowData(4, "xxx")
-      );
+      DataFile rewrittenFile = createDataFile("data-old", partition);
+      long snapshot1 = commit(rewrittenFile);
 
-      List<RowData> expected = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "ccc"),
-          SimpleDataUtil.createRowData(4, "ddd")
-      );
+      // add deletes files
+      DeleteFile posDeleteFile = createPosDeleteFile("pos-delete", partition);
+      DeleteFile eqDeleteFile = createEqDeleteFile("eq-delete", partition);
+      long snapshot2 = commit(ImmutableList.of(), ImmutableList.of(posDeleteFile, eqDeleteFile));
 
-      DataFile deletedFile1 = writeDataFile("data-1", partition, rows.subList(0, 1));
-      CommitResult commit1 = commit(ImmutableList.of(deletedFile1), ImmutableList.of(), ImmutableList.of());
-
-      DataFile deletedFile2 = writeDataFile("data-2", partition, rows.subList(1, 3));
-      CommitResult commit2 = commit(ImmutableList.of(deletedFile2), ImmutableList.of(), ImmutableList.of());
-
-      DataFile addedFile1 = writeDataFile("rewrite-1", partition, expected.subList(0, 3));
-      RewriteResult rewriteResult1 = RewriteResult.builder()
-          .partition(partitionWrapper.set(partition))
-          .startingSnapshotSeqNum(commit2.sequenceNumber())
-          .startingSnapshotId(commit2.snapshotId())
-          .addDeletedDataFiles(ImmutableList.of(deletedFile1, deletedFile2))
-          .addAddedDataFiles(ImmutableList.of(addedFile1))
+      DataFile addedFile = createDataFile("data-new-1", partition);
+      RewriteResult rewriteResult = RewriteResult.builder(snapshot1)
+          .partition(partition)
+          .addRewrittenDataFiles(ImmutableList.of(rewrittenFile))
+          .addAddedDataFiles(ImmutableList.of(addedFile))
           .build();
+      harness.processElement(rewriteResult, ++timestamp);
+      assertSnapshots(2);
 
-      // not commit rewrite result
-      harness.processElement(rewriteResult1, ++timestamp);
-      SimpleDataUtil.assertTableRows(table, rows.subList(0, 3));
+      // should commit rewrite fail and abort for found new position delete for rewritten data file.
+      harness.snapshot(++checkpointId, ++timestamp);
+      assertSnapshots(2);
 
-      DataFile deletedFile3 = writeDataFile("data-3", partition, rows.subList(3, 4));
-      CommitResult commit3 = commit(ImmutableList.of(deletedFile3), ImmutableList.of(), ImmutableList.of());
-
-      DataFile addedFile2 = writeDataFile("rewrite-2", partition, expected.subList(3, 4));
-      RewriteResult rewriteResult2 = RewriteResult.builder()
-          .partition(partitionWrapper.set(partition))
-          .startingSnapshotSeqNum(commit3.sequenceNumber())
-          .startingSnapshotId(commit3.snapshotId())
-          .addDeletedDataFiles(ImmutableList.of(deletedFile3))
-          .addAddedDataFiles(ImmutableList.of(addedFile2))
-          .build();
-
-      // commit rewrite result
-      harness.processElement(rewriteResult2, ++timestamp);
-      SimpleDataUtil.assertTableRows(table, expected);
+      List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+      Assert.assertEquals("Snapshot id should equal", snapshot1, snapshots.get(0).snapshotId());
+      Assert.assertEquals("Snapshot id should equal", snapshot2, snapshots.get(1).snapshotId());
     }
   }
 
-  @Test
-  public void testCommitPreCheckpoint() throws Exception {
-    table.updateProperties()
-        .set(STREAMING_REWRITE_COMMIT_GROUP_SIZE, "2")
-        .commit();
-
-    StructLike partition = SimpleDataUtil.createPartition(null);
-    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
-
-    long checkpointId = 0;
-    long timestamp = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<RewriteResult, Void> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      List<RowData> rows = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "xxx"),
-          SimpleDataUtil.createRowData(2, "xxx"),
-          SimpleDataUtil.createRowData(3, "xxx"),
-          SimpleDataUtil.createRowData(4, "xxx")
-      );
-
-      List<RowData> expected = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "ccc"),
-          SimpleDataUtil.createRowData(4, "ddd")
-      );
-
-      DataFile deletedFile1 = writeDataFile("data-1", partition, rows.subList(0, 1));
-      CommitResult commit1 = commit(ImmutableList.of(deletedFile1), ImmutableList.of(), ImmutableList.of());
-
-      DataFile deletedFile2 = writeDataFile("data-2", partition, rows.subList(1, 3));
-      CommitResult commit2 = commit(ImmutableList.of(deletedFile2), ImmutableList.of(), ImmutableList.of());
-
-      DataFile addedFile1 = writeDataFile("rewrite-1", partition, expected.subList(0, 3));
-      RewriteResult rewriteResult1 = RewriteResult.builder()
-          .partition(partitionWrapper.set(partition))
-          .startingSnapshotSeqNum(commit2.sequenceNumber())
-          .startingSnapshotId(commit2.snapshotId())
-          .addDeletedDataFiles(ImmutableList.of(deletedFile1, deletedFile2))
-          .addAddedDataFiles(ImmutableList.of(addedFile1))
-          .build();
-
-      // not commit rewrite result
-      harness.processElement(rewriteResult1, ++timestamp);
-      SimpleDataUtil.assertTableRows(table, rows.subList(0, 3));
-
-      // commit all remain rewrite result
-      harness.prepareSnapshotPreBarrier(++checkpointId);
-      SimpleDataUtil.assertTableRows(table, expected.subList(0, 3));
-
-      DataFile deletedFile3 = writeDataFile("data-3", partition, rows.subList(3, 4));
-      CommitResult commit3 = commit(ImmutableList.of(deletedFile3), ImmutableList.of(), ImmutableList.of());
-
-      DataFile addedFile2 = writeDataFile("rewrite-2", partition, expected.subList(3, 4));
-      RewriteResult rewriteResult2 = RewriteResult.builder()
-          .partition(partitionWrapper.set(partition))
-          .startingSnapshotSeqNum(commit3.sequenceNumber())
-          .startingSnapshotId(commit3.snapshotId())
-          .addDeletedDataFiles(ImmutableList.of(deletedFile3))
-          .addAddedDataFiles(ImmutableList.of(addedFile2))
-          .build();
-
-      // not commit rewrite result
-      harness.processElement(rewriteResult2, ++timestamp);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(
-          expected.get(0), expected.get(1), expected.get(2), rows.get(3)
-      ));
-
-      // commit all remain rewrite result
-      harness.prepareSnapshotPreBarrier(++checkpointId);
-      SimpleDataUtil.assertTableRows(table, expected);
-    }
+  private long commit(DataFile... dataFiles) {
+    return commit(Arrays.asList(dataFiles), ImmutableList.of());
   }
 
-  @Test
-  public void testValidateFromSnapshot() throws Exception {
-    Assume.assumeTrue("Validate from snapshot only supported in iceberg format v2.", formatVersion > 1);
-    table.updateProperties()
-        .set(STREAMING_REWRITE_COMMIT_GROUP_SIZE, "1")
-        .commit();
-
-    StructLike partition = SimpleDataUtil.createPartition(null);
-    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(table.spec().partitionType());
-
-    long checkpointId = 0;
-    long timestamp = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<RewriteResult, Void> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      DataFile deletedFile1 = writeDataFile("data-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "xxx"),
-          SimpleDataUtil.createRowData(2, "xxx")
-      ));
-      CommitResult commit1 = commit(ImmutableList.of(deletedFile1), ImmutableList.of(), ImmutableList.of());
-
-      DataFile deletedFile2 = writeDataFile("data-2", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "xxx")
-      ));
-      CommitResult commit2 = commit(ImmutableList.of(deletedFile2), ImmutableList.of(), ImmutableList.of());
-
-      // construct rewrite result
-      DataFile addedFile1 = writeDataFile("rewrite-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "ccc")
-      ));
-      RewriteResult rewriteResult1 = RewriteResult.builder()
-          .partition(partitionWrapper.set(partition))
-          .startingSnapshotSeqNum(commit2.sequenceNumber())
-          .startingSnapshotId(commit2.snapshotId())
-          .addDeletedDataFiles(ImmutableList.of(deletedFile1, deletedFile2))
-          .addAddedDataFiles(ImmutableList.of(addedFile1))
-          .build();
-
-      // update rewritten records
-      DataFile updateFile1 = writeDataFile("data-3", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(2, "yyy"),
-          SimpleDataUtil.createRowData(4, "xxx")
-      ));
-      DeleteFile deleteFile1 = writePosDeleteFile("pos-delete-1", partition, ImmutableList.of(
-          Pair.of(updateFile1.path(), 1L))
-      );
-      DeleteFile deleteFile2 = writeEqDeleteFile("eq-delete-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(2, "xxx")
-      ));
-      CommitResult commit3 = commit(ImmutableList.of(updateFile1), ImmutableList.of(deleteFile1, deleteFile2),
-          ImmutableList.of(updateFile1.path()));
-
-      // commit fail and ignore rewrite result
-      harness.processElement(rewriteResult1, ++timestamp);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "xxx"),
-          SimpleDataUtil.createRowData(2, "yyy"),
-          SimpleDataUtil.createRowData(3, "xxx")
-      ));
-    }
-  }
-
-  private CommitResult commit(List<DataFile> dataFiles, List<DeleteFile> deleteFiles,
-                              List<CharSequence> referencedFiles) {
+  private long commit(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     RowDelta rowDelta = table.newRowDelta();
     dataFiles.forEach(rowDelta::addRows);
     deleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
     CreateSnapshotEvent event = (CreateSnapshotEvent) rowDelta.updateEvent();
-    WriteResult writeResult = WriteResult.builder()
-            .addDataFiles(dataFiles)
-            .addDeleteFiles(deleteFiles)
-            .addReferencedDataFiles(referencedFiles)
-            .build();
-    return CommitResult.builder(event.sequenceNumber(), event.snapshotId()).add(writeResult).build();
+    return event.snapshotId();
   }
 
-  private DataFile writeDataFile(String filename, StructLike partition, List<RowData> rows)
-      throws IOException {
-    return SimpleDataUtil.writeDataFile(table, format, filename, appenderFactory, partition, rows);
+  private String getFilePath(String filename, StructLike partition) {
+    return partition == null ? table.locationProvider().newDataLocation(filename) :
+        table.locationProvider().newDataLocation(table.spec(), partition, filename);
   }
 
-  private DeleteFile writeEqDeleteFile(String filename, StructLike partition, List<RowData> deletes)
-      throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, format, filename, appenderFactory, partition, deletes);
+  private DataFile createDataFile(String filename, StructLike partition) {
+    return DataFiles.builder(table.spec())
+        .withFormat(format)
+        .withPath(getFilePath(filename, partition))
+        .withFileSizeInBytes(10)
+        .withPartition(partition)
+        .withRecordCount(1)
+        .build();
   }
 
-  private DeleteFile writePosDeleteFile(String filename, StructLike partition, List<Pair<CharSequence, Long>> positions)
-      throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, format, filename, appenderFactory, partition, positions);
+  private DeleteFile createPosDeleteFile(String filename, StructLike partition) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withFormat(format)
+        .withPath(getFilePath(filename, partition))
+        .withFileSizeInBytes(10)
+        .withPartition(partition)
+        .withRecordCount(1)
+        .build();
   }
 
-  private FileAppenderFactory<RowData> createDeletableAppenderFactory() {
-    int[] equalityFieldIds = new int[] {
-        table.schema().findField("id").fieldId(),
-        table.schema().findField("data").fieldId()
-    };
-    return new FlinkAppenderFactory(table.schema(),
-        FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), equalityFieldIds,
-        table.schema(), null);
+  private DeleteFile createEqDeleteFile(String filename, StructLike partition) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofEqualityDeletes()
+        .withFormat(format)
+        .withPath(getFilePath(filename, partition))
+        .withFileSizeInBytes(10)
+        .withPartition(partition)
+        .withRecordCount(1)
+        .build();
   }
 
-  private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(manifestPath.toAbsolutePath().toString(), manifestPath.toFile().length(), 0,
-        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null, null);
+  private void assertSnapshots(int expectedCount) {
+    table.refresh();
+    int actualCount = Iterables.size(table.snapshots());
+    Assert.assertEquals(expectedCount, actualCount);
   }
 
-  private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
-    List<Path> manifests = Files.list(flinkManifestFolder.toPath())
-        .filter(p -> !p.toString().endsWith(".crc"))
-        .collect(Collectors.toList());
-    Assert.assertEquals(String.format("Expected %s flink manifests, but the list is: %s", expectedCount, manifests),
-        expectedCount, manifests.size());
-    return manifests;
+  private void validateSnapshotFiles(long snapshotId, DataFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DataFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : table.newScan().useSnapshot(snapshotId).planFiles()) {
+      actualFilePaths.add(task.file().path());
+    }
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
   private OneInputStreamOperatorTestHarness<RewriteResult, Void> createStreamOpr(JobID jobID)

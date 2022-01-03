@@ -21,13 +21,14 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.List;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -39,22 +40,25 @@ class RewriteFileGroup {
   private long latestSnapshotId;
   private int filesCount;
   private long filesSize;
-  private final transient List<DeltaManifests> manifestsList;
+  private final StructLike partition;
+  private final List<DeltaManifests> manifestsList;
 
-  RewriteFileGroup() {
+  RewriteFileGroup(StructLike partition) {
     this.latestSequenceNumber = 0;
     this.latestSnapshotId = 0;
     this.filesCount = 0;
     this.filesSize = 0;
+    this.partition = partition;
     this.manifestsList = Lists.newArrayList();
   }
 
   private RewriteFileGroup(long latestSequenceNumber, long latestSnapshotId, int filesCount, long filesSize,
-                           List<DeltaManifests> manifestsList) {
+                           StructLike partition, List<DeltaManifests> manifestsList) {
     this.latestSequenceNumber = latestSequenceNumber;
     this.latestSnapshotId = latestSnapshotId;
     this.filesCount = filesCount;
     this.filesSize = filesSize;
+    this.partition = partition;
     this.manifestsList = manifestsList;
   }
 
@@ -78,17 +82,22 @@ class RewriteFileGroup {
     return manifestsList;
   }
 
+  StructLike partition() {
+    return partition;
+  }
+
   Iterable<ManifestFile> manifestFiles() {
     return Iterables.concat(Lists.transform(manifestsList, DeltaManifests::manifests));
   }
 
-  void append(int dataFilesCount, long dataFliesSize, long sequenceNumber, long snapshotId,
-              DeltaManifests deltaManifests) throws IOException {
+  void add(int dataFilesCount, long dataFliesSize, long sequenceNumber, long snapshotId, DeltaManifests deltaManifests)
+      throws IOException {
     if (deltaManifests == null || deltaManifests.manifests().isEmpty()) {
       return;
     }
 
-    if (sequenceNumber > latestSequenceNumber) {
+    // v1 table sequence number is always 0.
+    if (sequenceNumber >= latestSequenceNumber) {
       latestSequenceNumber = sequenceNumber;
       latestSnapshotId = snapshotId;
     }
@@ -103,9 +112,9 @@ class RewriteFileGroup {
     return MoreObjects.toStringHelper(this)
         .add("latestSequenceNumber", latestSequenceNumber)
         .add("latestSnapshotId", latestSnapshotId)
+        .add("partition", partition)
         .add("dataFilesCount", filesCount)
         .add("dataFilesSize", filesSize)
-        .add("deltaManifestsList", manifestsList)
         .toString();
   }
 
@@ -123,12 +132,13 @@ class RewriteFileGroup {
       Preconditions.checkNotNull(rewriteFileGroup, "RewriteFileGroup to be serialized should not be null");
 
       ByteArrayOutputStream binaryOut = new ByteArrayOutputStream();
-      DataOutputStream out = new DataOutputStream(binaryOut);
+      ObjectOutputStream out = new ObjectOutputStream(binaryOut);
 
       out.writeLong(rewriteFileGroup.latestSequenceNumber());
       out.writeLong(rewriteFileGroup.latestSnapshotId());
       out.writeInt(rewriteFileGroup.filesCount());
       out.writeLong(rewriteFileGroup.filesSize());
+      out.writeObject(rewriteFileGroup.partition());
 
       int size = rewriteFileGroup.manifestsList().size();
       out.writeInt(size);
@@ -138,7 +148,7 @@ class RewriteFileGroup {
         out.writeInt(data.length);
         out.write(data);
       }
-
+      out.flush();
       return binaryOut.toByteArray();
     }
 
@@ -153,25 +163,32 @@ class RewriteFileGroup {
 
     private RewriteFileGroup deserializeV1(byte[] serialized) throws IOException {
       ByteArrayInputStream binaryIn = new ByteArrayInputStream(serialized);
-      DataInputStream in = new DataInputStream(binaryIn);
+      ObjectInputStream in = new ObjectInputStream(binaryIn);
 
       long latestSequenceNumber = in.readLong();
       long latestSnapshotId = in.readLong();
       int filesCount = in.readInt();
       long filesSize = in.readLong();
+      StructLike partition;
+      try {
+        partition = (StructLike) in.readObject();
+      } catch (ClassNotFoundException e) {
+        throw new IOException("Fail to read partition bytes", e);
+      }
 
       int size = in.readInt();
       List<DeltaManifests> manifestsList = Lists.newArrayListWithCapacity(size);
       for (int i = 0; i < size; i++) {
         int length = in.readInt();
         byte[] data = new byte[length];
-        Preconditions.checkState(in.read(data) == length);
+        in.readFully(data);
         DeltaManifests deltaManifests = SimpleVersionedSerialization.readVersionAndDeSerialize(
                 DeltaManifestsSerializer.INSTANCE, data);
         manifestsList.add(deltaManifests);
       }
 
-      return new RewriteFileGroup(latestSequenceNumber, latestSnapshotId, filesCount, filesSize, manifestsList);
+      return new RewriteFileGroup(latestSequenceNumber, latestSnapshotId, filesCount, filesSize, partition,
+          manifestsList);
     }
   }
 }

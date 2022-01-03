@@ -193,22 +193,22 @@ public class TestIcebergCommittedFilesEmitter {
       harness.open();
 
       List<PartitionFileGroup> expected = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partition)
               .addDataFile(missingDataFile11, missingDataFile12, missingDataFile13, missingDataFile14)
               .addDeleteFile(missingDeleteFile11, missingDeleteFile12)
               .build(),
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partition)
               .addDeleteFile(otherEqDeleteFile)
               .build(),
-          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), partition)
               .addDataFile(missingDataFile21)
               .addDeleteFile(missingDeleteFile21, missingDeleteFile22)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partition)
               .addDataFile(missingDataFile11, missingDataFile12, missingDataFile13, missingDataFile14)
               .build(),
-          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), partition)
               .addDataFile(missingDataFile21)
               .build()
       );
@@ -291,31 +291,31 @@ public class TestIcebergCommittedFilesEmitter {
       harness.open();
 
       List<PartitionFileGroup> expected = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionA)
               .addDataFile(missingDataFileA11, missingDataFileA12)
               .addDeleteFile(missingDeleteFileA11, missingDeleteFileA12)
               .build(),
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionB)
               .addDataFile(missingDataFileB11, missingDataFileB12)
               .build(),
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionA)
               .addDeleteFile(otherEqDeleteFileA)
               .build(),
-          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), partitionA)
               .addDeleteFile(missingDeleteFileA21)
               .build(),
-          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), partitionB)
               .addDataFile(missingDataFileB21)
               .addDeleteFile(ImmutableList.of(missingDeleteFileB22))
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionA)
               .addDataFile(missingDataFileA11, missingDataFileA12)
               .build(),
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionB)
               .addDataFile(missingDataFileB11, missingDataFileB12)
               .build(),
-          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit3.sequenceNumber(), commit3.snapshotId(), partitionB)
               .addDataFile(missingDataFileB21)
               .build()
       );
@@ -355,12 +355,12 @@ public class TestIcebergCommittedFilesEmitter {
       harness.snapshot(++checkpoint, timestamp);
 
       List<PartitionFileGroup> expected1 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partition)
               .addDataFile(newDataFile11, newDataFile12, newDataFile13, newDataFile14)
               .addDeleteFile(newDeleteFile11)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partition)
               .addDataFile(newDataFile11, newDataFile12, newDataFile13, newDataFile14)
               .build()
       );
@@ -381,12 +381,12 @@ public class TestIcebergCommittedFilesEmitter {
       harness.processElement(commit2, ++timestamp);
 
       List<PartitionFileGroup> expected2 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partition)
               .addDataFile(newDataFile21)
               .addDeleteFile(newDeleteFile21, newDeleteFile22, newDeleteFile23)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partition)
               .addDataFile(newDataFile21)
               .build()
       );
@@ -428,18 +428,18 @@ public class TestIcebergCommittedFilesEmitter {
       harness.snapshot(++checkpoint, timestamp);
 
       List<PartitionFileGroup> expected1 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionA)
               .addDataFile(newDataFileA11, newDataFileA12)
               .addDeleteFile(newDeleteFileA11)
               .build(),
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionB)
               .addDataFile(newDataFileB11, newDataFileB12)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionA)
               .addDataFile(newDataFileA11, newDataFileA12)
               .build(),
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionB)
               .addDataFile(newDataFileB11, newDataFileB12)
               .build()
       );
@@ -459,15 +459,15 @@ public class TestIcebergCommittedFilesEmitter {
       harness.processElement(commit2, ++timestamp);
 
       List<PartitionFileGroup> expected2 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionA)
               .addDeleteFile(newDeleteFileA21)
               .build(),
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionB)
               .addDataFile(newDataFileB21)
               .addDeleteFile(ImmutableList.of(newDeleteFileB21))
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionB)
               .addDataFile(newDataFileB21)
               .build()
       );
@@ -514,12 +514,12 @@ public class TestIcebergCommittedFilesEmitter {
       harness.snapshot(++checkpoint, timestamp);
 
       List<PartitionFileGroup> expected1 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partition)
               .addDataFile(newDataFile11, newDataFile12, newDataFile13, newDataFile14)
               .addDeleteFile(newDeleteFile11)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partition)
               .addDataFile(newDataFile11, newDataFile12, newDataFile13, newDataFile14)
               .build()
       );
@@ -551,16 +551,15 @@ public class TestIcebergCommittedFilesEmitter {
       harness.processElement(commit2, ++timestamp);
 
       List<PartitionFileGroup> expected2 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup
-              .builder(otherCommit.sequenceNumber(), otherCommit.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(otherCommit.sequenceNumber(), otherCommit.snapshotId(), partition)
               .addDeleteFile(otherEqDeleteFile)
               .build(),
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partition)
               .addDataFile(newDataFile21)
               .addDeleteFile(newDeleteFile21, newDeleteFile22, newDeleteFileB23)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partition))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partition)
               .addDataFile(newDataFile21)
               .build()
       );
@@ -608,18 +607,18 @@ public class TestIcebergCommittedFilesEmitter {
       harness.snapshot(++checkpoint, timestamp);
 
       List<PartitionFileGroup> expected1 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionA)
               .addDataFile(newDataFileA11, newDataFileA12)
               .addDeleteFile(newDeleteFileA11)
               .build(),
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionB)
               .addDataFile(newDataFileB11, newDataFileB12)
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionA)
               .addDataFile(newDataFileA11, newDataFileA12)
               .build(),
-          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit1.sequenceNumber(), commit1.snapshotId(), partitionB)
               .addDataFile(newDataFileB11, newDataFileB12)
               .build()
       );
@@ -651,19 +650,18 @@ public class TestIcebergCommittedFilesEmitter {
       harness.processElement(commit2, ++timestamp);
 
       List<PartitionFileGroup> expected2 = formatVersion > 1 ? Lists.newArrayList(
-          PartitionFileGroup
-              .builder(otherCommit.sequenceNumber(), otherCommit.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(otherCommit.sequenceNumber(), otherCommit.snapshotId(), partitionA)
               .addDeleteFile(otherEqDeleteFileA)
               .build(),
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionA))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionA)
               .addDeleteFile(newDeleteFileA21)
               .build(),
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionB)
               .addDataFile(newDataFileB21)
               .addDeleteFile(ImmutableList.of(newDeleteFileB21))
               .build()
       ) : Lists.newArrayList(
-          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), specId, wrap(partitionB))
+          PartitionFileGroup.builder(commit2.sequenceNumber(), commit2.snapshotId(), partitionB)
               .addDataFile(newDataFileB21)
               .build()
       );
@@ -739,8 +737,8 @@ public class TestIcebergCommittedFilesEmitter {
         expectedFileGroups.size(), actualFileGroups.size());
 
     if (partitioned) {
-      expectedFileGroups.sort(Comparator.comparing(o -> o.partition().get().get(0, String.class)));
-      actualFileGroups.sort(Comparator.comparing(o -> o.partition().get().get(0, String.class)));
+      expectedFileGroups.sort(Comparator.comparing(o -> o.partition().toString()));
+      actualFileGroups.sort(Comparator.comparing(o -> o.partition().toString()));
     }
 
     for (int i = 0; i < actualFileGroups.size(); i++) {
@@ -748,8 +746,7 @@ public class TestIcebergCommittedFilesEmitter {
       PartitionFileGroup actual = actualFileGroups.get(i);
       Assert.assertEquals("Sequence number should match", expected.sequenceNumber(), actual.sequenceNumber());
       Assert.assertEquals("Snapshot id should match", expected.snapshotId(), actual.snapshotId());
-      Assert.assertEquals("Spec id should match", expected.specId(), actual.specId());
-      Assert.assertEquals("Partition should match", expected.partition(), actual.partition());
+      Assert.assertEquals("Partition should match", wrap(expected.partition()), wrap(actual.partition()));
       Assert.assertEquals(
           "Data files should match",
           Arrays.stream(expected.dataFiles()).map(ContentFile::path).collect(Collectors.toSet()),

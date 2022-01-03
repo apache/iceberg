@@ -20,91 +20,70 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.StructLikeWrapper;
 
 class RewriteResult {
 
-  private final Collection<StructLikeWrapper> partitions;
-  private final long startingSnapshotSeqNum;
   private final long startingSnapshotId;
-  private final Iterable<DataFile> addedDataFiles;
-  private final Iterable<DataFile> deletedDataFiles;
+  private final Collection<StructLike> partitions;
+  private final Set<DataFile> addedDataFiles;
+  private final Set<DataFile> rewrittenDataFiles;
 
-  private RewriteResult(Collection<StructLikeWrapper> partitions,
-                        long startingSnapshotSeqNum,
-                        long startingSnapshotId,
-                        Iterable<DataFile> addedDataFiles,
-                        Iterable<DataFile> deletedDataFiles) {
-    this.partitions = partitions;
-    this.startingSnapshotSeqNum = startingSnapshotSeqNum;
+  private RewriteResult(long startingSnapshotId,
+                        Collection<StructLike> partitions,
+                        Set<DataFile> addedDataFiles,
+                        Set<DataFile> rewrittenDataFiles) {
     this.startingSnapshotId = startingSnapshotId;
+    this.partitions = partitions;
     this.addedDataFiles = addedDataFiles;
-    this.deletedDataFiles = deletedDataFiles;
-  }
-
-  Collection<StructLikeWrapper> partitions() {
-    return partitions;
-  }
-
-  long startingSnapshotSeqNum() {
-    return startingSnapshotSeqNum;
+    this.rewrittenDataFiles = rewrittenDataFiles;
   }
 
   long startingSnapshotId() {
     return startingSnapshotId;
   }
 
-  Iterable<DataFile> addedDataFiles() {
+  Collection<StructLike> partitions() {
+    return partitions;
+  }
+
+  Set<DataFile> addedDataFiles() {
     return addedDataFiles;
   }
 
-  Iterable<DataFile> deletedDataFiles() {
-    return deletedDataFiles;
+  Set<DataFile> rewrittenDataFiles() {
+    return rewrittenDataFiles;
   }
 
-  static Builder builder() {
-    return new Builder();
+  static Builder builder(long startingSnapshotId) {
+    return new Builder(startingSnapshotId);
   }
 
   static class Builder {
-    private final Set<StructLikeWrapper> partitions;
-    private long startingSnapshotSeqNum;
-    private long startingSnapshotId;
-    private final List<DataFile> addedFiles;
-    private final List<DataFile> deletedFiles;
+    private final long startingSnapshotId;
+    private final Set<StructLike> partitions;
+    private final Set<DataFile> addedFiles;
+    private final Set<DataFile> rewrittenDataFiles;
 
-    private Builder() {
-      partitions = Sets.newHashSet();
-      startingSnapshotSeqNum = 0;
-      startingSnapshotId = 0;
-      addedFiles = Lists.newArrayList();
-      deletedFiles = Lists.newArrayList();
+    private Builder(long startingSnapshotId) {
+      this.startingSnapshotId = startingSnapshotId;
+      this.partitions = Sets.newHashSet();
+      this.addedFiles = Sets.newHashSet();
+      this.rewrittenDataFiles = Sets.newHashSet();
     }
 
-    Builder partition(StructLikeWrapper newPartition) {
+    Builder partition(StructLike newPartition) {
       this.partitions.add(newPartition);
       return this;
     }
 
-    Builder partitions(Collection<StructLikeWrapper> newPartitions) {
-      newPartitions.forEach(this::partition);
-      return this;
-    }
-
-    Builder startingSnapshotSeqNum(long newStartingSnapshotSeqNum) {
-      this.startingSnapshotSeqNum = newStartingSnapshotSeqNum;
-      return this;
-    }
-
-    Builder startingSnapshotId(long newStartingSnapshotId) {
-      this.startingSnapshotId = newStartingSnapshotId;
+    Builder partitions(Collection<StructLike> newPartitions) {
+      this.partitions.addAll(newPartitions);
       return this;
     }
 
@@ -113,29 +92,13 @@ class RewriteResult {
       return this;
     }
 
-    Builder addDeletedDataFiles(Iterable<DataFile> dataFiles) {
-      Iterables.addAll(deletedFiles, dataFiles);
-      return this;
-    }
-
-    Builder add(RewriteResult result) {
-      if (startingSnapshotSeqNum == 0 || result.startingSnapshotSeqNum() < startingSnapshotSeqNum) {
-        startingSnapshotSeqNum = result.startingSnapshotSeqNum();
-        startingSnapshotId = result.startingSnapshotId();
-      }
-      partitions(result.partitions());
-      addAddedDataFiles(result.addedDataFiles());
-      addDeletedDataFiles(result.deletedDataFiles());
-      return this;
-    }
-
-    Builder addAll(Iterable<RewriteResult> results) {
-      results.forEach(this::add);
+    Builder addRewrittenDataFiles(Iterable<DataFile> dataFiles) {
+      Iterables.addAll(rewrittenDataFiles, dataFiles);
       return this;
     }
 
     RewriteResult build() {
-      return new RewriteResult(partitions, startingSnapshotSeqNum, startingSnapshotId, addedFiles, deletedFiles);
+      return new RewriteResult(startingSnapshotId, partitions, addedFiles, rewrittenDataFiles);
     }
   }
 
@@ -143,9 +106,8 @@ class RewriteResult {
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("partitions", partitions)
-        .add("startingSnapshotSeqNum", startingSnapshotSeqNum)
         .add("startingSnapshotId", startingSnapshotId)
-        .add("numRewrittenFiles", Iterables.size(deletedDataFiles))
+        .add("numRewrittenFiles", Iterables.size(rewrittenDataFiles))
         .add("numAddedFiles", Iterables.size(addedDataFiles))
         .toString();
   }

@@ -45,6 +45,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -53,7 +54,6 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -86,10 +86,11 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
   private transient Integer splitLookback;
   private transient Long splitOpenFileCost;
 
-  private final Map<StructLikeWrapper, RewriteFileGroup> rewriteFileGroupByPartition = Maps.newHashMap();
+  private transient Map<StructLikeWrapper, RewriteFileGroup> pendingFileGroupByPartition;
+  private transient List<RewriteFileGroup> rewrittenFileGroups;
 
-  private static final ListStateDescriptor<Map<StructLikeWrapper, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
-  private transient ListState<Map<StructLikeWrapper, byte[]>> rewriteFileGroupsState;
+  private static final ListStateDescriptor<byte[]> STATE_DESCRIPTOR = buildStateDescriptor();
+  private transient ListState<byte[]> pendingRewriteFileGroupsState;
 
   IcebergStreamRewriter(TableLoader tableLoader) {
     this.tableLoader = tableLoader;
@@ -102,6 +103,8 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     // Open the table loader and load the table.
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
+    this.pendingFileGroupByPartition = Maps.newHashMap();
+    this.rewrittenFileGroups = Lists.newArrayList();
 
     validateAndInitOptions(table.properties());
 
@@ -122,99 +125,94 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
 
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
 
-    // restore state
-    this.rewriteFileGroupsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
+    this.pendingRewriteFileGroupsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      Map<StructLikeWrapper, byte[]> rewriteFileGroupsMap = rewriteFileGroupsState.get().iterator().next();
-      Preconditions.checkState(rewriteFileGroupsMap != null,
-          "Rewrite file groups restore from checkpoint shouldn't be null");
-
-      for (Map.Entry<StructLikeWrapper, byte[]> e : rewriteFileGroupsMap.entrySet()) {
-        StructLikeWrapper partition = e.getKey();
+      for (byte[] bytes : pendingRewriteFileGroupsState.get()) {
         RewriteFileGroup rewriteFileGroup = SimpleVersionedSerialization.readVersionAndDeSerialize(
-            RewriteFileGroup.Serializer.INSTANCE, e.getValue());
-        rewriteFileGroupByPartition.put(partition, rewriteFileGroup);
+            RewriteFileGroup.Serializer.INSTANCE, bytes);
+        pendingFileGroupByPartition.put(wrap(rewriteFileGroup.partition()), rewriteFileGroup);
       }
     }
   }
 
   @Override
-  public void open() throws Exception {
-    super.open();
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
+    long checkpointId = context.getCheckpointId();
+    LOG.info("Start to flush rewrite state to state backend, table: {}, checkpointId: {}", table, checkpointId);
+
+    List<byte[]> pendingRewriteFileGroups = Lists.newArrayListWithCapacity(pendingFileGroupByPartition.size());
+    for (RewriteFileGroup rewriteFileGroup : pendingFileGroupByPartition.values()) {
+      pendingRewriteFileGroups.add(SimpleVersionedSerialization.writeVersionAndSerialize(
+          RewriteFileGroup.Serializer.INSTANCE, rewriteFileGroup));
+    }
+    pendingRewriteFileGroupsState.clear();
+    pendingRewriteFileGroupsState.addAll(pendingRewriteFileGroups);
+
+    // keep rewritten file groups manifests until checkpoint to prevent lost manifest when restore from checkpoint.
+    for (RewriteFileGroup fileGroup : rewrittenFileGroups) {
+      for (ManifestFile file : fileGroup.manifestFiles()) {
+        try {
+          table.io().deleteFile(file.path());
+        } catch (Exception e) {
+          LOG.warn("The file group {} has been rewritten, but we failed to clean the temporary manifests: {}",
+              fileGroup, file.path(), e);
+        }
+      }
+    }
+    rewrittenFileGroups.clear();
   }
 
   @Override
-  public void snapshotState(StateSnapshotContext context) throws Exception {
-    super.snapshotState(context);
-
-    Map<StructLikeWrapper, byte[]> rewriteFileGroupsMap = Maps.newHashMapWithExpectedSize(
-        rewriteFileGroupByPartition.size());
-    for (Map.Entry<StructLikeWrapper, RewriteFileGroup> e : rewriteFileGroupByPartition.entrySet()) {
-      StructLikeWrapper partition = e.getKey();
-      byte[] rewriteFileGroup = SimpleVersionedSerialization.writeVersionAndSerialize(
-          RewriteFileGroup.Serializer.INSTANCE, e.getValue());
-      rewriteFileGroupsMap.put(partition, rewriteFileGroup);
-    }
-    rewriteFileGroupsState.clear();
-    rewriteFileGroupsState.add(rewriteFileGroupsMap);
+  public void notifyCheckpointComplete(long checkpointId) throws Exception {
+    super.notifyCheckpointComplete(checkpointId);
+    // TODO 使用latestSnapshotId检测多少个ckpt没有新数据加入，可合并
   }
 
   @Override
   public void processElement(StreamRecord<PartitionFileGroup> record) throws Exception {
     PartitionFileGroup partitionFileGroup = record.getValue();
-    RewriteFileGroup rewriteFileGroup = rewriteFileGroupByPartition.getOrDefault(
-        partitionFileGroup.partition(), new RewriteFileGroup());
+
+    StructLikeWrapper partition = wrap(partitionFileGroup.partition());
+    RewriteFileGroup rewriteFileGroup = pendingFileGroupByPartition.getOrDefault(partition,
+        new RewriteFileGroup(partitionFileGroup.partition()));
 
     int dataFilesCount = partitionFileGroup.dataFiles().length;
     long dataFilesSize = Arrays.stream(partitionFileGroup.dataFiles()).mapToLong(ContentFile::fileSizeInBytes).sum();
     DeltaManifests deltaManifests = FlinkManifestUtil.writeExistingFiles(
         partitionFileGroup.sequenceNumber(), partitionFileGroup.snapshotId(),
         partitionFileGroup.dataFiles(), partitionFileGroup.deleteFiles(),
-        () -> manifestOutputFileFactory.createTmp(), table.specs().get(partitionFileGroup.specId())
+        () -> manifestOutputFileFactory.createTmp(), table.spec()
     );
-    rewriteFileGroup.append(dataFilesCount, dataFilesSize,
+    rewriteFileGroup.add(dataFilesCount, dataFilesSize,
         partitionFileGroup.sequenceNumber(), partitionFileGroup.snapshotId(), deltaManifests);
 
-    rewriteFileGroupByPartition.put(partitionFileGroup.partition(), rewriteFileGroup);
+    pendingFileGroupByPartition.putIfAbsent(partition, rewriteFileGroup);
 
-    rewriteFiles(partitionFileGroup.partition(), rewriteFileGroup);
+    rewriteFiles(partition, rewriteFileGroup);
   }
 
-  private void rewriteFiles(StructLikeWrapper partition, RewriteFileGroup fileGroup) throws IOException {
-    if (fileGroup.filesSize() < targetSizeInBytes && fileGroup.filesCount() < maxFilesCount) {
+  private void rewriteFiles(StructLikeWrapper partition, RewriteFileGroup rewriteFileGroup) throws IOException {
+    if (rewriteFileGroup.filesSize() < targetSizeInBytes && rewriteFileGroup.filesCount() < maxFilesCount) {
       return;
     }
 
-    String description = MoreObjects.toStringHelper(RewriteFileGroup.class)
-        .add("partition", partition.get())
-        .add("latestSequenceNumber", fileGroup.latestSequenceNumber())
-        .add("latestSnapshotId", fileGroup.latestSnapshotId())
-        .add("filesCount", fileGroup.filesCount())
-        .add("filesSize", fileGroup.filesSize())
-        .toString();
-    LOG.info("Rewriting file group of table {}: {}.", table, description);
+    // TODO rewrite性能优化
+    LOG.info("Rewriting file group of table {}: {}.", table, rewriteFileGroup);
 
     long start = System.currentTimeMillis();
-    RewriteResult rewriteResult = rewrite(partition, fileGroup);
+    RewriteResult rewriteResult = rewrite(rewriteFileGroup);
     long duration = System.currentTimeMillis() - start;
-    LOG.info("Rewritten file group {} in {} ms.", description, duration);
+    LOG.info("Rewritten file group {} in {} ms.", rewriteFileGroup, duration);
 
     emit(rewriteResult);
 
-    rewriteFileGroupByPartition.remove(partition);
-    for (ManifestFile file : fileGroup.manifestFiles()) {
-      try {
-        table.io().deleteFile(file.path());
-      } catch (Exception e) {
-        LOG.warn("The file group {} has been rewritten, but we failed to clean the temporary manifests: {}",
-            description, file.path(), e);
-      }
-    }
+    rewrittenFileGroups.add(pendingFileGroupByPartition.remove(partition));
   }
 
-  private RewriteResult rewrite(StructLikeWrapper partition, RewriteFileGroup fileGroup) throws IOException {
+  private RewriteResult rewrite(RewriteFileGroup rewriteFileGroup) throws IOException {
     CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
-        .useManifests(fileGroup.manifestFiles())
+        .useManifests(rewriteFileGroup.manifestFiles())
         .caseSensitive(caseSensitive)
         .ignoreResiduals()
         .planFiles();
@@ -253,12 +251,10 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     List<DataFile> currentDataFiles = Lists.newArrayList();
     scanTasks.iterator().forEachRemaining(tasks -> tasks.files().forEach(task -> currentDataFiles.add(task.file())));
 
-    return RewriteResult.builder()
-        .partition(partition)
-        .startingSnapshotSeqNum(fileGroup.latestSequenceNumber())
-        .startingSnapshotId(fileGroup.latestSnapshotId())
+    return RewriteResult.builder(rewriteFileGroup.latestSnapshotId())
+        .partition(rewriteFileGroup.partition())
         .addAddedDataFiles(addedDataFiles)
-        .addDeletedDataFiles(currentDataFiles)
+        .addRewrittenDataFiles(currentDataFiles)
         .build();
   }
 
@@ -268,9 +264,14 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
 
   @Override
   public void endInput() throws Exception {
-    for (Map.Entry<StructLikeWrapper, RewriteFileGroup> entry : rewriteFileGroupByPartition.entrySet()) {
+    LOG.info("Flush remain rewrite file groups for table '{}'", table);
+    for (Map.Entry<StructLikeWrapper, RewriteFileGroup> entry : pendingFileGroupByPartition.entrySet()) {
       rewriteFiles(entry.getKey(), entry.getValue());
     }
+  }
+
+  private StructLikeWrapper wrap(StructLike partition) {
+    return StructLikeWrapper.forType(table.spec().partitionType()).set(partition);
   }
 
   @Override
@@ -281,10 +282,8 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     }
   }
 
-  private static ListStateDescriptor<Map<StructLikeWrapper, byte[]>> buildStateDescriptor() {
-    TypeInformation<Map<StructLikeWrapper, byte[]>> info = TypeInformation.of(
-        new TypeHint<Map<StructLikeWrapper, byte[]>>() {}
-    );
+  private static ListStateDescriptor<byte[]> buildStateDescriptor() {
+    TypeInformation<byte[]> info = TypeInformation.of(new TypeHint<byte[]>() {});
     return new ListStateDescriptor<>("iceberg-streaming-rewriter-state", info);
   }
 

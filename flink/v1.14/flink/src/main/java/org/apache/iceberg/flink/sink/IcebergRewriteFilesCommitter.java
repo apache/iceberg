@@ -19,7 +19,8 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.util.List;
+import java.util.Map;
+import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -29,11 +30,8 @@ import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,9 +48,7 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
   private transient Table table;
   private transient TableOperations ops;
 
-  private transient int commitGroupSize;
-
-  private final List<RewriteResult> rewriteResults = Lists.newArrayList();
+  private final Map<Long, RewriteResult.Builder> rewriteResults = Maps.newLinkedHashMap();
 
   IcebergRewriteFilesCommitter(TableLoader tableLoader) {
     this.tableLoader = tableLoader;
@@ -63,44 +59,52 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
     this.ops = ((HasTableOperations) table).operations();
-
-    commitGroupSize = PropertyUtil.propertyAsInt(table.properties(),
-        FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE,
-        FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE_DEFAULT);
-    Preconditions.checkArgument(commitGroupSize > 0, "Cannot set %s to a negative number, %d < 0",
-        FlinkSinkOptions.STREAMING_REWRITE_COMMIT_GROUP_SIZE, commitGroupSize);
   }
 
   @Override
-  public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-    super.prepareSnapshotPreBarrier(checkpointId);
-    commitRewriteGroups();
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
+    long checkpointId = context.getCheckpointId();
+    LOG.info("Start to commit rewrite results, table: {}, checkpointId: {}", table, checkpointId);
+
+    commitRewriteResults();
   }
 
   @Override
   public void processElement(StreamRecord<RewriteResult> record) throws Exception {
-    rewriteResults.add(record.getValue());
-    if (rewriteResults.size() >= commitGroupSize) {
-      commitRewriteGroups();
-    }
+    RewriteResult result = record.getValue();
+
+    long snapshotId = result.startingSnapshotId();
+    RewriteResult.Builder collector = rewriteResults.getOrDefault(snapshotId, RewriteResult.builder(snapshotId));
+
+    collector.partitions(result.partitions())
+        .addAddedDataFiles(result.addedDataFiles())
+        .addRewrittenDataFiles(result.rewrittenDataFiles());
+
+    rewriteResults.putIfAbsent(snapshotId, collector);
   }
 
-  private void commitRewriteGroups() {
-    if (rewriteResults.isEmpty()) {
-      return;
+  private void commitRewriteResults() {
+    // Refresh the table to get the committed snapshot of rewrite results.
+    table.refresh();
+
+    for (RewriteResult.Builder builder : rewriteResults.values()) {
+      commitRewriteResult(builder.build());
     }
-
-    List<RewriteResult> pendingRewriteResults = Lists.newArrayList(rewriteResults);
     rewriteResults.clear();
+  }
 
-    LOG.info("Committing rewrite file groups of table {}: {}.", table, pendingRewriteResults);
+  private void commitRewriteResult(RewriteResult result) {
+    LOG.info("Committing rewrite file groups of table {}: {}.", table, result);
+
     long start = System.currentTimeMillis();
-    RewriteResult result = RewriteResult.builder().addAll(pendingRewriteResults).build();
     try {
+      long sequenceNumber = table.snapshot(result.startingSnapshotId()).sequenceNumber();
       RewriteFiles rewriteFiles = table.newRewrite()
           .validateFromSnapshot(result.startingSnapshotId())
-          .rewriteFiles(Sets.newHashSet(result.deletedDataFiles()), Sets.newHashSet(result.addedDataFiles()));
+          .rewriteFiles(result.rewrittenDataFiles(), result.addedDataFiles(), sequenceNumber);
       rewriteFiles.commit();
+      LOG.info("Committed rewrite file groups in {} ms.", System.currentTimeMillis() - start);
     } catch (Exception e) {
       LOG.error("Cannot commit rewrite file groups, attempting to clean up written files.", e);
 
@@ -109,15 +113,12 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
           .suppressFailureWhenFinished()
           .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
           .run(ops.io()::deleteFile);
-      return;
     }
-    long duration = System.currentTimeMillis() - start;
-    LOG.info("Committed rewrite file groups in {} ms.", duration);
   }
 
   @Override
   public void endInput() throws Exception {
-    commitRewriteGroups();
+    commitRewriteResults();
   }
 
   @Override

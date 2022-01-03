@@ -45,7 +45,4 @@ public class FlinkSinkOptions {
   public static final long STREAMING_REWRITE_TARGET_FILE_SIZE_DEFAULT =
       TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-  public static final String STREAMING_REWRITE_COMMIT_GROUP_SIZE = "flink.rewrite.commit-groups-size";
-  public static final int STREAMING_REWRITE_COMMIT_GROUP_SIZE_DEFAULT = Integer.MAX_VALUE;
-
 }
