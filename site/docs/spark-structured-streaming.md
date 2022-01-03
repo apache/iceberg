@@ -33,12 +33,12 @@ Iceberg supports processing incremental data in spark structured streaming jobs 
 ```scala
 val df = spark.readStream
     .format("iceberg")
-    .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+    .option("stream-from-timestamp", Long.toString(streamStartTimestamp))
     .load("database.table_name")
 ```
 
 !!! Note
-    Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception. similarly, delete snapshots will cause an exception by default, but deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
+    Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception. Similarly, delete snapshots will cause an exception by default, but deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
 ## Streaming Writes
 
