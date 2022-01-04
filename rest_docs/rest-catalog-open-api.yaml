@@ -122,9 +122,9 @@ paths:
       summary: List namespaces, optionally providing a parent namespace to list underneath
       description:
         List all namespaces at a certain level, optionally starting from a given parent namespace.
-        For example, if table a.b.t exists, using 'SELECT NAMESPACE IN a' this would translate
-        into `GET /namespaces?parent=a` and must return a namespace, ["a", "b"]. If `parent` is not
-        provided, all top-level namespaces should be listed.
+        For example, if table accounting.tax.paid exists, using 'SELECT NAMESPACE IN accounting' would
+        translate into `GET /namespaces?parent=accounting` and must return a namespace, ["accounting", "tax"].
+        If `parent` is not provided, all top-level namespaces should be listed.
       operationId: listNamespaces
       parameters:
         - name: parent
@@ -230,27 +230,6 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
-
-    head:
-      tags:
-        - Catalog API
-      summary: Check if a namespace exists
-      operationId: namespaceExists
-      description:
-        Check if a namespace exists.
-        This operation does not presently return a response body, which is why the response codes have only
-        a description field.
-      responses:
-        200:
-          description: Namespace exists
-        400:
-          description: Bad Request
-        401:
-          description: Unauthorized
-        404:
-          description: Not Found
-        5XX:
-          description: Server Error Response
 
     delete:
       tags:
