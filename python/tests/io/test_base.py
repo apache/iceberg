@@ -95,10 +95,11 @@ def test_custom_output_file():
 
 def test_custom_output_file_with_overwrite():
 
-    output_file = FooOutputFile(location="foo/bar.json")
+    output_file = FooOutputFile(location="foo/bar.json", overwrite=True)
     assert output_file.location == "foo/bar.json"
+    assert output_file.overwrite == True
 
-    with output_file(overwrite=True) as f:
+    with output_file as f:
         f.write(b"foo")
 
     output_file._mock_storage.seek(0)

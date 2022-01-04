@@ -56,16 +56,9 @@ class InputFile(ABC):
 class OutputFile(ABC):
     """A base class for OutputFile implementations"""
 
-    def __init__(self, location: str):
+    def __init__(self, location: str, overwrite: bool = False):
         self._location = location
-
-    @abstractmethod
-    def __call__(self, overwrite: bool = False, **kwargs):
-        """Set an overwrite flag, and any other kwargs before opening the
-        context manager. Exiting the context manager should remove these where
-        applicable (such as a closed connection)."""
         self._overwrite = overwrite
-        return self
 
     @abstractmethod
     def __len__(self) -> int:
@@ -75,6 +68,11 @@ class OutputFile(ABC):
     def location(self) -> str:
         """The fully-qualified location of the output file"""
         return self._location
+
+    @property
+    def overwrite(self) -> bool:
+        """Whether or not to overwrite the file if it exists"""
+        return self._overwrite
 
     @property
     @abstractmethod
@@ -90,8 +88,8 @@ class OutputFile(ABC):
         """Enter context for OutputFile
 
         This method should return a file-like object. If the file already exists
-        at `self.location` and `self._overwrite` is False (set by the `__call__`
-        method), a FileExistsError should be raised.
+        at `self.location` and `self.overwrite` is False a FileExistsError should
+        be raised.
 
         Example:
             >>> with OutputFile(overwrite=True) as f:
