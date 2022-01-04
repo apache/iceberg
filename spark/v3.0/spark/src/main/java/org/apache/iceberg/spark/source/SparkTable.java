@@ -244,6 +244,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public void deleteWhere(Filter[] filters) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot delete from table at a specific snapshot: %s", snapshotId);
+
     Expression deleteExpr = SparkFilters.convert(filters);
 
     if (deleteExpr == Expressions.alwaysFalse()) {
