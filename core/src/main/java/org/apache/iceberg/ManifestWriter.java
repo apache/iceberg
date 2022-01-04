@@ -117,7 +117,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   void add(ManifestEntry<F> entry) {
-    addEntry(reused.wrapAppend(snapshotId, entry.file()));
+    addEntry(reused.wrapAppend(snapshotId, entry.sequenceNumber(), entry.file()));
   }
 
   /**
