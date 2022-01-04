@@ -337,16 +337,22 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
+      checkAndAddPartitionName(name, sourceColumnId, true);
+    }
+
+    private void checkAndAddPartitionName(String name, Integer sourceColumnId, boolean checkConflict) {
       Types.NestedField schemaField = schema.findField(name);
-      if (sourceColumnId != null) {
-        // for identity transform case we allow  conflicts between partition and schema field name as
-        //   long as they are sourced from the same schema field
-        Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
-            "Cannot create identity partition sourced from different field in schema: %s", name);
-      } else {
-        // for all other transforms we don't allow conflicts between partition name and schema field name
-        Preconditions.checkArgument(schemaField == null,
-            "Cannot create partition from name that exists in schema: %s", name);
+      if (checkConflict) {
+        if (sourceColumnId != null) {
+          // for identity transform case we allow  conflicts between partition and schema field name as
+          //   long as they are sourced from the same schema field
+          Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
+                  "Cannot create identity partition sourced from different field in schema: %s", name);
+        } else {
+          // for all other transforms we don't allow conflicts between partition name and schema field name
+          Preconditions.checkArgument(schemaField == null,
+                  "Cannot create partition from name that exists in schema: %s", name);
+        }
       }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
@@ -376,8 +382,12 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder identity(String sourceName, String targetName) {
+      return identity(sourceName, targetName, true);
+    }
+
+    Builder identity(String sourceName, String targetName, boolean checkConflict) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId());
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), checkConflict);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type()));
       checkForRedundantPartitions(field);
