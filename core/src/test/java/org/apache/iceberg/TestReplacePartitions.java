@@ -276,7 +276,6 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
-                .validateNoConflicts()
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .commit());
@@ -295,13 +294,11 @@ public class TestReplacePartitions extends TableTestBase {
     table.newReplacePartitions()
         .addFile(FILE_A)
         .validateFromSnapshot(id1)
-        .validateNoConflicts()
         .commit();
     long id2 = readMetadata().currentSnapshot().snapshotId();
 
     table.newReplacePartitions()
         .validateFromSnapshot(id1)
-        .validateNoConflicts()
         .addFile(FILE_B)
         .commit();
 
@@ -339,7 +336,6 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
-                .validateNoConflicts()
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .commit());
@@ -367,7 +363,6 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             unpartitioned.newReplacePartitions()
                 .validateFromSnapshot(replaceBaseId)
-                .validateNoConflicts()
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .commit());
@@ -396,7 +391,6 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
-                .validateNoConflicts()
                 .addFile(FILE_A)
                 .commit());
   }
@@ -420,7 +414,6 @@ public class TestReplacePartitions extends TableTestBase {
 
     table.newReplacePartitions()
         .validateFromSnapshot(id1)
-        .validateNoConflicts()
         .addFile(FILE_B)
         .commit();
     long id3 = readMetadata().currentSnapshot().snapshotId();
@@ -456,7 +449,6 @@ public class TestReplacePartitions extends TableTestBase {
         .addFile(FILE_E)
         .commit();
     table.newReplacePartitions()
-        .validateFromSnapshot(baseId)
         .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
         .addFile(FILE_B)
         .commit();

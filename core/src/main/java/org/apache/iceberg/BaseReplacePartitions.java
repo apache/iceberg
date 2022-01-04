@@ -29,7 +29,6 @@ public class BaseReplacePartitions
 
   private final PartitionSet deletedPartitions;
   private Long startingSnapshotId = null;
-  private boolean validateNoConflicts = false;
 
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -62,20 +61,14 @@ public class BaseReplacePartitions
   }
 
   @Override
-  public ReplacePartitions validateFromSnapshot(long snapshotId) {
-    this.startingSnapshotId = snapshotId;
-    return this;
-  }
-
-  @Override
-  public ReplacePartitions validateNoConflicts() {
-    this.validateNoConflicts = true;
+  public ReplacePartitions validateFromSnapshot(long newStartingSnapshotId) {
+    this.startingSnapshotId = newStartingSnapshotId;
     return this;
   }
 
   @Override
   public void validate(TableMetadata currentMetadata) {
-    if (validateNoConflicts && startingSnapshotId != null && startingSnapshotId != 0) {
+    if (startingSnapshotId != null && startingSnapshotId != 0) {
       if (dataSpec().isUnpartitioned()) {
         validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
       } else {

@@ -278,14 +278,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
 
-      if (validateFromSnapshotId != 0) {
-        dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
-      }
       String isolationLevelAsString = table.properties().getOrDefault(DYNAMIC_OVERWRITE_ISOLATION_LEVEL,
           DYNAMIC_OVERWRITE_LEVEL_DEFAULT);
       IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
       if (level == SERIALIZABLE) {
-        dynamicOverwrite.validateNoConflicts();
+        dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
       }
 
       int numFiles = 0;
