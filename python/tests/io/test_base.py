@@ -60,10 +60,10 @@ class FooOutputFile(OutputFile):
 
 
 class FooFileIO(FileIO):
-    def new_input(location: str):
+    def new_input(self, location: str):
         return FooInputFile(location=location)
 
-    def new_output(location: str):
+    def new_output(self, location: str):
         return FooOutputFile(location=location)
 
     def delete(self, location: str):
@@ -109,8 +109,8 @@ def test_custom_output_file_with_overwrite():
 def test_custom_file_io():
 
     file_io = FooFileIO()
-    input_file = file_io.new_input()
-    output_file = file_io.new_output()
+    input_file = file_io.new_input(location="foo")
+    output_file = file_io.new_output(location="bar")
 
     assert isinstance(input_file, FooInputFile)
     assert isinstance(output_file, FooOutputFile)
