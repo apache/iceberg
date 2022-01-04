@@ -114,15 +114,15 @@ if (flinkVersions.contains("1.14")) {
 }
 
 if (sparkVersions.contains("3.0")) {
-  include ':iceberg-spark:spark3'
-  include ':iceberg-spark:spark3-extensions'
-  include ':iceberg-spark:spark3-runtime'
-  project(':iceberg-spark:spark3').projectDir = file('spark/v3.0/spark')
-  project(':iceberg-spark:spark3').name = 'iceberg-spark3'
-  project(':iceberg-spark:spark3-extensions').projectDir = file('spark/v3.0/spark-extensions')
-  project(':iceberg-spark:spark3-extensions').name = 'iceberg-spark3-extensions'
-  project(':iceberg-spark:spark3-runtime').projectDir = file('spark/v3.0/spark-runtime')
-  project(':iceberg-spark:spark3-runtime').name = 'iceberg-spark3-runtime'
+  include ':iceberg-spark:spark-3.0_2.12'
+  include ':iceberg-spark:spark-extensions-3.0_2.12'
+  include ':iceberg-spark:spark-runtime-3.0_2.12'
+  project(':iceberg-spark:spark-3.0_2.12').projectDir = file('spark/v3.0/spark')
+  project(':iceberg-spark:spark-3.0_2.12').name = 'iceberg-spark-3.0_2.12'
+  project(':iceberg-spark:spark-extensions-3.0_2.12').projectDir = file('spark/v3.0/spark-extensions')
+  project(':iceberg-spark:spark-extensions-3.0_2.12').name = 'iceberg-spark-extensions-3.0_2.12'
+  project(':iceberg-spark:spark-runtime-3.0_2.12').projectDir = file('spark/v3.0/spark-runtime')
+  project(':iceberg-spark:spark-runtime-3.0_2.12').name = 'iceberg-spark-runtime-3.0_2.12'
 }
 
 if (sparkVersions.contains("3.1")) {
@@ -160,13 +160,13 @@ if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   if (sparkVersions.contains("2.4")) {
-    include ':iceberg-spark:spark2'
-    include ':iceberg-spark:spark-runtime'
+    include ':iceberg-spark:spark-2.4_2.12'
+    include ':iceberg-spark:spark-runtime-2.4_2.12'
 
-    project(':iceberg-spark:spark2').projectDir = file('spark/v2.4/spark')
-    project(':iceberg-spark:spark2').name = 'iceberg-spark2'
-    project(':iceberg-spark:spark-runtime').projectDir = file('spark/v2.4/spark-runtime')
-    project(':iceberg-spark:spark-runtime').name = 'iceberg-spark-runtime'
+    project(':iceberg-spark:spark-2.4_2.12').projectDir = file('spark/v2.4/spark')
+    project(':iceberg-spark:spark-2.4_2.12').name = 'iceberg-spark-2.4_2.12'
+    project(':iceberg-spark:spark-runtime-2.4_2.12').projectDir = file('spark/v2.4/spark-runtime')
+    project(':iceberg-spark:spark-runtime-2.4_2.12').name = 'iceberg-spark-runtime-2.4_2.12'
   }
 
   if (hiveVersions.contains("3")) {
