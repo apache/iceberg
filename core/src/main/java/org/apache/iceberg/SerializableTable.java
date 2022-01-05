@@ -322,11 +322,6 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
-  public Truncate newTruncate() {
-    throw new UnsupportedOperationException(errorMsg("newTruncate"));
-  }
-
-  @Override
   public ExpireSnapshots expireSnapshots() {
     throw new UnsupportedOperationException(errorMsg("expireSnapshots"));
   }

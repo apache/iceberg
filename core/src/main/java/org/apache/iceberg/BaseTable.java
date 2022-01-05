@@ -190,11 +190,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
-  public Truncate newTruncate() {
-    return new BaseTruncate(name, ops);
-  }
-
-  @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
   }

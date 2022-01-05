@@ -20,7 +20,13 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+
+import java.io.IOException;
 
 /**
  * {@link DeleteFiles Delete} implementation that avoids loading full manifests in memory.
@@ -28,8 +34,13 @@ import org.apache.iceberg.expressions.Expression;
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
 class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements DeleteFiles {
+  private final TableOperations ops;
+
+  private boolean fastTruncate = false;
+
   StreamingDelete(String tableName, TableOperations ops) {
     super(tableName, ops);
+    this.ops = ops;
   }
 
   @Override
@@ -58,5 +69,37 @@ class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements De
   public StreamingDelete deleteFromRowFilter(Expression expr) {
     deleteByRowFilter(expr);
     return this;
+  }
+
+  @Override
+  public DeleteFiles truncate(boolean fastMode) {
+    this.fastTruncate = fastMode;
+    if (!fastMode) {
+      deleteByRowFilter(Expressions.alwaysTrue());
+    }
+    return this;
+  }
+
+  @Override
+  public Snapshot apply() {
+    return fastTruncate ? applyEmpty() : super.apply();
+  }
+
+  private Snapshot applyEmpty() {
+    TableMetadata base = refresh();
+    long sequenceNumber = base.nextSequenceNumber();
+    Long parentSnapshotId = base.currentSnapshot() != null ? base.currentSnapshot().snapshotId() : null;
+
+    OutputFile manifestList = manifestListPath();
+    try (ManifestListWriter writer = ManifestLists.write(
+            ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber)) {
+      // do nothing
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write manifest list file");
+    }
+
+    return new BaseSnapshot(ops.io(),
+            sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), ImmutableMap.of(),
+            base.currentSchemaId(), manifestList.location());
   }
 }

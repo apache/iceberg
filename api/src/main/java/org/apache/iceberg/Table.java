@@ -244,13 +244,6 @@ public interface Table {
   DeleteFiles newDelete();
 
   /**
-   * Create a new {@link Truncate truncate API} to remove all data in this table and commit.
-   *
-   * @return a new {@link Truncate}
-   */
-  Truncate newTruncate();
-
-  /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
    *
    * @return a new {@link ExpireSnapshots}

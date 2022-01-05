@@ -76,6 +76,17 @@ public interface DeleteFiles extends SnapshotUpdate<DeleteFiles> {
   DeleteFiles deleteFromRowFilter(Expression expr);
 
   /**
+   * Truncate a table and keep the historical snapshots.
+   * <p>
+   * If fastMode is set to true, the implementation will directly commit an empty snapshot to table.
+   * Otherwise, all data will be deleted and committed.
+   *
+   * @param fastMode if true, an empty snapshot will be committed to table.
+   * @return this for method chaining
+   */
+  DeleteFiles truncate(boolean fastMode);
+
+  /**
    * Enables or disables case sensitive expression binding for methods that accept expressions.
    *
    * @param caseSensitive whether expression binding should be case sensitive

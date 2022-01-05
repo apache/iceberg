@@ -219,11 +219,6 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
-  public Truncate newTruncate() {
-    throw new UnsupportedOperationException("Cannot truncate a metadata table");
-  }
-
-  @Override
   public ExpireSnapshots expireSnapshots() {
     throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
   }

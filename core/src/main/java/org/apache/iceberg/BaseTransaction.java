@@ -653,11 +653,6 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public Truncate newTruncate() {
-      throw new UnsupportedOperationException("Transaction tables do not support truncate");
-    }
-
-    @Override
     public ExpireSnapshots expireSnapshots() {
       return BaseTransaction.this.expireSnapshots();
     }
