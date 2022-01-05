@@ -492,7 +492,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
 
     table.refresh();
 
@@ -505,22 +505,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     table.refresh();
     Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
 
-    Dataset<Row> df = spark.readStream()
-        .format("iceberg")
-        .option(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true")
-        .load(tableIdentifier);
-    Assertions.assertThat(processAvailable(df))
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
+    Assertions.assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
-  }
-
-  private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
-      throws TimeoutException, StreamingQueryException {
-    StreamingQuery streamingQuery = singleBatchWriter.start();
-    streamingQuery.awaitTermination();
-
-    return spark.sql(String.format("select * from %s", viewName))
-        .as(Encoders.bean(SimpleRecord.class))
-        .collectAsList();
   }
 
   /**
