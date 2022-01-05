@@ -286,9 +286,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           catalog.createNamespace(namespace1);
         });
     String hiveLocalDir = temp.newFolder().toURI().toString();
-    if (hiveLocalDir.endsWith("/")) {
-      hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
-    }
+    // remove the trailing slash of the URI
+    hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
     ImmutableMap newMeta = ImmutableMap.<String, String>builder()
         .putAll(meta)
         .put("location", hiveLocalDir)

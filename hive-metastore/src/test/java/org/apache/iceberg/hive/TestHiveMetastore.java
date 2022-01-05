@@ -48,13 +48,13 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportFactory;
+import org.junit.Assert;
 
 import static java.nio.file.Files.createTempDirectory;
 import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
@@ -161,7 +161,7 @@ public class TestHiveMetastore {
     }
   }
 
-  public void stop() {
+  public void stop() throws IOException {
     if (clientPool != null) {
       clientPool.close();
     }
@@ -180,11 +180,7 @@ public class TestHiveMetastore {
     Object connPool = CONN_POOL.get();
     CONN_POOL.set(null);
     if (connPool instanceof Closeable) {
-      try {
-        ((Closeable) connPool).close();
-      } catch (IOException e) {
-        throw new RuntimeException("Failed to close connection pool in TxnHandler", e);
-      }
+      ((Closeable) connPool).close();
     }
     OBJECT_STORE_PROP.set(null);
     PersistenceManagerFactory pmf = OBJECT_STORE_PMF.get();
@@ -192,13 +188,9 @@ public class TestHiveMetastore {
       pmf.close();
     }
     if (hiveLocalDir != null && hiveLocalDir.exists()) {
-      try {
-        Path localDirPath = new Path(hiveLocalDir.getAbsolutePath());
-        FileSystem fs = Util.getFs(localDirPath, hiveConf);
-        Preconditions.checkState(fs.delete(localDirPath, true), "Failed to delete " + localDirPath);
-      } catch (IOException e) {
-        throw new RuntimeException("Failed to delete local dir " + hiveLocalDir.getAbsolutePath(), e);
-      }
+      Path localDirPath = new Path(hiveLocalDir.getAbsolutePath());
+      FileSystem fs = Util.getFs(localDirPath, hiveConf);
+      Assert.assertTrue("Failed to delete " + localDirPath, fs.delete(localDirPath, true));
     }
   }
 
@@ -269,8 +261,6 @@ public class TestHiveMetastore {
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");
-    // hive 1.x requires a valid DN connection pool, use bonecp as it exposes a close method
-    conf.set("datanucleus.connectionPoolingType", "BONECP");
   }
 
   private void setupMetastoreDB(String dbURL) throws SQLException, IOException {
