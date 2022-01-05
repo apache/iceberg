@@ -213,4 +213,14 @@ public interface TableScan {
    * Returns the target split size for this scan.
    */
   long targetSplitSize();
+
+  /**
+   * Returns the split lookback for this scan.
+   */
+  int splitLookback();
+
+  /**
+   * Returns the split open file cost for this scan.
+   */
+  long splitOpenFileCost();
 }

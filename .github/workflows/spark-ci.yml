@@ -25,6 +25,7 @@ on:
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/cancel-duplicate-workflow-runs.yml'
+    - '.gitignore'
     - 'dev/**'
     - 'mr/**'
     - 'hive3/**'
@@ -40,6 +41,7 @@ on:
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
+    - '.gitignore'
     - 'dev/**'
     - 'mr/**'
     - 'hive3/**'
@@ -121,7 +123,7 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
           restore-keys: ${{ runner.os }}-gradle
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}:check :iceberg-spark:iceberg-spark-${{ matrix.spark }}-extensions:check :iceberg-spark:iceberg-spark-${{ matrix.spark }}-runtime:check -Pquick=true -x javadoc
+      - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.12:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v2
         if: failure()
         with:

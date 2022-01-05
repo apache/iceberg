@@ -42,7 +42,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
+import org.apache.iceberg.orc.VectorizedReadUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.orc.impl.OrcTail;
 
 /**
  * Utility class to create vectorized readers for Hive.
@@ -98,11 +100,15 @@ public class HiveVectorizedReader {
     try {
       switch (format) {
         case ORC:
-          InputSplit split = new OrcSplit(path, null, task.start(), task.length(), (String[]) null, null,
-              false, false, Lists.newArrayList(), 0, task.length(), path.getParent());
-          RecordReader<NullWritable, VectorizedRowBatch> recordReader = null;
 
-          recordReader = new VectorizedOrcInputFormat().getRecordReader(split, job, reporter);
+          // Metadata information has to be passed along in the OrcSplit. Without specifying this, the vectorized
+          // reader will assume that the ORC file ends at the task's start + length, and might fail reading the tail..
+          OrcTail orcTail = VectorizedReadUtils.getOrcTail(inputFile, job);
+
+          InputSplit split = new OrcSplit(path, null, task.start(), task.length(), (String[]) null, orcTail,
+              false, false, Lists.newArrayList(), 0, task.length(), path.getParent());
+          RecordReader<NullWritable, VectorizedRowBatch> recordReader =
+              new VectorizedOrcInputFormat().getRecordReader(split, job, reporter);
           return createVectorizedRowBatchIterable(recordReader, job, partitionColIndices, partitionValues);
 
         default:

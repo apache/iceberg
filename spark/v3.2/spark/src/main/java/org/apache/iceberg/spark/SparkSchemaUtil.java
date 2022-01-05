@@ -22,9 +22,14 @@ package org.apache.iceberg.spark;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -298,5 +303,23 @@ public class SparkSchemaUtil {
       result = Long.MAX_VALUE;
     }
     return result;
+  }
+
+  public static void validateMetadataColumnReferences(Schema tableSchema, Schema readSchema) {
+    List<String> conflictingColumnNames = readSchema.columns().stream()
+        .map(Types.NestedField::name)
+        .filter(name -> MetadataColumns.isMetadataColumn(name) && tableSchema.findField(name) != null)
+        .collect(Collectors.toList());
+
+    ValidationException.check(
+        conflictingColumnNames.isEmpty(),
+        "Table column names conflict with names reserved for Iceberg metadata columns: %s.\n" +
+        "Please, use ALTER TABLE statements to rename the conflicting table columns.",
+        conflictingColumnNames);
+  }
+
+  public static Map<Integer, String> indexQuotedNameById(Schema schema) {
+    Function<String, String> quotingFunc = name -> String.format("`%s`", name.replace("`", "``"));
+    return TypeUtil.indexQuotedNameById(schema.asStruct(), quotingFunc);
   }
 }

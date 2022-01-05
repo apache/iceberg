@@ -75,9 +75,9 @@ public abstract class DeleteReadTests {
   protected String dateTableName = null;
   protected Table table = null;
   protected Table dateTable = null;
-  private List<Record> records = null;
+  protected List<Record> records = null;
   private List<Record> dateRecords = null;
-  private DataFile dataFile = null;
+  protected DataFile dataFile = null;
 
   @Before
   public void writeTestDataFile() throws IOException {
@@ -299,6 +299,39 @@ public abstract class DeleteReadTests {
   }
 
   @Test
+  public void testMultiplePosDeleteFiles() throws IOException {
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 3L) // id = 89
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 6L) // id = 122
+    );
+
+    posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
   public void testMixedPositionAndEqualityDeletes() throws IOException {
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
@@ -411,7 +444,7 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  private static StructLikeSet rowSetWithoutIds(Table table, List<Record> recordList, int... idsToRemove) {
+  protected static StructLikeSet rowSetWithoutIds(Table table, List<Record> recordList, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     recordList.stream()

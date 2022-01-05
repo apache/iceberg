@@ -20,9 +20,10 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -38,7 +39,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 /**
  * A procedure that removes orphan files in a table.
  *
- * @see Actions#removeOrphanFiles()
+ * @see SparkActions#deleteOrphanFiles(Table)
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
 

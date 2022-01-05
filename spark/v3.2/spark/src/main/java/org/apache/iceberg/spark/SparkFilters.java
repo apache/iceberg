@@ -25,6 +25,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
@@ -63,11 +65,15 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 public class SparkFilters {
+
+  private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])(.|$)");
+
   private SparkFilters() {
   }
 
@@ -115,27 +121,27 @@ public class SparkFilters {
 
         case IS_NULL:
           IsNull isNullFilter = (IsNull) filter;
-          return isNull(isNullFilter.attribute());
+          return isNull(unquote(isNullFilter.attribute()));
 
         case NOT_NULL:
           IsNotNull notNullFilter = (IsNotNull) filter;
-          return notNull(notNullFilter.attribute());
+          return notNull(unquote(notNullFilter.attribute()));
 
         case LT:
           LessThan lt = (LessThan) filter;
-          return lessThan(lt.attribute(), convertLiteral(lt.value()));
+          return lessThan(unquote(lt.attribute()), convertLiteral(lt.value()));
 
         case LT_EQ:
           LessThanOrEqual ltEq = (LessThanOrEqual) filter;
-          return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
+          return lessThanOrEqual(unquote(ltEq.attribute()), convertLiteral(ltEq.value()));
 
         case GT:
           GreaterThan gt = (GreaterThan) filter;
-          return greaterThan(gt.attribute(), convertLiteral(gt.value()));
+          return greaterThan(unquote(gt.attribute()), convertLiteral(gt.value()));
 
         case GT_EQ:
           GreaterThanOrEqual gtEq = (GreaterThanOrEqual) filter;
-          return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
+          return greaterThanOrEqual(unquote(gtEq.attribute()), convertLiteral(gtEq.value()));
 
         case EQ: // used for both eq and null-safe-eq
           if (filter instanceof EqualTo) {
@@ -143,19 +149,19 @@ public class SparkFilters {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(eq.value(),
                 "Expression is always false (eq is not null-safe): %s", filter);
-            return handleEqual(eq.attribute(), eq.value());
+            return handleEqual(unquote(eq.attribute()), eq.value());
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
             if (eq.value() == null) {
-              return isNull(eq.attribute());
+              return isNull(unquote(eq.attribute()));
             } else {
-              return handleEqual(eq.attribute(), eq.value());
+              return handleEqual(unquote(eq.attribute()), eq.value());
             }
           }
 
         case IN:
           In inFilter = (In) filter;
-          return in(inFilter.attribute(),
+          return in(unquote(inFilter.attribute()),
               Stream.of(inFilter.values())
                   .filter(Objects::nonNull)
                   .map(SparkFilters::convertLiteral)
@@ -163,9 +169,23 @@ public class SparkFilters {
 
         case NOT:
           Not notFilter = (Not) filter;
-          Expression child = convert(notFilter.child());
-          if (child != null) {
-            return not(child);
+          Filter childFilter = notFilter.child();
+          Operation childOp = FILTERS.get(childFilter.getClass());
+          if (childOp == Operation.IN) {
+            // infer an extra notNull predicate for Spark NOT IN filters
+            // as Iceberg expressions don't follow the 3-value SQL boolean logic
+            // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in Iceberg
+            In childInFilter = (In) childFilter;
+            Expression notIn = notIn(unquote(childInFilter.attribute()),
+                Stream.of(childInFilter.values())
+                    .map(SparkFilters::convertLiteral)
+                    .collect(Collectors.toList()));
+            return and(notNull(childInFilter.attribute()), notIn);
+          } else if (hasNoInFilter(childFilter)) {
+            Expression child = convert(childFilter);
+            if (child != null) {
+              return not(child);
+            }
           }
           return null;
 
@@ -191,7 +211,7 @@ public class SparkFilters {
 
         case STARTS_WITH: {
           StringStartsWith stringStartsWith = (StringStartsWith) filter;
-          return startsWith(stringStartsWith.attribute(), stringStartsWith.value());
+          return startsWith(unquote(stringStartsWith.attribute()), stringStartsWith.value());
         }
       }
     }
@@ -218,5 +238,34 @@ public class SparkFilters {
     } else {
       return equal(attribute, convertLiteral(value));
     }
+  }
+
+  private static String unquote(String attributeName) {
+    Matcher matcher = BACKTICKS_PATTERN.matcher(attributeName);
+    return matcher.replaceAll("$2");
+  }
+
+  private static boolean hasNoInFilter(Filter filter) {
+    Operation op = FILTERS.get(filter.getClass());
+
+    if (op != null) {
+      switch (op) {
+        case AND:
+          And andFilter = (And) filter;
+          return hasNoInFilter(andFilter.left()) && hasNoInFilter(andFilter.right());
+        case OR:
+          Or orFilter = (Or) filter;
+          return hasNoInFilter(orFilter.left()) && hasNoInFilter(orFilter.right());
+        case NOT:
+          Not notFilter = (Not) filter;
+          return hasNoInFilter(notFilter.child());
+        case IN:
+          return false;
+        default:
+          return true;
+      }
+    }
+
+    return false;
   }
 }

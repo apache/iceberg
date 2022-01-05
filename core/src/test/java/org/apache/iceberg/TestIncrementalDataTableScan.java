@@ -86,6 +86,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
       IncrementalScanEvent lastEvent = null;
 
+      @Override
       public void notify(IncrementalScanEvent event) {
         this.lastEvent = event;
       }

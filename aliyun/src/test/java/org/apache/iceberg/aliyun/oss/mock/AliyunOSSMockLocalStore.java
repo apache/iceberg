@@ -35,12 +35,13 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.directory.api.util.Hex;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -88,12 +89,12 @@ public class AliyunOSSMockLocalStore {
     while ((numBytes = is.read(bytes)) != -1) {
       md.update(bytes, 0, numBytes);
     }
-    return new String(Hex.encodeHex(md.digest()));
+    return new String(Hex.encodeHex(md.digest())).toUpperCase(Locale.ROOT);
   }
 
   private static void inputStreamToFile(InputStream inputStream, File targetFile) throws IOException {
     try (OutputStream outputStream = new FileOutputStream(targetFile)) {
-      IOUtils.copy(inputStream, outputStream);
+      ByteStreams.copy(inputStream, outputStream);
     }
   }
 

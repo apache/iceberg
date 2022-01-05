@@ -19,44 +19,74 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Map;
 import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.transforms.SortOrderVisitor;
+import org.apache.spark.sql.connector.expressions.Expressions;
+import org.apache.spark.sql.connector.expressions.NullOrdering;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 
-class SortOrderToSpark implements SortOrderVisitor<OrderField> {
-  @Override
-  public OrderField field(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.column(sourceName, direction, nullOrder);
+class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
+
+  private final Map<Integer, String> quotedNameById;
+
+  SortOrderToSpark(Schema schema) {
+    this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
   }
 
   @Override
-  public OrderField bucket(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.bucket(sourceName, width, direction, nullOrder);
+  public SortOrder field(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.column(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public OrderField truncate(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.truncate(sourceName, width, direction, nullOrder);
+  public SortOrder bucket(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.bucket(width, quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public OrderField year(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.year(sourceName, direction, nullOrder);
+  public SortOrder truncate(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.apply(
+        "truncate", Expressions.column(quotedName(id)), Expressions.literal(width)),
+        toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public OrderField month(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.month(sourceName, direction, nullOrder);
+  public SortOrder year(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.years(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public OrderField day(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.day(sourceName, direction, nullOrder);
+  public SortOrder month(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.months(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public OrderField hour(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return OrderField.hour(sourceName, direction, nullOrder);
+  public SortOrder day(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.days(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+  }
+
+  @Override
+  public SortOrder hour(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(Expressions.hours(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+  }
+
+  private String quotedName(int id) {
+    return quotedNameById.get(id);
+  }
+
+  private org.apache.spark.sql.connector.expressions.SortDirection toSpark(SortDirection direction) {
+    if (direction == SortDirection.ASC) {
+      return org.apache.spark.sql.connector.expressions.SortDirection.ASCENDING;
+    } else {
+      return org.apache.spark.sql.connector.expressions.SortDirection.DESCENDING;
+    }
+  }
+
+  private NullOrdering toSpark(NullOrder nullOrder) {
+    return nullOrder == NullOrder.NULLS_FIRST ? NullOrdering.NULLS_FIRST : NullOrdering.NULLS_LAST;
   }
 }
 

@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -43,6 +42,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -54,6 +54,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.CreateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.DeleteTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -70,12 +71,13 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
-public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class GlueCatalog extends BaseMetastoreCatalog
+    implements Closeable, SupportsNamespaces, Configurable<Configuration> {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
   private GlueClient glue;
-  private Configuration hadoopConf;
+  private Object hadoopConf;
   private String catalogName;
   private String warehousePath;
   private AwsProperties awsProperties;
@@ -260,7 +262,8 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     TableInput.Builder tableInputBuilder = TableInput.builder()
         .owner(fromTable.owner())
         .tableType(fromTable.tableType())
-        .parameters(fromTable.parameters());
+        .parameters(fromTable.parameters())
+        .storageDescriptor(fromTable.storageDescriptor());
 
     glue.createTable(CreateTableRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
@@ -333,11 +336,21 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
     String databaseName = IcebergToGlueConverter.toDatabaseName(namespace);
     try {
-      GetDatabaseResponse response = glue.getDatabase(GetDatabaseRequest.builder()
+      Database database = glue.getDatabase(GetDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .name(databaseName)
-          .build());
-      Map<String, String> result = response.database().parameters();
+          .build())
+          .database();
+      Map<String, String> result = Maps.newHashMap(database.parameters());
+
+      if (database.locationUri() != null) {
+        result.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, database.locationUri());
+      }
+
+      if (database.description() != null) {
+        result.put(IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, database.description());
+      }
+
       LOG.debug("Loaded metadata for namespace {} found {}", namespace, result);
       return result;
     } catch (InvalidInputException e) {
@@ -429,10 +442,5 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public void setConf(Configuration conf) {
     this.hadoopConf = conf;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return hadoopConf;
   }
 }

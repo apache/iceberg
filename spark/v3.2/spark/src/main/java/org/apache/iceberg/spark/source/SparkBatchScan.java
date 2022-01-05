@@ -30,6 +30,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -57,7 +58,6 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,22 +73,23 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final boolean readTimestampWithoutZone;
-  private final CaseInsensitiveStringMap options;
 
   // lazy variables
   private StructType readSchema = null;
 
-  SparkBatchScan(SparkSession spark, Table table, SparkReadConf readConf, boolean caseSensitive,
-                 Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkBatchScan(SparkSession spark, Table table, SparkReadConf readConf,
+                 Schema expectedSchema, List<Expression> filters) {
+
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
-    this.caseSensitive = caseSensitive;
+    this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.localityPreferred = readConf.localityEnabled();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
-    this.options = options;
   }
 
   protected Table table() {
@@ -117,7 +118,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
     return new SparkMicroBatchStream(
-        sparkContext, table, readConf, caseSensitive, expectedSchema, options, checkpointLocation);
+        sparkContext, table, readConf, caseSensitive, expectedSchema, checkpointLocation);
   }
 
   @Override
@@ -174,8 +175,11 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
-    boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
-        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+    boolean batchReadOrc = hasNoDeleteFiles && allOrcFileScanTasks;
+
+    boolean batchReadParquet = allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
+
+    boolean readUsingBatch = batchReadsEnabled && (batchReadOrc || batchReadParquet);
 
     int batchSize = readUsingBatch ? batchSize(allParquetFileScanTasks, allOrcFileScanTasks) : 0;
 
@@ -204,15 +208,19 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
+    return estimateStatistics(table.currentSnapshot());
+  }
+
+  protected Statistics estimateStatistics(Snapshot snapshot) {
     // its a fresh table, no data
-    if (table.currentSnapshot() == null) {
+    if (snapshot == null) {
       return new Stats(0L, 0L);
     }
 
     // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
       LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+      long totalRecords = PropertyUtil.propertyAsLong(snapshot.summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
       return new Stats(
           SparkSchemaUtil.estimateSize(readSchema(), totalRecords),

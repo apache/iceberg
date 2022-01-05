@@ -49,7 +49,8 @@ Roll back a table to a specific snapshot ID.
 
 To roll back to a specific time, use [`rollback_to_timestamp`](#rollback_to_timestamp).
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -77,7 +78,8 @@ CALL catalog_name.system.rollback_to_snapshot('db.sample', 1)
 
 Roll back a table to the snapshot that was current at some time.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -106,7 +108,8 @@ Sets the current snapshot ID for a table.
 
 Unlike rollback, the snapshot is not required to be an ancestor of the current table state.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -137,7 +140,8 @@ Cherry-picking creates a new snapshot from an existing snapshot without altering
 
 Only append and dynamic overwrite snapshots can be cherry-picked.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -240,6 +244,59 @@ Remove any files in the `tablelocation/data` folder which are not known to the t
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
 ```
 
+### `rewrite_data_files`
+
+Iceberg tracks each data file in a table. More data files leads to more metadata stored in manifest files, and small data files causes an unnecessary amount of metadata and less efficient queries from file open costs.
+
+Iceberg can compact data files in parallel using Spark with the `rewriteDataFiles` action. This will combine small files into larger files to reduce metadata overhead and runtime file open cost.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
+| `sort_order`  |    | string | Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
+| `options`     | ️   | map<string, string> | Options to be used for actions|
+| `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
+
+
+See the [`RewriteDataFiles` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteDataFiles.html#field.summary),
+<br/>  [`BinPackStrategy` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/BinPackStrategy.html#field.summary)
+and <br/> [`SortStrategy` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/SortStrategy.html#field.summary)
+for list of all the supported options for this action.
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `rewritten_data_files_count` | int | Number of data which were re-written by this command |
+| `added_data_files_count`     | int | Number of new data files which were written by this command |
+
+#### Examples
+
+Rewrite the data files in table `db.sample` using the default rewrite algorithm of bin-packing to combine small files 
+and also split large files according to the default write size of the table.
+```sql
+CALL catalog_name.system.rewrite_data_files('db.sample')
+```
+
+Rewrite the data files in table `db.sample` by sorting all the data on id and name 
+using the same defaults as bin-pack to determine which files to rewrite.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'id DESC NULLS LAST,name ASC NULLS FIRST')
+```
+
+Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'))
+```
+
+Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"')
+```
+
 ### `rewrite_manifests`
 
 Rewrite manifests for a table to optimize scan planning.
@@ -249,7 +306,8 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 See the [`RewriteManifestsAction` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteManifestsAction.html)
 to see more configuration options.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -281,6 +339,14 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false)
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.
 
+!!! Note
+    Parquet files written with Parquet writers that use names other than `list` and `element` for repeated group 
+    and element of the list respectively are **read incorrectly as nulls** by Iceberg upto 0.12.1 Iceberg versions. Most 
+    commonly such files are written by the following writers.
+    
+    1. *Hive*: when written to tables with`org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe` as it's SerDe.
+    2. *Spark*: when written with `spark.sql.parquet.writeLegacyFormat` set to `true`.
+
 ### `snapshot`
 
 Create a light-weight temporary copy of a table for testing, without changing the source table.
@@ -291,11 +357,12 @@ When inserts or overwrites run on the snapshot, new files are placed in the snap
 
 When finished testing a snapshot table, clean it up by running `DROP TABLE`.
 
-**Note** Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
-actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
-are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
-integrity. DELETE statements executed against the original Hive table will remove original data files and the
-`snapshot` table will no longer be able to access them.
+!!! Note
+    Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
+    actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+    are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
+    integrity. DELETE statements executed against the original Hive table will remove original data files and the
+    `snapshot` table will no longer be able to access them.
 
 See [`migrate`](#migrate-table-procedure) to replace an existing table with an Iceberg table.
 

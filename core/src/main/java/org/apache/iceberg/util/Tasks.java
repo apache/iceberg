@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -471,7 +470,7 @@ public class Tasks {
       }
 
       if (numFinished == futures.size()) {
-        List<Throwable> uncaught = new ArrayList<>();
+        List<Throwable> uncaught = Lists.newArrayList();
         // all of the futures are done, get any uncaught exceptions
         for (Future<?> future : futures) {
           try {

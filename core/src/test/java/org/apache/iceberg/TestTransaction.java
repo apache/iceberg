@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -698,5 +699,27 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     Assert.assertFalse("Append manifest should be deleted on expiry", new File(newManifest.path()).exists());
+  }
+
+  @Test
+  public void testSimpleTransactionNotDeletingMetadataOnUnknownSate() throws IOException {
+    Table table = TestTables.tableWithCommitSucceedButStateUnknown(tableDir, "test");
+
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    AssertHelpers.assertThrows(
+        "Transaction commit should fail with CommitStateUnknownException",
+        CommitStateUnknownException.class, "datacenter on fire",
+        () -> transaction.commitTransaction());
+
+    // Make sure metadata files still exist
+    Snapshot current = table.currentSnapshot();
+    List<ManifestFile> manifests = current.allManifests();
+    Assert.assertEquals("Should have 1 manifest file", 1, manifests.size());
+    Assert.assertTrue("Manifest file should exist", new File(manifests.get(0).path()).exists());
+    Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
   }
 }

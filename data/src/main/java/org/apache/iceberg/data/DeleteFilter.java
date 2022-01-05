@@ -37,11 +37,13 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,7 +56,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
-import org.apache.parquet.Preconditions;
 
 public abstract class DeleteFilter<T> {
   private static final long DEFAULT_SET_FILTER_THRESHOLD = 100_000L;
@@ -68,6 +69,9 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
+
+  private PositionDeleteIndex deleteRowPositions = null;
+  private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
@@ -96,6 +100,14 @@ public abstract class DeleteFilter<T> {
 
   public Schema requiredSchema() {
     return requiredSchema;
+  }
+
+  public boolean hasPosDeletes() {
+    return !posDeletes.isEmpty();
+  }
+
+  public boolean hasEqDeletes() {
+    return !eqDeletes.isEmpty();
   }
 
   Accessor<StructLike> posAccessor() {
@@ -183,6 +195,28 @@ public abstract class DeleteFilter<T> {
     };
 
     return remainingRowsFilter.filter(records);
+  }
+
+  public Predicate<T> eqDeletedRowFilter() {
+    if (eqDeleteRows == null) {
+      eqDeleteRows = applyEqDeletes().stream()
+          .map(Predicate::negate)
+          .reduce(Predicate::and)
+          .orElse(t -> true);
+    }
+    return eqDeleteRows;
+  }
+
+  public PositionDeleteIndex deletedRowPositions() {
+    if (posDeletes.isEmpty()) {
+      return null;
+    }
+
+    if (deleteRowPositions == null) {
+      List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
+      deleteRowPositions = Deletes.toPositionBitmap(dataFile.path(), deletes);
+    }
+    return deleteRowPositions;
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {

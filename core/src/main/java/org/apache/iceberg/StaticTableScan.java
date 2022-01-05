@@ -23,7 +23,7 @@ import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 
-class StaticTableScan extends BaseTableScan {
+class StaticTableScan extends BaseMetadataTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;
   private final String tableType;
 
@@ -51,12 +51,6 @@ class StaticTableScan extends BaseTableScan {
   public TableScan appendsAfter(long fromSnapshotId) {
     throw new UnsupportedOperationException(
         String.format("Cannot incrementally scan table of type %s", tableType));
-  }
-
-  @Override
-  public long targetSplitSize() {
-    return tableOps().current().propertyAsLong(
-        TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
   }
 
   @Override

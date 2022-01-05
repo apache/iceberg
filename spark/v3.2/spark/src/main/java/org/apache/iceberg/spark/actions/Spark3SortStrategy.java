@@ -26,14 +26,13 @@ import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
-import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
@@ -43,9 +42,9 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.utils.DistributionAndOrderingUtils$;
-import org.apache.spark.sql.connector.iceberg.distributions.Distribution;
-import org.apache.spark.sql.connector.iceberg.distributions.Distributions;
-import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
+import org.apache.spark.sql.connector.distributions.Distribution;
+import org.apache.spark.sql.connector.distributions.Distributions;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.internal.SQLConf;
 
 public class Spark3SortStrategy extends SortStrategy {
@@ -107,9 +106,9 @@ public class Spark3SortStrategy extends SortStrategy {
     SortOrder[] ordering;
     if (requiresRepartition) {
       // Build in the requirement for Partition Sorting into our sort order
-      ordering = Spark3Util.convert(SortOrderUtil.buildSortOrder(table.schema(), table.spec(), sortOrder()));
+      ordering = SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table, sortOrder()));
     } else {
-      ordering = Spark3Util.convert(sortOrder());
+      ordering = SparkDistributionAndOrderingUtil.convert(sortOrder());
     }
 
     Distribution distribution = Distributions.ordered(ordering);
@@ -137,7 +136,8 @@ public class Spark3SortStrategy extends SortStrategy {
       sortedDf.write()
           .format("iceberg")
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
-          .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+          .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+          .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
           .mode("append") // This will only write files without modifying the table, see SparkWrite.RewriteFiles
           .save(table.name());
 

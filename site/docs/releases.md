@@ -56,9 +56,37 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
-## 0.12.0 Release Notes
+
+## 0.12.1 Release Notes
+
+Apache Iceberg 0.12.1 was released on November 8th, 2021.
+
+Important bug fixes and changes:
+
+* [\#3264](https://github.com/apache/iceberg/pull/3258) fixes validation failures that occurred after snapshot expiration when writing Flink CDC streams to Iceberg tables.
+* [\#3264](https://github.com/apache/iceberg/pull/3264) fixes reading projected map columns from Parquet files written before Parquet 1.11.1.
+* [\#3195](https://github.com/apache/iceberg/pull/3195) allows validating that commits that produce row-level deltas don't conflict with concurrently added files. Ensures users can maintain serializable isolation for update and delete operations, including merge operations.
+* [\#3199](https://github.com/apache/iceberg/pull/3199) allows validating that commits that overwrite files don't conflict with concurrently added files. Ensures users can maintain serializable isolation for overwrite operations.
+* [\#3135](https://github.com/apache/iceberg/pull/3135) fixes equality-deletes using `DATE`, `TIMESTAMP`, and `TIME` types.
+* [\#3078](https://github.com/apache/iceberg/pull/3078) prevents the JDBC catalog from overwriting the `jdbc.user` property if any property called user exists in the environment.
+* [\#3035](https://github.com/apache/iceberg/pull/3035) fixes drop namespace calls with the DyanmoDB catalog.
+* [\#3273](https://github.com/apache/iceberg/pull/3273) fixes importing Avro files via `add_files` by correctly setting the number of records.
+* [\#3332](https://github.com/apache/iceberg/pull/3332) fixes importing ORC files with float or double columns in `add_files`.
+
+A more exhaustive list of changes is available under the [0.12.1 release milestone](https://github.com/apache/iceberg/milestone/15?closed=1).
+
+## Past releases
+
+### 0.12.0
 
 Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commits authored by 74 contributors over a 139 day period.
+
+* Git tag: [0.12.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.12.0)
+* [0.12.0 source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-0.12.0/apache-iceberg-0.12.0.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-0.12.0/apache-iceberg-0.12.0.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-0.12.0/apache-iceberg-0.12.0.tar.gz.sha512)
+* [0.12.0 Spark 3.x runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.12.0/iceberg-spark3-runtime-0.12.0.jar)
+* [0.12.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.12.0/iceberg-spark-runtime-0.12.0.jar)
+* [0.12.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.12.0/iceberg-flink-runtime-0.12.0.jar)
+* [0.12.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.12.0/iceberg-hive-runtime-0.12.0.jar)
 
 **High-level features:**
 
@@ -119,9 +147,6 @@ Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commit
     * Hive 2.3.8 [[\#2110](https://github.com/apache/iceberg/pull/2110)].
     * Avro 1.10.1 [[\#1648](https://github.com/apache/iceberg/pull/1648)].
     * Parquet 1.12.0 [[\#2441](https://github.com/apache/iceberg/pull/2441)].
-
-
-## Past releases
 
 ### 0.11.1
 

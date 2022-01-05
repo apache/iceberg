@@ -198,6 +198,23 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testPartitionsTableScanNoStats() {
+    table.newFastAppend()
+            .appendFile(FILE_WITH_STATS)
+            .commit();
+
+    Table partitionsTable = new PartitionsTable(table.ops(), table);
+    CloseableIterable<FileScanTask> tasksAndEq = PartitionsTable.planFiles((StaticTableScan) partitionsTable.newScan());
+    for (FileScanTask fileTask : tasksAndEq) {
+      Assert.assertNull(fileTask.file().columnSizes());
+      Assert.assertNull(fileTask.file().valueCounts());
+      Assert.assertNull(fileTask.file().nullValueCounts());
+      Assert.assertNull(fileTask.file().lowerBounds());
+      Assert.assertNull(fileTask.file().upperBounds());
+    }
+  }
+
+  @Test
   public void testPartitionsTableScanAndFilter() {
     preparePartitionedTable();
 

@@ -51,6 +51,21 @@
         <property name="format" value="new JavaSparkContext\(.*\)"/>
         <property name="message" value="Prefer using JavaSparkContext.fromSparkContext() instead of calling a constructor directly."/>
     </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="new HashMap&lt;&gt;\(.*\)"/>
+        <property name="message"
+                  value="Prefer using Maps.newHashMap instead."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="new ArrayList&lt;&gt;\(.*\)"/>
+        <property name="message"
+                  value="Prefer using Lists.newArrayList() instead."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="new HashSet&lt;&gt;\(.*\)"/>
+        <property name="message"
+                  value="Prefer using Sets.newHashSet() instead."/>
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
@@ -94,6 +109,7 @@
                 org.apache.commons.lang3.Validate.*,
                 org.apache.iceberg.expressions.Expressions.*,
                 org.apache.iceberg.expressions.Expression.Operation.*,
+                org.apache.iceberg.DistributionMode.*,
                 org.apache.iceberg.IsolationLevel.*,
                 org.apache.iceberg.NullOrder.*,
                 org.apache.iceberg.MetadataTableType.*,
@@ -105,6 +121,7 @@
                 org.apache.parquet.schema.OriginalType.*,
                 org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
                 org.apache.spark.sql.functions.*,
+                org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.*,
                 org.junit.Assert.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
@@ -188,6 +205,21 @@
             <property name="id" value="BanUnrelocatedGuavaClasses"/>
             <property name="illegalPkgs" value="com.google.common"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="GuavaClassesInAssertJ"/>
+            <property name="illegalPkgs" value="org.assertj.core.util"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="GuavaClassesInArrow"/>
+            <property name="illegalPkgs" value="org.apache.arrow.util"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="GuavaClassesInParquet"/>
+            <property name="illegalClasses" value="org.apache.parquet.Preconditions"/>
+            <message key="import.illegal" value="Use Preconditions from bundled-guava module instead."/>
         </module>
         <module name="IllegalInstantiation"> <!-- Java Coding Guidelines: Never instantiate primitive types -->
             <property name="classes" value="java.lang.Boolean"/>
@@ -350,6 +382,10 @@
         <module name="RegexpSinglelineJava">
             <property name="format" value="\bIOUtils\.toString\("/>
             <property name="message" value="Prefer Guava''s [CharStreams,Files,Resources].toString to avoid charset/stream closing issues."/>
+        </module>
+        <module name="RegexpSinglelineJava">
+            <property name="format" value="\bIOUtils\.copy\("/>
+            <property name="message" value="Prefer Guava''s ByteStreams.copy to avoid charset/stream closing issues."/>
         </module>
         <module name="RegexpSinglelineJava">
             <property name="format" value="static enum"/>

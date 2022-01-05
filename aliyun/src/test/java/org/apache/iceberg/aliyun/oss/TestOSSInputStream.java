@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Test;
 
 import static org.apache.iceberg.AssertHelpers.assertThrows;
@@ -78,7 +78,7 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     byte[] actual = new byte[size];
 
     if (buffered) {
-      IOUtils.readFully(in, actual);
+      ByteStreams.readFully(in, actual);
     } else {
       int read = 0;
       while (read < size) {
@@ -115,7 +115,7 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     try (SeekableInputStream in = new OSSInputStream(ossClient().get(), uri)) {
       in.seek(expected.length / 2);
       byte[] actual = new byte[expected.length / 2];
-      IOUtils.readFully(in, actual);
+      ByteStreams.readFully(in, actual);
       assertArrayEquals("Should have expected seeking stream",
           Arrays.copyOfRange(expected, expected.length / 2, expected.length), actual);
     }

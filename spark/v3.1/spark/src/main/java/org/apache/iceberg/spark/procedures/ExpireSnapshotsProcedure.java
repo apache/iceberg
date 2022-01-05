@@ -22,11 +22,12 @@ package org.apache.iceberg.spark.procedures;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -41,7 +42,7 @@ import org.apache.spark.sql.types.StructType;
 /**
  * A procedure that expires snapshots in a table.
  *
- * @see Actions#expireSnapshots()
+ * @see SparkActions#expireSnapshots(Table)
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 

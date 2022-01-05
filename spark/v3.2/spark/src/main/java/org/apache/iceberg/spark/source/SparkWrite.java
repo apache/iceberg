@@ -42,7 +42,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -65,11 +64,15 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.distributions.Distribution;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
+import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
+import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
@@ -88,7 +91,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
-class SparkWrite {
+abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final JavaSparkContext sparkContext;
@@ -96,27 +99,44 @@ class SparkWrite {
   private final String queryId;
   private final FileFormat format;
   private final String applicationId;
+  private final boolean wapEnabled;
   private final String wapId;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
+  private final Distribution requiredDistribution;
+  private final SortOrder[] requiredOrdering;
 
   SparkWrite(SparkSession spark, Table table, SparkWriteConf writeConf,
              LogicalWriteInfo writeInfo, String applicationId,
-             Schema writeSchema, StructType dsSchema) {
+             Schema writeSchema, StructType dsSchema,
+             Distribution requiredDistribution, SortOrder[] requiredOrdering) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
     this.format = writeConf.dataFileFormat();
     this.applicationId = applicationId;
+    this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
+    this.requiredDistribution = requiredDistribution;
+    this.requiredOrdering = requiredOrdering;
+  }
+
+  @Override
+  public Distribution requiredDistribution() {
+    return requiredDistribution;
+  }
+
+  @Override
+  public SortOrder[] requiredOrdering() {
+    return requiredOrdering;
   }
 
   BatchWrite asBatchAppend() {
@@ -131,8 +151,8 @@ class SparkWrite {
     return new OverwriteByFilter(overwriteExpr);
   }
 
-  BatchWrite asCopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
-    return new CopyOnWriteMergeWrite(scan, isolationLevel);
+  BatchWrite asCopyOnWriteOperation(SparkCopyOnWriteScan scan, IsolationLevel isolationLevel) {
+    return new CopyOnWriteOperation(scan, isolationLevel);
   }
 
   BatchWrite asRewrite(String fileSetID) {
@@ -145,11 +165,6 @@ class SparkWrite {
 
   StreamingWrite asStreamingOverwrite() {
     return new StreamingOverwrite();
-  }
-
-  private boolean isWapTable() {
-    return Boolean.parseBoolean(table.properties().getOrDefault(
-        TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   // the writer factory works for both batch and streaming
@@ -169,7 +184,7 @@ class SparkWrite {
       extraSnapshotMetadata.forEach(operation::set);
     }
 
-    if (isWapTable() && wapId != null) {
+    if (wapEnabled && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
       operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
@@ -204,6 +219,11 @@ class SparkWrite {
           ImmutableList.of()));
     }
     return ImmutableList.of();
+  }
+
+  @Override
+  public String toString() {
+    return String.format("IcebergWrite(table=%s, format=%s)", table, format);
   }
 
   private abstract class BaseBatchWrite implements BatchWrite {
@@ -283,11 +303,11 @@ class SparkWrite {
     }
   }
 
-  private class CopyOnWriteMergeWrite extends BaseBatchWrite {
-    private final SparkMergeScan scan;
+  private class CopyOnWriteOperation extends BaseBatchWrite {
+    private final SparkCopyOnWriteScan scan;
     private final IsolationLevel isolationLevel;
 
-    private CopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
+    private CopyOnWriteOperation(SparkCopyOnWriteScan scan, IsolationLevel isolationLevel) {
       this.scan = scan;
       this.isolationLevel = isolationLevel;
     }

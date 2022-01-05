@@ -18,9 +18,9 @@
  */
 
 def sparkProjects = [
-    project(':iceberg-spark:iceberg-spark-3.1'),
-    project(":iceberg-spark:iceberg-spark-3.1-extensions"),
-    project(':iceberg-spark:iceberg-spark-3.1-runtime')
+    project(':iceberg-spark:iceberg-spark-3.1_2.12'),
+    project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12"),
+    project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12')
 ]
 
 configure(sparkProjects) {
@@ -38,7 +38,7 @@ configure(sparkProjects) {
   }
 }
 
-project(':iceberg-spark:iceberg-spark-3.1') {
+project(':iceberg-spark:iceberg-spark-3.1_2.12') {
   apply plugin: 'scala'
 
   sourceSets {
@@ -57,13 +57,13 @@ project(':iceberg-spark:iceberg-spark-3.1') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.roaringbitmap'
     }
 
     implementation("org.apache.orc:orc-core::nohive") {
@@ -83,6 +83,7 @@ project(':iceberg-spark:iceberg-spark-3.1') {
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -103,7 +104,7 @@ project(':iceberg-spark:iceberg-spark-3.1') {
   }
 }
 
-project(":iceberg-spark:iceberg-spark-3.1-extensions") {
+project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
   apply plugin: 'antlr'
@@ -129,20 +130,21 @@ project(":iceberg-spark:iceberg-spark-3.1-extensions") {
     compileOnly project(':iceberg-data')
     compileOnly project(':iceberg-orc')
     compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark:iceberg-spark-3.1')
-    compileOnly project(':iceberg-hive-metastore')
+    compileOnly project(':iceberg-spark:iceberg-spark-3.1_2.12')
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.roaringbitmap'
     }
 
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark:iceberg-spark-3.1', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-spark:iceberg-spark-3.1_2.12', configuration: 'testArtifacts')
 
     testImplementation "org.apache.avro:avro"
 
@@ -158,7 +160,7 @@ project(":iceberg-spark:iceberg-spark-3.1-extensions") {
   }
 }
 
-project(':iceberg-spark:iceberg-spark-3.1-runtime') {
+project(':iceberg-spark:iceberg-spark-runtime-3.1_2.12') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -192,9 +194,15 @@ project(':iceberg-spark:iceberg-spark-3.1-runtime') {
 
   dependencies {
     api project(':iceberg-api')
-    implementation project(':iceberg-spark:iceberg-spark-3.1')
-    implementation project(':iceberg-spark:iceberg-spark-3.1-extensions')
+    implementation project(':iceberg-spark:iceberg-spark-3.1_2.12')
+    implementation project(':iceberg-spark:iceberg-spark-extensions-3.1_2.12')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -204,11 +212,11 @@ project(':iceberg-spark:iceberg-spark-3.1-runtime') {
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.1', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.1-extensions', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.1_2.12', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-extensions-3.1_2.12', configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.1-extensions')
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.1')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-extensions-3.1_2.12')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.1_2.12')
     integrationCompileOnly project(':iceberg-api')
   }
 
@@ -242,6 +250,7 @@ project(':iceberg-spark:iceberg-spark-3.1-runtime') {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     // relocate Antlr runtime and related deps to shade Iceberg specific version
     relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
+    relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
     classifier null
   }

@@ -19,7 +19,7 @@
 
 def flinkProjects = [
     project(':iceberg-flink:iceberg-flink-1.12'),
-    project(':iceberg-flink:iceberg-flink-1.12-runtime')
+    project(':iceberg-flink:iceberg-flink-runtime-1.12')
 ]
 
 configure(flinkProjects) {
@@ -29,19 +29,6 @@ configure(flinkProjects) {
 }
 
 project(':iceberg-flink:iceberg-flink-1.12') {
-
-  sourceSets {
-    main {
-      java.srcDirs = [
-        "${project(':iceberg-flink').projectDir}/src/main/java",
-        "src/main/java"
-      ]
-      resources.srcDirs = [
-        "${project(':iceberg-flink').projectDir}/src/main/resources",
-        "src/main/resources"
-      ]
-    }
-  }
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -131,7 +118,7 @@ project(':iceberg-flink:iceberg-flink-1.12') {
   }
 }
 
-project(':iceberg-flink:iceberg-flink-1.12-runtime') {
+project(':iceberg-flink:iceberg-flink-runtime-1.12') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -153,6 +140,11 @@ project(':iceberg-flink:iceberg-flink-1.12-runtime') {
   dependencies {
     implementation project(':iceberg-flink:iceberg-flink-1.12')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
