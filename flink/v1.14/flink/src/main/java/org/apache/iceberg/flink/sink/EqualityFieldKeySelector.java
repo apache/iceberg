@@ -19,57 +19,49 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.lang.reflect.Array;
 import java.util.List;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
-import org.apache.iceberg.util.StructProjection;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Create a {@link KeySelector} to shuffle by equality fields, to ensure same equality fields record will be emitted to
  * same writer. That can prevent create duplicate record when insert and delete one row which have same equality field
  * values on different writer in one transaction, and guarantee pos-delete will take effect.
  */
-class EqualityFieldKeySelector extends BaseKeySelector<RowData, StructLikeWrapper> {
+class EqualityFieldKeySelector extends BaseKeySelector<RowData, String> {
 
-  private final Schema schema;
-  private final Schema deleteSchema;
+  private final Accessor<StructLike>[] accessors;
 
-  private transient StructProjection structProjection;
-  private transient StructLikeWrapper structLikeWrapper;
-
+  @SuppressWarnings("unchecked")
   EqualityFieldKeySelector(List<Integer> equalityFieldIds, Schema schema, RowType flinkSchema) {
     super(schema, flinkSchema);
-    this.schema = schema;
-    this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
-  }
 
-  /**
-   * Construct the {@link StructProjection} lazily because it is not serializable.
-   */
-  protected StructProjection lazyStructProjection() {
-    if (structProjection == null) {
-      structProjection = StructProjection.create(schema, deleteSchema);
+    int size = equalityFieldIds.size();
+    this.accessors = (Accessor<StructLike>[]) Array.newInstance(Accessor.class, size);
+    for (int i = 0; i < size; i++) {
+      Accessor<StructLike> accessor = schema.accessorForField(equalityFieldIds.get(i));
+      Preconditions.checkArgument(accessor != null,
+          "Cannot build accessor for field: " + schema.findField(equalityFieldIds.get(i)));
+      accessors[i] = accessor;
     }
-    return structProjection;
-  }
-
-  /**
-   * Construct the {@link StructLikeWrapper} lazily because it is not serializable.
-   */
-  protected StructLikeWrapper lazyStructLikeWrapper() {
-    if (structLikeWrapper == null) {
-      structLikeWrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
-    }
-    return structLikeWrapper;
   }
 
   @Override
-  public StructLikeWrapper getKey(RowData row) {
-    return lazyStructLikeWrapper().set(lazyStructProjection().wrap(lazyRowDataWrapper().wrap(row)));
+  public String getKey(RowData row) throws Exception {
+    StringBuilder builder = new StringBuilder("Key(");
+    for (int i = 0; i < accessors.length; i++) {
+      if (i != 0) {
+        builder.append(",");
+      }
+      builder.append(accessors[i].get(lazyRowDataWrapper().wrap(row)));
+    }
+    builder.append(")");
+    return builder.toString();
   }
 }
