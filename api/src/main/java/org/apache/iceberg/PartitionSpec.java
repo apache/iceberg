@@ -337,21 +337,26 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
-      checkAndAddPartitionName(name, sourceColumnId, true);
+      checkAndAddPartitionName(name, sourceColumnId, true /* checkConflict */);
     }
 
+    // For identity transform case we might allow conflicts between partition name and schema field name
+    // (e.g. at `BaseMetadataTable#transformSpec` when the partition column happens to be `partition`),
+    // so the `checkConflict` needs to be set for identify transform.
+    // For all other transforms we don't allow conflicts between partition name and schema field name,
+    // so `checkConflict` defaults to true since we always have to check.
     private void checkAndAddPartitionName(String name, Integer sourceColumnId, boolean checkConflict) {
       Types.NestedField schemaField = schema.findField(name);
       if (checkConflict) {
         if (sourceColumnId != null) {
-          // for identity transform case we allow  conflicts between partition and schema field name as
+          // for identity transform case we allow conflicts between partition and schema field name as
           //   long as they are sourced from the same schema field
           Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
-                  "Cannot create identity partition sourced from different field in schema: %s", name);
+              "Cannot create identity partition sourced from different field in schema: %s", name);
         } else {
           // for all other transforms we don't allow conflicts between partition name and schema field name
           Preconditions.checkArgument(schemaField == null,
-                  "Cannot create partition from name that exists in schema: %s", name);
+              "Cannot create partition from name that exists in schema: %s", name);
         }
       }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
@@ -382,7 +387,7 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder identity(String sourceName, String targetName) {
-      return identity(sourceName, targetName, true);
+      return identity(sourceName, targetName, true /* checkConflict */);
     }
 
     Builder identity(String sourceName, String targetName, boolean checkConflict) {

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.File;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -457,6 +458,65 @@ public class TestMetadataTableScans extends TableTestBase {
         required(103, "record_count", Types.LongType.get(), "Number of records in the file")
     ).asStruct();
     Assert.assertEquals(expected, scan.schema().asStruct());
+  }
+
+  @Test
+  public void testPartitionColumnNamedPartition() throws Exception {
+    TestTables.clearTables();
+    this.tableDir = temp.newFolder();
+    tableDir.delete();
+
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get()),
+        // create a column named "partition", to recreate the problem in
+        // https://github.com/apache/iceberg/issues/3709
+        required(2, "partition", Types.IntegerType.get())
+    );
+    this.metadataDir = new File(tableDir, "metadata");
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("partition")
+        .build();
+
+    DataFile par_0 = DataFiles.builder(spec)
+        .withPath("/path/to/data-0.parquet")
+        .withFileSizeInBytes(10)
+        .withPartition(TestHelpers.Row.of(0))
+        .withRecordCount(1)
+        .build();
+    DataFile par_1 = DataFiles.builder(spec)
+        .withPath("/path/to/data-0.parquet")
+        .withFileSizeInBytes(10)
+        .withPartition(TestHelpers.Row.of(1))
+        .withRecordCount(1)
+        .build();
+    DataFile par_2 = DataFiles.builder(spec)
+        .withPath("/path/to/data-0.parquet")
+        .withFileSizeInBytes(10)
+        .withPartition(TestHelpers.Row.of(2))
+        .withRecordCount(1)
+        .build();
+
+    this.table = create(schema, spec);
+    table.newFastAppend()
+        .appendFile(par_0)
+        .commit();
+    table.newFastAppend()
+        .appendFile(par_1)
+        .commit();
+    table.newFastAppend()
+        .appendFile(par_2)
+        .commit();
+
+    Table partitionsTable = new PartitionsTable(table.ops(), table);
+
+    Expression andEquals = Expressions.and(
+        Expressions.equal("partition.partition", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
+    CloseableIterable<FileScanTask> tasksAndEq = PartitionsTable.planFiles((StaticTableScan) scanAndEq);
+    Assert.assertEquals(1, Iterators.size(tasksAndEq.iterator()));
+    validateIncludesPartitionScan(tasksAndEq, 0);
+    TestTables.clearTables();
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {
