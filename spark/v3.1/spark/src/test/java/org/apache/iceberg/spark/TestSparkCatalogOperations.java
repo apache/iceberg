@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
