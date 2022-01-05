@@ -212,7 +212,7 @@ public class AwsProperties implements Serializable {
   /**
    * Enables eTag checks for S3 PUT and MULTIPART upload requests.
    */
-  public static final String CLIENT_ENABLE_ETAG_CHECK = "client.enable.etag-check";
+  public static final String CLIENT_ENABLE_ETAG_CHECK = "s3.checksum.enabled";
   public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
   private String s3FileIoSseType;
