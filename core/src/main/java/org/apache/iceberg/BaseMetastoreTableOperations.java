@@ -27,11 +27,11 @@ import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.TableUUIDMismatchException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -185,9 +185,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .run(metadataLocation -> newMetadata.set(metadataLoader.apply(metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
-      if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
-        Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
-            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+      if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null &&
+          !newUUID.equals(currentMetadata.uuid())) {
+        throw new TableUUIDMismatchException(currentMetadata.uuid(), newUUID);
       }
 
       this.currentMetadata = newMetadata.get();

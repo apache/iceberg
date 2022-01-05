@@ -39,6 +39,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.TableUUIDMismatchException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -270,7 +271,9 @@ public class SparkCatalog extends BaseCatalog {
   public void invalidateTable(Identifier ident) {
     try {
       load(ident).first().refresh();
-    } catch (Exception e) {
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
+      // ignore if the table doesn't exist, it is not cached
+    } catch (TableUUIDMismatchException e) {
       try {
         if (cacheEnabled && !isPathIdentifier(ident)) {
           ((CachingCatalog) icebergCatalog).invalidate(buildIdentifier(ident));

@@ -81,17 +81,14 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
 
   @Test
   public void testInvalidateTable() {
-    if (!catalogName.equals(SparkCatalogConfig.HIVE.catalogName())) {
-      return;
-    }
-
     // load table to CachingCatalog
     sql("SELECT count(1) FROM %s", tableName);
 
     // recreate table from another catalog or program
-    Schema schema = catalog.loadTable(tableIdent).schema();
-    catalog.dropTable(tableIdent);
-    catalog.createTable(tableIdent, schema);
+    Catalog anotherCatalog = validationCatalog;
+    Schema schema = anotherCatalog.loadTable(tableIdent).schema();
+    anotherCatalog.dropTable(tableIdent);
+    anotherCatalog.createTable(tableIdent, schema);
 
     // refresh table
     sql("REFRESH TABLE %s", tableName);
