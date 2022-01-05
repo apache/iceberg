@@ -279,6 +279,7 @@ public class FlinkCatalog extends AbstractCatalog {
         if (!removals.isEmpty()) {
           asNamespaceCatalog.removeProperties(namespace, removals);
         }
+
       } catch (NoSuchNamespaceException e) {
         if (!ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name, e);
@@ -384,13 +385,16 @@ public class FlinkCatalog extends AbstractCatalog {
       for (int i = 0; i < watermarkSpecs.size(); i++) {
         WatermarkSpec watermarkSpec = watermarkSpecs.get(i);
         properties.put(
-            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME,
+            FlinkSchemaUtil.flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_ROWTIME,
             watermarkSpec.getRowtimeAttribute());
         properties.put(
-            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR,
+            FlinkSchemaUtil.flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_STRATEGY_EXPR,
             watermarkSpec.getWatermarkExpr());
         properties.put(
-            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE,
+            FlinkSchemaUtil.flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE,
             watermarkSpec.getWatermarkExprOutputType().toString());
       }
     }

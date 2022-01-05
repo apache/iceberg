@@ -59,6 +59,8 @@ import org.apache.iceberg.types.Types;
  */
 public class FlinkSchemaUtil {
 
+  public static final String flinkPrefix = "flink.";
+
   private FlinkSchemaUtil() {
   }
 
@@ -169,18 +171,19 @@ public class FlinkSchemaUtil {
         properties.keySet().stream()
             .filter(
                 (k) ->
-                    k.startsWith(DescriptorProperties.WATERMARK) &&
+                    k.startsWith(flinkPrefix + DescriptorProperties.WATERMARK) &&
                         k.endsWith('.' + DescriptorProperties.WATERMARK_ROWTIME))
             .mapToInt((k) -> 1)
             .sum();
     if (watermarkCount > 0) {
       for (int i = 0; i < watermarkCount; i++) {
         final String rowtimeKey =
-            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME;
+            flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME;
         final String exprKey =
-            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR;
+            flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR;
         final String typeKey =
-            DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
+            flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
         final String rowtime =
             optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
         final String exprString =
@@ -216,7 +219,7 @@ public class FlinkSchemaUtil {
   private static Supplier<TableException> exceptionSupplier(String key) {
     return () -> {
       throw new TableException(
-          "Property with key '" + key + "' could not be found. " +
+          "Required property with key '" + key + "' could not be found. " +
               "This is a bug because the validation logic should have checked that before.");
     };
   }
