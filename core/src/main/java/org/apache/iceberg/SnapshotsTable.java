@@ -75,6 +75,16 @@ public class SnapshotsTable extends BaseMetadataTable {
       super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this.metadataTableType().name(), SnapshotsTable.this::task);
     }
 
+    SnapshotsTableScan(TableOperations ops, Table table, TableScanContext context) {
+      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this.metadataTableType().name(),
+              SnapshotsTable.this::task, context);
+    }
+
+    @Override
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new SnapshotsTableScan(ops, table, context);
+    }
+
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
       // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots

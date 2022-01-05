@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -191,6 +192,10 @@ public class TableTestBase {
   List<File> listManifestFiles(File tableDirToList) {
     return Lists.newArrayList(new File(tableDirToList, "metadata").listFiles((dir, name) ->
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+  }
+
+  public static long countAllMetadataFiles(File tableDir) {
+    return Arrays.stream(new File(tableDir, "metadata").listFiles()).filter(f -> f.isFile()).count();
   }
 
   protected TestTables.TestTable create(Schema schema, PartitionSpec spec) {

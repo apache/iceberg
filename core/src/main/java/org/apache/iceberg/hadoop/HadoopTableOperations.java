@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
@@ -63,15 +64,17 @@ public class HadoopTableOperations implements TableOperations {
   private final Configuration conf;
   private final Path location;
   private final FileIO fileIO;
+  private final LockManager lockManager;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
+  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
+    this.lockManager = lockManager;
   }
 
   @Override
@@ -151,18 +154,8 @@ public class HadoopTableOperations implements TableOperations {
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
 
-    try {
-      if (fs.exists(finalMetadataFile)) {
-        throw new CommitFailedException(
-            "Version %d already exists: %s", nextVersion, finalMetadataFile);
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e,
-          "Failed to check if next version exists: %s", finalMetadataFile);
-    }
-
     // this rename operation is the atomic commit operation
-    renameToFinal(fs, tempMetadataFile, finalMetadataFile);
+    renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
@@ -353,8 +346,13 @@ public class HadoopTableOperations implements TableOperations {
    * @param src the source file
    * @param dst the destination file
    */
-  private void renameToFinal(FileSystem fs, Path src, Path dst) {
+  private void renameToFinal(FileSystem fs, Path src, Path dst, int nextVersion) {
     try {
+      lockManager.acquire(dst.toString(), src.toString());
+      if (fs.exists(dst)) {
+        throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
+      }
+
       if (!fs.rename(src, dst)) {
         CommitFailedException cfe = new CommitFailedException(
             "Failed to commit changes using rename: %s", dst);
@@ -372,6 +370,8 @@ public class HadoopTableOperations implements TableOperations {
         cfe.addSuppressed(re);
       }
       throw cfe;
+    } finally {
+      lockManager.release(dst.toString(), src.toString());
     }
   }
 

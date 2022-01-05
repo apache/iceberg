@@ -23,7 +23,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -37,11 +36,11 @@ import org.apache.hadoop.hive.ql.io.SyntheticFileId;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableUtils;
 import org.apache.hadoop.mapred.FileSplit;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.OrcProto;
 import org.apache.orc.impl.OrcTail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 /**
  * In order to fix some compatibility issues with ORC support with Hive 3.x and the shaded ORC libraries,
@@ -59,7 +58,7 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
   private boolean hasBase;
   // partition root
   private Path rootDir;
-  private final List<AcidInputFormat.DeltaMetaData> deltas = new ArrayList<>();
+  private final List<AcidInputFormat.DeltaMetaData> deltas = Lists.newArrayList();
   private long projColsUncompressedSize;
   private transient Object fileKey;
   private long fileLen;

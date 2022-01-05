@@ -115,7 +115,7 @@ public class TestHelper {
   }
 
   private GenericAppenderHelper appender() {
-    return new GenericAppenderHelper(table, fileFormat, tmp);
+    return new GenericAppenderHelper(table, fileFormat, tmp, conf);
   }
 
   public static class RecordsBuilder {

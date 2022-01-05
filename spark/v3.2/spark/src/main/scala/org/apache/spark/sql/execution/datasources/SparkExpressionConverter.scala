@@ -20,7 +20,11 @@
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkFilters
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.execution.CommandExecutionMode
 
 object SparkExpressionConverter {
 
@@ -29,5 +33,19 @@ object SparkExpressionConverter {
     // and then converting Spark filter to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
     SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
+  }
+
+  @throws[AnalysisException]
+  def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
+    var expression: Expression = null
+    // Add a dummy prefix linking to the table to collect the resolved spark expression from optimized plan.
+    val prefix = String.format("SELECT 42 from %s where ", tableName)
+    val logicalPlan = session.sessionState.sqlParser.parsePlan(prefix + where)
+    val optimizedLogicalPlan = session.sessionState.executePlan(logicalPlan, CommandExecutionMode.ALL).optimizedPlan
+    optimizedLogicalPlan.collectFirst {
+      case filter: Filter =>
+        expression = filter.expressions.head
+    }
+    expression
   }
 }

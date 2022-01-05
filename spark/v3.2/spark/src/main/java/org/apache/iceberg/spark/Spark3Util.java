@@ -579,6 +579,8 @@ public class Spark3Util {
           return pred.ref().name() + " != " + sqlString(pred.literal());
         case STARTS_WITH:
           return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
+        case NOT_STARTS_WITH:
+          return pred.ref().name() + " NOT LIKE '" + pred.literal() + "%'";
         case IN:
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
@@ -777,7 +779,7 @@ public class Spark3Util {
             int fieldIndex = schema.fieldIndex(field.name());
             Object catalystValue = partition.values().get(fieldIndex, field.dataType());
             Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-            values.put(field.name(), value.toString());
+            values.put(field.name(), String.valueOf(value));
           });
           return new SparkPartition(values, partition.path().toString(), format);
         }).collect(Collectors.toList());

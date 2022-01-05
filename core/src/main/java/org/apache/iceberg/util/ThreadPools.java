@@ -36,7 +36,7 @@ public class ThreadPools {
 
   public static final int WORKER_THREAD_POOL_SIZE = getPoolSize(
       WORKER_THREAD_POOL_SIZE_PROP,
-      Runtime.getRuntime().availableProcessors());
+      Math.max(2, Runtime.getRuntime().availableProcessors()));
 
   private static final ExecutorService WORKER_POOL = MoreExecutors.getExitingExecutorService(
       (ThreadPoolExecutor) Executors.newFixedThreadPool(

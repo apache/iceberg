@@ -473,6 +473,63 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+      Long valueCount = valueCounts.get(id);
+
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (mayContainNull(colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        Binary lower = colStats.genericGetMin();
+        Binary upper = colStats.genericGetMax();
+
+        // notStartsWith will match unless all values must start with the prefix. this happens when the lower and upper
+        // bounds both start with the prefix.
+        if (lower != null && upper != null) {
+          ByteBuffer prefix = lit.toByteBuffer();
+          Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+          // if lower is shorter than the prefix, it can't start with the prefix
+          if (lower.length() < prefix.remaining()) {
+            return ROWS_MIGHT_MATCH;
+          }
+
+          // truncate lower bound to the prefix and check for equality
+          int cmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), prefix.remaining()), prefix);
+          if (cmp == 0) {
+            // the lower bound starts with the prefix; check the upper bound
+            // if upper is shorter than the prefix, it can't start with the prefix
+            if (upper.length() < prefix.remaining()) {
+              return ROWS_MIGHT_MATCH;
+            }
+
+            // truncate upper bound so that its length in bytes is not greater than the length of prefix
+            cmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), prefix.remaining()), prefix);
+            if (cmp == 0) {
+              // both bounds match the prefix, so all rows must match the prefix and none do not match
+              return ROWS_CANNOT_MATCH;
+            }
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T min(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMin());
@@ -502,6 +559,10 @@ public class ParquetMetricsRowGroupFilter {
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
     return statistics.getNumNulls() < valueCount &&
         (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+  }
+
+  private static boolean mayContainNull(Statistics statistics) {
+    return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
   }
 
   private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {

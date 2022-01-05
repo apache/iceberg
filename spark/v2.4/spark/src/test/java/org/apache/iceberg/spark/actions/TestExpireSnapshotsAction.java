@@ -21,8 +21,6 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -557,7 +555,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    Set<String> deletedFiles = new HashSet<>();
+    Set<String> deletedFiles = Sets.newHashSet();
 
     // Expire all commits including dangling staged snapshot.
     ExpireSnapshots.Result result = SparkActions.get().expireSnapshots(table)
@@ -567,7 +565,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     checkExpirationResults(1L, 1L, 2L, result);
 
-    Set<String> expectedDeletes = new HashSet<>();
+    Set<String> expectedDeletes = Sets.newHashSet();
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
@@ -604,7 +602,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Snapshot snapshotA = table.currentSnapshot();
 
     // `B` commit
-    Set<String> deletedAFiles = new HashSet<>();
+    Set<String> deletedAFiles = Sets.newHashSet();
     table.newOverwrite()
         .addFile(FILE_B)
         .deleteFile(FILE_A)
@@ -636,7 +634,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     table.manageSnapshots()
         .setCurrentSnapshot(snapshotC.snapshotId())
         .commit();
-    List<String> deletedFiles = new ArrayList<>();
+    List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `C`
     ExpireSnapshots.Result result = SparkActions.get().expireSnapshots(table)
@@ -691,7 +689,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     base = ((BaseTable) table).operations().current();
     Snapshot snapshotD = base.snapshots().get(3);
 
-    List<String> deletedFiles = new ArrayList<>();
+    List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `B` commit.
     ExpireSnapshots.Result firstResult = SparkActions.get().expireSnapshots(table)

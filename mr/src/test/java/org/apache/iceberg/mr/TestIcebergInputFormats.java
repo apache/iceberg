@@ -22,7 +22,6 @@ package org.apache.iceberg.mr;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,6 +57,7 @@ import org.apache.iceberg.mr.mapreduce.IcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -180,7 +180,7 @@ public class TestIcebergInputFormats {
     writeRecords.get(1).set(1, 456L);
     writeRecords.get(1).set(2, "2020-03-20");
 
-    List<Record> expectedRecords = new ArrayList<>();
+    List<Record> expectedRecords = Lists.newArrayList();
     expectedRecords.add(writeRecords.get(0));
 
     DataFile dataFile1 = helper.writeFile(Row.of("2020-03-20", 0), writeRecords);
@@ -432,8 +432,8 @@ public class TestIcebergInputFormats {
       try {
         org.apache.hadoop.mapred.InputSplit[] splits = inputFormat.getSplits(job, 1);
 
-        List<IcebergSplit> iceSplits = new ArrayList<>(splits.length);
-        List<T> records = new ArrayList<>();
+        List<IcebergSplit> iceSplits = Lists.newArrayListWithExpectedSize(splits.length);
+        List<T> records = Lists.newArrayList();
 
         for (org.apache.hadoop.mapred.InputSplit split : splits) {
           iceSplits.add((IcebergSplit) split);
@@ -469,8 +469,8 @@ public class TestIcebergInputFormats {
       IcebergInputFormat<T> inputFormat = new IcebergInputFormat<>();
       List<InputSplit> splits = inputFormat.getSplits(context);
 
-      List<IcebergSplit> iceSplits = new ArrayList<>(splits.size());
-      List<T> records = new ArrayList<>();
+      List<IcebergSplit> iceSplits = Lists.newArrayListWithExpectedSize(splits.size());
+      List<T> records = Lists.newArrayList();
 
       for (InputSplit split : splits) {
         iceSplits.add((IcebergSplit) split);
