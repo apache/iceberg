@@ -19,14 +19,13 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-
-import java.io.IOException;
 
 /**
  * {@link DeleteFiles Delete} implementation that avoids loading full manifests in memory.
