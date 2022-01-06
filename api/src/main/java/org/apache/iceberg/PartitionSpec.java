@@ -323,6 +323,8 @@ public class PartitionSpec implements Serializable {
     private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
+    // check if there are conflicts between partition and schema field name
+    private boolean checkConflict = true;
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -336,16 +338,12 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(name, null);
     }
 
-    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
-      checkAndAddPartitionName(name, sourceColumnId, true /* checkConflict */);
+    Builder checkConflict(boolean check) {
+      checkConflict = check;
+      return this;
     }
 
-    // For identity transform case we might allow conflicts between partition name and schema field name
-    // (e.g. at `BaseMetadataTable#transformSpec` when the partition column happens to be `partition`),
-    // so the `checkConflict` needs to be set for identify transform.
-    // For all other transforms we don't allow conflicts between partition name and schema field name,
-    // so `checkConflict` defaults to true since we always have to check.
-    private void checkAndAddPartitionName(String name, Integer sourceColumnId, boolean checkConflict) {
+    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
       Types.NestedField schemaField = schema.findField(name);
       if (checkConflict) {
         if (sourceColumnId != null) {
@@ -387,12 +385,8 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder identity(String sourceName, String targetName) {
-      return identity(sourceName, targetName, true /* checkConflict */);
-    }
-
-    Builder identity(String sourceName, String targetName, boolean checkConflict) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), checkConflict);
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId());
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type()));
       checkForRedundantPartitions(field);

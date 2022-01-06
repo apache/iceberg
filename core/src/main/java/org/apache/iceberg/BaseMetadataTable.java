@@ -63,11 +63,8 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
    */
   static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec, String partitionPrefix) {
     PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchema);
-    // maps $partitionPrefix.X fields to partition X using an identity partition transform.
-    // No need to check conflict between partition X and schema field name. The current table's partition spec
-    // must be valid, so partition X shouldn't contain any of the schema field name.
-    spec.fields().forEach(pf -> identitySpecBuilder.identity(
-        partitionPrefix + pf.name(), pf.name(), false /* checkConflict */));
+    spec.fields().forEach(pf -> identitySpecBuilder.checkConflict(false).identity(
+        partitionPrefix + pf.name(), pf.name()));
     return identitySpecBuilder.build();
   }
 
