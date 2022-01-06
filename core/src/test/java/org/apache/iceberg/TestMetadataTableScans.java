@@ -468,8 +468,6 @@ public class TestMetadataTableScans extends TableTestBase {
 
     Schema schema = new Schema(
         required(1, "id", Types.IntegerType.get()),
-        // create a column named "partition", to recreate the problem in
-        // https://github.com/apache/iceberg/issues/3709
         required(2, "partition", Types.IntegerType.get())
     );
     this.metadataDir = new File(tableDir, "metadata");
@@ -516,7 +514,6 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasksAndEq = PartitionsTable.planFiles((StaticTableScan) scanAndEq);
     Assert.assertEquals(1, Iterators.size(tasksAndEq.iterator()));
     validateIncludesPartitionScan(tasksAndEq, 0);
-    TestTables.clearTables();
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {
