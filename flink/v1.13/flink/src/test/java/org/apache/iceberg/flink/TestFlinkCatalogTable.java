@@ -175,15 +175,15 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Table table = table("tl");
     Assert.assertEquals(
         "Should have the expected watermark properties.",
-        table.properties().get(FlinkSchemaUtil.flinkPrefix + WATERMARK + '.' + 0 + '.' + WATERMARK_ROWTIME),
+        table.properties().get(FlinkSchemaUtil.FLINK_PREFIX + WATERMARK + '.' + 0 + '.' + WATERMARK_ROWTIME),
         "testTime");
     Assert.assertEquals(
         "Should have the expected watermark properties.",
-        table.properties().get(FlinkSchemaUtil.flinkPrefix + WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_DATA_TYPE),
+        table.properties().get(FlinkSchemaUtil.FLINK_PREFIX + WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_DATA_TYPE),
         "TIMESTAMP(3)");
     Assert.assertEquals(
         "Should have the expected watermark properties.",
-        table.properties().get(FlinkSchemaUtil.flinkPrefix + WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_EXPR),
+        table.properties().get(FlinkSchemaUtil.FLINK_PREFIX + WATERMARK + '.' + 0 + '.' + WATERMARK_STRATEGY_EXPR),
         "`testTime` - INTERVAL '5' SECOND");
   }
 

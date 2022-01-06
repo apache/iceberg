@@ -382,18 +382,23 @@ public class FlinkCatalog extends AbstractCatalog {
 
     List<WatermarkSpec> watermarkSpecs = table.getSchema().getWatermarkSpecs();
     if (watermarkSpecs != null) {
+      if (watermarkSpecs.size() > 1) {
+        throw new IllegalStateException(
+            "Multiple watermark definition is not supported yet.");
+      }
+
       for (int i = 0; i < watermarkSpecs.size(); i++) {
         WatermarkSpec watermarkSpec = watermarkSpecs.get(i);
         properties.put(
-            FlinkSchemaUtil.flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+            FlinkSchemaUtil.FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
                 DescriptorProperties.WATERMARK_ROWTIME,
             watermarkSpec.getRowtimeAttribute());
         properties.put(
-            FlinkSchemaUtil.flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+            FlinkSchemaUtil.FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
                 DescriptorProperties.WATERMARK_STRATEGY_EXPR,
             watermarkSpec.getWatermarkExpr());
         properties.put(
-            FlinkSchemaUtil.flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+            FlinkSchemaUtil.FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
                 DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE,
             watermarkSpec.getWatermarkExprOutputType().toString());
       }

@@ -59,7 +59,7 @@ import org.apache.iceberg.types.Types;
  */
 public class FlinkSchemaUtil {
 
-  public static final String flinkPrefix = "flink.";
+  public static final String FLINK_PREFIX = "flink.";
 
   private FlinkSchemaUtil() {
   }
@@ -171,18 +171,18 @@ public class FlinkSchemaUtil {
         properties.keySet().stream()
             .filter(
                 (k) ->
-                    k.startsWith(flinkPrefix + DescriptorProperties.WATERMARK) &&
+                    k.startsWith(FLINK_PREFIX + DescriptorProperties.WATERMARK) &&
                         k.endsWith('.' + DescriptorProperties.WATERMARK_ROWTIME))
             .mapToInt((k) -> 1)
             .sum();
     if (watermarkCount > 0) {
       for (int i = 0; i < watermarkCount; i++) {
         final String rowtimeKey =
-            flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME;
+            FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME;
         final String exprKey =
-            flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR;
+            FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR;
         final String typeKey =
-            flinkPrefix + DescriptorProperties.WATERMARK + '.' + i + '.' +
+            FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
                 DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
         final String rowtime =
             optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
