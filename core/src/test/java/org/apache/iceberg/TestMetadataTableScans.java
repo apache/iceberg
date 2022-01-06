@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
 import java.io.File;
+import java.io.IOException;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -477,19 +477,19 @@ public class TestMetadataTableScans extends TableTestBase {
         .identity("partition")
         .build();
 
-    DataFile par_0 = DataFiles.builder(spec)
+    DataFile par0 = DataFiles.builder(spec)
         .withPath("/path/to/data-0.parquet")
         .withFileSizeInBytes(10)
         .withPartition(TestHelpers.Row.of(0))
         .withRecordCount(1)
         .build();
-    DataFile par_1 = DataFiles.builder(spec)
+    DataFile par1 = DataFiles.builder(spec)
         .withPath("/path/to/data-0.parquet")
         .withFileSizeInBytes(10)
         .withPartition(TestHelpers.Row.of(1))
         .withRecordCount(1)
         .build();
-    DataFile par_2 = DataFiles.builder(spec)
+    DataFile par2 = DataFiles.builder(spec)
         .withPath("/path/to/data-0.parquet")
         .withFileSizeInBytes(10)
         .withPartition(TestHelpers.Row.of(2))
@@ -498,13 +498,13 @@ public class TestMetadataTableScans extends TableTestBase {
 
     this.table = create(schema, spec);
     table.newFastAppend()
-        .appendFile(par_0)
+        .appendFile(par0)
         .commit();
     table.newFastAppend()
-        .appendFile(par_1)
+        .appendFile(par1)
         .commit();
     table.newFastAppend()
-        .appendFile(par_2)
+        .appendFile(par2)
         .commit();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
