@@ -24,11 +24,14 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -295,7 +298,25 @@ public class SnapshotUtil {
       return schema;
     }
 
-    // TODO: recover the schema by reading previous metadata files
+    // Otherwise, read each of the previous metadata files until we find one whose current
+    // snapshot id is the snapshot id
+    if (table instanceof BaseTable) {
+      Schema schema = null;
+      TableMetadata current = ((BaseTable) table).operations().current();
+      for (TableMetadata.MetadataLogEntry logEntry : current.previousFiles()) {
+        String metadataFile = logEntry.file();
+        TableMetadata metadata = TableMetadataParser.read(table.io(), metadataFile);
+        if (metadata.currentSnapshot() != null &&
+            metadata.currentSnapshot().snapshotId() == snapshotId) {
+          schema = metadata.schema();
+          break;
+        }
+      }
+      Preconditions.checkArgument(schema != null,
+          "Cannot find a metadata file corresponding to the snapshot %s", snapshotId);
+      return schema;
+    }
+
     return table.schema();
   }
 

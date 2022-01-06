@@ -89,8 +89,12 @@ public class SnapshotParser {
       generator.writeEndArray();
     }
 
-    // schema ID might be null for snapshots written by old writers
-    if (snapshot.schemaId() != null) {
+    // For test purposes, we want to emulate an old writer; we do this if the system property
+    // iceberg.snapshot.no-schema-id is set to true.
+    boolean noSchemaId = SystemProperties.getBoolean("iceberg.snapshot.no-schema-id", false);
+    // In addition, schema ID might be null for snapshots written by old writers.
+    // In either of these cases, we skip writing schema-id for the snapshot.
+    if (!noSchemaId && snapshot.schemaId() != null) {
       generator.writeNumberField(SCHEMA_ID, snapshot.schemaId());
     }
 

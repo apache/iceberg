@@ -58,6 +58,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.types.StructType;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -96,6 +97,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   public abstract String loadLocation(TableIdentifier ident, String entriesSuffix);
 
   public abstract String loadLocation(TableIdentifier ident);
+
+  @After
+  public void resetSystem() {
+    System.setProperty("iceberg.snapshot.no-schema-id", "false");
+  }
 
   @Test
   public synchronized void testTablesSupport() {
@@ -1155,8 +1161,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
   }
 
-  @Test
-  public synchronized void testSnapshotReadAfterAddColumn() {
+  private void snapshotReadAfterAddColumn() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
@@ -1220,7 +1225,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
-  public synchronized void testSnapshotReadAfterDropColumn() {
+  public synchronized void testSnapshotReadAfterAddColumn() {
+    snapshotReadAfterAddColumn();
+  }
+
+  @Test
+  public synchronized void testOldSnapshotReadAfterAddColumn() {
+    System.setProperty("iceberg.snapshot.no-schema-id", "true");
+    snapshotReadAfterAddColumn();
+  }
+
+  private void snapshotReadAfterDropColumn() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA2, PartitionSpec.unpartitioned());
 
@@ -1294,7 +1309,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
-  public synchronized void testSnapshotReadAfterAddAndDropColumn() {
+  public synchronized void testSnapshotReadAfterDropColumn() {
+    snapshotReadAfterDropColumn();
+  }
+
+  @Test
+  public synchronized void testOldSnapshotReadAfterDropColumn() {
+    System.setProperty("iceberg.snapshot.no-schema-id", "true");
+    snapshotReadAfterDropColumn();
+  }
+
+  private void snapshotReadAfterAddAndDropColumn() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
@@ -1373,6 +1398,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
+  public synchronized void testSnapshotReadAfterAddAndDropColumn() {
+    snapshotReadAfterAddAndDropColumn();
+  }
+
+  @Test
+  public synchronized void testOldSnapshotReadAfterAddAndDropColumn() {
+    System.setProperty("iceberg.snapshot.no-schema-id", "true");
+    snapshotReadAfterAddAndDropColumn();
+  }
+
+  @Test
   public void testRemoveOrphanFilesActionSupport() throws InterruptedException {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -1413,7 +1449,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
-
 
   @Test
   public void testFilesTablePartitionId() throws Exception {
