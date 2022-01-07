@@ -172,7 +172,7 @@ class AddFilesProcedure extends BaseProcedure {
       importPartitions(table, ImmutableList.of(partition), checkDuplicateFiles);
     } else {
       Preconditions.checkArgument(!partitions.isEmpty(),
-          "Cannot find any partitions in table %s", partitions);
+          "Cannot find any matching partitions in table %s", partitions);
       importPartitions(table, partitions, checkDuplicateFiles);
     }
   }
