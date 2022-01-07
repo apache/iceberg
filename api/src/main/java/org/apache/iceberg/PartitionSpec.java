@@ -324,7 +324,7 @@ public class PartitionSpec implements Serializable {
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
     // check if there are conflicts between partition and schema field name
-    private boolean checkConflict = true;
+    private boolean checkConflicts = true;
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -338,14 +338,14 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(name, null);
     }
 
-    Builder checkConflict(boolean check) {
-      checkConflict = check;
+    Builder checkConflicts(boolean check) {
+      checkConflicts = check;
       return this;
     }
 
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
       Types.NestedField schemaField = schema.findField(name);
-      if (checkConflict) {
+      if (checkConflicts) {
         if (sourceColumnId != null) {
           // for identity transform case we allow conflicts between partition and schema field name as
           //   long as they are sourced from the same schema field
