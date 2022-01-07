@@ -54,14 +54,15 @@ class EqualityFieldKeySelector extends BaseKeySelector<RowData, String> {
 
   @Override
   public String getKey(RowData row) throws Exception {
-    StringBuilder builder = new StringBuilder("Key(");
+    StructLike record = lazyRowDataWrapper().wrap(row);
+    StringBuilder builder = new StringBuilder("[");
     for (int i = 0; i < accessors.length; i++) {
       if (i != 0) {
         builder.append(",");
       }
-      builder.append(accessors[i].get(lazyRowDataWrapper().wrap(row)));
+      builder.append(accessors[i].get(record));
     }
-    builder.append(")");
+    builder.append("]");
     return builder.toString();
   }
 }

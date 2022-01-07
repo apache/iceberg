@@ -418,26 +418,37 @@ public class FlinkSink {
       switch (writeMode) {
         case NONE:
           if (!equalityFieldIds.isEmpty()) {
+            LOG.info("Distribute rows by equality fields in '{}' distribution mode", DistributionMode.NONE.modeName());
             return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
           }
+
           return input;
 
         case HASH:
           if (partitionSpec.isUnpartitioned()) {
             if (!equalityFieldIds.isEmpty()) {
+              LOG.info("Distribute rows by equality fields in '{}' distribution mode, because table is unpartitioned",
+                  DistributionMode.HASH.modeName());
               return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
             }
+
+            LOG.warn("Fallback to use '{}' distribution mode, because table is unpartitioned",
+                DistributionMode.NONE.modeName());
             return input;
           } else {
+            LOG.info("Distribute rows by partition fields in '{}' distribution mode", DistributionMode.HASH.modeName());
             return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
           }
 
         case RANGE:
-          LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
-              WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
           if (!equalityFieldIds.isEmpty()) {
+            LOG.info("Distribute rows by equality fields in '{}' distribution mode, because {}={} is not supported yet",
+                DistributionMode.RANGE.modeName(), WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
             return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
           }
+
+          LOG.warn("Fallback to use '{}' distribution mode, because {}={} is not supported in flink now",
+              DistributionMode.NONE.modeName(), WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
           return input;
 
         default:
