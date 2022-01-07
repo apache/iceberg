@@ -29,6 +29,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * A read-only serializable table that can be sent to other nodes in a cluster.
@@ -107,7 +108,7 @@ public class SerializableTable implements Table, Serializable {
 
   private FileIO fileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
+      ((HadoopConfigurable) table.io()).serializeConfWith(SerializableConfSupplier::new);
     }
 
     return table.io();
@@ -358,6 +359,19 @@ public class SerializableTable implements Table, Serializable {
     @Override
     protected Table newTable(TableOperations ops, String tableName) {
       return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, tableName, type);
+    }
+  }
+
+  private static class SerializableConfSupplier implements SerializableSupplier<Configuration> {
+    private final SerializableConfiguration serializableConf;
+
+    SerializableConfSupplier(Configuration conf) {
+      this.serializableConf = new SerializableConfiguration(conf);
+    }
+
+    @Override
+    public Configuration get() {
+      return serializableConf.get();
     }
   }
 
