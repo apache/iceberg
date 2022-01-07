@@ -29,7 +29,6 @@ import org.apache.flink.api.connector.source.SourceSplit;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.flink.source.SplitPosition;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
@@ -38,18 +37,19 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   private static final long serialVersionUID = 1L;
 
   private final CombinedScanTask task;
-  // SplitPosition object is mutable
-  @Nullable
-  private final SplitPosition splitPosition;
+
+  private int fileOffset;
+  private long recordOffset;
 
   // The splits are frequently serialized into checkpoints.
   // Caching the byte representation makes repeated serialization cheap.
   @Nullable
   private transient byte[] serializedBytesCache;
 
-  private IcebergSourceSplit(CombinedScanTask task, SplitPosition splitPosition) {
+  private IcebergSourceSplit(CombinedScanTask task, int fileOffset, long recordOffset) {
     this.task = task;
-    this.splitPosition = splitPosition;
+    this.fileOffset = fileOffset;
+    this.recordOffset = recordOffset;
   }
 
   public static IcebergSourceSplit fromCombinedScanTask(CombinedScanTask combinedScanTask) {
@@ -58,15 +58,19 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   public static IcebergSourceSplit fromCombinedScanTask(
       CombinedScanTask combinedScanTask, int fileOffset, long recordOffset) {
-    return new IcebergSourceSplit(combinedScanTask, new SplitPosition(fileOffset, recordOffset));
+    return new IcebergSourceSplit(combinedScanTask, fileOffset, recordOffset);
   }
 
   public CombinedScanTask task() {
     return task;
   }
 
-  public SplitPosition position() {
-    return splitPosition;
+  public int fileOffset() {
+    return fileOffset;
+  }
+
+  public long recordOffset() {
+    return recordOffset;
   }
 
   @Override
@@ -79,14 +83,16 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   public void updatePosition(int newFileOffset, long newRecordOffset) {
     // invalidate the cache after position change
     serializedBytesCache = null;
-    splitPosition.set(newFileOffset, newRecordOffset);
+    fileOffset = newFileOffset;
+    recordOffset = newRecordOffset;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("files", toString(task.files()))
-        .add("position", splitPosition)
+        .add("fileOffset", fileOffset)
+        .add("recordOffset", recordOffset)
         .toString();
   }
 

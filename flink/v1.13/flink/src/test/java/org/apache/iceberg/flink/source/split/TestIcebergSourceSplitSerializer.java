@@ -46,22 +46,19 @@ public class TestIcebergSourceSplitSerializer {
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
-      Assert.assertEquals(split.splitId(), deserialized.splitId());
-      Assert.assertEquals(split.position(), deserialized.position());
+      assertSplitEquals(split, deserialized);
 
       byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
       IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
-      Assert.assertEquals(split.splitId(), deserialized2.splitId());
-      Assert.assertEquals(split.position(), deserialized2.position());
+      assertSplitEquals(split, deserialized2);
 
       split.updatePosition(0, 100);
       byte[] resultAfterUpdatePosition = serializer.serialize(split);
       // after position change, serialized bytes should have changed
       Assert.assertNotSame(cachedResult, resultAfterUpdatePosition);
       IcebergSourceSplit deserialized3 = serializer.deserialize(serializer.getVersion(), resultAfterUpdatePosition);
-      Assert.assertEquals(split.splitId(), deserialized3.splitId());
-      Assert.assertEquals(split.position(), deserialized3.position());
+      assertSplitEquals(split, deserialized3);
     }
   }
 
@@ -77,8 +74,7 @@ public class TestIcebergSourceSplitSerializer {
     for (IcebergSourceSplit split : splits) {
       byte[] result = split.serializeV1();
       IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV1(result);
-      Assert.assertEquals(split.splitId(), deserialized.splitId());
-      Assert.assertEquals(split.position(), deserialized.position());
+      assertSplitEquals(split, deserialized);
     }
   }
 
@@ -102,14 +98,18 @@ public class TestIcebergSourceSplitSerializer {
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
-      Assert.assertEquals(split.splitId(), deserialized.splitId());
-      Assert.assertEquals(split.position(), deserialized.position());
+      assertSplitEquals(split, deserialized);
 
       byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
       IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
-      Assert.assertEquals(split.splitId(), deserialized2.splitId());
-      Assert.assertEquals(split.position(), deserialized2.position());
+      assertSplitEquals(split, deserialized2);
     }
+  }
+
+  private void assertSplitEquals(IcebergSourceSplit expected, IcebergSourceSplit actual) {
+    Assert.assertEquals(expected.splitId(), actual.splitId());
+    Assert.assertEquals(expected.fileOffset(), actual.fileOffset());
+    Assert.assertEquals(expected.recordOffset(), actual.recordOffset());
   }
 }
