@@ -62,7 +62,7 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
    * @return a spec used to rewrite the metadata table filters to partition filters using an inclusive projection
    */
   static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec, String partitionPrefix) {
-    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchema);
+    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
     spec.fields().forEach(pf -> identitySpecBuilder.identity(partitionPrefix + pf.name(), pf.name()));
     return identitySpecBuilder.build();
   }
