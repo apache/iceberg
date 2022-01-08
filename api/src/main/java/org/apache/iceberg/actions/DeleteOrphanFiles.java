@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -66,6 +67,18 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * @return this for method chaining
    */
   DeleteOrphanFiles deleteWith(Consumer<String> deleteFunc);
+
+  /**
+   * Passes an alternative executor service that will be used for removing orphaned files.
+   * <p>
+   * If this method is not called, orphaned manifests and data files will still be deleted in
+   * the current thread.
+   * <p>
+   *
+   * @param executorService the service to use
+   * @return this for method chaining
+   */
+  DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
   /**
    * The action result that contains a summary of the execution.
