@@ -23,6 +23,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DataFile;
@@ -32,6 +35,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -51,6 +55,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
@@ -62,6 +68,13 @@ public abstract class DeleteFilter<T> {
   private static final Schema POS_DELETE_SCHEMA = new Schema(
       MetadataColumns.DELETE_FILE_PATH,
       MetadataColumns.DELETE_FILE_POS);
+
+  private static final int READ_DELETES_WORKER_POOL_SIZE_DEFAULT = 0; // read delete files in serial.
+  private static final int READ_DELETES_WORKER_POOL_SIZE = SystemProperties.getInteger(
+      SystemProperties.READ_DELETE_FILES_WORKER_POOL_SIZE, READ_DELETES_WORKER_POOL_SIZE_DEFAULT);
+  private static final ExecutorService READ_DELETES_SERVICE = READ_DELETES_WORKER_POOL_SIZE <= 1 ? null :
+      MoreExecutors.getExitingExecutorService((ThreadPoolExecutor) Executors.newFixedThreadPool(
+          READ_DELETES_WORKER_POOL_SIZE, new ThreadFactoryBuilder().setNameFormat("Read-delete-Service-%d").build()));
 
   private final long setFilterThreshold;
   private final DataFile dataFile;
@@ -149,13 +162,10 @@ public abstract class DeleteFilter<T> {
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, deleteSchema));
 
-      // copy the delete records because they will be held in a set
-      CloseableIterable<Record> records = CloseableIterable.transform(
-          CloseableIterable.concat(deleteRecords), Record::copy);
-
       StructLikeSet deleteSet = Deletes.toEqualitySet(
           CloseableIterable.transform(
-              records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
+              CloseableIterable.combine(deleteRecords, READ_DELETES_SERVICE, READ_DELETES_WORKER_POOL_SIZE),
+              record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
@@ -230,7 +240,8 @@ public abstract class DeleteFilter<T> {
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       return Deletes.filter(
           records, this::pos,
-          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
+          Deletes.toPositionSet(dataFile.path(),
+              CloseableIterable.combine(deletes, READ_DELETES_SERVICE, READ_DELETES_WORKER_POOL_SIZE)));
     }
 
     return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
@@ -246,14 +257,12 @@ public abstract class DeleteFilter<T> {
       case AVRO:
         return Avro.read(input)
             .project(deleteSchema)
-            .reuseContainers()
             .createReaderFunc(DataReader::create)
             .build();
 
       case PARQUET:
         Parquet.ReadBuilder builder = Parquet.read(input)
             .project(deleteSchema)
-            .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema));
 
         if (deleteFile.content() == FileContent.POSITION_DELETES) {

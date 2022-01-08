@@ -39,10 +39,23 @@ public class SystemProperties {
    */
   public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
 
-  static boolean getBoolean(String systemProperty, boolean defaultValue) {
+  /**
+   * Whether to use the shared worker pool when planning table scans.
+   */
+  public static final String READ_DELETE_FILES_WORKER_POOL_SIZE = "iceberg.worker.read-deletes-num-threads";
+
+  public static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);
     if (value != null) {
       return Boolean.parseBoolean(value);
+    }
+    return defaultValue;
+  }
+
+  public static int getInteger(String systemProperty, int defaultValue) {
+    String value = System.getProperty(systemProperty);
+    if (value != null) {
+      return Integer.parseInt(value);
     }
     return defaultValue;
   }
