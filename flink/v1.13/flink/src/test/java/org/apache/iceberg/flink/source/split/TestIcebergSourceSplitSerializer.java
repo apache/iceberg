@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source.split;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.iceberg.flink.source.SplitHelpers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;

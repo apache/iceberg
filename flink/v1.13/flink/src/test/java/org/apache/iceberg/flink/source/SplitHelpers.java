@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.source.split;
+package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.util.List;
@@ -32,8 +32,7 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.FlinkSplitPlanner;
-import org.apache.iceberg.flink.source.ScanContext;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
