@@ -32,5 +32,22 @@ public interface SupportsFileFilter extends Scan {
    *
    * @param locations file locations
    */
-  void filterFiles(Set<String> locations);
+  SupportsFileFilter.FileFilterMetric filterFiles(Set<String> locations);
+
+  class FileFilterMetric {
+    private int totalFilesNumber;
+    private int hitFilesNumber;
+
+    public FileFilterMetric(int totalFilesNumber, int hitFilesNumber) {
+      this.totalFilesNumber = totalFilesNumber;
+      this.hitFilesNumber = hitFilesNumber;
+    }
+
+    public int getTotalFilesNumber() {
+      return totalFilesNumber;
+    }
+    public int getHitFilesNumber() {
+      return hitFilesNumber;
+    }
+  }
 }
