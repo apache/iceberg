@@ -268,13 +268,8 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public void invalidateTable(Identifier ident) {
-    try {
-      if (cacheEnabled && !isPathIdentifier(ident)) {
-        ((CachingCatalog) icebergCatalog).invalidate(buildIdentifier(ident));
-      }
-      load(ident);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
-      // ignore if the table doesn't exist, it is not cached
+    if (!isPathIdentifier(ident)) {
+      icebergCatalog.invalidateTable(buildIdentifier(ident));
     }
   }
 

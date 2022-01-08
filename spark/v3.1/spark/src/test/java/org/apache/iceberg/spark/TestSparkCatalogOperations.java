@@ -91,7 +91,8 @@ public class TestSparkCatalogOperations extends SparkCatalogTestBase {
     anotherCatalog.dropTable(tableIdent);
     anotherCatalog.createTable(tableIdent, schema);
 
-    // refresh table
+    // invalidate and reload table
     sql("REFRESH TABLE %s", tableName);
+    sql("SELECT count(1) FROM %s", tableName);
   }
 }

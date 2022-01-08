@@ -174,7 +174,12 @@ public class CachingCatalog implements Catalog {
     invalidate(from);
   }
 
-  public void invalidate(TableIdentifier ident) {
+  @Override
+  public void invalidateTable(TableIdentifier ident) {
+    invalidate(ident);
+  }
+
+  private void invalidate(TableIdentifier ident) {
     TableIdentifier canonicalized = canonicalizeIdentifier(ident);
     tableCache.invalidate(canonicalized);
     tableCache.invalidateAll(metadataTableIdentifiers(canonicalized));
