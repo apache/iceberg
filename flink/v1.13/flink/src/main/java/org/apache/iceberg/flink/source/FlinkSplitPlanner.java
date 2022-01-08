@@ -53,8 +53,7 @@ public class FlinkSplitPlanner {
   /**
    * This returns splits for the FLIP-27 source
    */
-  public static List<IcebergSourceSplit> planIcebergSourceSplits(
-      Table table, ScanContext context) {
+  public static List<IcebergSourceSplit> planIcebergSourceSplits(Table table, ScanContext context) {
     try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
       return Lists.newArrayList(CloseableIterable.transform(tasksIterable,
           task -> IcebergSourceSplit.fromCombinedScanTask(task)));
