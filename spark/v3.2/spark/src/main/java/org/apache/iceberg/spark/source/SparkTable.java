@@ -82,7 +82,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns, SupportsPartitionManagement {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns,
+        SupportsPartitionManagement {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -366,33 +367,28 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
     // support [show partitions] syntax
-    if (!icebergTable.spec().isUnpartitioned()) {
-      if (names.length > 0) {
-        return new InternalRow[]{ident};
-      } else {
-        String fileFormat = icebergTable.properties()
-                .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-        List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
-                new Path(icebergTable.location().concat("\\data")), fileFormat);
-        List<InternalRow> rows = Lists.newArrayList();
-        StructType schema = partitionSchema();
-        StructField[] fields = schema.fields();
-        partitions.forEach(p -> {
-          int i = 0;
-          Map<String, String> values = p.getValues();
-          List<Object> dataTypeVal = Lists.newArrayList();
-          while (i < fields.length) {
-            DataType dataType = schema.apply(fields[i].name()).dataType();
-            dataTypeVal.add(Spark3Util.convertPartitionType(values.get(fields[i].name()), dataType));
-            i += 1;
-          }
-          rows.add(new GenericInternalRow(dataTypeVal.toArray()));
-        });
-        return rows.toArray(new InternalRow[0]);
-      }
+    if (names.length > 0) {
+      return new InternalRow[]{ident};
     } else {
-      LOG.warn("Partition not found in table %s", name());
+      String fileFormat = icebergTable.properties()
+              .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+      List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
+              new Path(icebergTable.location().concat("\\data")), fileFormat);
+      List<InternalRow> rows = Lists.newArrayList();
+      StructType schema = partitionSchema();
+      StructField[] fields = schema.fields();
+      partitions.forEach(p -> {
+        int idx = 0;
+        Map<String, String> values = p.getValues();
+        List<Object> dataTypeVal = Lists.newArrayList();
+        while (idx < fields.length) {
+          DataType dataType = schema.apply(fields[idx].name()).dataType();
+          dataTypeVal.add(Spark3Util.convertPartitionType(values.get(fields[idx].name()), dataType));
+          idx += 1;
+        }
+        rows.add(new GenericInternalRow(dataTypeVal.toArray()));
+      });
+      return rows.toArray(new InternalRow[0]);
     }
-    return new InternalRow[0];
   }
 }

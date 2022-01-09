@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.sql;
 
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
@@ -41,8 +42,11 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    sql("CREATE TABLE %s (id bigint, data string, ts timestamp) USING iceberg PARTITIONED BY (bucket(3, id), truncate(5, data), hours(ts))", tableName);
-    sql("INSERT INTO %s VALUES (1, 'a', CURRENT_TIMESTAMP()), (2, 'b', CURRENT_TIMESTAMP()), (3, 'c', CURRENT_TIMESTAMP())", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, ts timestamp) USING iceberg PARTITIONED BY" +
+            " (bucket(3, id), truncate(5, data), hours(ts))", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', CAST('2022-01-09 21:00:00' as timestamp))," +
+            " (2, 'b', CAST('2022-01-09 21:00:00' as timestamp))," +
+            " (3, 'c', CAST('2022-01-09 21:00:00' as timestamp))", tableName);
   }
 
   @After
@@ -52,45 +56,54 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testInsertAppend() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 3 rows", 3L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
-    sql("INSERT INTO %s VALUES (4, 'd', CURRENT_TIMESTAMP()), (5, 'e', CURRENT_TIMESTAMP())", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', CAST('2022-01-09 21:00:00' as timestamp))," +
+            " (5, 'e', CAST('2022-01-09 21:00:00' as timestamp))", tableName);
 
-    Assert.assertEquals("Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 5 rows after insert", 5L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     List<Object[]> expected = ImmutableList.of(
-        row(1L, "a"),
-        row(2L, "b"),
-        row(3L, "c"),
-        row(4L, "d"),
-        row(5L, "e")
+        row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(2L, "b", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(3L, "c", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(4L, "d", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(5L, "e", Timestamp.valueOf("2022-01-09 21:00:00"))
     );
 
-    assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+    assertEquals("Row data should match expected", expected,
+            sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
   public void testInsertOverwrite() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 3 rows", 3L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     // 4 and 5 replace 3 in the partition (id - (id % 3)) = 3
-    sql("INSERT OVERWRITE %s VALUES (4, 'd', CURRENT_TIMESTAMP()), (5, 'e', CURRENT_TIMESTAMP())", tableName);
+    sql("INSERT OVERWRITE %s VALUES (4, 'd', CAST('2022-01-09 21:00:00' as timestamp))," +
+            " (5, 'e', CAST('2022-01-09 21:00:00' as timestamp))", tableName);
 
-    Assert.assertEquals("Should have 4 rows after overwrite", 4L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 4 rows after overwrite", 4L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     List<Object[]> expected = ImmutableList.of(
-        row(1L, "a"),
-        row(2L, "b"),
-        row(4L, "d"),
-        row(5L, "e")
+        row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(2L, "b", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(4L, "d", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(5L, "e", Timestamp.valueOf("2022-01-09 21:00:00"))
     );
 
-    assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+    assertEquals("Row data should match expected", expected,
+            sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
   public void testDataFrameV2Append() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 3 rows", 3L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     List<SimpleRecord> data = ImmutableList.of(
         new SimpleRecord(4, "d"),
@@ -100,14 +113,15 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
     ds.writeTo(tableName).append();
 
-    Assert.assertEquals("Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 5 rows after insert", 5L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     List<Object[]> expected = ImmutableList.of(
-        row(1L, "a"),
-        row(2L, "b"),
-        row(3L, "c"),
-        row(4L, "d"),
-        row(5L, "e")
+        row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(2L, "b", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(3L, "c", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(4L, "d", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(5L, "e", Timestamp.valueOf("2022-01-09 21:00:00"))
     );
 
     assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
@@ -125,13 +139,14 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
     ds.writeTo(tableName).overwritePartitions();
 
-    Assert.assertEquals("Should have 4 rows after overwrite", 4L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 4 rows after overwrite", 4L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     List<Object[]> expected = ImmutableList.of(
-        row(1L, "a"),
-        row(2L, "b"),
-        row(4L, "d"),
-        row(5L, "e")
+        row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(2L, "b", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(4L, "d", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(5L, "e", Timestamp.valueOf("2022-01-09 21:00:00"))
     );
 
     assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
@@ -149,12 +164,13 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
     ds.writeTo(tableName).overwrite(functions.col("id").$less(3));
 
-    Assert.assertEquals("Should have 3 rows after overwrite", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals("Should have 3 rows after overwrite", 3L,
+            scalarSql("SELECT count(*) FROM %s", tableName));
 
     List<Object[]> expected = ImmutableList.of(
-        row(3L, "c"),
-        row(4L, "d"),
-        row(5L, "e")
+        row(3L, "c", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(4L, "d", Timestamp.valueOf("2022-01-09 21:00:00")),
+        row(5L, "e", Timestamp.valueOf("2022-01-09 21:00:00"))
     );
 
     assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
@@ -168,13 +184,14 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     query.createOrReplaceTempView("tmp");
 
     assertEquals("View should have expected rows",
-        ImmutableList.of(row(1L, "a")),
+        ImmutableList.of(row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00"))),
         sql("SELECT * FROM tmp"));
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'a', CURRENT_TIMESTAMP())", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', CAST('2022-01-09 21:00:00' as timestamp))", tableName);
 
     assertEquals("View should have expected rows",
-        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        ImmutableList.of(row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00")),
+                row(1L, "a", Timestamp.valueOf("2022-01-09 21:00:00"))),
         sql("SELECT * FROM tmp"));
   }
 
@@ -198,6 +215,7 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testShowPartitions() {
-    Assert.assertEquals("Table should has 3 partitions", 3, sql("SHOW PARTITIONS %s", tableName).size());
+    Assert.assertEquals("Table should has 3 partitions", 3,
+            sql("SHOW PARTITIONS %s", tableName).size());
   }
 }

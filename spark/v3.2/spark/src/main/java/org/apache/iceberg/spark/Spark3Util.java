@@ -81,18 +81,11 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
-import org.apache.spark.sql.types.BinaryType;
-import org.apache.spark.sql.types.BooleanType;
-import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DateType;
-import org.apache.spark.sql.types.DecimalType;
-import org.apache.spark.sql.types.DoubleType;
-import org.apache.spark.sql.types.FloatType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.NullType;
-import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -871,27 +864,13 @@ public class Spark3Util {
       return null;
     }
     String old = String.valueOf(value);
-    if (dataType instanceof BooleanType) {
-      return DatatypeConverter.parseBoolean(old);
-    } else if (dataType instanceof ByteType) {
-      return DatatypeConverter.parseByte(old);
-    } else if (dataType instanceof ShortType) {
-      return DatatypeConverter.parseShort(old);
-    } else if (dataType instanceof IntegerType) {
+    if (dataType instanceof IntegerType) {
       return DatatypeConverter.parseInt(old);
     } else if (dataType instanceof DateType) {
       // days(ts) or date(ts) partition schema DataType
       return DateTimeUtil.daysFromDate(LocalDate.parse(old));
-    } else if (dataType instanceof FloatType) {
-      return DatatypeConverter.parseFloat(old);
-    } else if (dataType instanceof DoubleType) {
-      return DatatypeConverter.parseDouble(old);
     } else if (dataType instanceof LongType) {
       return DatatypeConverter.parseLong(old);
-    } else if (dataType instanceof DecimalType) {
-      return DatatypeConverter.parseDecimal(old);
-    } else if (dataType instanceof BinaryType) {
-      return DatatypeConverter.parseHexBinary(old);
     } else if (dataType instanceof StringType) {
       return UTF8String.fromString(old);
     } else {
