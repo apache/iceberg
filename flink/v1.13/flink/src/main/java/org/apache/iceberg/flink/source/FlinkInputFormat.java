@@ -77,7 +77,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     tableLoader.open();
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
-      return FlinkSplitGenerator.createInputSplits(table, context);
+      return FlinkSplitPlanner.planInputSplits(table, context);
     }
   }
 
