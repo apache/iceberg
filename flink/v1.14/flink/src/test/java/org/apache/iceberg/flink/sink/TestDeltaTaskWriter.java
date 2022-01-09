@@ -93,7 +93,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
     }
 
     table.updateProperties()
-        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(8*1024))
+        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(8 * 1024))
         .defaultFormat(format)
         .commit();
   }
