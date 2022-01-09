@@ -614,6 +614,36 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
+  @Test
+  public void testRemoveAndUpdateWithDifferentTransformation() {
+    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+        .month("ts", "ts_transformed")
+        .build();
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
+        .removeField("ts_transformed")
+        .addField("ts_transformed", day("ts"))
+        .apply();
+
+    if (formatVersion == 1) {
+      Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts_transformed_1000",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(1).name());
+
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "day",
+              updated.fields().get(1).transform().toString());
+    } else {
+      Assert.assertEquals("Should match expected spec field size", 1, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field transform", "day",
+              updated.fields().get(0).transform().toString());
+    }
+  }
+
   private static int id(String name) {
     return SCHEMA.findField(name).fieldId();
   }
