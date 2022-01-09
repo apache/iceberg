@@ -20,11 +20,14 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
@@ -42,16 +45,23 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
+import org.apache.spark.sql.connector.catalog.SupportsPartitionManagement;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
@@ -65,13 +75,14 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns, SupportsPartitionManagement {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -312,5 +323,78 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     }
 
     return options;
+  }
+
+  @Override
+  public StructType partitionSchema() {
+    Schema schema = icebergTable.spec().schema();
+    List<PartitionField> fields = icebergTable.spec().fields();
+    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.size());
+    fields.forEach(f -> {
+      Type resultType = Types.StringType.get();
+      Type sourceType = schema.findType(f.sourceId());
+      if (!f.name().endsWith("hour") && !f.name().endsWith("month")) {
+        resultType = f.transform().getResultType(sourceType);
+      }
+      structFields.add(Types.NestedField.optional(f.fieldId(), f.name(), resultType));
+    });
+    return (StructType) SparkSchemaUtil.convert(Types.StructType.of(structFields));
+  }
+
+  @Override
+  public void createPartition(InternalRow ident, Map<String, String> properties) throws UnsupportedOperationException {
+    // use Iceberg SQL extensions
+  }
+
+  @Override
+  public boolean dropPartition(InternalRow ident) {
+    // use Iceberg SQL extensions
+    return false;
+  }
+
+  @Override
+  public void replacePartitionMetadata(InternalRow ident, Map<String, String> properties)
+          throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Iceberg partitions do not support metadata");
+  }
+
+  @Override
+  public Map<String, String> loadPartitionMetadata(InternalRow ident) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Iceberg partitions do not support metadata");
+  }
+
+  @Override
+  public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
+    // support [show partitions] syntax
+    if (!icebergTable.spec().isUnpartitioned()){
+      if (names.length > 0){
+        return new InternalRow[]{ident};
+      }
+      else {
+        String fileFormat = icebergTable.properties()
+                .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+        List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
+                new Path(icebergTable.location().concat("\\data")), fileFormat);
+        List<InternalRow> rows = Lists.newArrayList();
+        StructType schema = partitionSchema();
+        StructField[] fields = schema.fields();
+        partitions.forEach(p -> {
+          int i = 0;
+          Map<String, String> values = p.getValues();
+          List<Object> dataTypeVal = Lists.newArrayList();
+          while (i < fields.length) {
+            DataType dataType = schema.apply(fields[i].name()).dataType();
+            dataTypeVal.add(Spark3Util.convertPartitionType(values.get(fields[i].name()), dataType));
+            i += 1;
+          }
+          rows.add(new GenericInternalRow(dataTypeVal.toArray()));
+        });
+        return rows.toArray(new InternalRow[0]);
+      }
+    }
+    else{
+      LOG.warn("Partition not found in table %s", name());
+    }
+    return new InternalRow[0];
   }
 }

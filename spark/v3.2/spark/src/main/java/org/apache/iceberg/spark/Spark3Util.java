@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.xml.bind.DatatypeConverter;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
@@ -56,6 +58,7 @@ import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -78,9 +81,21 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
+import org.apache.spark.sql.types.BinaryType;
+import org.apache.spark.sql.types.BooleanType;
+import org.apache.spark.sql.types.ByteType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.DoubleType;
+import org.apache.spark.sql.types.FloatType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
+import org.apache.spark.sql.types.NullType;
+import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
@@ -849,5 +864,47 @@ public class Spark3Util {
                           org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
       return String.format("%s(%s) %s %s", transform, sourceName, direction, nullOrder);
     }
+  }
+
+  public static Object convertPartitionType(Object value, DataType dataType) {
+    if (value == null && dataType instanceof NullType) {
+      return null;
+    }
+    String old = String.valueOf(value);
+    if (dataType instanceof BooleanType) {
+      return DatatypeConverter.parseBoolean(old);
+    }
+    else if (dataType instanceof ByteType) {
+      return DatatypeConverter.parseByte(old);
+    }
+    else if (dataType instanceof ShortType) {
+      return DatatypeConverter.parseShort(old);
+    }
+    else if (dataType instanceof IntegerType) {
+      return DatatypeConverter.parseInt(old);
+    }
+    else if (dataType instanceof DateType) {
+      // days(ts) or date(ts) partition schema DataType
+      return DateTimeUtil.daysFromDate(LocalDate.parse(old));
+    }
+    else if (dataType instanceof FloatType) {
+      return DatatypeConverter.parseFloat(old);
+    }
+    else if (dataType instanceof DoubleType) {
+      return DatatypeConverter.parseDouble(old);
+    }
+    else if (dataType instanceof LongType) {
+      return DatatypeConverter.parseLong(old);
+    }
+    else if (dataType instanceof DecimalType) {
+      return DatatypeConverter.parseDecimal(old);
+    }
+    if (dataType instanceof BinaryType) {
+      return DatatypeConverter.parseHexBinary(old);
+    }
+    else if (dataType instanceof StringType) {
+      return UTF8String.fromString(old);
+    }
+    return value;
   }
 }

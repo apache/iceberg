@@ -40,8 +40,8 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg PARTITIONED BY (truncate(id, 3))", tableName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, ts timestamp) USING iceberg PARTITIONED BY (bucket(3, id), truncate(5, data), hours(ts))", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', CURRENT_TIMESTAMP()), (2, 'b', CURRENT_TIMESTAMP()), (3, 'c', CURRENT_TIMESTAMP())", tableName);
   }
 
   @After
@@ -53,7 +53,7 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
   public void testInsertAppend() {
     Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
 
-    sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', CURRENT_TIMESTAMP()), (5, 'e', CURRENT_TIMESTAMP())", tableName);
 
     Assert.assertEquals("Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
 
@@ -73,7 +73,7 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
 
     // 4 and 5 replace 3 in the partition (id - (id % 3)) = 3
-    sql("INSERT OVERWRITE %s VALUES (4, 'd'), (5, 'e')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (4, 'd', CURRENT_TIMESTAMP()), (5, 'e', CURRENT_TIMESTAMP())", tableName);
 
     Assert.assertEquals("Should have 4 rows after overwrite", 4L, scalarSql("SELECT count(*) FROM %s", tableName));
 
@@ -170,10 +170,25 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM tmp"));
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', CURRENT_TIMESTAMP())", tableName);
 
     assertEquals("View should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM tmp"));
+  }
+
+  @Test
+  public void testAddPartition() {
+    sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
+  }
+
+  @Test
+  public void testDropPartition() {
+    sql("ALTER TABLE %s DROP IF EXISTS PARTITION (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
+  }
+
+  @Test
+  public void testShowPartitions() {
+    sql("SHOW PARTITIONS %s", tableName);
   }
 }
