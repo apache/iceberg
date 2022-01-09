@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -179,16 +180,24 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testAddPartition() {
+    // only check V2 command [IF NOT EXISTS] syntax
+    Table table = validationCatalog.loadTable(tableIdent);
     sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
+    table.refresh();
+    Assert.assertEquals("Table should start with 3 partition field", 3, table.spec().fields().size());
   }
 
   @Test
   public void testDropPartition() {
+    // only check V2 command [IF EXISTS] syntax
+    Table table = validationCatalog.loadTable(tableIdent);
     sql("ALTER TABLE %s DROP IF EXISTS PARTITION (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
+    table.refresh();
+    Assert.assertEquals("Table should start with 3 partition field", 3, table.spec().fields().size());
   }
 
   @Test
   public void testShowPartitions() {
-    sql("SHOW PARTITIONS %s", tableName);
+    Assert.assertEquals("Table should has 3 partitions", 3, sql("SHOW PARTITIONS %s", tableName).size());
   }
 }
