@@ -199,7 +199,8 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
   public void testAddPartition() {
     // only check V2 command [IF NOT EXISTS] syntax
     Table table = validationCatalog.loadTable(tableIdent);
-    sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
+    sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION" +
+            " (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
     table.refresh();
     Assert.assertEquals("Table should start with 3 partition field", 3, table.spec().fields().size());
   }
@@ -208,7 +209,8 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
   public void testDropPartition() {
     // only check V2 command [IF EXISTS] syntax
     Table table = validationCatalog.loadTable(tableIdent);
-    sql("ALTER TABLE %s DROP IF EXISTS PARTITION (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
+    sql("ALTER TABLE %s DROP IF EXISTS PARTITION" +
+            " (id_bucket=2, data_trunc='2022', ts_hour='2022-01-08-23')", tableName);
     table.refresh();
     Assert.assertEquals("Table should start with 3 partition field", 3, table.spec().fields().size());
   }
