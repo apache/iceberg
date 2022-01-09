@@ -873,36 +873,26 @@ public class Spark3Util {
     String old = String.valueOf(value);
     if (dataType instanceof BooleanType) {
       return DatatypeConverter.parseBoolean(old);
-    }
-    else if (dataType instanceof ByteType) {
+    } else if (dataType instanceof ByteType) {
       return DatatypeConverter.parseByte(old);
-    }
-    else if (dataType instanceof ShortType) {
+    } else if (dataType instanceof ShortType) {
       return DatatypeConverter.parseShort(old);
-    }
-    else if (dataType instanceof IntegerType) {
+    } else if (dataType instanceof IntegerType) {
       return DatatypeConverter.parseInt(old);
-    }
-    else if (dataType instanceof DateType) {
+    } else if (dataType instanceof DateType) {
       // days(ts) or date(ts) partition schema DataType
       return DateTimeUtil.daysFromDate(LocalDate.parse(old));
-    }
-    else if (dataType instanceof FloatType) {
+    } else if (dataType instanceof FloatType) {
       return DatatypeConverter.parseFloat(old);
-    }
-    else if (dataType instanceof DoubleType) {
+    } else if (dataType instanceof DoubleType) {
       return DatatypeConverter.parseDouble(old);
-    }
-    else if (dataType instanceof LongType) {
+    } else if (dataType instanceof LongType) {
       return DatatypeConverter.parseLong(old);
-    }
-    else if (dataType instanceof DecimalType) {
+    } else if (dataType instanceof DecimalType) {
       return DatatypeConverter.parseDecimal(old);
-    }
-    if (dataType instanceof BinaryType) {
+    } else if (dataType instanceof BinaryType) {
       return DatatypeConverter.parseHexBinary(old);
-    }
-    else if (dataType instanceof StringType) {
+    } else if (dataType instanceof StringType) {
       return UTF8String.fromString(old);
     } else {
       return value;

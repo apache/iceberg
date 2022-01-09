@@ -366,8 +366,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
     // support [show partitions] syntax
-    if (!icebergTable.spec().isUnpartitioned()){
-      if (names.length > 0){
+    if (!icebergTable.spec().isUnpartitioned()) {
+      if (names.length > 0) {
         return new InternalRow[]{ident};
       } else {
         String fileFormat = icebergTable.properties()
@@ -390,7 +390,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         });
         return rows.toArray(new InternalRow[0]);
       }
-    } else{
+    } else {
       LOG.warn("Partition not found in table %s", name());
     }
     return new InternalRow[0];
