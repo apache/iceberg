@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.RowData;
@@ -28,13 +31,15 @@ import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.util.ByteBuffers;
 
 /**
  * Create a {@link KeySelector} to shuffle by equality fields, to ensure same equality fields record will be emitted to
  * same writer. That can prevent create duplicate record when insert and delete one row which have same equality field
  * values on different writer in one transaction, and guarantee pos-delete will take effect.
  */
-class EqualityFieldKeySelector extends BaseKeySelector<RowData, String> {
+class EqualityFieldKeySelector extends BaseKeySelector<RowData, ByteBuffer> {
 
   private final Accessor<StructLike>[] accessors;
 
@@ -47,22 +52,24 @@ class EqualityFieldKeySelector extends BaseKeySelector<RowData, String> {
     for (int i = 0; i < size; i++) {
       Accessor<StructLike> accessor = schema.accessorForField(equalityFieldIds.get(i));
       Preconditions.checkArgument(accessor != null,
-          "Cannot build accessor for field: " + schema.findField(equalityFieldIds.get(i)));
+          "Cannot build accessor for field: {}", schema.findField(equalityFieldIds.get(i)));
+
       accessors[i] = accessor;
     }
   }
 
   @Override
-  public String getKey(RowData row) throws Exception {
+  public ByteBuffer getKey(RowData row) throws Exception {
     StructLike record = lazyRowDataWrapper().wrap(row);
-    StringBuilder builder = new StringBuilder("[");
-    for (int i = 0; i < accessors.length; i++) {
-      if (i != 0) {
-        builder.append(",");
+    try (ByteArrayOutputStream binaryOut = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(binaryOut)) {
+      for (Accessor<StructLike> accessor : accessors) {
+        ByteBuffer buffer = Conversions.toByteBuffer(accessor.type(), accessor.get(record));
+        if (buffer != null) {
+          out.write(ByteBuffers.toByteArray(buffer));
+        }
       }
-      builder.append(accessors[i].get(record));
+      return ByteBuffer.wrap(binaryOut.toByteArray());
     }
-    builder.append("]");
-    return builder.toString();
   }
 }
