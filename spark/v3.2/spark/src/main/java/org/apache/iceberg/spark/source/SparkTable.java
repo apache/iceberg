@@ -369,8 +369,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     if (!icebergTable.spec().isUnpartitioned()){
       if (names.length > 0){
         return new InternalRow[]{ident};
-      }
-      else {
+      } else {
         String fileFormat = icebergTable.properties()
                 .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
         List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
@@ -391,8 +390,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         });
         return rows.toArray(new InternalRow[0]);
       }
-    }
-    else{
+    } else{
       LOG.warn("Partition not found in table %s", name());
     }
     return new InternalRow[0];

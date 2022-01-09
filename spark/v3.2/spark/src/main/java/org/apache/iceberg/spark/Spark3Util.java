@@ -904,7 +904,8 @@ public class Spark3Util {
     }
     else if (dataType instanceof StringType) {
       return UTF8String.fromString(old);
+    } else {
+      return value;
     }
-    return value;
   }
 }
