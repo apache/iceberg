@@ -75,6 +75,7 @@ nav:
     - Maintenance: maintenance.md
     - Performance: performance.md
     - Reliability: reliability.md
+    - Multi-Engine Support: multi-engine-support.md
   - Spark:
     - Getting Started: getting-started.md
     - Configuration: spark-configuration.md
