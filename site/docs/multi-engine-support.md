@@ -34,46 +34,50 @@ By doing this, changes in minor versions are isolated. New features in Iceberg c
 Each engine version undergoes the following lifecycle stages:
 
 1. **Beta**: a new engine version is supported, but still in the experimental stage. Maybe the engine version itself is still in preview (e.g. Spark `3.0.0-preview`), or the engine does not yet have full feature compatibility compared to old versions yet. This stage allows Iceberg to release an engine version support without the need to wait for feature parity, shortening the release time.
-
 2. **Maintained**: an engine version is actively maintained by the community. Users can expect parity for most features across all the maintained versions. If a feature has to leverage some new engine functionalities that older versions don't have, then feature parity is not guaranteed. For code contributors,
-    - New features should always be prioritized first in the latest version, even if the latest version is still in beta.
-    - For features that could be backported, the contributor is encouraged to either also perform backports in separated PRs, or at least create some issues to track the backport.
-    - If the change is small enough, updating all versions at once is acceptable. Otherwise, using separated PRs for each version is recommended.
-
 3. **Deprecating**: an engine version is no longer actively maintained. People who are still interested in the version can backport any necessary feature or bug fix from newer versions. But the community will not spend effort in achieving feature parity. Iceberg recommends users to move towards a newer version. Contributions to a deprecating version is expected to diminish over time, so that eventually no change is added to a deprecating version.
-
 4. **End-of-life**: a vote can be initiated to fully remove a deprecating version out of the Iceberg repository to mark as its end of life.
 
 ## Current Engine Version Lifecycle Status
 
 ### Apache Spark
 
-| Version    | Lifecycle Stage    | 
-| ---------- | ------------------ | 
-| 2.4        | Deprecating        | 
-| 3.0        | Maintained         |
-| 3.1        | Maintained         |
-| 3.2        | Beta               |
+| Version    | Lifecycle Stage    | Latest Runtime |
+| ---------- | ------------------ | -------------- |
+| 2.4        | Deprecating        | [iceberg-spark-runtime-2.4_2.12-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-2.4_2.12/{{ versions.iceberg }}/iceberg-spark-runtime-2.4_2.12-{{ versions.iceberg }}.jar) |
+| 3.0        | Maintained         | [iceberg-spark-runtime-3.0_2.12-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.0_2.12/{{ versions.iceberg }}/iceberg-spark-runtime-3.0_2.12-{{ versions.iceberg }}.jar) |
+| 3.1        | Maintained         | [iceberg-spark-runtime-3.1_2.12-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.1_2.12/{{ versions.iceberg }}/iceberg-spark-runtime-3.1_2.12-{{ versions.iceberg }}.jar) |
+| 3.2        | Beta               | [iceberg-spark-runtime-3.2_2.12-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.2_2.12/{{ versions.iceberg }}/iceberg-spark-runtime-3.2_2.12-{{ versions.iceberg }}.jar) |
 
 ### Apache Flink
 
 Based on the guideline of the Flink community, only the latest 2 minor versions are actively maintained.
 Users should continuously upgrade their Flink version to stay up-to-date.
 
-| Version    | Lifecycle Stage   | 
-| ---------- | ----------------- | 
-| 1.12       | Deprecating       | 
-| 1.13       | Maintained        |
-| 1.14       | Maintained        |
+| Version    | Lifecycle Stage   | Latest Runtime |
+| ---------- | ----------------- | -------------- |
+| 1.12       | Deprecating       | [iceberg-flink-runtime-1.12-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.12/{{ versions.iceberg }}/iceberg-flink-runtime-1.12-{{ versions.iceberg }}.jar) |
+| 1.13       | Maintained        | [iceberg-flink-runtime-1.13-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.13/{{ versions.iceberg }}/iceberg-flink-runtime-1.13-{{ versions.iceberg }}.jar) |
+| 1.14       | Maintained        | [iceberg-flink-runtime-1.14-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.14/{{ versions.iceberg }}/iceberg-flink-runtime-1.14-{{ versions.iceberg }}.jar) |
 
 ### Apache Hive
 
-| Version    | Lifecycle Stage   | 
-| ---------- | ----------------- | 
-| 2          | Maintained (recommended version >= 2.3)  | 
-| 3          | Maintained        |
+| Version                         | Lifecycle Stage   | Latest Runtime |
+| ------------------------------- | ----------------- | -------------- |
+| 2 (recommended >= 2.3)          | Maintained        | [iceberg-hive-runtime-2-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime-2/{{ versions.iceberg }}/iceberg-hive-runtime-2-{{ versions.iceberg }}.jar) |
+| 3                               | Maintained        | [iceberg-hive-runtime-3-{{ versions.iceberg }}](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime-3/{{ versions.iceberg }}/iceberg-hive-runtime-3-{{ versions.iceberg }}.jar) |
 
-## Supporting New Engines
+## Developer Guide
+
+### Maintaining existing engine versions
+
+Iceberg recommends the following for developers who are maintaining existing engine versions:
+
+1. New features should always be prioritized first in the latest version, which is either a maintained or beta version.
+2. For features that could be backported, the contributor is encouraged to either also perform backports in separated PRs, or at least create some issues to track the backport.
+3. If the change is small enough, updating all versions at once is acceptable. Otherwise, using separated PRs for each version is recommended.
+
+### Supporting new engines
 
 Iceberg recommends new engines to build support by importing the Iceberg libraries to the engine's project.
 This allows the Iceberg support to evolve with the engine.
