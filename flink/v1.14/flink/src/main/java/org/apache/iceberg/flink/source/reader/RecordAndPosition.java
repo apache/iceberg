@@ -28,8 +28,8 @@ import org.apache.flink.annotation.Internal;
  * checkpointed state happens atomically. The position points to where the reader should resume
  * after this record is processed.
  *
- * <p>This mutable object is useful in cases where only once instance of a {@code RecordAndPosition}
- * is needed at a time, like for the result values of the {@link RecyclableArrayIterator}.
+ * <p>This mutable object is useful in cases where only one instance of a {@code RecordAndPosition}
+ * is needed at a time. Then the same instance of RecordAndPosition can be reused.
  */
 @Internal
 public class RecordAndPosition<T> {
