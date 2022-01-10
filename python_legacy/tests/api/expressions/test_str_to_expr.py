@@ -21,15 +21,18 @@ def test_equal():
     conv_expr = Expressions.convert_string_to_expr("col_a=1")
     assert expected_expr == conv_expr
 
+
 def test_str_equal_single_quotes():
     expected_expr = Expressions.equal("col_a", "123")
     conv_expr = Expressions.convert_string_to_expr("col_a='123'")
     assert expected_expr == conv_expr
 
+
 def test_str_equal_double_quotes():
     expected_expr = Expressions.equal("col_a", "123")
     conv_expr = Expressions.convert_string_to_expr("col_a=\"123\"")
     assert expected_expr == conv_expr
+
 
 def test_equal_alt_syntax():
     expected_expr = Expressions.equal("col_a", 1)
