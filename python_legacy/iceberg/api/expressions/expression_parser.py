@@ -143,8 +143,10 @@ def get_expr(node, expr_map):
         return mapped_op(*get_expr(node[op], expr_map))
     elif isinstance(node, (list, tuple)):
         return (get_expr(item, expr_map) for item in node)
-    elif isinstance(node, (str, int, float)):
+    elif isinstance(node, (int, float)):
         return node
+    elif isinstance(node, str):
+        return node.strip("'").strip('"')
     else:
         raise RuntimeError("unknown node type" % node)
 
