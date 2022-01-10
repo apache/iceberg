@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Test;
 
 public class TestSequenceNumberForV2Table extends TableTestBase {
@@ -236,8 +236,8 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
     V2Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
 
-    Set<DataFile> toAddFiles = new HashSet<>();
-    Set<DataFile> toDeleteFiles = new HashSet<>();
+    Set<DataFile> toAddFiles = Sets.newHashSet();
+    Set<DataFile> toDeleteFiles = Sets.newHashSet();
     toAddFiles.add(FILE_B);
     toDeleteFiles.add(FILE_A);
     txn.newRewrite().rewriteFiles(toDeleteFiles, toAddFiles).commit();

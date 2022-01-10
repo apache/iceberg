@@ -22,7 +22,6 @@ package org.apache.iceberg.nessie;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,6 +38,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
@@ -394,7 +394,7 @@ public class TestNessieTable extends BaseTestIceberg {
   private static String addRecordsToFile(Table table, String filename) throws IOException {
     GenericRecordBuilder recordBuilder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
-    List<GenericData.Record> records = new ArrayList<>();
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(3);
     records.add(recordBuilder.set("id", 1L).build());
     records.add(recordBuilder.set("id", 2L).build());
     records.add(recordBuilder.set("id", 3L).build());

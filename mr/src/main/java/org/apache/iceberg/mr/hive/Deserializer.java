@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -32,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.hive.serde.objectinspector.WriteObjectInspector;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -153,7 +153,7 @@ class Deserializer {
           return null;
         }
 
-        List<Object> result = new ArrayList<>();
+        List<Object> result = Lists.newArrayList();
         ListObjectInspector listInspector = (ListObjectInspector) pair.sourceInspector();
 
         for (Object val : listInspector.getList(o)) {

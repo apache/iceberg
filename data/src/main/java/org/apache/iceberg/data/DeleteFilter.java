@@ -71,6 +71,7 @@ public abstract class DeleteFilter<T> {
   private final Accessor<StructLike> posAccessor;
 
   private PositionDeleteIndex deleteRowPositions = null;
+  private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
@@ -103,6 +104,10 @@ public abstract class DeleteFilter<T> {
 
   public boolean hasPosDeletes() {
     return !posDeletes.isEmpty();
+  }
+
+  public boolean hasEqDeletes() {
+    return !eqDeletes.isEmpty();
   }
 
   Accessor<StructLike> posAccessor() {
@@ -192,6 +197,16 @@ public abstract class DeleteFilter<T> {
     return remainingRowsFilter.filter(records);
   }
 
+  public Predicate<T> eqDeletedRowFilter() {
+    if (eqDeleteRows == null) {
+      eqDeleteRows = applyEqDeletes().stream()
+          .map(Predicate::negate)
+          .reduce(Predicate::and)
+          .orElse(t -> true);
+    }
+    return eqDeleteRows;
+  }
+
   public PositionDeleteIndex deletedRowPositions() {
     if (posDeletes.isEmpty()) {
       return null;
@@ -199,7 +214,7 @@ public abstract class DeleteFilter<T> {
 
     if (deleteRowPositions == null) {
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-      deleteRowPositions = Deletes.toPositionBitmap(dataFile.path(), deletes);
+      deleteRowPositions = Deletes.toPositionIndex(dataFile.path(), deletes);
     }
     return deleteRowPositions;
   }
@@ -213,9 +228,7 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      return Deletes.filter(
-          records, this::pos,
-          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
+      return Deletes.filter(records, this::pos, Deletes.toPositionIndex(dataFile.path(), deletes));
     }
 
     return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));

@@ -43,7 +43,7 @@ extra:
     Spark: /getting-started/
   versions:
     iceberg: 0.12.1
-    nessie: 0.15.1
+    nessie: 0.17.0
   logo: img/favicon-96x96.png
   version: 0.12.1
   article_nav_top: false
@@ -89,6 +89,7 @@ nav:
   - Hive: hive.md
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
+  - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
   - Integrations:
     - AWS: aws.md
     - Nessie: nessie.md

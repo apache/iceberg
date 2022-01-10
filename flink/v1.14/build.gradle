@@ -19,7 +19,7 @@
 
 def flinkProjects = [
   project(':iceberg-flink:iceberg-flink-1.14'),
-  project(':iceberg-flink:iceberg-flink-1.14-runtime')
+  project(':iceberg-flink:iceberg-flink-runtime-1.14')
 ]
 
 configure(flinkProjects) {
@@ -116,7 +116,7 @@ project(':iceberg-flink:iceberg-flink-1.14') {
   }
 }
 
-project(':iceberg-flink:iceberg-flink-1.14-runtime') {
+project(':iceberg-flink:iceberg-flink-runtime-1.14') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -138,6 +138,11 @@ project(':iceberg-flink:iceberg-flink-1.14-runtime') {
   dependencies {
     implementation project(':iceberg-flink:iceberg-flink-1.14')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }

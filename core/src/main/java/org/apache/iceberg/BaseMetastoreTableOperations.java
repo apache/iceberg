@@ -306,8 +306,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             LOG.info("Commit status check: Commit to {} of {} succeeded", tableName(), newMetadataLocation);
             status.set(CommitStatus.SUCCESS);
           } else {
-            LOG.info("Commit status check: Commit to {} of {} failed", tableName(), newMetadataLocation);
-            status.set(CommitStatus.FAILURE);
+            LOG.warn("Commit status check: Commit to {} of {} unknown, new metadata location is not current " +
+                    "or in history", tableName(), newMetadataLocation);
           }
         });
 

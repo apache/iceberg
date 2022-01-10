@@ -104,6 +104,13 @@ USING iceberg
 AS SELECT ...
 ```
 ```sql
+REPLACE TABLE prod.db.sample
+USING iceberg
+PARTITIONED BY (part)
+TBLPROPERTIES ('key'='value')
+AS SELECT ...
+```
+```sql
 CREATE OR REPLACE TABLE prod.db.sample
 USING iceberg
 AS SELECT ...

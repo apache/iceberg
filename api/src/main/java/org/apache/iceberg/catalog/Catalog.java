@@ -341,6 +341,17 @@ public interface Catalog {
   Table loadTable(TableIdentifier identifier);
 
   /**
+   * Invalidate cached table metadata from current catalog.
+   * <p>
+   * If the table is already loaded or cached, drop cached data. If the table does not exist or is
+   * not cached, do nothing.
+   *
+   * @param identifier a table identifier
+   */
+  default void invalidateTable(TableIdentifier identifier) {
+  }
+
+  /**
    * Instantiate a builder to either create a table or start a create/replace transaction.
    *
    * @param identifier a table identifier

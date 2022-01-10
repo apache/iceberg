@@ -102,15 +102,19 @@ public class ExpressionVisitors {
     }
 
     public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("In operation is not supported by the visitor");
+      throw new UnsupportedOperationException("In expression is not supported by the visitor");
     }
 
     public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
+      throw new UnsupportedOperationException("notIn expression is not supported by the visitor");
     }
 
     public <T> R startsWith(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException("startsWith expression is not supported by the visitor");
+    }
+
+    public <T> R notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException("notStartsWith expression is not supported by the visitor");
     }
 
     /**
@@ -151,6 +155,8 @@ public class ExpressionVisitors {
             return notEq((BoundReference<T>) pred.term(), literalPred.literal());
           case STARTS_WITH:
             return startsWith((BoundReference<T>) pred.term(),  literalPred.literal());
+          case NOT_STARTS_WITH:
+            return notStartsWith((BoundReference<T>) pred.term(),  literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
@@ -242,6 +248,10 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R notStartsWith(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -261,6 +271,8 @@ public class ExpressionVisitors {
             return notEq(pred.term(), literalPred.literal());
           case STARTS_WITH:
             return startsWith(pred.term(),  literalPred.literal());
+          case NOT_STARTS_WITH:
+            return notStartsWith(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }

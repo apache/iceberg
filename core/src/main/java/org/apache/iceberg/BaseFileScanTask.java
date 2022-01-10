@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -28,6 +27,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class BaseFileScanTask implements FileScanTask {
   private final DataFile file;
@@ -117,7 +117,7 @@ class BaseFileScanTask implements FileScanTask {
       this.offsets = ImmutableList.copyOf(offsetList);
       this.parentScanTask = parentScanTask;
       this.targetSplitSize = targetSplitSize;
-      this.splitSizes = new ArrayList<>(offsets.size());
+      this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
       if (offsets.size() > 0) {
         int lastIndex = offsets.size() - 1;
         for (int index = 0; index < lastIndex; index++) {

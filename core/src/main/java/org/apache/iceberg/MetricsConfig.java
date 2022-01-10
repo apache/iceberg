@@ -29,6 +29,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,13 +45,13 @@ public final class MetricsConfig implements Serializable {
   private static final Joiner DOT = Joiner.on('.');
 
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(),
-          MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
+      MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
 
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
 
   private MetricsConfig(Map<String, MetricsMode> columnModes, MetricsMode defaultMode) {
-    this.columnModes = ImmutableMap.copyOf(columnModes);
+    this.columnModes = SerializableMap.copyOf(columnModes).immutableMap();
     this.defaultMode = defaultMode;
   }
 

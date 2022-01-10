@@ -78,6 +78,16 @@ public class HistoryTable extends BaseMetadataTable {
       super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(), HistoryTable.this::task);
     }
 
+    HistoryScan(TableOperations ops, Table table, TableScanContext context) {
+      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(),
+              HistoryTable.this::task, context);
+    }
+
+    @Override
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new HistoryScan(ops, table, context);
+    }
+
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
       // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots

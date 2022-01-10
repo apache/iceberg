@@ -30,6 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 
+import static org.apache.iceberg.DistributionMode.HASH;
+import static org.apache.iceberg.DistributionMode.NONE;
+import static org.apache.iceberg.DistributionMode.RANGE;
+
 /**
  * A class for common Iceberg configs for Spark writes.
  * <p>
@@ -100,6 +104,13 @@ public class SparkWriteConf {
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;
   }
 
+  public boolean wapEnabled() {
+    return confParser.booleanConf()
+        .tableProperty(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED)
+        .defaultValue(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT)
+        .parse();
+  }
+
   public String wapId() {
     return sessionConf.get("spark.wap.id", null);
   }
@@ -148,23 +159,62 @@ public class SparkWriteConf {
   }
 
   public DistributionMode distributionMode() {
-    String defaultValue;
-    if (table.sortOrder().isSorted()) {
-      defaultValue = TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
-    } else {
-      defaultValue = TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
-    }
-
     String modeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
-        .defaultValue(defaultValue)
-        .parse();
-    return DistributionMode.fromName(modeName);
+        .parseOptional();
+
+    if (modeName != null) {
+      DistributionMode mode = DistributionMode.fromName(modeName);
+      return adjustWriteDistributionMode(mode);
+    } else {
+      return table.sortOrder().isSorted() ? RANGE : NONE;
+    }
   }
 
-  public DistributionMode deleteDistributionMode() {
-    return rowLevelCommandDistributionMode(TableProperties.DELETE_DISTRIBUTION_MODE);
+  private DistributionMode adjustWriteDistributionMode(DistributionMode mode) {
+    if (mode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
+      return NONE;
+    } else if (mode == HASH && table.spec().isUnpartitioned()) {
+      return NONE;
+    } else {
+      return mode;
+    }
+  }
+
+  public DistributionMode copyOnWriteDeleteDistributionMode() {
+    String deleteModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
+        .parseOptional();
+
+    if (deleteModeName != null) {
+      DistributionMode deleteMode = DistributionMode.fromName(deleteModeName);
+      if (deleteMode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
+        return HASH;
+      } else {
+        return deleteMode;
+      }
+    } else {
+      // use hash distribution if write distribution is range or hash
+      // avoid range-based shuffles unless the user asks explicitly
+      DistributionMode writeMode = distributionMode();
+      return writeMode != NONE ? HASH : NONE;
+    }
+  }
+
+  public DistributionMode copyOnWriteUpdateDistributionMode() {
+    String updateModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
+        .parseOptional();
+
+    if (updateModeName != null) {
+      DistributionMode updateMode = DistributionMode.fromName(updateModeName);
+      return adjustWriteDistributionMode(updateMode);
+    } else {
+      return distributionMode();
+    }
   }
 
   public DistributionMode updateDistributionMode() {
