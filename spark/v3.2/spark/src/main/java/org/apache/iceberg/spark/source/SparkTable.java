@@ -285,48 +285,6 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   @Override
-  public String toString() {
-    return icebergTable.toString();
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    } else if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    // use only name in order to correctly invalidate Spark cache
-    SparkTable that = (SparkTable) other;
-    return icebergTable.name().equals(that.icebergTable.name());
-  }
-
-  @Override
-  public int hashCode() {
-    // use only name in order to correctly invalidate Spark cache
-    return icebergTable.name().hashCode();
-  }
-
-  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
-    if (snapshotId != null) {
-      String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
-      String value = snapshotId.toString();
-      Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
-          "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
-
-      Map<String, String> scanOptions = Maps.newHashMap();
-      scanOptions.putAll(options.asCaseSensitiveMap());
-      scanOptions.put(SparkReadOptions.SNAPSHOT_ID, value);
-      scanOptions.remove(SparkReadOptions.AS_OF_TIMESTAMP);
-
-      return new CaseInsensitiveStringMap(scanOptions);
-    }
-
-    return options;
-  }
-
-  @Override
   public StructType partitionSchema() {
     Schema schema = icebergTable.spec().schema();
     List<PartitionField> fields = icebergTable.spec().fields();
@@ -367,28 +325,88 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
     // support [show partitions] syntax
-    if (names.length > 0) {
-      return new InternalRow[]{ident};
+    String fileFormat = icebergTable.properties()
+            .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
+            new Path(icebergTable.location().concat("\\data")), fileFormat);
+    List<InternalRow> rows = Lists.newArrayList();
+    StructType schema = partitionSchema();
+    StructField[] fields = schema.fields();
+    if (names.length == 0) {
+      partitions.forEach(p -> rows.add(partitionInternalRow(p, fields)));
     } else {
-      String fileFormat = icebergTable.properties()
-              .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-      List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
-              new Path(icebergTable.location().concat("\\data")), fileFormat);
-      List<InternalRow> rows = Lists.newArrayList();
-      StructType schema = partitionSchema();
-      StructField[] fields = schema.fields();
       partitions.forEach(p -> {
         int idx = 0;
         Map<String, String> values = p.getValues();
-        List<Object> dataTypeVal = Lists.newArrayList();
-        while (idx < fields.length) {
-          DataType dataType = schema.apply(fields[idx].name()).dataType();
-          dataTypeVal.add(Spark3Util.convertPartitionType(values.get(fields[idx].name()), dataType));
+        boolean exits = true;
+        while (idx < names.length) {
+          DataType dataType = schema.apply(names[idx]).dataType();
+          if (!values.get(names[idx]).equalsIgnoreCase(String.valueOf(ident.get(idx, dataType)))) {
+            exits = false;
+            break;
+          }
           idx += 1;
         }
-        rows.add(new GenericInternalRow(dataTypeVal.toArray()));
+        if (exits) {
+          rows.add(partitionInternalRow(p, fields));
+        }
       });
-      return rows.toArray(new InternalRow[0]);
     }
+    return rows.toArray(new InternalRow[0]);
+  }
+
+  @Override
+  public String toString() {
+    return icebergTable.toString();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    // use only name in order to correctly invalidate Spark cache
+    SparkTable that = (SparkTable) other;
+    return icebergTable.name().equals(that.icebergTable.name());
+  }
+
+  @Override
+  public int hashCode() {
+    // use only name in order to correctly invalidate Spark cache
+    return icebergTable.name().hashCode();
+  }
+
+  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
+    if (snapshotId != null) {
+      String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
+      String value = snapshotId.toString();
+      Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
+              "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
+
+      Map<String, String> scanOptions = Maps.newHashMap();
+      scanOptions.putAll(options.asCaseSensitiveMap());
+      scanOptions.put(SparkReadOptions.SNAPSHOT_ID, value);
+      scanOptions.remove(SparkReadOptions.AS_OF_TIMESTAMP);
+
+      return new CaseInsensitiveStringMap(scanOptions);
+    }
+
+    return options;
+  }
+
+  private InternalRow partitionInternalRow(SparkTableUtil.SparkPartition partition, StructField[] fields) {
+    int idx = 0;
+    StructType schema = partitionSchema();
+    Map<String, String> values = partition.getValues();
+    List<Object> dataTypeVal = Lists.newArrayList();
+    while (idx < fields.length) {
+      DataType dataType = schema.apply(fields[idx].name()).dataType();
+      dataTypeVal.add(Spark3Util.convertPartitionType(values.get(fields[idx].name()), dataType));
+      idx += 1;
+    }
+    return new GenericInternalRow(dataTypeVal.toArray());
   }
 }
