@@ -40,6 +40,7 @@ configure(sparkProjects) {
 
 project(':iceberg-spark:iceberg-spark-3.1_2.12') {
   apply plugin: 'scala'
+  apply plugin: 'com.github.alisiikh.scalastyle'
 
   sourceSets {
     main {
@@ -107,6 +108,7 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
 project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
+  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'antlr'
 
   configurations {
