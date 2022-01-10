@@ -578,8 +578,8 @@ public class TestJdbcCatalog {
     catalog.createNamespace(testNamespace, testMetadata);
 
     // Add more properties to set to test insert and update
-    Map<String, String> propertiesToSet = ImmutableMap.of("key_1", "new_value_1", "key_2", "new_value_2", "key_3",
-            "new_value_3", "key_4", "value_4", "key_5", "value_5");
+    Map<String, String> propertiesToSet = ImmutableMap.of("key_5", "value_5", "key_3", "new_value_3",
+            "key_1", "new_value_1",  "key_4", "value_4", "key_2", "new_value_2");
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
     Assert.assertTrue(catalog.setProperties(testNamespace, propertiesToSet));
 

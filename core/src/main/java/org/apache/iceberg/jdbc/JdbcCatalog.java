@@ -296,7 +296,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedInterruptedException(e, "Interrupted in call to insertProperties(namespace, properties) " +
           "Namespace: %s", namespace);
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to insertProperties to namespace: %s in catalog: %s", namespace,
+      throw new UncheckedSQLException(e, "Failed to insert properties to namespace: %s in catalog: %s", namespace,
           catalogName);
     }
   }
@@ -338,7 +338,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedInterruptedException(e,
           "Interrupted in call to updateProperties(namespace, properties) Namespace: %s", namespace);
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to updateProperties to namespace: %s in catalog: %s", namespace,
+      throw new UncheckedSQLException(e, "Failed to update properties to namespace: %s in catalog: %s", namespace,
               catalogName);
     }
   }
@@ -445,7 +445,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     }
 
     if (properties == null || properties.isEmpty()) {
-      throw new IllegalArgumentException("Cannot setProperties to a namespace with null or empty properties");
+      throw new IllegalArgumentException("Cannot set properties to a namespace with null or empty properties");
     }
 
     Map<String, String> namespaceProperties = fetchProperties(namespace);
@@ -483,7 +483,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     }
 
     if (properties == null || properties.isEmpty()) {
-      throw new IllegalArgumentException("Cannot removeProperties with null or empty properties");
+      throw new IllegalArgumentException("Cannot remove properties with null or empty properties");
     }
 
     String namespaceName = JdbcUtil.namespaceToString(namespace);
@@ -514,7 +514,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedInterruptedException(e,
               "Interrupted in call to removeProperties(namespace, properties) Namespace: %s", namespace);
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to removeProperties for namespace: %s in catalog: %s", namespace,
+      throw new UncheckedSQLException(e, "Failed to remove properties for namespace: %s in catalog: %s", namespace,
               catalogName);
     }
   }
@@ -547,9 +547,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e,
-              "Interrupted in call to getProperties(namespace) Namespace: %s", namespace);
+              "Interrupted in call to fetchProperties(namespace) Namespace: %s", namespace);
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to getProperties for namespace: %s in catalog: %s", namespace,
+      throw new UncheckedSQLException(e, "Failed to fetch properties for namespace: %s in catalog: %s", namespace,
               catalogName);
     }
 
