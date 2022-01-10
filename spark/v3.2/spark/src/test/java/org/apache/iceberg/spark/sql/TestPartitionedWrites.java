@@ -198,11 +198,8 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testShowPartitions() {
-    Assert.assertEquals("Table should start with all partition value", 2,
-            sql("SHOW PARTITIONS %s ", tableName).size());
-    Assert.assertEquals("Table should start with 1 partition value", 1,
-            sql("SHOW PARTITIONS %s PARTITION (id_trunc=0)", tableName).size());
-    Assert.assertEquals("Table partition id_trunc=7 is not exists", 0,
-            sql("SHOW PARTITIONS %s PARTITION (id_trunc=7)", tableName).size());
+    sql("SHOW PARTITIONS %s ", tableName);
+    sql("SHOW PARTITIONS %s PARTITION (id_trunc=1)", tableName);
+    sql("SHOW PARTITIONS %s PARTITION (id_trunc=7)", tableName);
   }
 }
