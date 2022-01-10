@@ -49,7 +49,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
-  private TableCatalog icebergCatalog = null;
+  private BaseCatalog icebergCatalog = null;
   private StagingTableCatalog asStagingCatalog = null;
   private T sessionCatalog = null;
   private boolean createParquetAsIceberg = false;
@@ -65,7 +65,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
    * @param options catalog options
    * @return a SparkCatalog to be used for Iceberg tables
    */
-  protected TableCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
+  protected BaseCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
     SparkCatalog newCatalog = new SparkCatalog();
     newCatalog.initialize(name, options);
     return newCatalog;
@@ -125,8 +125,9 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   public void invalidateTable(Identifier ident) {
     // We do not need to check whether the table exists and whether
     // it is an Iceberg table to reduce remote service requests.
-    icebergCatalog.invalidateTable(ident);
-    getSessionCatalog().invalidateTable(ident);
+    if (!icebergCatalog.invalidateTableIfCached(ident)) {
+      getSessionCatalog().invalidateTable(ident);
+    }
   }
 
   @Override

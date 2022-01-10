@@ -45,4 +45,17 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
 
     throw new NoSuchProcedureException(ident);
   }
+
+  /**
+   * Invalidate cached table metadata from current catalog.
+   * <p>
+   * If the table is already loaded or cached, drop cached data. If the table does not exist or is
+   * not cached, do nothing.
+   *
+   * @param ident a table identifier
+   * @return true if the table is cached, false otherwise
+   */
+  public boolean invalidateTableIfCached(Identifier ident) {
+    throw new UnsupportedOperationException();
+  }
 }

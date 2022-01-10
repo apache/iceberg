@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Policy;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -65,6 +66,8 @@ public class CachingCatalog implements Catalog {
   protected final long expirationIntervalMillis;
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final Cache<TableIdentifier, Table> tableCache;
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected final Policy<TableIdentifier, Table> cachePolicy;
 
   private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
     this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker());
@@ -79,6 +82,7 @@ public class CachingCatalog implements Catalog {
     this.caseSensitive = caseSensitive;
     this.expirationIntervalMillis = expirationIntervalMillis;
     this.tableCache = createTableCache(ticker);
+    this.cachePolicy = tableCache.policy();
   }
 
   /**
@@ -175,8 +179,13 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
-  public void invalidateTable(TableIdentifier ident) {
-    invalidate(ident);
+  public boolean invalidateTable(TableIdentifier ident) {
+    TableIdentifier canonicalized = canonicalizeIdentifier(ident);
+    if (cachePolicy.getIfPresentQuietly(canonicalized) != null) {
+      invalidate(ident);
+      return true;
+    }
+    return false;
   }
 
   private void invalidate(TableIdentifier ident) {

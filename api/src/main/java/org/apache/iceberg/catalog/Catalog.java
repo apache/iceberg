@@ -347,8 +347,10 @@ public interface Catalog {
    * not cached, do nothing.
    *
    * @param identifier a table identifier
+   * @return true if the table is cached, false otherwise
    */
-  default void invalidateTable(TableIdentifier identifier) {
+  default boolean invalidateTable(TableIdentifier identifier) {
+    return false;
   }
 
   /**

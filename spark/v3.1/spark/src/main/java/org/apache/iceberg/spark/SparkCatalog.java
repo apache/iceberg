@@ -274,6 +274,11 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public boolean invalidateTableIfCached(Identifier ident) {
+    return !isPathIdentifier(ident) && icebergCatalog.invalidateTable(buildIdentifier(ident));
+  }
+
+  @Override
   public Identifier[] listTables(String[] namespace) {
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
