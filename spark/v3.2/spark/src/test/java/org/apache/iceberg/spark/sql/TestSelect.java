@@ -210,7 +210,7 @@ public class TestSelect extends SparkCatalogTestBase {
   public void testBinaryInFilter() {
     sql("CREATE TABLE %s (id bigint, binary binary) USING iceberg", binaryTableName);
     sql("INSERT INTO %s VALUES (1, X''), (2, X'1111'), (3, X'11')", binaryTableName);
-    List<Object[]> expected = ImmutableList.of(row(2L, new Byte[]{0x11, 0x11}));
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[]{0x11, 0x11}));
 
     assertEquals("Should return all expected rows", expected,
         sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));

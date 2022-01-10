@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -597,9 +596,6 @@ public class Spark3Util {
     private static String sqlString(org.apache.iceberg.expressions.Literal<?> lit) {
       if (lit.value() instanceof String) {
         return "'" + lit.value() + "'";
-      } else if (lit.value() instanceof ByteBuffer) {
-        // produce a literal value that Spark can parse
-        return lit.toString();
       } else {
         return lit.value().toString();
       }

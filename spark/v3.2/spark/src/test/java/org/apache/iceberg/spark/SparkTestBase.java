@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -119,8 +118,6 @@ public abstract class SparkTestBase {
             return row.getList(pos);
           } else if (value instanceof scala.collection.Map) {
             return row.getJavaMap(pos);
-          } else if (value instanceof byte[]) {
-            return IntStream.range(0, Array.getLength(value)).mapToObj(i -> Array.get(value, i)).toArray();
           } else {
             return value;
           }
@@ -160,7 +157,11 @@ public abstract class SparkTestBase {
       Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
-        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        if (expectedValue instanceof byte[]) {
+          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
+        } else {
+          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        }
       } else if (expectedValue != ANY) {
         Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
       }
