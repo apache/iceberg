@@ -41,7 +41,17 @@ from iceberg.utils import transform_util
 
 
 class Transform:
-    """Transform base class for concrete transforms."""
+    """Transform base class for concrete transforms.
+
+    A base class to transform values and project predicates on partition values.
+    This class is not used directly. Instead, use one of module method to create the child classes.
+
+    Args:
+        transform_string (str): name of the transform type
+        repr_string (str): string representation of a transform instance
+        to_human_str (callable, optional): A function that returns the human-readable string
+          given a value. By default, the built-in `str` method is used.
+    """
 
     def __init__(
         self,
@@ -84,6 +94,20 @@ class Transform:
 
 
 class Bucket(Transform):
+    """Transforms a value into a bucket partition value
+
+    Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
+    hash of the source value to produce a positive value by mod the bucket number.
+
+    Args:
+      source_type (Type): An Iceberg Type of IntegerType, LongType, DecimalType, DateType, TimeType,
+      TimestampType, TimestamptzType, StringType, BinaryType, UUIDType, FloatType, or DoubleType.
+      num_buckets (int): The number of buckets.
+
+    Raises:
+      ValueError: If a type is provided that is incompatible with a Bucket transform
+    """
+
     _MAX_32_BITS_INT = 2147483647
     _INT_TRANSFORMABLE_TYPES = {
         IntegerType,
@@ -233,6 +257,16 @@ class Identity(Transform):
 
 
 class Truncate(Transform):
+    """A transform for truncating a value to a specified width.
+
+    Args:
+      source_type (Type): An Iceberg Type of IntegerType, LongType, StringType, or BinaryType
+      width (int): The truncate width
+
+    Raises:
+      ValueError: If a type is provided that is incompatible with a Truncate transform
+    """
+
     _VALID_TYPES = {IntegerType, LongType, StringType, BinaryType}
     _TO_HUMAN_STR = {BinaryType: transform_util.base64encode}
 
@@ -286,6 +320,16 @@ class Truncate(Transform):
 
 
 class UnknownTransform(Transform):
+    """A transform that represents when an unknown transform is provided
+
+    Args:
+      source_type (Type): An Iceberg `Type`
+      transform (str): A string name of a transform
+
+    Raises:
+      AttributeError: If the apply method is called.
+    """
+
     def __init__(self, source_type: Type, transform: str):
         super().__init__(
             transform,
@@ -305,6 +349,8 @@ class UnknownTransform(Transform):
 
 
 class VoidTransform(Transform):
+    """A transform that always returns null"""
+
     _instance = None
 
     def __new__(cls):
