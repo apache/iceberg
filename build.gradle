@@ -571,6 +571,7 @@ project(':iceberg-nessie') {
 
   dependencies {
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation "org.projectnessie:nessie-client"
