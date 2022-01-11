@@ -110,7 +110,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
     FileIO io = table.io();
     Assertions.assertThat(io).as("FileIO should be a HadoopFileIO").isInstanceOf(HadoopFileIO.class);
     HadoopFileIO hadoopIO = (HadoopFileIO) io;
-    Assert.assertEquals("my_value", hadoopIO.conf().get("my_key"));
+    Assert.assertEquals("my_value", hadoopIO.getConf().get("my_key"));
   }
 
   @SuppressWarnings("unchecked")
