@@ -20,9 +20,15 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -46,7 +52,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
 public class TableMigrationUtil {
-
+  public static final String PARQUET_READ_PARALLELISM = "parquet.metadata.read.parallelism";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -74,12 +80,13 @@ public class TableMigrationUtil {
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
                                              NameMapping mapping) {
+    int parallelism = conf.getInt(PARQUET_READ_PARALLELISM, 1);
     if (format.contains("avro")) {
-      return listAvroPartition(partition, uri, spec, conf);
+      return listAvroPartition(partition, uri, spec, conf, parallelism);
     } else if (format.contains("parquet")) {
-      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
+      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping, parallelism);
     } else if (format.contains("orc")) {
-      return listOrcPartition(partition, uri, spec, conf, metricsConfig, mapping);
+      return listOrcPartition(partition, uri, spec, conf, metricsConfig, mapping, parallelism);
     } else {
       throw new UnsupportedOperationException("Unknown partition format: " + format);
     }
@@ -179,6 +186,171 @@ public class TableMigrationUtil {
           }).collect(Collectors.toList());
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    }
+  }
+
+  private static List<DataFile> listAvroPartition(Map<String, String> partitionPath, String partitionUri,
+                                                  PartitionSpec spec, Configuration conf, int parallelism) {
+    // not use parallelism
+    if (parallelism == 0 || parallelism == 1) {
+      return listAvroPartition(partitionPath, partitionUri, spec, conf);
+    }
+
+    List<Callable<DataFile>> footers = new ArrayList<>();
+    try {
+      Path partition = new Path(partitionUri);
+      FileSystem fs = partition.getFileSystem(conf);
+      FileStatus[] fileStatus = fs.listStatus(partition, HIDDEN_PATH_FILTER);
+      for (final FileStatus stat : fileStatus) {
+        if (!stat.isFile()) {
+          continue;
+        }
+        footers.add(() -> {
+          InputFile file = HadoopInputFile.fromLocation(stat.getPath().toString(), conf);
+          long rowCount = Avro.rowCount(file);
+          Metrics metrics = new Metrics(rowCount, null, null, null, null);
+          String partitionKey = spec.fields().stream()
+                  .map(PartitionField::name)
+                  .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+                  .collect(Collectors.joining("/"));
+
+          return DataFiles.builder(spec)
+                  .withPath(stat.getPath().toString())
+                  .withFormat("avro")
+                  .withFileSizeInBytes(stat.getLen())
+                  .withMetrics(metrics)
+                  .withPartitionPath(partitionKey)
+                  .build();
+        });
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    }
+
+    try {
+      return runAllInParallel(parallelism, footers);
+    } catch (ExecutionException e) {
+      throw new RuntimeException("Could not read footer: " + e.getMessage(), e.getCause());
+    }
+
+  }
+
+  private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
+                                                     PartitionSpec spec, Configuration conf,
+                                                     MetricsConfig metricsSpec, NameMapping mapping, int parallelism) {
+    // not use parallelism
+    if (parallelism == 0 || parallelism == 1) {
+      return listParquetPartition(partitionPath, partitionUri, spec, conf, metricsSpec, mapping);
+    }
+
+    List<Callable<DataFile>> footers = new ArrayList<>();
+    try {
+      Path partition = new Path(partitionUri);
+      FileSystem fs = partition.getFileSystem(conf);
+      FileStatus[] fileStatus = fs.listStatus(partition, HIDDEN_PATH_FILTER);
+      for (final FileStatus stat : fileStatus) {
+        if (!stat.isFile()) {
+          continue;
+        }
+        footers.add(() -> {
+          Metrics metrics;
+          try {
+            ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
+            metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
+          } catch (IOException e) {
+            throw new RuntimeException("Unable to read the footer of the parquet file: " +
+                    stat.getPath(), e);
+          }
+          String partitionKey = spec.fields().stream()
+                  .map(PartitionField::name)
+                  .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+                  .collect(Collectors.joining("/"));
+
+          return DataFiles.builder(spec)
+                  .withPath(stat.getPath().toString())
+                  .withFormat("parquet")
+                  .withFileSizeInBytes(stat.getLen())
+                  .withMetrics(metrics)
+                  .withPartitionPath(partitionKey)
+                  .build();
+        });
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    }
+
+    try {
+      return runAllInParallel(parallelism, footers);
+    } catch (ExecutionException e) {
+      throw new RuntimeException("Could not read footer: " + e.getMessage(), e.getCause());
+    }
+
+  }
+
+  private static List<DataFile> listOrcPartition(Map<String, String> partitionPath, String partitionUri,
+                                                     PartitionSpec spec, Configuration conf,
+                                                     MetricsConfig metricsSpec, NameMapping mapping, int parallelism) {
+    // not use parallelism
+    if (parallelism == 0 || parallelism == 1) {
+      return listOrcPartition(partitionPath, partitionUri, spec, conf, metricsSpec, mapping);
+    }
+
+    List<Callable<DataFile>> footers = new ArrayList<>();
+    try {
+      Path partition = new Path(partitionUri);
+      FileSystem fs = partition.getFileSystem(conf);
+      FileStatus[] fileStatus = fs.listStatus(partition, HIDDEN_PATH_FILTER);
+      for (final FileStatus stat : fileStatus) {
+        if (!stat.isFile()) {
+          continue;
+        }
+        footers.add(() -> {
+          Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
+                  metricsSpec, mapping);
+          String partitionKey = spec.fields().stream()
+                  .map(PartitionField::name)
+                  .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+                  .collect(Collectors.joining("/"));
+
+          return DataFiles.builder(spec)
+                  .withPath(stat.getPath().toString())
+                  .withFormat("orc")
+                  .withFileSizeInBytes(stat.getLen())
+                  .withMetrics(metrics)
+                  .withPartitionPath(partitionKey)
+                  .build();
+        });
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    }
+
+    try {
+      return runAllInParallel(parallelism, footers);
+    } catch (ExecutionException e) {
+      throw new RuntimeException("Could not read footer: " + e.getMessage(), e.getCause());
+    }
+
+  }
+
+  private static <T> List<T> runAllInParallel(int parallelism, List<Callable<T>> toRun) throws ExecutionException {
+    ExecutorService threadPool = Executors.newFixedThreadPool(parallelism);
+    try {
+      List<Future<T>> futures = new ArrayList<Future<T>>();
+      for (Callable<T> callable : toRun) {
+        futures.add(threadPool.submit(callable));
+      }
+      List<T> result = new ArrayList<T>(toRun.size());
+      for (Future<T> future : futures) {
+        try {
+          result.add(future.get());
+        } catch (InterruptedException e) {
+          throw new RuntimeException("The thread was interrupted", e);
+        }
+      }
+      return result;
+    } finally {
+      threadPool.shutdownNow();
     }
   }
 }
