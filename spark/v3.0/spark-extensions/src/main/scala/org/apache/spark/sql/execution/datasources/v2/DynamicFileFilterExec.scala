@@ -44,8 +44,8 @@ abstract class DynamicFileFilterExecBase(
   override lazy val references: AttributeSet = AttributeSet(fileFilterExec.output)
 
   override lazy val metrics = Map(
-    "totalFiles" -> SQLMetrics.createMetric(sparkContext, "total number of files"),
-    "hitFiles" -> SQLMetrics.createMetric(sparkContext, "number of files hit"))
+    "candidateFiles" -> SQLMetrics.createMetric(sparkContext, "candidate files"),
+    "matchingFiles" -> SQLMetrics.createMetric(sparkContext, "matching files"))
 
   override def left: SparkPlan = scanExec
   override def right: SparkPlan = fileFilterExec
@@ -85,9 +85,9 @@ abstract class DynamicFileFilterExecBase(
     s"DynamicFileFilterExec${truncatedString(output, "[", ", ", "]", maxFields)}"
   }
 
-  def postFileFilterMetric(totalFilesNumber: Int, hitFilesNumber: Int): Unit = {
-    longMetric("totalFiles").set(totalFilesNumber)
-    longMetric("hitFiles").set(hitFilesNumber)
+  def postFileFilterMetric(candidateFiles: Int, matchingFiles: Int): Unit = {
+    longMetric("candidateFiles").set(candidateFiles)
+    longMetric("matchingFiles").set(matchingFiles)
     val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
     SQLMetrics.postDriverMetricUpdates(sparkContext, executionId, metrics.values.toSeq)
   }
@@ -103,7 +103,7 @@ case class DynamicFileFilterExec(
     val rows = fileFilterExec.executeCollect()
     val matchedFileLocations = rows.map(_.getString(0))
     val metric = filterable.filterFiles(matchedFileLocations.toSet.asJava)
-    postFileFilterMetric(metric.getTotalFilesNumber, metric.getHitFilesNumber)
+    postFileFilterMetric(metric.candidateFiles(), metric.matchingFiles())
   }
 }
 
@@ -125,6 +125,6 @@ case class DynamicFileFilterWithCardinalityCheckExec(
     }
     val matchedFileLocations = filesAccumulator.value
     val metric = filterable.filterFiles(matchedFileLocations)
-    postFileFilterMetric(metric.getTotalFilesNumber, metric.getHitFilesNumber)
+    postFileFilterMetric(metric.candidateFiles(), metric.matchingFiles())
   }
 }

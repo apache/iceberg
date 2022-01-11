@@ -1501,8 +1501,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
 
     Map<String, String> expectedMetrics = Maps.newHashMap();
-    expectedMetrics.put("total number of files", "2");
-    expectedMetrics.put("number of files hit", "1");
+    expectedMetrics.put("candidate files", "2");
+    expectedMetrics.put("matching files", "1");
 
     checkMetrics(() -> spark.sql(String.format(
         "MERGE INTO %s AS t USING source AS s " +
