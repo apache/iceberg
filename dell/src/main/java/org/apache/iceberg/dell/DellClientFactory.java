@@ -20,38 +20,21 @@
 package org.apache.iceberg.dell;
 
 import com.emc.object.s3.S3Client;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PositionOutputStream;
+import java.util.Map;
 
-class EcsOutputFile extends BaseEcsFile implements OutputFile {
-
-  EcsOutputFile(S3Client client, String location) {
-    super(client, location);
-  }
+public interface DellClientFactory {
 
   /**
-   * Check object existence and then create a {@link PositionOutputStream}
+   * create a Dell EMC ECS S3 client
    *
-   * @return Output stream of object
+   * @return Dell EMC ECS S3 client
    */
-  @Override
-  public PositionOutputStream create() {
-    if (!exists()) {
-      return createOrOverwrite();
-    } else {
-      throw new AlreadyExistsException("ECS object already exists: %s", uri());
-    }
-  }
+  S3Client ecsS3();
 
-  @Override
-  public PositionOutputStream createOrOverwrite() {
-    return EcsAppendOutputStream.create(client(), uri());
-  }
-
-  @Override
-  public InputFile toInputFile() {
-    return new EcsInputFile(client(), location());
-  }
+  /**
+   * Initialize Dell EMC ECS client factory from catalog properties.
+   *
+   * @param properties catalog properties
+   */
+  void initialize(Map<String, String> properties);
 }

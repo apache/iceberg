@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell.mock;
+package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.Protocol;
 import com.emc.object.Range;

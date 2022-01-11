@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.dell.mock.EcsS3MockRule;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.ClassRule;

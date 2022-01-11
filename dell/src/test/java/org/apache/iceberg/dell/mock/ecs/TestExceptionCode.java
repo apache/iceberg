@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell.mock;
+package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Exception;
@@ -30,25 +30,25 @@ import org.junit.Test;
  */
 public class TestExceptionCode {
 
-  @Rule
-  public EcsS3MockRule rule = EcsS3MockRule.create();
+    @Rule
+    public EcsS3MockRule rule = EcsS3MockRule.create();
 
-  @Test
-  public void testExceptionCode() {
-    String object = "test";
-    assertS3Exception("Append absent object", 404, "NoSuchKey",
-        () -> rule.client().appendObject(rule.bucket(), object, "abc".getBytes()));
-    assertS3Exception("Get object", 404, "NoSuchKey",
-        () -> rule.client().readObjectStream(rule.bucket(), object, Range.fromOffset(0)));
-  }
-
-  public void assertS3Exception(String message, int httpCode, String errorCode, Runnable task) {
-    try {
-      task.run();
-      Assert.fail("Expect s3 exception for " + message);
-    } catch (S3Exception e) {
-      Assert.assertEquals(message + ", http code", httpCode, e.getHttpCode());
-      Assert.assertEquals(message + ", error code", errorCode, e.getErrorCode());
+    @Test
+    public void testExceptionCode() {
+        String object = "test";
+        assertS3Exception("Append absent object", 404, "NoSuchKey",
+                () -> rule.client().appendObject(rule.bucket(), object, "abc".getBytes()));
+        assertS3Exception("Get object", 404, "NoSuchKey",
+                () -> rule.client().readObjectStream(rule.bucket(), object, Range.fromOffset(0)));
     }
-  }
+
+    public void assertS3Exception(String message, int httpCode, String errorCode, Runnable task) {
+        try {
+            task.run();
+            Assert.fail("Expect s3 exception for " + message);
+        } catch (S3Exception e) {
+            Assert.assertEquals(message + ", http code", httpCode, e.getHttpCode());
+            Assert.assertEquals(message + ", error code", errorCode, e.getErrorCode());
+        }
+    }
 }

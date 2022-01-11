@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.dell.mock.EcsS3MockRule;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;

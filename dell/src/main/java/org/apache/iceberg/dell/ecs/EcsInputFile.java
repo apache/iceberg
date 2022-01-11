@@ -17,37 +17,35 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
-import com.emc.object.s3.S3Exception;
-import com.emc.object.s3.S3ObjectMetadata;
+import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
 class EcsInputFile extends BaseEcsFile implements InputFile {
 
-  EcsInputFile(S3Client client, String location) {
-    super(client, location);
+  public static EcsInputFile fromLocation(String location, S3Client client) {
+    return new EcsInputFile(client, new EcsURI(location), new DellProperties());
+  }
+
+  public static EcsInputFile fromLocation(String location, S3Client client, DellProperties dellProperties) {
+    return new EcsInputFile(client, new EcsURI(location), dellProperties);
+  }
+
+  EcsInputFile(S3Client client, EcsURI uri, DellProperties dellProperties) {
+    super(client, uri, dellProperties);
   }
 
   /**
-   * Eager-get object length
+   * Note: this may be stale if file was deleted since metadata is cached for size/existence checks.
    *
-   * @return Length if object exists
+   * @return content length
    */
   @Override
   public long getLength() {
-    try {
-      S3ObjectMetadata metadata = client().getObjectMetadata(uri().bucket(), uri().name());
-      return metadata.getContentLength();
-    } catch (S3Exception e) {
-      if (e.getHttpCode() == 404) {
-        return 0;
-      } else {
-        throw e;
-      }
-    }
+    return getObjectMetadata().getContentLength();
   }
 
   @Override

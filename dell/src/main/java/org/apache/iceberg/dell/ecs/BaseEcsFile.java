@@ -17,41 +17,50 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Exception;
+import com.emc.object.s3.S3ObjectMetadata;
+import org.apache.iceberg.dell.DellProperties;
 
-class BaseEcsFile {
+abstract class BaseEcsFile {
 
   private final S3Client client;
-  private final String location;
   private final EcsURI uri;
+  private final DellProperties dellProperties;
+  private S3ObjectMetadata metadata;
 
-  protected BaseEcsFile(S3Client client, String location) {
+  BaseEcsFile(S3Client client, EcsURI uri, DellProperties dellProperties) {
     this.client = client;
-    this.location = location;
-    this.uri = EcsURI.create(location);
+    this.uri = uri;
+    this.dellProperties = dellProperties;
   }
 
   public String location() {
-    return location;
+    return uri.location();
   }
 
-  protected S3Client client() {
+  S3Client client() {
     return client;
   }
 
-  protected EcsURI uri() {
+  EcsURI uri() {
     return uri;
   }
 
+  public DellProperties dellProperties() {
+    return dellProperties;
+  }
+
   /**
-   * Check whether data file exists.
+   * Note: this may be stale if file was deleted since metadata is cached for size/existence checks.
+   *
+   * @return flag
    */
   public boolean exists() {
     try {
-      client.getObjectMetadata(uri.bucket(), uri.name());
+      getObjectMetadata();
       return true;
     } catch (S3Exception e) {
       if (e.getHttpCode() == 404) {
@@ -60,5 +69,18 @@ class BaseEcsFile {
         throw e;
       }
     }
+  }
+
+  protected S3ObjectMetadata getObjectMetadata() throws S3Exception {
+    if (metadata == null) {
+      metadata = client().getObjectMetadata(uri.bucket(), uri.name());
+    }
+
+    return metadata;
+  }
+
+  @Override
+  public String toString() {
+    return uri.toString();
   }
 }

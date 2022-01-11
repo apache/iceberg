@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.dell.mock.EcsS3MockRule;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -37,19 +37,18 @@ public class TestEcsInputFile {
   @Test
   public void testAbsentFile() {
     String objectName = rule.randomObjectName();
-    EcsInputFile inputFile = new EcsInputFile(
-        rule.client(),
-        new EcsURI(rule.bucket(), objectName).toString());
+    EcsInputFile inputFile = EcsInputFile.fromLocation(
+        new EcsURI(rule.bucket(), objectName).toString(),
+        rule.client());
     Assert.assertFalse("File is absent", inputFile.exists());
-    Assert.assertEquals("File length is 0 if absent", 0, inputFile.getLength());
   }
 
   @Test
   public void testFileRead() throws IOException {
     String objectName = rule.randomObjectName();
-    EcsInputFile inputFile = new EcsInputFile(
-        rule.client(),
-        new EcsURI(rule.bucket(), objectName).toString());
+    EcsInputFile inputFile = EcsInputFile.fromLocation(
+        new EcsURI(rule.bucket(), objectName).toString(),
+        rule.client());
 
     rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
 

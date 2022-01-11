@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.dell.mock.EcsS3MockRule;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -40,9 +40,9 @@ public class TestEcsOutputFile {
   @Test
   public void testFileWrite() throws IOException {
     String objectName = rule.randomObjectName();
-    EcsOutputFile outputFile = new EcsOutputFile(
-        rule.client(),
-        new EcsURI(rule.bucket(), objectName).toString());
+    EcsOutputFile outputFile = EcsOutputFile.fromLocation(
+        new EcsURI(rule.bucket(), objectName).toString(),
+        rule.client());
 
     // File write
     try (PositionOutputStream output = outputFile.create()) {
@@ -60,9 +60,9 @@ public class TestEcsOutputFile {
   @Test
   public void testFileOverwrite() throws IOException {
     String objectName = rule.randomObjectName();
-    EcsOutputFile outputFile = new EcsOutputFile(
-        rule.client(),
-        new EcsURI(rule.bucket(), objectName).toString());
+    EcsOutputFile outputFile = EcsOutputFile.fromLocation(
+        new EcsURI(rule.bucket(), objectName).toString(),
+        rule.client());
 
     try (PositionOutputStream output = outputFile.create()) {
       output.write("1234567890".getBytes());
@@ -83,9 +83,9 @@ public class TestEcsOutputFile {
   @Test
   public void testFileAlreadyExists() throws IOException {
     String objectName = rule.randomObjectName();
-    EcsOutputFile outputFile = new EcsOutputFile(
-        rule.client(),
-        new EcsURI(rule.bucket(), objectName).toString());
+    EcsOutputFile outputFile = EcsOutputFile.fromLocation(
+        new EcsURI(rule.bucket(), objectName).toString(),
+        rule.client());
 
     try (PositionOutputStream output = outputFile.create()) {
       output.write("1234567890".getBytes());

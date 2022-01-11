@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.request.PutObjectRequest;

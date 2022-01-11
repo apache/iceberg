@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import java.net.URI;
 import java.util.Objects;
@@ -33,39 +33,54 @@ class EcsURI {
 
   private static final Set<String> VALID_SCHEME = ImmutableSet.of("ecs", "s3", "s3a", "s3n");
 
-  static EcsURI create(String location) {
+  private final String location;
+  private final String bucket;
+  private final String name;
+
+  EcsURI(String location) {
+    Preconditions.checkNotNull(location == null, "Location %s can not be null", location);
+
+    this.location = location;
+
     URI uri = URI.create(location);
     ValidationException.check(
         VALID_SCHEME.contains(uri.getScheme().toLowerCase()),
         "Invalid ecs location: %s",
         location);
-    String bucket = uri.getHost();
-    String name = uri.getPath().replaceAll("^/*", "");
-    return new EcsURI(bucket, name);
+    this.bucket = uri.getHost();
+    this.name = uri.getPath().replaceAll("^/*", "");
   }
 
-  private final String bucket;
-  private final String name;
-
   EcsURI(String bucket, String name) {
-    Preconditions.checkNotNull(bucket == null, "Bucket %s can not be null", bucket);
-    Preconditions.checkNotNull(name == null, "Object name %s can not be null", name);
-
+    this.location = String.format("ecs://%s/%s", bucket, name);
     this.bucket = bucket;
     this.name = name;
   }
 
+  /**
+   * Returns ECS bucket name.
+   */
   public String bucket() {
     return bucket;
   }
 
+  /**
+   * Returns ECS object name.
+   */
   public String name() {
     return name;
   }
 
+  /**
+   * Returns original location.
+   */
+  public String location() {
+    return location;
+  }
+
   @Override
   public String toString() {
-    return String.format("ecs://%s/%s", bucket, name);
+    return location;
   }
 
   @Override
@@ -73,17 +88,17 @@ class EcsURI {
     if (this == o) {
       return true;
     }
-
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-
-    EcsURI uri = (EcsURI) o;
-    return Objects.equals(bucket, uri.bucket) && Objects.equals(name, uri.name);
+    EcsURI ecsURI = (EcsURI) o;
+    return Objects.equals(location, ecsURI.location) &&
+        Objects.equals(bucket, ecsURI.bucket) &&
+        Objects.equals(name, ecsURI.name);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(bucket, name);
+    return Objects.hash(location, bucket, name);
   }
 }

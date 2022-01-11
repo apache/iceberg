@@ -17,32 +17,28 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.mock;
 
-/**
- * Property constants of catalog
- */
-public interface EcsClientProperties {
+import com.emc.object.s3.S3Client;
+import java.util.Map;
+import org.apache.iceberg.dell.DellClientFactory;
+import org.apache.iceberg.dell.DellProperties;
+import org.apache.iceberg.dell.mock.ecs.MockS3Client;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-  /**
-   * Access key id
-   */
-  String ACCESS_KEY_ID = "ecs.s3.access.key.id";
+public class MockDellClientFactory implements DellClientFactory {
 
-  /**
-   * Secret access key
-   */
-  String SECRET_ACCESS_KEY = "ecs.s3.secret.access.key";
+    public static final Map<String, String> MOCK_ECS_CLIENT_PROPERTIES = ImmutableMap.of(
+            DellProperties.CLIENT_FACTORY,
+            MockDellClientFactory.class.getName()
+    );
 
-  /**
-   * S3 endpoint
-   */
-  String ENDPOINT = "ecs.s3.endpoint";
+    @Override
+    public S3Client ecsS3() {
+        return new MockS3Client();
+    }
 
-  /**
-   * Factory class of {@link EcsClientFactory}.
-   * <p>
-   * The config is optional. If properties above aren't enough, use this.
-   */
-  String ECS_CLIENT_FACTORY = "ecs.client.factory";
+    @Override
+    public void initialize(Map<String, String> properties) {
+    }
 }

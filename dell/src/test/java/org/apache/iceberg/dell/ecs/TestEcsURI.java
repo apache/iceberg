@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.dell.ecs;
 
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -27,28 +27,19 @@ import org.junit.Test;
 public class TestEcsURI {
 
   @Test
-  public void testCreate() {
-    Assert.assertEquals(
-        new EcsURI("bucket", ""),
-        EcsURI.create("ecs://bucket"));
-    Assert.assertEquals(
-        new EcsURI("bucket", ""),
-        EcsURI.create("ecs://bucket/"));
-    Assert.assertEquals(
-        new EcsURI("bucket", ""),
-        EcsURI.create("ecs://bucket//"));
-    Assert.assertEquals(
-        new EcsURI("bucket", "a"),
-        EcsURI.create("ecs://bucket//a"));
-    Assert.assertEquals(
-        new EcsURI("bucket", "a/b"),
-        EcsURI.create("ecs://bucket/a/b"));
-    Assert.assertEquals(
-        new EcsURI("bucket", "a//b"),
-        EcsURI.create("ecs://bucket/a//b"));
-    Assert.assertEquals(
-        new EcsURI("bucket", "a//b"),
-        EcsURI.create("ecs://bucket//a//b"));
+  public void testConstructor() {
+    assertURI("bucket", "", new EcsURI("ecs://bucket"));
+    assertURI("bucket", "", new EcsURI("ecs://bucket/"));
+    assertURI("bucket", "", new EcsURI("ecs://bucket//"));
+    assertURI("bucket", "a", new EcsURI("ecs://bucket//a"));
+    assertURI("bucket", "a/b", new EcsURI("ecs://bucket/a/b"));
+    assertURI("bucket", "a//b", new EcsURI("ecs://bucket/a//b"));
+    assertURI("bucket", "a//b", new EcsURI("ecs://bucket//a//b"));
+  }
+
+  private void assertURI(String bucket, String name, EcsURI ecsURI) {
+    Assert.assertEquals("bucket", bucket, ecsURI.bucket());
+    Assert.assertEquals("name", name, ecsURI.name());
   }
 
   @Test
@@ -57,6 +48,6 @@ public class TestEcsURI {
         "Invalid location should cause exception",
         ValidationException.class,
         "http://bucket/a",
-        () -> EcsURI.create("http://bucket/a"));
+        () -> new EcsURI("http://bucket/a"));
   }
 }
