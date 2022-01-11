@@ -38,5 +38,10 @@ public interface PositionDeleteIndex {
    * @param position deleted row position
    * @return whether the position is deleted
    */
-  boolean deleted(long position);
+  boolean isDeleted(long position);
+
+  /**
+   * Returns true if this collection contains no element.
+   */
+  boolean isEmpty();
 }
