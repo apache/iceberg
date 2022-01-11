@@ -183,6 +183,12 @@ and their files which are no longer needed.
 This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
 the `expire_snapshots` procedure will never remove files which are still required by a non-expired snapshot.
 
+Available [table behavior properties](./configuration#Table-behavior-properties) for `expire_snapshots`:
+
+* `history.expire.max-snapshot-age-ms`  max age of snapshots to keep while expiring snapshots, 432000000 (5 days) by default.
+
+* `history.expire.min-snapshots-to-keep` min number of snapshots to keep while expiring snapshots, 1 by default.
+
 #### Usage
 
 | Argument Name | Required? | Type | Description |
