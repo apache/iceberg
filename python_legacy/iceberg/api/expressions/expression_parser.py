@@ -146,7 +146,12 @@ def get_expr(node, expr_map):
     elif isinstance(node, (int, float)):
         return node
     elif isinstance(node, str):
-        return node.strip("'").strip('"')
+        if node.startswith("'") and node.endswith("'"):
+            return node.strip("'")
+        elif node.startswith("\"") and node.endswith("\""):
+            return node.strip("\"")
+        else:
+            return node
     else:
         raise RuntimeError("unknown node type" % node)
 
