@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
@@ -55,6 +57,7 @@ import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -596,6 +599,9 @@ public class Spark3Util {
     private static String sqlString(org.apache.iceberg.expressions.Literal<?> lit) {
       if (lit.value() instanceof String) {
         return "'" + lit.value() + "'";
+      } else if (lit.value() instanceof ByteBuffer) {
+        byte[] bytes = ByteBuffers.toByteArray((ByteBuffer) lit.value());
+        return "X'" + BaseEncoding.base16().encode(bytes) + "'";
       } else {
         return lit.value().toString();
       }
