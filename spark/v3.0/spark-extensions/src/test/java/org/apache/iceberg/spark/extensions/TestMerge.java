@@ -1492,24 +1492,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
-  public void testFileFilterMetricEmptyTable() throws Exception {
-    createAndInitTable("id INT, dep STRING");
-
-    createOrReplaceView("source", "id INT, dep STRING",
-        "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-
-    Map<String, String> expectedMetrics = Maps.newHashMap();
-    expectedMetrics.put("total number of files", "0");
-    expectedMetrics.put("number of files hit", "0");
-    expectedMetrics.put("file hit rate %", "0");
-
-    checkMetrics(() -> spark.sql(String.format(
-        "MERGE INTO %s AS t USING source AS s " +
-        "ON t.id == s.id " +
-        "WHEN MATCHED THEN UPDATE SET * ", tableName)), expectedMetrics);
-  }
-
-  @Test
   public void testFileFilterMetric() throws Exception {
     createAndInitTable("id INT, dep STRING");
     spark.sql(String.format("INSERT INTO %s VALUES (1, 'emp-id-one')", tableName));
@@ -1521,7 +1503,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Map<String, String> expectedMetrics = Maps.newHashMap();
     expectedMetrics.put("total number of files", "2");
     expectedMetrics.put("number of files hit", "1");
-    expectedMetrics.put("file hit rate %", "50");
 
     checkMetrics(() -> spark.sql(String.format(
         "MERGE INTO %s AS t USING source AS s " +

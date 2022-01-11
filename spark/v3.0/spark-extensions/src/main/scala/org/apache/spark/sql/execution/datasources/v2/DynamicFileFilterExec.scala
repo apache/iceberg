@@ -45,8 +45,7 @@ abstract class DynamicFileFilterExecBase(
 
   override lazy val metrics = Map(
     "totalFiles" -> SQLMetrics.createMetric(sparkContext, "total number of files"),
-    "hitFiles" -> SQLMetrics.createMetric(sparkContext, "number of files hit"),
-    "fileHitRate" -> SQLMetrics.createMetric(sparkContext, "file hit rate %"))
+    "hitFiles" -> SQLMetrics.createMetric(sparkContext, "number of files hit"))
 
   override def left: SparkPlan = scanExec
   override def right: SparkPlan = fileFilterExec
@@ -89,9 +88,6 @@ abstract class DynamicFileFilterExecBase(
   def postFileFilterMetric(totalFilesNumber: Int, hitFilesNumber: Int): Unit = {
     longMetric("totalFiles").set(totalFilesNumber)
     longMetric("hitFiles").set(hitFilesNumber)
-    if (totalFilesNumber > 0) {
-      longMetric("fileHitRate").set(hitFilesNumber * 100 / totalFilesNumber)
-    }
     val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
     SQLMetrics.postDriverMetricUpdates(sparkContext, executionId, metrics.values.toSeq)
   }
