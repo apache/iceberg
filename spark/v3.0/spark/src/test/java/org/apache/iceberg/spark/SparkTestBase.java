@@ -205,18 +205,20 @@ public abstract class SparkTestBase {
     }
   }
 
-  private Set<SQLExecutionUIData> currentExecutionUIDataSet() throws TimeoutException {
+  private Map<Long, SQLExecutionUIData> currentExecutionUIDataMap() throws TimeoutException {
     spark.sparkContext().listenerBus().waitUntilEmpty(10000);
-    return Sets.newHashSet(JavaConverters.seqAsJavaList(spark.sharedState().statusStore().executionsList()));
+    return JavaConverters.seqAsJavaList(spark.sharedState().statusStore().executionsList())
+            .stream().collect(Collectors.toMap(data -> data.executionId(), data -> data));
   }
 
   protected void checkMetrics(Callable sparkCallable, Map<String, String> expectedMetrics) throws Exception {
-    Set<SQLExecutionUIData> originalExecutions = currentExecutionUIDataSet();
+    Set<Long> originalExecutionIds = currentExecutionUIDataMap().keySet();
     sparkCallable.call();
-    Set<SQLExecutionUIData> currentExecutions = currentExecutionUIDataSet();
-    currentExecutions.removeAll(originalExecutions);
-    Assert.assertEquals(currentExecutions.size(), 1);
-    SQLExecutionUIData currentExecution = currentExecutions.stream().findFirst().get();
+    Map<Long, SQLExecutionUIData> currentExecutions = currentExecutionUIDataMap();
+    Set<Long> currentExecutionIds = currentExecutions.keySet();
+    currentExecutionIds.removeAll(originalExecutionIds);
+    Assert.assertEquals(currentExecutionIds.size(), 1);
+    SQLExecutionUIData currentExecution = currentExecutions.get(currentExecutionIds.stream().findFirst().get());
 
     Map<Long, String> metricsIds = Maps.newHashMap();
     JavaConverters.seqAsJavaList(currentExecution.metrics()).stream().forEach(metricsDeclaration -> {
