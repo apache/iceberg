@@ -84,7 +84,7 @@ public class TestFileIOSerialization {
 
     Table serializableTable = SerializableTable.copyOf(table);
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
-    Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
+    Configuration actualConf = ((HadoopFileIO) deserializedIO).getConf();
 
     Assert.assertEquals("Conf pairs must match", toMap(expectedConf), toMap(actualConf));
     Assert.assertEquals("Conf values must be present", "v1", actualConf.get("k1"));
@@ -98,7 +98,7 @@ public class TestFileIOSerialization {
 
     Table serializableTable = SerializableTable.copyOf(table);
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
-    Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
+    Configuration actualConf = ((HadoopFileIO) deserializedIO).getConf();
 
     Assert.assertEquals("Conf pairs must match", toMap(expectedConf), toMap(actualConf));
     Assert.assertEquals("Conf values must be present", "v1", actualConf.get("k1"));

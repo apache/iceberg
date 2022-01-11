@@ -50,10 +50,6 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable {
     this.hadoopConf = hadoopConf;
   }
 
-  public Configuration conf() {
-    return hadoopConf.get();
-  }
-
   @Override
   public InputFile newInputFile(String path) {
     return HadoopInputFile.fromLocation(path, hadoopConf.get());

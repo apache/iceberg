@@ -130,7 +130,7 @@ public class TestCatalogUtil {
     configuration.set("key", "val");
     FileIO fileIO = CatalogUtil.loadFileIO(HadoopFileIO.class.getName(), Maps.newHashMap(), configuration);
     Assertions.assertThat(fileIO).isInstanceOf(HadoopFileIO.class);
-    Assert.assertEquals("val", ((HadoopFileIO) fileIO).conf().get("key"));
+    Assert.assertEquals("val", ((HadoopFileIO) fileIO).getConf().get("key"));
   }
 
   @Test
