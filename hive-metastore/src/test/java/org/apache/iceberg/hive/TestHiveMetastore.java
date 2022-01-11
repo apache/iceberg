@@ -86,13 +86,15 @@ public class TestHiveMetastore {
   // It's tricky to clear all static fields in an HMS instance in order to switch derby root dir.
   // Therefore, we reuse the same derby root between tests and remove it after JVM exits.
   private static final File HIVE_LOCAL_DIR;
+  private static final String DERBY_PATH;
 
   static {
     try {
       HIVE_LOCAL_DIR = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+      DERBY_PATH = new File(HIVE_LOCAL_DIR, "metastore_db").getPath();
       File derbyLogFile = new File(HIVE_LOCAL_DIR, "derby.log");
       System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
-      setupMetastoreDB("jdbc:derby:" + getDerbyPath() + ";create=true");
+      setupMetastoreDB("jdbc:derby:" + DERBY_PATH + ";create=true");
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
         Path localDirPath = new Path(HIVE_LOCAL_DIR.getAbsolutePath());
         FileSystem fs = Util.getFs(localDirPath, new Configuration());
@@ -220,7 +222,7 @@ public class TestHiveMetastore {
 
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf) throws Exception {
     HiveConf serverConf = new HiveConf(conf);
-    serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + getDerbyPath() + ";create=true");
+    serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + DERBY_PATH + ";create=true");
     baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
     IHMSHandler handler = GET_BASE_HMS_HANDLER.invoke(serverConf, baseHandler, false);
 
@@ -251,10 +253,5 @@ public class TestHiveMetastore {
     try (Reader reader = new InputStreamReader(inputStream)) {
       scriptRunner.runScript(reader);
     }
-  }
-
-  private static String getDerbyPath() {
-    File metastoreDB = new File(HIVE_LOCAL_DIR, "metastore_db");
-    return metastoreDB.getPath();
   }
 }
