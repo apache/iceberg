@@ -126,6 +126,15 @@ def get_expr_tree(tokens):
                  binary_tuples]}
 
 
+def handle_str_expr(node):
+    if node.startswith("'") and node.endswith("'"):
+        return node.strip("'")
+    elif node.startswith("\"") and node.endswith("\""):
+        return node.strip("\"")
+    else:
+        return node
+
+
 def get_expr(node, expr_map):
     if isinstance(node, dict):
         for i in node.keys():
@@ -146,12 +155,7 @@ def get_expr(node, expr_map):
     elif isinstance(node, (int, float)):
         return node
     elif isinstance(node, str):
-        if node.startswith("'") and node.endswith("'"):
-            return node.strip("'")
-        elif node.startswith("\"") and node.endswith("\""):
-            return node.strip("\"")
-        else:
-            return node
+        return handle_str_expr(node)
     else:
         raise RuntimeError("unknown node type" % node)
 
