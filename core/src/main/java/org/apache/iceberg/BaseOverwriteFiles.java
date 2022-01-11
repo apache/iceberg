@@ -36,7 +36,6 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   private Expression conflictDetectionFilter = null;
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
-  private boolean caseSensitive = true;
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -78,24 +77,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
-  @Deprecated
-  public OverwriteFiles validateNoConflictingAppends(Long newReadSnapshotId, Expression newConflictDetectionFilter) {
-    if (newReadSnapshotId != null) {
-      validateFromSnapshot(newReadSnapshotId);
-    }
-    validateNoConflictingAppends(newConflictDetectionFilter);
-    return this;
-  }
-
-  @Override
   public OverwriteFiles validateFromSnapshot(long snapshotId) {
     this.startingSnapshotId = snapshotId;
-    return this;
-  }
-
-  @Override
-  public OverwriteFiles caseSensitive(boolean isCaseSensitive) {
-    this.caseSensitive = isCaseSensitive;
     return this;
   }
 
@@ -132,8 +115,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       Expression strictExpr = Projections.strict(spec).project(rowFilter);
       Evaluator strict = new Evaluator(spec.partitionType(), strictExpr);
 
-      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(
-          base.schema(), rowFilter);
+      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
       for (DataFile file : addedFiles()) {
         // the real test is that the strict or metrics test matches the file, indicating that all
@@ -149,19 +131,17 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
 
     if (validateNewDataFiles) {
-      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter(), caseSensitive);
+      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
     }
 
     if (validateNewDeleteFiles) {
       if (rowFilter() != Expressions.alwaysFalse()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
-        validateNoNewDeleteFiles(base, startingSnapshotId, filter, caseSensitive);
+        validateNoNewDeleteFiles(base, startingSnapshotId, filter);
       }
 
       if (deletedDataFiles.size() > 0) {
-        validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter,
-            deletedDataFiles, caseSensitive);
+        validateNoNewDeletesForDataFiles(base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles);
       }
     }
   }

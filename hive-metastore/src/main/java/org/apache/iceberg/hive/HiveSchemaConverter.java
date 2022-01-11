@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
@@ -30,6 +29,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -61,10 +61,10 @@ class HiveSchemaConverter {
   }
 
   List<Types.NestedField> convertInternal(List<String> names, List<TypeInfo> typeInfos, List<String> comments) {
-    List<Types.NestedField> result = new ArrayList<>(names.size());
+    List<Types.NestedField> result = Lists.newArrayListWithExpectedSize(names.size());
     for (int i = 0; i < names.size(); ++i) {
       result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i)),
-          comments.isEmpty() ? null : comments.get(i)));
+          (comments.isEmpty() || i >= comments.size()) ? null : comments.get(i)));
     }
 
     return result;

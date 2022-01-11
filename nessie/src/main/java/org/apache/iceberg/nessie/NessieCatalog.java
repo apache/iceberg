@@ -34,6 +34,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -41,25 +42,28 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
-import org.projectnessie.api.TreeApi;
-import org.projectnessie.api.params.EntriesParams;
-import org.projectnessie.client.NessieClient;
+import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
+import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
+import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
-import org.projectnessie.model.Contents;
+import org.projectnessie.model.Content;
+import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.ImmutableDelete;
-import org.projectnessie.model.ImmutableOperations;
-import org.projectnessie.model.ImmutablePut;
-import org.projectnessie.model.Operations;
+import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
+import org.projectnessie.model.TableReference;
+import org.projectnessie.model.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,9 +77,10 @@ import org.slf4j.LoggerFactory;
  * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
+
   private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
-  private NessieClient client;
+  private NessieApiV1 api;
   private String warehouseLocation;
   private Configuration config;
   private UpdateableReference reference;
@@ -93,9 +98,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
     this.name = inputName == null ? "nessie" : inputName;
     // remove nessie prefix
-    final Function<String, String> removePrefix = x -> x.replace("nessie.", "");
+    final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
 
-    this.client = NessieClient.builder().fromConfig(x -> options.get(removePrefix.apply(x))).build();
+    this.api = createNessieClientBuilder(options.get(NessieUtil.CONFIG_CLIENT_BUILDER_IMPL))
+        .fromConfig(x -> options.get(removePrefix.apply(x)))
+        .build(NessieApiV1.class);
 
     this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
@@ -120,12 +127,26 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
     final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
-    this.reference = loadReference(requestedRef);
+    this.reference = loadReference(requestedRef, null);
+  }
+
+  private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
+    NessieClientBuilder<?> clientBuilder;
+    if (customBuilder != null) {
+      try {
+        clientBuilder = DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
+      } catch (Exception e) {
+        throw new RuntimeException(String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
+      }
+    } else {
+      clientBuilder = HttpClientBuilder.builder();
+    }
+    return clientBuilder;
   }
 
   @Override
   public void close() {
-    client.close();
+    api.close();
   }
 
   @Override
@@ -135,15 +156,17 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    TableReference pti = TableReference.parse(tableIdentifier);
+    TableReference tr = TableReference.parse(tableIdentifier.name());
+    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
+        "timestamp is not supported)");
     UpdateableReference newReference = this.reference;
-    if (pti.reference() != null) {
-      newReference = loadReference(pti.reference());
+    if (tr.getReference() != null) {
+      newReference = loadReference(tr.getReference(), tr.getHash());
     }
     return new NessieTableOperations(
-        NessieUtil.toKey(pti.tableIdentifier()),
+        ContentKey.of(org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()), tr.getName()),
         newReference,
-        client,
+        api,
         fileIO,
         catalogOptions);
   }
@@ -170,22 +193,27 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       return false;
     }
 
-    Operations contents = ImmutableOperations.builder()
-        .addOperations(ImmutableDelete.builder().key(NessieUtil.toKey(identifier)).build())
-        .commitMeta(NessieUtil.buildCommitMetadata(String.format("delete table %s", identifier), catalogOptions))
-        .build();
+    if (purge) {
+      logger.info("Purging data for table {} was set to true but is ignored", identifier.toString());
+    }
+
+    CommitMultipleOperationsBuilder commitBuilderBase = api.commitMultipleOperations()
+        .commitMeta(NessieUtil.buildCommitMetadata(String.format("Iceberg delete table %s", identifier),
+            catalogOptions))
+        .operation(Operation.Delete.of(NessieUtil.toKey(identifier)));
 
     // We try to drop the table. Simple retry after ref update.
     boolean threw = true;
     try {
-      Tasks.foreach(contents)
+      Tasks.foreach(commitBuilderBase)
           .retry(5)
           .stopRetryOn(NessieNotFoundException.class)
           .throwFailureWhenFinished()
-          .onFailure((c, exception) -> refresh())
-          .run(c -> {
-            Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
-                reference.getHash(), c);
+          .onFailure((o, exception) -> refresh())
+          .run(commitBuilder -> {
+            Branch branch = commitBuilder
+                .branch(reference.getAsBranch())
+                .commit();
             reference.updateReference(branch);
           }, BaseNessieClientServerException.class);
       threw = false;
@@ -214,22 +242,22 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new AlreadyExistsException("table %s already exists", to.name());
     }
 
-    Operations contents = ImmutableOperations.builder()
-        .addOperations(
-            ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
-            ImmutableDelete.builder().key(NessieUtil.toKey(from)).build())
-        .commitMeta(NessieUtil.buildCommitMetadata("iceberg rename table", catalogOptions))
-        .build();
+    CommitMultipleOperationsBuilder operations = api.commitMultipleOperations()
+        .commitMeta(NessieUtil.buildCommitMetadata(String.format("Iceberg rename table from '%s' to '%s'",
+            from, to), catalogOptions))
+        .operation(Operation.Put.of(NessieUtil.toKey(to), existingFromTable, existingFromTable))
+        .operation(Operation.Delete.of(NessieUtil.toKey(from)));
 
     try {
-      Tasks.foreach(contents)
+      Tasks.foreach(operations)
           .retry(5)
           .stopRetryOn(NessieNotFoundException.class)
           .throwFailureWhenFinished()
-          .onFailure((c, exception) -> refresh())
-          .run(c -> {
-            Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
-                reference.getHash(), c);
+          .onFailure((o, exception) -> refresh())
+          .run(ops -> {
+            Branch branch = ops
+                .branch(reference.getAsBranch())
+                .commit();
             reference.updateReference(branch);
           }, BaseNessieClientServerException.class);
     } catch (NessieNotFoundException e) {
@@ -319,37 +347,46 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return config;
   }
 
-  TreeApi getTreeApi() {
-    return client.getTreeApi();
-  }
-
   public void refresh() throws NessieNotFoundException {
-    reference.refresh();
+    reference.refresh(api);
   }
 
   public String currentHash() {
     return reference.getHash();
   }
 
+  @VisibleForTesting
   String currentRefName() {
     return reference.getName();
   }
 
+  @VisibleForTesting
+  FileIO fileIO() {
+    return fileIO;
+  }
+
   private IcebergTable table(TableIdentifier tableIdentifier) {
     try {
-      Contents table = client.getContentsApi()
-          .getContents(NessieUtil.toKey(tableIdentifier), reference.getName(), reference.getHash());
-      return table.unwrap(IcebergTable.class).orElse(null);
+      ContentKey key = NessieUtil.toKey(tableIdentifier);
+      Content table = api.getContent().key(key).reference(reference.getReference()).get().get(key);
+      return table != null ? table.unwrap(IcebergTable.class).orElse(null) : null;
     } catch (NessieNotFoundException e) {
       return null;
     }
   }
 
-  private UpdateableReference loadReference(String requestedRef) {
+  private UpdateableReference loadReference(String requestedRef, String hash) {
     try {
-      Reference ref = requestedRef == null ? client.getTreeApi().getDefaultBranch()
-          : client.getTreeApi().getReferenceByName(requestedRef);
-      return new UpdateableReference(ref, client.getTreeApi());
+      Reference ref = requestedRef == null ? api.getDefaultBranch()
+          : api.getReference().refName(requestedRef).get();
+      if (hash != null) {
+        if (ref instanceof Branch) {
+          ref = Branch.of(ref.getName(), hash);
+        } else {
+          ref = Tag.of(ref.getName(), hash);
+        }
+      }
+      return new UpdateableReference(ref, hash != null);
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
         throw new IllegalArgumentException(String.format(
@@ -366,8 +403,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   private Stream<TableIdentifier> tableStream(Namespace namespace) {
     try {
-      return client.getTreeApi()
-          .getEntries(reference.getName(), EntriesParams.builder().hashOnRef(reference.getHash()).build())
+      return api.getEntries()
+          .reference(reference.getReference())
+          .get()
           .getEntries()
           .stream()
           .filter(NessieUtil.namespacePredicate(namespace))

@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -156,6 +157,13 @@ public class TypeUtil {
 
   public static Map<Integer, String> indexNameById(Types.StructType struct) {
     IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
+  public static Map<Integer, String> indexQuotedNameById(Types.StructType struct,
+                                                         Function<String, String> quotingFunc) {
+    IndexByName indexer = new IndexByName(quotingFunc);
     visit(struct, indexer);
     return indexer.byId();
   }

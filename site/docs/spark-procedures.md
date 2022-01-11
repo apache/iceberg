@@ -49,7 +49,8 @@ Roll back a table to a specific snapshot ID.
 
 To roll back to a specific time, use [`rollback_to_timestamp`](#rollback_to_timestamp).
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -77,7 +78,8 @@ CALL catalog_name.system.rollback_to_snapshot('db.sample', 1)
 
 Roll back a table to the snapshot that was current at some time.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -95,9 +97,9 @@ Roll back a table to the snapshot that was current at some time.
 
 #### Example
 
-Roll back `db.sample` to a day ago
+Roll back `db.sample` to one day
 ```sql
-CALL catalog_name.system.rollback_to_timestamp('db.sample', date_sub(current_date(), 1))
+CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000')
 ```
 
 ### `set_current_snapshot`
@@ -106,7 +108,8 @@ Sets the current snapshot ID for a table.
 
 Unlike rollback, the snapshot is not required to be an ancestor of the current table state.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -137,7 +140,8 @@ Cherry-picking creates a new snapshot from an existing snapshot without altering
 
 Only append and dynamic overwrite snapshots can be cherry-picked.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -197,10 +201,10 @@ the `expire_snapshots` procedure will never remove files which are still require
 
 #### Examples
 
-Remove snapshots older than 10 days ago, but retain the last 100 snapshots:
+Remove snapshots older than one day, but retain the last 100 snapshots:
 
 ```sql
-CALL hive_prod.system.expire_snapshots('db.sample', date_sub(current_date(), 10), 100)
+CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
 ```
 
 Erase all snapshots older than the current timestamp but retain the last 5 snapshots:
@@ -240,6 +244,59 @@ Remove any files in the `tablelocation/data` folder which are not known to the t
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
 ```
 
+### `rewrite_data_files`
+
+Iceberg tracks each data file in a table. More data files leads to more metadata stored in manifest files, and small data files causes an unnecessary amount of metadata and less efficient queries from file open costs.
+
+Iceberg can compact data files in parallel using Spark with the `rewriteDataFiles` action. This will combine small files into larger files to reduce metadata overhead and runtime file open cost.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
+| `sort_order`  |    | string | Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
+| `options`     | ️   | map<string, string> | Options to be used for actions|
+| `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
+
+
+See the [`RewriteDataFiles` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteDataFiles.html#field.summary),
+<br/>  [`BinPackStrategy` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/BinPackStrategy.html#field.summary)
+and <br/> [`SortStrategy` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/SortStrategy.html#field.summary)
+for list of all the supported options for this action.
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `rewritten_data_files_count` | int | Number of data which were re-written by this command |
+| `added_data_files_count`     | int | Number of new data files which were written by this command |
+
+#### Examples
+
+Rewrite the data files in table `db.sample` using the default rewrite algorithm of bin-packing to combine small files 
+and also split large files according to the default write size of the table.
+```sql
+CALL catalog_name.system.rewrite_data_files('db.sample')
+```
+
+Rewrite the data files in table `db.sample` by sorting all the data on id and name 
+using the same defaults as bin-pack to determine which files to rewrite.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'id DESC NULLS LAST,name ASC NULLS FIRST')
+```
+
+Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'))
+```
+
+Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"')
+```
+
 ### `rewrite_manifests`
 
 Rewrite manifests for a table to optimize scan planning.
@@ -249,7 +306,8 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 See the [`RewriteManifestsAction` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteManifestsAction.html)
 to see more configuration options.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -281,6 +339,14 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false)
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.
 
+!!! Note
+    Parquet files written with Parquet writers that use names other than `list` and `element` for repeated group 
+    and element of the list respectively are **read incorrectly as nulls** by Iceberg upto 0.12.1 Iceberg versions. Most 
+    commonly such files are written by the following writers.
+    
+    1. *Hive*: when written to tables with`org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe` as it's SerDe.
+    2. *Spark*: when written with `spark.sql.parquet.writeLegacyFormat` set to `true`.
+
 ### `snapshot`
 
 Create a light-weight temporary copy of a table for testing, without changing the source table.
@@ -291,11 +357,12 @@ When inserts or overwrites run on the snapshot, new files are placed in the snap
 
 When finished testing a snapshot table, clean it up by running `DROP TABLE`.
 
-**Note** Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
-actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
-are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
-integrity. DELETE statements executed against the original Hive table will remove original data files and the
-`snapshot` table will no longer be able to access them.
+!!! Note
+    Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
+    actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+    are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
+    integrity. DELETE statements executed against the original Hive table will remove original data files and the
+    `snapshot` table will no longer be able to access them.
 
 See [`migrate`](#migrate-table-procedure) to replace an existing table with an Iceberg table.
 
@@ -365,3 +432,88 @@ Migrate `db.sample` in the current catalog to an Iceberg table without adding an
 CALL catalog_name.system.migrate('db.sample')
 ```
 
+### `add_files`
+
+Attempts to directly add files from a Hive or file based table into a given Iceberg table. Unlike migrate or
+snapshot, `add_files` can import files from a specific partition or partitions and does not create a new Iceberg table.
+This command will create metadata for the new files and will not move them. This procedure will not analyze the schema 
+of the files to determine if they actually match the schema of the Iceberg table. Upon completion, the Iceberg table 
+will then treat these files as if they are part of the set of files  owned by Iceberg. This means any subsequent 
+`expire_snapshot` calls will be able to physically delete the added files. This method should not be used if 
+`migrate` or `snapshot` are possible.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which will have files added to|
+| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
+| `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+
+Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
+
+Warning : Files added by this method can be physically deleted by Iceberg operations
+
+#### Examples
+
+Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table
+`db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
+```sql
+CALL spark_catalog.system.add_files(
+table => 'db.tbl',
+source_table => 'db.src_tbl',
+partition_filter => map('part_col_1', 'A')
+)
+```
+
+Add files from a `parquet` file based table at location `path/to/table` to the Iceberg table `db.tbl`. Add all
+files regardless of what partition they belong to.
+```sql
+CALL spark_catalog.system.add_files(
+  table => 'db.tbl',
+  source_table => '`parquet`.`path/to/table`'
+)
+```
+
+## `Metadata information`
+
+### `ancestors_of`
+
+Report the live snapshot IDs of parents of a specified snapshot
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to report live snapshot IDs |
+| `snapshot_id` |  ️  | long | Use a specified snapshot to get the live snapshot IDs of parents |
+
+> tip : Using snapshot_id
+> 
+> Given snapshots history with roll back to B and addition of C' -> D'
+> ```shell
+> A -> B - > C -> D
+>       \ -> C' -> (D')
+> ```
+> Not specifying the snapshot ID would return A -> B -> C' -> D', while providing the snapshot ID of
+> D as an argument would return A-> B -> C -> D
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `snapshot_id` | long | the ancestor snapshot id |
+| `timestamp` | long | snapshot creation time |
+
+#### Examples
+
+Get all the snapshot ancestors of current snapshots(default)
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl')
+```
+
+Get all the snapshot ancestors by a particular snapshot
+```sql
+CALL spark_catalog.system.ancestors_of('db.tbl', 1)
+CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
+```

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -191,6 +192,10 @@ public class TableTestBase {
   List<File> listManifestFiles(File tableDirToList) {
     return Lists.newArrayList(new File(tableDirToList, "metadata").listFiles((dir, name) ->
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+  }
+
+  public static long countAllMetadataFiles(File tableDir) {
+    return Arrays.stream(new File(tableDir, "metadata").listFiles()).filter(f -> f.isFile()).count();
   }
 
   protected TestTables.TestTable create(Schema schema, PartitionSpec spec) {
@@ -462,6 +467,17 @@ public class TableTestBase {
     PartitionSpec spec = table.specs().get(specId);
     return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  protected DeleteFile newEqualityDeleteFile(int specId, String partitionPath, int... fieldIds) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes(fieldIds)
         .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)

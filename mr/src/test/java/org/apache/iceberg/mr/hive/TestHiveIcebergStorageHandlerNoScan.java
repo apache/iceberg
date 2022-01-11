@@ -20,10 +20,8 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -55,6 +53,8 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
@@ -114,7 +114,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Parameters(name = "catalog={0}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
+    Collection<Object[]> testParams = Lists.newArrayList();
     for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
       testParams.add(new Object[] {testTableType});
     }
@@ -547,7 +547,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
     TableIdentifier identifier = TableIdentifier.of("default", "comment_table");
     shell.executeStatement("CREATE EXTERNAL TABLE comment_table (" +
         "t_int INT COMMENT 'int column',  " +
-        "t_string STRING COMMENT 'string column') " +
+        "t_string STRING COMMENT 'string column', " +
+        "t_string_2 STRING) " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier) +
         testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
@@ -558,7 +559,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     for (int i = 0; i < icebergTable.schema().columns().size(); i++) {
       Types.NestedField field = icebergTable.schema().columns().get(i);
       Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
-          field.doc()}, rows.get(i));
+          (field.doc() != null ? field.doc() : "from deserializer")}, rows.get(i));
     }
   }
 
@@ -600,7 +601,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     // Check the Iceberg table parameters
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
 
-    Map<String, String> expectedIcebergProperties = new HashMap<>();
+    Map<String, String> expectedIcebergProperties = Maps.newHashMap();
     expectedIcebergProperties.put("custom_property", "initial_val");
     expectedIcebergProperties.put("EXTERNAL", "TRUE");
     expectedIcebergProperties.put("storage_handler", HiveIcebergStorageHandler.class.getName());

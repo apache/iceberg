@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
@@ -40,7 +39,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomCatalog() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
@@ -52,7 +51,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomCatalog_withHadoopConfig() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     hadoopConf.set("key", "val");
@@ -66,7 +65,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomCatalog_NoArgConstructorNotFound() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
@@ -78,7 +77,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomCatalog_NotImplementCatalog() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
@@ -91,7 +90,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomCatalog_ConstructorErrorCatalog() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
@@ -105,7 +104,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomCatalog_BadCatalogNameCatalog() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
@@ -161,7 +160,7 @@ public class TestCatalogUtil {
 
   @Test
   public void buildCustomCatalog_withTypeSet() {
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     options.put(CatalogProperties.CATALOG_IMPL, "CustomCatalog");
     options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, "hive");
     Configuration hadoopConf = new Configuration();

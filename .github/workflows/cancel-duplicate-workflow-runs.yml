@@ -25,6 +25,7 @@ on:
       - 'Hive CI'
       - 'Java CI'
       - 'Python CI'
+      - 'Python Legacy CI'
       - 'Spark CI'
     types: ['requested']
 

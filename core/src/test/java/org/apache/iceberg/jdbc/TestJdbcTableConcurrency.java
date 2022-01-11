@@ -21,7 +21,6 @@ package org.apache.iceberg.jdbc;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Tasks;
@@ -64,7 +64,7 @@ public class TestJdbcTableConcurrency {
 
   @Test
   public synchronized void testConcurrentFastAppends() throws IOException {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
     String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentFastAppend.db";
@@ -111,7 +111,7 @@ public class TestJdbcTableConcurrency {
 
   @Test
   public synchronized void testConcurrentConnections() throws InterruptedException, IOException {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
     String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentConnections.db";

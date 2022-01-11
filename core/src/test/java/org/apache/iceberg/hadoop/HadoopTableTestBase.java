@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -35,6 +36,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.types.Types;
@@ -165,5 +167,13 @@ public class HadoopTableTestBase {
       // delete original metadata file
       file.delete();
     }
+  }
+
+  protected HadoopCatalog hadoopCatalog() throws IOException {
+    HadoopCatalog hadoopCatalog = new HadoopCatalog();
+    hadoopCatalog.setConf(new Configuration());
+    hadoopCatalog.initialize("hadoop",
+            ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath()));
+    return hadoopCatalog;
   }
 }

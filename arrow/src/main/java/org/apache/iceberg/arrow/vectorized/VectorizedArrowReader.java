@@ -20,6 +20,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Map;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
@@ -259,7 +260,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.vec = arrowField.createVector(rootAlloc);
         ((TimeMicroVector) vec).allocateNew(batchSize);
         this.readType = ReadType.LONG;
-        this.typeWidth = 8;
+        this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
         break;
       case DECIMAL:
         this.vec = arrowField.createVector(rootAlloc);
@@ -381,7 +382,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   public static VectorizedArrowReader positions() {
-    return new PositionVectorReader();
+    return new PositionVectorReader(false);
+  }
+
+  public static VectorizedArrowReader positionsWithSetArrowValidityVector() {
+    return new PositionVectorReader(true);
   }
 
   private static final class NullVectorReader extends VectorizedArrowReader {
@@ -407,33 +412,54 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private static final class PositionVectorReader extends VectorizedArrowReader {
+    private static final Field ROW_POSITION_ARROW_FIELD = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
+    private final boolean setArrowValidityVector;
     private long rowStart;
+    private int batchSize;
     private NullabilityHolder nulls;
+
+    PositionVectorReader(boolean setArrowValidityVector) {
+      this.setArrowValidityVector = setArrowValidityVector;
+    }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      Field arrowField = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
-      FieldVector vec = arrowField.createVector(ArrowAllocation.rootAllocator());
-
-      if (reuse != null) {
-        vec.setValueCount(0);
-        nulls.reset();
+      FieldVector vec;
+      if (reuse == null) {
+        vec = newVector(batchSize);
       } else {
-        ((BigIntVector) vec).allocateNew(numValsToRead);
+        vec = reuse.vector();
+        vec.setValueCount(0);
+      }
+
+      ArrowBuf dataBuffer = vec.getDataBuffer();
+      for (int i = 0; i < numValsToRead; i += 1) {
+        dataBuffer.setLong((long) i * Long.BYTES, rowStart + i);
+      }
+
+      if (setArrowValidityVector) {
+        ArrowBuf validityBuffer = vec.getValidityBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
-          vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
+          BitVectorHelper.setBit(validityBuffer, i);
         }
-        for (int i = 0; i < numValsToRead; i += 1) {
-          BitVectorHelper.setBit(vec.getValidityBuffer(), i);
-        }
-        nulls = new NullabilityHolder(numValsToRead);
       }
 
       rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
-      nulls.setNotNulls(0, numValsToRead);
 
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
+    }
+
+    private static BigIntVector newVector(int valueCount) {
+      BigIntVector vector = (BigIntVector) ROW_POSITION_ARROW_FIELD.createVector(ArrowAllocation.rootAllocator());
+      vector.allocateNew(valueCount);
+      return vector;
+    }
+
+    private static NullabilityHolder newNullabilityHolder(int size) {
+      NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
+      nullabilityHolder.setNotNulls(0, size);
+      return nullabilityHolder;
     }
 
     @Override
@@ -448,6 +474,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      if (nulls == null || nulls.size() < batchSize) {
+        this.nulls = newNullabilityHolder(batchSize);
+      }
+      this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+    }
+
+    @Override
+    public void close() {
+      // don't close vectors as they are not owned by readers
     }
   }
 

@@ -22,6 +22,23 @@
 Benchmarks are located under `<project-name>/jmh`. It is generally favorable to only run the tests of interest rather than running all available benchmarks.
 Also note that JMH benchmarks run within the same JVM as the system-under-test, so results might vary between runs.
 
+## Running Benchmarks on GitHub
+
+It is possible to run one or more Benchmarks via the **JMH Benchmarks** GH action on your own fork of the Iceberg repo. This GH action takes the following inputs:
+* The repository name where those benchmarks should be run against, such as `apache/iceberg` or `<user>/iceberg`
+* The branch name to run benchmarks against, such as `master` or `my-cool-feature-branch`
+* A list of comma-separated double-quoted Benchmark names, such as `"IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark", "IcebergSourceNestedListParquetDataWriteBenchmark"`
+
+Benchmark results will be uploaded once **all** benchmarks are done.
+
+It is worth noting that the GH runners have limited resources so the benchmark results should rather be seen as an indicator to guide developers in understanding code changes.
+It is likely that there is variability in results across different runs, therefore the benchmark results shouldn't be used to form assumptions around production choices.
+
+
+## Running Benchmarks locally
+
+Below are the existing benchmarks shown with the actual commands on how to run them locally.
+
 
 ### IcebergSourceNestedListParquetDataWriteBenchmark
 A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:

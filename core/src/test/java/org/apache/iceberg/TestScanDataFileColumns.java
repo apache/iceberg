@@ -69,6 +69,7 @@ public class TestScanDataFileColumns {
                 ImmutableMap.of(1, 50L), // column size
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
+                null,
                 ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
             .build())
@@ -79,6 +80,7 @@ public class TestScanDataFileColumns {
                 ImmutableMap.of(1, 60L), // column size
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
+                null,
                 ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
             .build())
@@ -89,6 +91,7 @@ public class TestScanDataFileColumns {
                 ImmutableMap.of(1, 70L), // column size
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
+                null,
                 ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
                 ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds)
             .build())

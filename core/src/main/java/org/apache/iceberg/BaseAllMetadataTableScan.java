@@ -25,7 +25,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class BaseAllMetadataTableScan extends BaseTableScan {
+abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseAllMetadataTableScan.class);
 
   BaseAllMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {

@@ -1,6 +1,7 @@
 version.txt
 versions.lock
 versions.props
+.java-version
 books.json
 new-books.json
 build

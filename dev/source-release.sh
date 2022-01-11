@@ -30,7 +30,7 @@ usage () {
     echo "  -v      Version number of release"
     echo "  -r      Release candidate number"
     echo "  -k      Specify signing key. Defaults to \"GPG default key\""
-    echo "  -g      Specify Git remote name. Defaults to \"origin\""
+    echo "  -g      Specify Git remote name. Defaults to \"apache\""
     echo "  -d      Turn on DEBUG output"
     exit 1
 }
@@ -38,7 +38,7 @@ usage () {
 # Default repository remote name
 remote="apache"
 
-while getopts "v:r:k:r:d" opt; do
+while getopts "v:r:k:g:d" opt; do
   case "${opt}" in
     v)
       version="${OPTARG}"
@@ -109,7 +109,7 @@ git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$t
 echo "Signing the tarball..."
 [[ -z "$keyid" ]] && keyopt="-u $keyid"
 gpg --detach-sig $keyopt --armor --output ${projectdir}/${tarball}.asc ${projectdir}/$tarball
-sha512sum ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
+shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
 
 
 echo "Checking out Iceberg RC subversion repo..."
