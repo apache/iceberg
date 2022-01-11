@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -98,7 +97,7 @@ public class TestHiveShell {
     started = true;
   }
 
-  public void stop() throws IOException {
+  public void stop() throws Exception {
     if (client != null) {
       client.stop();
     }

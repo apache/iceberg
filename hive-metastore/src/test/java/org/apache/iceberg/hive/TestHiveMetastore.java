@@ -83,7 +83,31 @@ public class TestHiveMetastore {
           .orNoop()
           .buildStatic();
 
-  private File hiveLocalDir;
+  // It's tricky to clear all static fields in an HMS instance in order to switch derby root dir.
+  // Therefore, we reuse the same derby root between tests and remove it after JVM exits.
+  private static final File HIVE_LOCAL_DIR;
+
+  static {
+    try {
+      HIVE_LOCAL_DIR = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+      File derbyLogFile = new File(HIVE_LOCAL_DIR, "derby.log");
+      System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
+      setupMetastoreDB("jdbc:derby:" + getDerbyPath() + ";create=true");
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        Path localDirPath = new Path(HIVE_LOCAL_DIR.getAbsolutePath());
+        FileSystem fs = Util.getFs(localDirPath, new Configuration());
+        String errMsg = "Failed to delete " + localDirPath;
+        try {
+          Assert.assertTrue(errMsg, fs.delete(localDirPath, true));
+        } catch (IOException e) {
+          throw new RuntimeException(errMsg, e);
+        }
+      }));
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to setup local dir for hive metastore", e);
+    }
+  }
+
   private HiveConf hiveConf;
   private ExecutorService executorService;
   private TServer server;
@@ -112,11 +136,6 @@ public class TestHiveMetastore {
    */
   public void start(HiveConf conf, int poolSize) {
     try {
-      this.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
-      File derbyLogFile = new File(hiveLocalDir, "derby.log");
-      System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
-      setupMetastoreDB("jdbc:derby:" + getDerbyPath() + ";create=true");
-
       TServerSocket socket = new TServerSocket(0);
       int port = socket.getServerSocket().getLocalPort();
       initConf(conf, port);
@@ -135,7 +154,8 @@ public class TestHiveMetastore {
     }
   }
 
-  public void stop() throws IOException {
+  public void stop() throws Exception {
+    reset();
     if (clientPool != null) {
       clientPool.close();
     }
@@ -149,11 +169,6 @@ public class TestHiveMetastore {
       baseHandler.shutdown();
     }
     METASTORE_THREADS_SHUTDOWN.invoke();
-    if (hiveLocalDir != null && hiveLocalDir.exists()) {
-      Path localDirPath = new Path(hiveLocalDir.getAbsolutePath());
-      FileSystem fs = Util.getFs(localDirPath, hiveConf);
-      Assert.assertTrue("Failed to delete " + localDirPath, fs.delete(localDirPath, true));
-    }
   }
 
   public HiveConf hiveConf() {
@@ -161,29 +176,31 @@ public class TestHiveMetastore {
   }
 
   public String getDatabasePath(String dbName) {
-    File dbDir = new File(hiveLocalDir, dbName + ".db");
+    File dbDir = new File(HIVE_LOCAL_DIR, dbName + ".db");
     return dbDir.getPath();
   }
 
   public void reset() throws Exception {
-    for (String dbName : clientPool.run(client -> client.getAllDatabases())) {
-      for (String tblName : clientPool.run(client -> client.getAllTables(dbName))) {
-        clientPool.run(client -> {
-          client.dropTable(dbName, tblName, true, true, true);
-          return null;
-        });
-      }
+    if (clientPool != null) {
+      for (String dbName : clientPool.run(client -> client.getAllDatabases())) {
+        for (String tblName : clientPool.run(client -> client.getAllTables(dbName))) {
+          clientPool.run(client -> {
+            client.dropTable(dbName, tblName, true, true, true);
+            return null;
+          });
+        }
 
-      if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
-        // Drop cascade, functions dropped by cascade
-        clientPool.run(client -> {
-          client.dropDatabase(dbName, true, true, true);
-          return null;
-        });
+        if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
+          // Drop cascade, functions dropped by cascade
+          clientPool.run(client -> {
+            client.dropDatabase(dbName, true, true, true);
+            return null;
+          });
+        }
       }
     }
 
-    Path warehouseRoot = new Path(hiveLocalDir.getAbsolutePath());
+    Path warehouseRoot = new Path(HIVE_LOCAL_DIR.getAbsolutePath());
     FileSystem fs = Util.getFs(warehouseRoot, hiveConf);
     for (FileStatus fileStatus : fs.listStatus(warehouseRoot)) {
       if (!fileStatus.getPath().getName().equals("derby.log") &&
@@ -219,13 +236,13 @@ public class TestHiveMetastore {
 
   private void initConf(HiveConf conf, int port) {
     conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
-    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + hiveLocalDir.getAbsolutePath());
+    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");
   }
 
-  private void setupMetastoreDB(String dbURL) throws SQLException, IOException {
+  private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
     Connection connection = DriverManager.getConnection(dbURL);
     ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
 
@@ -236,8 +253,8 @@ public class TestHiveMetastore {
     }
   }
 
-  private String getDerbyPath() {
-    File metastoreDB = new File(hiveLocalDir, "metastore_db");
+  private static String getDerbyPath() {
+    File metastoreDB = new File(HIVE_LOCAL_DIR, "metastore_db");
     return metastoreDB.getPath();
   }
 }
