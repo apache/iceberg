@@ -540,7 +540,8 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 ) with ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 !!! Note
-    When configured to use the UPSERT stream, the OVERWRITE mode should not be enabled and the partition field should be included in the equality field.
+    OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.
+    In UPSERT mode, if the table is partitioned, the partition fields should be a part of equality fields.
 
 ## Inspecting tables.
 
