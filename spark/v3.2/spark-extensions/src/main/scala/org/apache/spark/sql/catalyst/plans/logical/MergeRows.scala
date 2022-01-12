@@ -24,9 +24,17 @@ import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.util.truncatedString
 
-// TODO: the optimizer currently ignores MergeRowsParams
 case class MergeRows(
-    params: MergeRowsParams,
+    isSourceRowPresent: Expression,
+    isTargetRowPresent: Expression,
+    matchedConditions: Seq[Expression],
+    matchedOutputs: Seq[Seq[Expression]],
+    notMatchedConditions: Seq[Expression],
+    notMatchedOutputs: Seq[Seq[Expression]],
+    targetOutput: Seq[Expression],
+    rowIdAttrs: Seq[Attribute],
+    performCardinalityCheck: Boolean,
+    emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
     child: LogicalPlan) extends UnaryNode {
 
@@ -44,16 +52,3 @@ case class MergeRows(
     copy(child = newChild)
   }
 }
-
-case class MergeRowsParams(
-    isSourceRowPresent: Expression,
-    isTargetRowPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Option[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Option[Seq[Expression]]],
-    targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute],
-    rowIdAttrs: Seq[Attribute],
-    performCardinalityCheck: Boolean,
-    emitNotMatchedTargetRows: Boolean) extends Serializable

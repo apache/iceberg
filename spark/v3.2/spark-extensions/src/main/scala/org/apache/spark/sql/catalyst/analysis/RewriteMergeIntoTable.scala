@@ -44,7 +44,6 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeAction
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.MergeRows
-import org.apache.spark.sql.catalyst.plans.logical.MergeRowsParams
 import org.apache.spark.sql.catalyst.plans.logical.NO_BROADCAST_HASH
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
@@ -93,7 +92,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
           }
           val project = Project(outputCols, joinPlan)
 
-          AppendData(r, project, Map.empty, isByName = false)
+          AppendData.byPosition(r, project)
 
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
@@ -104,28 +103,30 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
-
           // when there are no MATCHED actions, use a left anti join to remove any matching rows
           // and switch to using a regular append instead of a row-level merge
           // only unmatched source rows that match action conditions are appended to the table
           val joinPlan = Join(source, r, LeftAnti, Some(cond), JoinHint.NONE)
 
-          // we still have to merge rows as we have multiple not matched actions
-          val mergeRowsParams = MergeRowsParams(
+          val notMatchedConditions = notMatchedActions.map(actionCondition)
+          val notMatchedOutputs = notMatchedActions.map(actionOutput(_, Nil))
+
+          // merge rows as there are multiple not matched actions
+          val mergeRows = MergeRows(
             isSourceRowPresent = TrueLiteral,
             isTargetRowPresent = FalseLiteral,
             matchedConditions = Nil,
             matchedOutputs = Nil,
-            notMatchedConditions = notMatchedActions.map(actionCondition),
-            notMatchedOutputs = notMatchedActions.map(output(_, Nil)),
+            notMatchedConditions = notMatchedConditions,
+            notMatchedOutputs = notMatchedOutputs,
             targetOutput = Nil,
-            joinedAttributes = joinPlan.output,
             rowIdAttrs = Nil,
             performCardinalityCheck = false,
-            emitNotMatchedTargetRows = false)
-          val mergeRows = buildMergeRows(mergeRowsParams, r.output, joinPlan)
+            emitNotMatchedTargetRows = false,
+            output = buildMergeRowsOutput(Nil, notMatchedOutputs, r.output),
+            joinPlan)
 
-          AppendData(r, mergeRows, Map.empty, isByName = false)
+          AppendData.byPosition(r, mergeRows)
 
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
@@ -187,6 +188,14 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
     val joinPlan = Join(targetTableProj, sourceTableProj, joinType, Some(cond), joinHint)
 
+    // add an extra matched action to output the original row if none of the actual actions matched
+    // this is needed to keep target rows that should be copied over
+    val matchedConditions = matchedActions.map(actionCondition) :+ TrueLiteral
+    val matchedOutputs = matchedActions.map(actionOutput(_, metadataAttrs)) :+ readAttrs
+
+    val notMatchedConditions = notMatchedActions.map(actionCondition)
+    val notMatchedOutputs = notMatchedActions.map(actionOutput(_, metadataAttrs))
+
     val rowIdAttr = ExtendedV2ExpressionUtils.resolveRef[AttributeReference](
       FieldReference(ROW_ID),
       joinPlan)
@@ -197,21 +206,19 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
       FieldReference(ROW_FROM_TARGET),
       joinPlan)
 
-    // add an extra matched action to output the original row if none of the actual actions matched
-    // this is needed to keep target rows that should be copied over as we are working with groups
-    val mergeRowsParams = MergeRowsParams(
+    val mergeRows = MergeRows(
       isSourceRowPresent = IsNotNull(rowFromSourceAttr),
-      isTargetRowPresent = IsNotNull(rowFromTargetAttr),
-      matchedConditions = matchedActions.map(actionCondition) :+ TrueLiteral,
-      matchedOutputs = matchedActions.map(output(_, metadataAttrs)) :+ Some(readAttrs),
-      notMatchedConditions = notMatchedActions.map(actionCondition),
-      notMatchedOutputs = notMatchedActions.map(output(_, metadataAttrs)),
+      isTargetRowPresent = if (notMatchedActions.isEmpty) TrueLiteral else IsNotNull(rowFromTargetAttr),
+      matchedConditions = matchedConditions,
+      matchedOutputs = matchedOutputs,
+      notMatchedConditions = notMatchedConditions,
+      notMatchedOutputs = notMatchedOutputs,
       targetOutput = readAttrs,
-      joinedAttributes = joinPlan.output,
       rowIdAttrs = Seq(rowIdAttr),
       performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
-      emitNotMatchedTargetRows = true)
-    val mergeRows = buildMergeRows(mergeRowsParams, readAttrs, joinPlan)
+      emitNotMatchedTargetRows = true,
+      output = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, readAttrs),
+      joinPlan)
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = table)
@@ -222,42 +229,42 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     action.condition.getOrElse(TrueLiteral)
   }
 
-  private def output(
+  private def actionOutput(
       clause: MergeAction,
-      metadataAttrs: Seq[Attribute]): Option[Seq[Expression]] = {
+      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
 
     clause match {
       case u: UpdateAction =>
-        Some(u.assignments.map(_.value) ++ metadataAttrs)
+        u.assignments.map(_.value) ++ metadataAttrs
 
       case _: DeleteAction =>
-        None
+        Nil
 
       case i: InsertAction =>
-        Some(i.assignments.map(_.value) ++ metadataAttrs.map(attr => Literal(null, attr.dataType)))
+        i.assignments.map(_.value) ++ metadataAttrs.map(attr => Literal(null, attr.dataType))
 
       case other =>
         throw new AnalysisException(s"Unexpected action: $other")
     }
   }
 
-  private def buildMergeRows(
-      params: MergeRowsParams,
-      attrs: Seq[Attribute],
-      joinPlan: LogicalPlan): MergeRows = {
+  private def buildMergeRowsOutput(
+      matchedOutputs: Seq[Seq[Expression]],
+      notMatchedOutputs: Seq[Seq[Expression]],
+      attrs: Seq[Attribute]): Seq[Attribute] = {
 
-    val outputs = params.matchedOutputs.flatten ++ params.notMatchedOutputs.flatten
-    assert(outputs.nonEmpty, "must be at least one output")
+    // collect all outputs from matched and not matched actions (ignoring DELETEs)
+    val outputs = matchedOutputs.filter(_.nonEmpty) ++ notMatchedOutputs.filter(_.nonEmpty)
 
+    // build a correct nullability map for output attributes
+    // an attribute is nullable if at least one matched or not matched action may produce null
     val nullabilityMap = attrs.indices.map { index =>
       index -> outputs.exists(output => output(index).nullable)
     }.toMap
 
-    val output = attrs.zipWithIndex.map { case (attr, index) =>
+    attrs.zipWithIndex.map { case (attr, index) =>
       AttributeReference(attr.name, attr.dataType, nullabilityMap(index))()
     }
-
-    MergeRows(params, output, joinPlan)
   }
 
   private def isCardinalityCheckNeeded(actions: Seq[MergeAction]): Boolean = actions match {

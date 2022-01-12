@@ -21,7 +21,6 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
@@ -66,7 +65,8 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
           val resolvedAssignments = resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
           UpdateAction(resolvedUpdateCondition, resolvedAssignments)
 
-        case o => o
+        case _ =>
+          throw new AnalysisException("Matched actions can only contain UPDATE or DELETE")
       }
 
       val resolvedNotMatchedActions = context.notMatchedActions.map {
@@ -87,7 +87,8 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
           val resolvedAssignments = resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
           InsertAction(resolvedCond, resolvedAssignments)
 
-        case o => o
+        case _ =>
+          throw new AnalysisException("Not matched actions can only contain INSERT")
       }
 
       val resolvedMergeCondition = resolveCond("SEARCH", context.mergeCondition, m)

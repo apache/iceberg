@@ -30,22 +30,6 @@ case class MergeIntoIcebergTable(
     notMatchedActions: Seq[MergeAction],
     rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
 
-  override lazy val resolved: Boolean = {
-    expressions.forall(_.resolved) && childrenResolved && startActionsResolved
-  }
-
-  private def startActionsResolved: Boolean = {
-    val matchedActionsResolved = matchedActions.forall {
-      case _: UpdateStarAction => false
-      case _ => true
-    }
-    val notMatchedActionsResolved = notMatchedActions.forall {
-      case _: InsertStarAction => false
-      case _ => true
-    }
-    matchedActionsResolved && notMatchedActionsResolved
-  }
-
   lazy val aligned: Boolean = {
     val matchedActionsAligned = matchedActions.forall {
       case UpdateAction(_, assignments) =>

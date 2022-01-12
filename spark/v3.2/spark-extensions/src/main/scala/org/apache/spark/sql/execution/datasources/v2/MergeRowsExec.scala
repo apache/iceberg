@@ -28,13 +28,21 @@ import org.apache.spark.sql.catalyst.expressions.BasePredicate
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate
-import org.apache.spark.sql.catalyst.plans.logical.MergeRowsParams
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.UnaryExecNode
 
 case class MergeRowsExec(
-    params: MergeRowsParams,
+    isSourceRowPresent: Expression,
+    isTargetRowPresent: Expression,
+    matchedConditions: Seq[Expression],
+    matchedOutputs: Seq[Seq[Expression]],
+    notMatchedConditions: Seq[Expression],
+    notMatchedOutputs: Seq[Seq[Expression]],
+    targetOutput: Seq[Expression],
+    rowIdAttrs: Seq[Attribute],
+    performCardinalityCheck: Boolean,
+    emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
     child: SparkPlan) extends UnaryExecNode {
 
@@ -53,9 +61,7 @@ case class MergeRowsExec(
   }
 
   protected override def doExecute(): RDD[InternalRow] = {
-    child.execute().mapPartitions {
-      processPartition(params, _)
-    }
+    child.execute().mapPartitions(processPartition)
   }
 
   private def createProjection(exprs: Seq[Expression], attrs: Seq[Attribute]): UnsafeProjection = {
@@ -89,24 +95,28 @@ case class MergeRowsExec(
     }
   }
 
-  private def processPartition(
-      params: MergeRowsParams,
-      rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
+  private def processPartition(rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
+    val inputAttrs = child.output
 
-    val joinedAttrs = params.joinedAttributes
-    val isSourceRowPresentPred = createPredicate(params.isSourceRowPresent, joinedAttrs)
-    val isTargetRowPresentPred = createPredicate(params.isTargetRowPresent, joinedAttrs)
-    val matchedPreds = params.matchedConditions.map(createPredicate(_, joinedAttrs))
-    val matchedProjs = params.matchedOutputs.map(_.map(createProjection(_, joinedAttrs)))
-    val notMatchedPreds = params.notMatchedConditions.map(createPredicate(_, joinedAttrs))
-    val notMatchedProjs = params.notMatchedOutputs.map(_.map(createProjection(_, joinedAttrs)))
-    val projectTargetCols = createProjection(params.targetOutput, joinedAttrs)
-    val nonMatchedPairs = notMatchedPreds zip notMatchedProjs
+    val isSourceRowPresentPred = createPredicate(isSourceRowPresent, inputAttrs)
+    val isTargetRowPresentPred = createPredicate(isTargetRowPresent, inputAttrs)
+
+    val matchedPreds = matchedConditions.map(createPredicate(_, inputAttrs))
+    val matchedProjs = matchedOutputs.map {
+      case output if output.nonEmpty => Some(createProjection(output, inputAttrs))
+      case _ => None
+    }
     val matchedPairs = matchedPreds zip matchedProjs
-    val rowIdAttrs = params.rowIdAttrs
-    val rowIdProj = createProjection(rowIdAttrs, joinedAttrs)
-    val performCardinalityCheck = params.performCardinalityCheck
-    val emitNotMatchedTargetRows = params.emitNotMatchedTargetRows
+
+    val notMatchedPreds = notMatchedConditions.map(createPredicate(_, inputAttrs))
+    val notMatchedProjs = notMatchedOutputs.map {
+      case output if output.nonEmpty => Some(createProjection(output, inputAttrs))
+      case _ => None
+    }
+    val nonMatchedPairs = notMatchedPreds zip notMatchedProjs
+
+    val projectTargetCols = createProjection(targetOutput, inputAttrs)
+    val rowIdProj = createProjection(rowIdAttrs, inputAttrs)
 
     // This method is responsible for processing a input row to emit the resultant row with an
     // additional column that indicates whether the row is going to be included in the final
@@ -156,14 +166,14 @@ case class MergeRowsExec(
       }
     }
 
-    val mapFunc: InternalRow => InternalRow = if (performCardinalityCheck) {
+    val processFunc: InternalRow => InternalRow = if (performCardinalityCheck) {
       processRowWithCardinalityCheck
     } else {
       processRow
     }
 
     rowIterator
-      .map(mapFunc)
+      .map(processFunc)
       .filter(row => row != null)
   }
 }

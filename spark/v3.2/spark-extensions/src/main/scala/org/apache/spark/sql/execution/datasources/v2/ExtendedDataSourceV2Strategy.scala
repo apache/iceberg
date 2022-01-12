@@ -79,8 +79,13 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       // refresh the cache using the original relation
       ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
 
-    case MergeRows(params, output, child) =>
-      MergeRowsExec(params, output, planLater(child)) :: Nil
+    case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
+        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        output, child) =>
+
+      MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
+        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        output, planLater(child)) :: Nil
 
     case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output), condition, None) =>
       // the optimizer has already checked that this delete can be handled using a metadata operation
