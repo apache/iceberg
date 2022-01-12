@@ -84,7 +84,7 @@ public abstract class BaseTestIceberg {
   protected NessieApiV1 api;
   protected Configuration hadoopConfig;
   protected final String branch;
-  private String uri;
+  protected String uri;
 
   public BaseTestIceberg(String branch) {
     this.branch = branch;
