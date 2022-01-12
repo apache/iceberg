@@ -26,17 +26,17 @@ public class DellProperties implements Serializable {
   /**
    * S3 Access key id of Dell EMC ECS
    */
-  public static final String ACCESS_KEY_ID = "ecs.s3.access-key-id";
+  public static final String ECS_S3_ACCESS_KEY_ID = "ecs.s3.access-key-id";
 
   /**
    * S3 Secret access key of Dell EMC ECS
    */
-  public static final String SECRET_ACCESS_KEY = "ecs.s3.secret-access-key";
+  public static final String ECS_S3_SECRET_ACCESS_KEY = "ecs.s3.secret-access-key";
 
   /**
    * S3 endpoint of Dell EMC ECS
    */
-  public static final String ENDPOINT = "ecs.s3.endpoint";
+  public static final String ECS_S3_ENDPOINT = "ecs.s3.endpoint";
 
   /**
    * The implementation class of {@link DellClientFactory} to customize Dell client configurations.
@@ -53,9 +53,9 @@ public class DellProperties implements Serializable {
   }
 
   public DellProperties(Map<String, String> properties) {
-    this.ecsS3AccessKeyId = properties.get(DellProperties.ACCESS_KEY_ID);
-    this.ecsS3SecretAccessKey = properties.get(DellProperties.SECRET_ACCESS_KEY);
-    this.ecsS3Endpoint = properties.get(DellProperties.ENDPOINT);
+    this.ecsS3AccessKeyId = properties.get(DellProperties.ECS_S3_ACCESS_KEY_ID);
+    this.ecsS3SecretAccessKey = properties.get(DellProperties.ECS_S3_SECRET_ACCESS_KEY);
+    this.ecsS3Endpoint = properties.get(DellProperties.ECS_S3_ENDPOINT);
   }
 
   public String ecsS3Endpoint() {

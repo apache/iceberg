@@ -91,15 +91,15 @@ public class EcsS3MockRule implements TestRule {
   }
 
   private void initialize() {
-    if (System.getenv(DellProperties.ENDPOINT) == null) {
+    if (System.getenv(DellProperties.ECS_S3_ENDPOINT) == null) {
       clientProperties = MockDellClientFactory.MOCK_ECS_CLIENT_PROPERTIES;
       bucket = "test";
       mock = true;
     } else {
       Map<String, String> properties = new LinkedHashMap<>();
-      properties.put(DellProperties.ACCESS_KEY_ID, System.getenv(DellProperties.ACCESS_KEY_ID));
-      properties.put(DellProperties.SECRET_ACCESS_KEY, System.getenv(DellProperties.SECRET_ACCESS_KEY));
-      properties.put(DellProperties.ENDPOINT, System.getenv(DellProperties.ENDPOINT));
+      properties.put(DellProperties.ECS_S3_ACCESS_KEY_ID, System.getenv(DellProperties.ECS_S3_ACCESS_KEY_ID));
+      properties.put(DellProperties.ECS_S3_SECRET_ACCESS_KEY, System.getenv(DellProperties.ECS_S3_SECRET_ACCESS_KEY));
+      properties.put(DellProperties.ECS_S3_ENDPOINT, System.getenv(DellProperties.ECS_S3_ENDPOINT));
       clientProperties = properties;
       bucket = "test-" + UUID.randomUUID();
       if (autoCreateBucket) {
