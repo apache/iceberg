@@ -59,7 +59,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -81,7 +80,6 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
-import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
@@ -780,13 +778,14 @@ public class Spark3Util {
     }
 
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions =
-        getPartitionFilterExpressions(spark, tableName, partitionFilter);
-
-    List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = Lists.newArrayList();
+        SparkUtil.getSparkFilterExpressions(schema, partitionFilter);
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaPartitionFilters =
         JavaConverters.asScalaBufferConverter(filterExpressions).asScala().toSeq();
+
+    List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = Lists.newArrayList();
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaDataFilters =
         JavaConverters.asScalaBufferConverter(dataFilters).asScala().toSeq();
+
     Seq<PartitionDirectory> filteredPartitions = fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters);
 
     return JavaConverters
@@ -801,27 +800,12 @@ public class Spark3Util {
             Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
             values.put(field.name(), String.valueOf(value));
           });
+
           FileStatus fileStatus =
-              scala.collection.JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
+              JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
 
           return new SparkPartition(values, fileStatus.getPath().getParent().toString(), format);
         }).collect(Collectors.toList());
-  }
-
-  private static List<org.apache.spark.sql.catalyst.expressions.Expression> getPartitionFilterExpressions(
-      SparkSession spark, String tableName, Map<String, String> partitionFilter) {
-    List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions = Lists.newArrayList();
-    for (Map.Entry<String, String> entry : partitionFilter.entrySet()) {
-      String filter = entry.getKey() + " = '" + entry.getValue() + "'";
-      try {
-        org.apache.spark.sql.catalyst.expressions.Expression expression =
-            SparkExpressionConverter.collectResolvedSparkExpression(spark, tableName, filter);
-        filterExpressions.add(expression);
-      } catch (AnalysisException e) {
-        throw new IllegalArgumentException("filter " + filter + " cannot be converted to Spark expression");
-      }
-    }
-    return filterExpressions;
   }
 
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(Identifier identifier) {
