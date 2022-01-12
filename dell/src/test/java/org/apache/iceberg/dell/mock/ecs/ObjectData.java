@@ -32,50 +32,50 @@ import org.apache.commons.codec.digest.DigestUtils;
  * Object data in memory.
  */
 public class ObjectData {
-    public final byte[] content;
-    public final Map<String, String> userMetadata;
+  public final byte[] content;
+  public final Map<String, String> userMetadata;
 
-    public static ObjectData create(byte[] content, S3ObjectMetadata metadata) {
-        Map<String, String> userMetadata = new LinkedHashMap<>();
-        if (metadata != null) {
-            userMetadata.putAll(metadata.getUserMetadata());
-        }
-
-        return new ObjectData(content, userMetadata);
+  public static ObjectData create(byte[] content, S3ObjectMetadata metadata) {
+    Map<String, String> userMetadata = new LinkedHashMap<>();
+    if (metadata != null) {
+      userMetadata.putAll(metadata.getUserMetadata());
     }
 
-    private ObjectData(byte[] content, Map<String, String> userMetadata) {
-        this.content = content;
-        this.userMetadata = userMetadata;
+    return new ObjectData(content, userMetadata);
+  }
+
+  private ObjectData(byte[] content, Map<String, String> userMetadata) {
+    this.content = content;
+    this.userMetadata = userMetadata;
+  }
+
+  public int length() {
+    return content.length;
+  }
+
+  public ObjectData appendContent(byte[] appendedData) {
+    byte[] newContent = Arrays.copyOf(content, content.length + appendedData.length);
+    System.arraycopy(appendedData, 0, newContent, content.length, appendedData.length);
+    return new ObjectData(newContent, userMetadata);
+  }
+
+  public InputStream createInputStream(Range range) {
+    int offset = range.getFirst().intValue();
+    int length;
+    if (range.getLast() != null) {
+      length = range.getLast().intValue() - offset;
+    } else {
+      length = content.length - offset;
     }
 
-    public int length() {
-        return content.length;
-    }
+    return new ByteArrayInputStream(content, offset, length);
+  }
 
-    public ObjectData appendContent(byte[] appendedData) {
-        byte[] newContent = Arrays.copyOf(content, content.length + appendedData.length);
-        System.arraycopy(appendedData, 0, newContent, content.length, appendedData.length);
-        return new ObjectData(newContent, userMetadata);
-    }
-
-    public InputStream createInputStream(Range range) {
-        int offset = range.getFirst().intValue();
-        int length;
-        if (range.getLast() != null) {
-            length = range.getLast().intValue() - offset;
-        } else {
-            length = content.length - offset;
-        }
-
-        return new ByteArrayInputStream(content, offset, length);
-    }
-
-    public S3ObjectMetadata createFullMetadata() {
-        S3ObjectMetadata metadata = new S3ObjectMetadata();
-        metadata.setETag(DigestUtils.md5Hex(content));
-        metadata.setContentLength((long) content.length);
-        metadata.setUserMetadata(userMetadata);
-        return metadata;
-    }
+  public S3ObjectMetadata createFullMetadata() {
+    S3ObjectMetadata metadata = new S3ObjectMetadata();
+    metadata.setETag(DigestUtils.md5Hex(content));
+    metadata.setContentLength((long) content.length);
+    metadata.setUserMetadata(userMetadata);
+    return metadata;
+  }
 }

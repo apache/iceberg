@@ -43,135 +43,135 @@ import org.junit.runners.model.Statement;
  */
 public class EcsS3MockRule implements TestRule {
 
-    /**
-     * Object ID generator
-     */
-    private static final AtomicInteger ID = new AtomicInteger(0);
+  /**
+   * Object ID generator
+   */
+  private static final AtomicInteger ID = new AtomicInteger(0);
 
-    // Config fields
-    private final boolean autoCreateBucket;
+  // Config fields
+  private final boolean autoCreateBucket;
 
-    // Setup fields
-    private Map<String, String> clientProperties;
-    private String bucket;
-    private boolean mock;
+  // Setup fields
+  private Map<String, String> clientProperties;
+  private String bucket;
+  private boolean mock;
 
-    // State fields during test
-    /**
-     * Lazy client for test rule.
-     */
-    private S3Client lazyClient;
-    private boolean bucketCreated;
+  // State fields during test
+  /**
+   * Lazy client for test rule.
+   */
+  private S3Client lazyClient;
+  private boolean bucketCreated;
 
-    public static EcsS3MockRule create() {
-        return new EcsS3MockRule(true);
-    }
+  public static EcsS3MockRule create() {
+    return new EcsS3MockRule(true);
+  }
 
-    public static EcsS3MockRule manualCreateBucket() {
-        return new EcsS3MockRule(false);
-    }
+  public static EcsS3MockRule manualCreateBucket() {
+    return new EcsS3MockRule(false);
+  }
 
-    public EcsS3MockRule(boolean autoCreateBucket) {
-        this.autoCreateBucket = autoCreateBucket;
-    }
+  public EcsS3MockRule(boolean autoCreateBucket) {
+    this.autoCreateBucket = autoCreateBucket;
+  }
 
-    @Override
-    public Statement apply(Statement base, Description description) {
-        return new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                initialize();
-                try {
-                    base.evaluate();
-                } finally {
-                    cleanUp();
-                }
-            }
-        };
-    }
-
-    private void initialize() {
-        if (System.getenv(DellProperties.ENDPOINT) == null) {
-            clientProperties = MockDellClientFactory.MOCK_ECS_CLIENT_PROPERTIES;
-            bucket = "test";
-            mock = true;
-        } else {
-            Map<String, String> properties = new LinkedHashMap<>();
-            properties.put(DellProperties.ACCESS_KEY_ID, System.getenv(DellProperties.ACCESS_KEY_ID));
-            properties.put(DellProperties.SECRET_ACCESS_KEY, System.getenv(DellProperties.SECRET_ACCESS_KEY));
-            properties.put(DellProperties.ENDPOINT, System.getenv(DellProperties.ENDPOINT));
-            clientProperties = properties;
-            bucket = "test-" + UUID.randomUUID();
-            if (autoCreateBucket) {
-                createBucket();
-            }
-
-            mock = false;
+  @Override
+  public Statement apply(Statement base, Description description) {
+    return new Statement() {
+      @Override
+      public void evaluate() throws Throwable {
+        initialize();
+        try {
+          base.evaluate();
+        } finally {
+          cleanUp();
         }
+      }
+    };
+  }
+
+  private void initialize() {
+    if (System.getenv(DellProperties.ENDPOINT) == null) {
+      clientProperties = MockDellClientFactory.MOCK_ECS_CLIENT_PROPERTIES;
+      bucket = "test";
+      mock = true;
+    } else {
+      Map<String, String> properties = new LinkedHashMap<>();
+      properties.put(DellProperties.ACCESS_KEY_ID, System.getenv(DellProperties.ACCESS_KEY_ID));
+      properties.put(DellProperties.SECRET_ACCESS_KEY, System.getenv(DellProperties.SECRET_ACCESS_KEY));
+      properties.put(DellProperties.ENDPOINT, System.getenv(DellProperties.ENDPOINT));
+      clientProperties = properties;
+      bucket = "test-" + UUID.randomUUID();
+      if (autoCreateBucket) {
+        createBucket();
+      }
+
+      mock = false;
+    }
+  }
+
+  private void cleanUp() {
+    if (mock) {
+      S3Client client = this.lazyClient;
+      if (client != null) {
+        client.destroy();
+      }
+    } else {
+      S3Client client = client();
+      if (bucketCreated) {
+        deleteBucket();
+      }
+
+      client.destroy();
+    }
+  }
+
+  public void createBucket() {
+    // create test bucket for this unit test
+    client().createBucket(bucket);
+    bucketCreated = true;
+  }
+
+  private void deleteBucket() {
+    S3Client client = client();
+    if (!client.bucketExists(bucket)) {
+      return;
     }
 
-    private void cleanUp() {
-        if (mock) {
-            S3Client client = this.lazyClient;
-            if (client != null) {
-                client.destroy();
-            }
-        } else {
-            S3Client client = client();
-            if (bucketCreated) {
-                deleteBucket();
-            }
+    // clean up test bucket of this unit test
+    while (true) {
+      ListObjectsResult result = client.listObjects(bucket);
+      if (result.getObjects().isEmpty()) {
+        break;
+      }
 
-            client.destroy();
-        }
+      List<ObjectKey> keys = result.getObjects()
+          .stream()
+          .map(it -> new ObjectKey(it.getKey()))
+          .collect(Collectors.toList());
+      client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
     }
 
-    public void createBucket() {
-        // create test bucket for this unit test
-        client().createBucket(bucket);
-        bucketCreated = true;
+    client.deleteBucket(bucket);
+  }
+
+  public Map<String, String> clientProperties() {
+    return clientProperties;
+  }
+
+  public S3Client client() {
+    if (lazyClient == null) {
+      lazyClient = DellClientFactories.from(clientProperties).ecsS3();
     }
 
-    private void deleteBucket() {
-        S3Client client = client();
-        if (!client.bucketExists(bucket)) {
-            return;
-        }
+    return lazyClient;
+  }
 
-        // clean up test bucket of this unit test
-        while (true) {
-            ListObjectsResult result = client.listObjects(bucket);
-            if (result.getObjects().isEmpty()) {
-                break;
-            }
+  public String bucket() {
+    return bucket;
+  }
 
-            List<ObjectKey> keys = result.getObjects()
-                    .stream()
-                    .map(it -> new ObjectKey(it.getKey()))
-                    .collect(Collectors.toList());
-            client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
-        }
-
-        client.deleteBucket(bucket);
-    }
-
-    public Map<String, String> clientProperties() {
-        return clientProperties;
-    }
-
-    public S3Client client() {
-        if (lazyClient == null) {
-            lazyClient = DellClientFactories.from(clientProperties).ecsS3();
-        }
-
-        return lazyClient;
-    }
-
-    public String bucket() {
-        return bucket;
-    }
-
-    public String randomObjectName() {
-        return "test-" + ID.getAndIncrement() + "-" + UUID.randomUUID();
-    }
+  public String randomObjectName() {
+    return "test-" + ID.getAndIncrement() + "-" + UUID.randomUUID();
+  }
 }

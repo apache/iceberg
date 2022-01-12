@@ -28,17 +28,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class MockDellClientFactory implements DellClientFactory {
 
-    public static final Map<String, String> MOCK_ECS_CLIENT_PROPERTIES = ImmutableMap.of(
-            DellProperties.CLIENT_FACTORY,
-            MockDellClientFactory.class.getName()
-    );
+  public static final Map<String, String> MOCK_ECS_CLIENT_PROPERTIES = ImmutableMap.of(
+      DellProperties.CLIENT_FACTORY,
+      MockDellClientFactory.class.getName()
+  );
 
-    @Override
-    public S3Client ecsS3() {
-        return new MockS3Client();
-    }
+  @Override
+  public S3Client ecsS3() {
+    return new MockS3Client();
+  }
 
-    @Override
-    public void initialize(Map<String, String> properties) {
-    }
+  @Override
+  public void initialize(Map<String, String> properties) {
+  }
 }
