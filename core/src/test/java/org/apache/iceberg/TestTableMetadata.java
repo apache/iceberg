@@ -892,10 +892,10 @@ public class TestTableMetadata {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(ops.io(), data);
 
-    SnapshotRef mainBranch = SnapshotRef.builderForBranch(3055729675574597004L).build();
-    SnapshotRef testTag = SnapshotRef.builderForTag(3055729675574597004L)
+    SnapshotRef mainBranch = SnapshotRef.branchBuilder(3055729675574597004L).build();
+    SnapshotRef testTag = SnapshotRef.tagBuilder(3055729675574597004L)
         .maxRefAgeMs(100L).build();
-    SnapshotRef devBranch = SnapshotRef.builderForBranch(3051729675574597004L)
+    SnapshotRef devBranch = SnapshotRef.branchBuilder(3051729675574597004L)
         .minSnapshotsToKeep(2).maxSnapshotAgeMs(200L).build();
 
     Assert.assertEquals(ImmutableMap.of("main", mainBranch, "test", testTag, "dev", devBranch), parsed.refs());
@@ -907,7 +907,7 @@ public class TestTableMetadata {
     TableMetadata meta = TableMetadata.newTableMetadata(
         schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
     Assert.assertEquals("Metadata should have a main branch",
-        ImmutableMap.of("main", SnapshotRef.builderForBranch(-1).build()),
+        ImmutableMap.of("main", SnapshotRef.branchBuilder(-1).build()),
         meta.refs());
   }
 
@@ -922,7 +922,7 @@ public class TestTableMetadata {
         ImmutableList.of(new GenericManifestFile(Files.localInput("file:/tmp/manfiest.2.avro"), meta.spec().specId())));
     TableMetadata newMeta = meta.replaceCurrentSnapshot(currentSnapshot);
     Assert.assertEquals("Main branch should be updated to the replaced snapshot",
-        ImmutableMap.of("main", SnapshotRef.builderForBranch(currentSnapshotId).build()),
+        ImmutableMap.of("main", SnapshotRef.branchBuilder(currentSnapshotId).build()),
         newMeta.refs());
   }
 
@@ -930,18 +930,19 @@ public class TestTableMetadata {
   public void testSnapshotWithRefShouldNotBeRemoved() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
     TableMetadata meta = TableMetadata.newTableMetadata(
-        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, -1L, currentSnapshotId, null, null, meta.schema().schemaId(),
-        ImmutableList.of(new GenericManifestFile(Files.localInput("file:/tmp/manfiest.2.avro"), meta.spec().specId())));
+            ops.io(), currentSnapshotId, -1L, currentSnapshotId, null, null, meta.schema().schemaId(),
+            ImmutableList.of(new GenericManifestFile(Files.localInput("file:/tmp/manfiest.2.avro"),
+            meta.spec().specId())));
     TableMetadata newMeta = meta.replaceCurrentSnapshot(currentSnapshot);
     newMeta = newMeta.removeSnapshotsIf(s -> s.snapshotId() == currentSnapshotId);
     Assert.assertEquals("The current snapshot should not be removed",
-        currentSnapshotId, newMeta.currentSnapshot().snapshotId());
+            currentSnapshotId, newMeta.currentSnapshot().snapshotId());
     Assert.assertEquals("The current snapshot still be the main branch",
-        ImmutableMap.of("main", SnapshotRef.builderForBranch(currentSnapshotId).build()),
-        newMeta.refs());
+            ImmutableMap.of("main", SnapshotRef.branchBuilder(currentSnapshotId).build()),
+            newMeta.refs());
   }
 
   @Test
@@ -957,7 +958,7 @@ public class TestTableMetadata {
     newMeta = newMeta.buildReplacement(newMeta.schema(), newMeta.spec(), newMeta.sortOrder(), newMeta.location(),
         ImmutableMap.of("key", "val"));
     Assert.assertEquals("Main branch should be reset to snapshot ID -1",
-        ImmutableMap.of("main", SnapshotRef.builderForBranch(-1).build()),
+        ImmutableMap.of("main", SnapshotRef.branchBuilder(-1).build()),
         newMeta.refs());
   }
 }

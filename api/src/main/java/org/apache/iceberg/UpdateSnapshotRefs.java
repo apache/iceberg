@@ -25,8 +25,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 /**
  * API for snapshot reference evolution.
  * <p>
- * When committing, these changes will be applied to the current table metadata. Commit conflicts
- * will not be resolved and will result in a {@link CommitFailedException}.
+ * When committing, these changes will be applied to the current table metadata.
+ * Commit conflicts will not be resolved and will result in a {@link CommitFailedException}.
  */
 public interface UpdateSnapshotRefs extends PendingUpdate<Map<String, SnapshotRef>> {
 

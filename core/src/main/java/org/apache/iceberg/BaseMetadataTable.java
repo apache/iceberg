@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -165,8 +164,8 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
-  public Set<SnapshotRef> refs(long snapshotId) {
-    return table().refs(snapshotId);
+  public SnapshotRef ref(String refName) {
+    return table().ref(refName);
   }
 
   @Override

@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -140,20 +139,19 @@ public interface Table {
   List<HistoryEntry> history();
 
   /**
-   * Get the snapshot references of this table.
-   *
+   * Get the snapshot references of this table. There is always a snapshot reference for the main branch.
+   * If there are no snapshots in the table, the main branch will point to -1.
    * @return a map with ref name as key, {@link SnapshotRef} as value
    */
   Map<String, SnapshotRef> refs();
 
   /**
-   * Get the snapshot references of a snapshot.
+   * Get the snapshot reference with the given name
    *
-   * @param snapshotId snapshot ID
-   * @return a set of {@link SnapshotRef snapshot references} of a snapshot.
-   *         Note that when there is no ref, it returns an empty set but not null.
+   * @param refName snapshot reference name
+   * @return the snapshot ref with the given name if it exists, null otherwise.
    */
-  Set<SnapshotRef> refs(long snapshotId);
+  SnapshotRef ref(String refName);
 
   /**
    * Create a new {@link UpdateSchema} to alter the columns of this table and commit the change.

@@ -601,8 +601,8 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
-    public Set<SnapshotRef> refs(long snapshotId) {
-      return current.refs(snapshotId);
+    public SnapshotRef ref(String refName) {
+      return current.ref(refName);
     }
 
     @Override

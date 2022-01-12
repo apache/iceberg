@@ -53,8 +53,8 @@ public class TestUpdateSnapshotRefs extends TableTestBase {
     TableMetadata base = table.ops().current();
 
     Map<String, SnapshotRef> refs = ImmutableMap.of(
-        TEST_BRANCH, SnapshotRef.builderForBranch(123).maxSnapshotAgeMs(1L).minSnapshotsToKeep(1).build(),
-        TEST_TAG, SnapshotRef.builderForTag(456).maxRefAgeMs(1L).build());
+        TEST_BRANCH, SnapshotRef.branchBuilder(123).maxSnapshotAgeMs(1L).minSnapshotsToKeep(1).build(),
+        TEST_TAG, SnapshotRef.tagBuilder(456).maxRefAgeMs(1L).build());
 
     List<Snapshot> snapshots = Lists.newArrayList(
         new BaseSnapshot(table.ops().io(), 789, null, "file:/tmp/manifest1.avro"),
@@ -81,10 +81,7 @@ public class TestUpdateSnapshotRefs extends TableTestBase {
     String tag = "newTag";
     table.updateRefs().tag(tag, 789).commit();
     table.refresh();
-    Assert.assertTrue("Should contain new tag", table.refs().containsKey(tag));
-    SnapshotRef ref = table.refs().get(tag);
-    Assert.assertEquals("Should create tag type ref", SnapshotRefType.TAG, ref.type());
-    Assert.assertEquals("Should create tag for the given snapshot", 789, ref.snapshotId());
+    assertExpectedReferenceAtSnapshot(tag, 789, SnapshotRefType.TAG);
   }
 
   @Test
@@ -110,10 +107,34 @@ public class TestUpdateSnapshotRefs extends TableTestBase {
     String branch = "newBranch";
     table.updateRefs().branch(branch, 789).commit();
     table.refresh();
-    Assert.assertTrue("Should contain new branch", table.refs().containsKey(branch));
-    SnapshotRef ref = table.refs().get(branch);
-    Assert.assertEquals("Should create branch type ref", SnapshotRefType.BRANCH, ref.type());
-    Assert.assertEquals("Should create branch for the given snapshot", 789, ref.snapshotId());
+    assertExpectedReferenceAtSnapshot(branch, 789, SnapshotRefType.BRANCH);
+  }
+
+  @Test
+  public void testCreateMultipleRefsWithRetention() {
+    String branch = "newBranch";
+    String tag = "newTag";
+    long maxSnapshotAgeMs = 1000;
+    int minSnapshots = 10;
+    long tagLifetime = 1000;
+    long branchSnapshot = 789;
+    long tagSnapshot = 123;
+    table.updateRefs()
+        .branch(branch, branchSnapshot)
+        .setBranchSnapshotLifetime(branch, maxSnapshotAgeMs)
+        .setMinSnapshotsInBranch(branch, minSnapshots)
+        .tag(tag, tagSnapshot)
+        .setLifetime(tag, tagLifetime)
+        .commit();
+    table.refresh();
+    assertExpectedReferenceAtSnapshot(branch, branchSnapshot, SnapshotRefType.BRANCH);
+    assertExpectedReferenceAtSnapshot(tag, tagSnapshot, SnapshotRefType.TAG);
+    Assert.assertTrue("Branch should have the expected max snapshot age",
+        table.ref(branch).maxSnapshotAgeMs() == maxSnapshotAgeMs);
+    Assert.assertTrue("Branch should have the expected min number of snapshots",
+        table.ref(branch).minSnapshotsToKeep() == minSnapshots);
+    Assert.assertTrue("Tag should have the expected min number of snapshots",
+            table.ref(branch).minSnapshotsToKeep() == minSnapshots);
   }
 
   @Test
@@ -251,5 +272,12 @@ public class TestUpdateSnapshotRefs extends TableTestBase {
         IllegalArgumentException.class,
         "Cannot find ref to remove",
         () -> table.updateRefs().remove("tag"));
+  }
+
+  private void assertExpectedReferenceAtSnapshot(String name, long snapshotId, SnapshotRefType refType) {
+    SnapshotRef ref = table.ref(name);
+    Assert.assertTrue("Should contain reference with expected name", ref != null);
+    Assert.assertTrue("Should be referring to the expected snapshotId", ref.snapshotId() == snapshotId);
+    Assert.assertTrue("Should be a reference with expected type", ref.type() == refType);
   }
 }

@@ -489,6 +489,10 @@ public class TableMetadata implements Serializable {
     return refsById.get(snapshotId);
   }
 
+  public SnapshotRef ref(String refName) {
+    return refs.get(refName);
+  }
+
   public List<MetadataUpdate> changes() {
     return changes;
   }
@@ -519,12 +523,14 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
-    List<Snapshot> toRemove = snapshots.stream()
-        .filter(removeIf)
-        .filter(snapshot -> !refsById.containsKey(snapshot.snapshotId()))
-        .collect(Collectors.toList());
+    Set<Long> toRemove = snapshots.stream()
+            .filter(removeIf)
+            .filter(snapshot -> !refsById.containsKey(snapshot.snapshotId()))
+            .map(Snapshot::snapshotId)
+            .collect(Collectors.toSet());
     return new Builder(this).removeSnapshots(toRemove).build();
   }
+
 
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
     ValidationException.check(rawProperties != null, "Cannot set properties to null");
@@ -550,7 +556,6 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata replaceRefs(Map<String, SnapshotRef> newRefs) {
-
     ValidationException.check(newRefs != null, "Cannot set refs to null");
     Set<String> removed = Sets.newHashSet(refs.keySet());
     Map<String, SnapshotRef> updated = Maps.newHashMap();
@@ -765,9 +770,16 @@ public class TableMetadata implements Serializable {
   }
 
   private Map<String, SnapshotRef> validateAndCompleteRefs(Map<String, SnapshotRef> inputRefs) {
-    for (SnapshotRef ref : inputRefs.values()) {
-      Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()) || ref.snapshotId() == -1,
-          "Snapshot reference %s does not exist in the existing snapshots list", ref);
+    for (Map.Entry<String, SnapshotRef> refEntry : inputRefs.entrySet()) {
+      String refName = refEntry.getKey();
+      SnapshotRef ref = refEntry.getValue();
+      if (ref.snapshotId() == -1) {
+        Preconditions.checkArgument(refName.equals(SnapshotRef.MAIN_BRANCH),
+                "Snapshot ref %s refers to snapshot id -1. Only main can refer to -1", refName);
+      } else {
+        Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
+                "Snapshot reference %s does not exist in the existing snapshots list", ref);
+      }
     }
 
     if (!inputRefs.containsKey(SnapshotRef.MAIN_BRANCH)) {
@@ -796,8 +808,8 @@ public class TableMetadata implements Serializable {
   private static Map<String, SnapshotRef> refsWithMainBranch(long snapshotId, Map<String, SnapshotRef> currentRefs) {
     SnapshotRef oldMainBranch = currentRefs.get(SnapshotRef.MAIN_BRANCH);
     SnapshotRef mainBranch = oldMainBranch != null ?
-        SnapshotRef.builderFrom(oldMainBranch).snapshotId(snapshotId).build() :
-        SnapshotRef.builderForBranch(snapshotId).build();
+        SnapshotRef.builderFrom(oldMainBranch, snapshotId).build() :
+        SnapshotRef.branchBuilder(snapshotId).build();
 
     ImmutableMap.Builder<String, SnapshotRef> newRefsBuilder = ImmutableMap.builder();
     currentRefs.entrySet().stream()
@@ -1024,13 +1036,12 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder removeSnapshots(List<Snapshot> snapshotsToRemove) {
-      Set<Long> idsToRemove = snapshotsToRemove.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
-
-      List<Snapshot> retainedSnapshots = Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
+    public Builder removeSnapshots(Set<Long> snapshotIdsToRemove) {
+      int numberOfRetainedSnapshots = snapshots.size() - snapshotIdsToRemove.size();
+      List<Snapshot> retainedSnapshots = Lists.newArrayListWithExpectedSize(numberOfRetainedSnapshots);
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
-        if (idsToRemove.contains(snapshotId)) {
+        if (snapshotIdsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
         } else {

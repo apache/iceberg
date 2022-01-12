@@ -41,7 +41,7 @@ public class BaseUpdateSnapshotRefs implements UpdateSnapshotRefs {
     Preconditions.checkArgument(base.snapshot(snapshotId) != null, "Cannot find snapshot with ID: %s", snapshotId);
     Preconditions.checkArgument(!refs.containsKey(name), "Cannot tag snapshot, ref already exists: %s", name);
 
-    refs.put(name, SnapshotRef.builderForTag(snapshotId).build());
+    refs.put(name, SnapshotRef.tagBuilder(snapshotId).build());
     return this;
   }
 
@@ -51,7 +51,7 @@ public class BaseUpdateSnapshotRefs implements UpdateSnapshotRefs {
     Preconditions.checkArgument(base.snapshot(snapshotId) != null, "Cannot find snapshot with ID: %s", snapshotId);
     Preconditions.checkArgument(!refs.containsKey(name), "Cannot create branch, ref already exists: %s", name);
 
-    refs.put(name, SnapshotRef.builderForBranch(snapshotId).build());
+    refs.put(name, SnapshotRef.branchBuilder(snapshotId).build());
     return this;
   }
 

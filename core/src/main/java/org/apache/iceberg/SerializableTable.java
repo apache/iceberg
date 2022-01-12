@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
@@ -269,8 +268,8 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
-  public Set<SnapshotRef> refs(long snapshotId) {
-    return lazyTable().refs(snapshotId);
+  public SnapshotRef ref(String refName) {
+    return lazyTable().ref(refName);
   }
 
   @Override
