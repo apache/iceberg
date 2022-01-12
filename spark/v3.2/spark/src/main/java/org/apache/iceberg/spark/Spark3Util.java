@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
@@ -48,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
@@ -79,6 +81,7 @@ import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
+import org.apache.spark.sql.execution.datasources.PartitionDirectory;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
@@ -748,9 +751,11 @@ public class Spark3Util {
    * @param spark a Spark session
    * @param rootPath a table identifier
    * @param format format of the file
+   * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format) {
+  public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format,
+                                                   Map<String, String> partitionFilter) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
     Map<String, String> emptyMap = Collections.emptyMap();
 
@@ -771,9 +776,23 @@ public class Spark3Util {
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
+    if (schema.isEmpty()) {
+      return Lists.newArrayList();
+    }
+
+    List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions =
+        SparkUtil.partitionMapToExpression(schema, partitionFilter);
+    Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaPartitionFilters =
+        JavaConverters.asScalaBufferConverter(filterExpressions).asScala().toSeq();
+
+    List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = Lists.newArrayList();
+    Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaDataFilters =
+        JavaConverters.asScalaBufferConverter(dataFilters).asScala().toSeq();
+
+    Seq<PartitionDirectory> filteredPartitions = fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters);
 
     return JavaConverters
-        .seqAsJavaListConverter(spec.partitions())
+        .seqAsJavaListConverter(filteredPartitions)
         .asJava()
         .stream()
         .map(partition -> {
@@ -784,7 +803,11 @@ public class Spark3Util {
             Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
             values.put(field.name(), String.valueOf(value));
           });
-          return new SparkPartition(values, partition.path().toString(), format);
+
+          FileStatus fileStatus =
+              JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
+
+          return new SparkPartition(values, fileStatus.getPath().getParent().toString(), format);
         }).collect(Collectors.toList());
   }
 
