@@ -31,6 +31,8 @@ import org.apache.spark.sql.catalyst.utils.SetAccumulator
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.execution.BinaryExecNode
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.SQLExecution
+import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import scala.collection.JavaConverters._
 
@@ -40,6 +42,10 @@ abstract class DynamicFileFilterExecBase(
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterExec.output)
+
+  override lazy val metrics = Map(
+    "candidateFiles" -> SQLMetrics.createMetric(sparkContext, "candidate files"),
+    "matchingFiles" -> SQLMetrics.createMetric(sparkContext, "matching files"))
 
   override def left: SparkPlan = scanExec
   override def right: SparkPlan = fileFilterExec
@@ -78,6 +84,13 @@ abstract class DynamicFileFilterExecBase(
   override def simpleString(maxFields: Int): String = {
     s"DynamicFileFilterExec${truncatedString(output, "[", ", ", "]", maxFields)}"
   }
+
+  def postFileFilterMetric(candidateFiles: Int, matchingFiles: Int): Unit = {
+    longMetric("candidateFiles").set(candidateFiles)
+    longMetric("matchingFiles").set(matchingFiles)
+    val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
+    SQLMetrics.postDriverMetricUpdates(sparkContext, executionId, metrics.values.toSeq)
+  }
 }
 
 case class DynamicFileFilterExec(
@@ -89,7 +102,8 @@ case class DynamicFileFilterExec(
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
     val matchedFileLocations = rows.map(_.getString(0))
-    filterable.filterFiles(matchedFileLocations.toSet.asJava)
+    val metric = filterable.filterFiles(matchedFileLocations.toSet.asJava)
+    postFileFilterMetric(metric.candidateFiles(), metric.matchingFiles())
   }
 }
 
@@ -110,6 +124,7 @@ case class DynamicFileFilterWithCardinalityCheckExec(
         "and is not allowed.")
     }
     val matchedFileLocations = filesAccumulator.value
-    filterable.filterFiles(matchedFileLocations)
+    val metric = filterable.filterFiles(matchedFileLocations)
+    postFileFilterMetric(metric.candidateFiles(), metric.matchingFiles())
   }
 }

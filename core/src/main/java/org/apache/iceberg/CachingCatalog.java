@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.CacheWriter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.RemovalListener;
@@ -46,10 +45,7 @@ import org.slf4j.LoggerFactory;
  * regarding special values for {@code expirationIntervalMillis}.
  */
 public class CachingCatalog implements Catalog {
-
   private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
-  private static final RemovalListener<TableIdentifier, Table> identLoggingRemovalListener =
-      (key, value, cause) -> LOG.debug("Evicted {} from the table cache ({})", key, cause);
 
   public static Catalog wrap(Catalog catalog) {
     return wrap(catalog, CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF);
@@ -86,16 +82,13 @@ public class CachingCatalog implements Catalog {
   }
 
   /**
-   * CacheWriter class for removing metadata tables when their associated data table is expired
+   * RemovalListener class for removing metadata tables when their associated data table is expired
    * via cache expiration.
    */
-  class MetadataTableInvalidatingCacheWriter implements CacheWriter<TableIdentifier, Table> {
+  class MetadataTableInvalidatingRemovalListener implements RemovalListener<TableIdentifier, Table> {
     @Override
-    public void write(TableIdentifier tableIdentifier, Table table) {
-    }
-
-    @Override
-    public void delete(TableIdentifier tableIdentifier, Table table, RemovalCause cause) {
+    public void onRemoval(TableIdentifier tableIdentifier, Table table, RemovalCause cause) {
+      LOG.debug("Evicted {} from the table cache ({})", tableIdentifier, cause);
       if (RemovalCause.EXPIRED.equals(cause)) {
         if (!MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
           tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
@@ -105,14 +98,14 @@ public class CachingCatalog implements Catalog {
   }
 
   private Cache<TableIdentifier, Table> createTableCache(Ticker ticker) {
-    Caffeine<TableIdentifier, Table> cacheBuilder = Caffeine
+    Caffeine<Object, Object> cacheBuilder = Caffeine
         .newBuilder()
-        .softValues()
-        .removalListener(identLoggingRemovalListener);
+        .softValues();
 
     if (expirationIntervalMillis > 0) {
       return cacheBuilder
-          .writer(new CachingCatalog.MetadataTableInvalidatingCacheWriter())
+          .removalListener(new MetadataTableInvalidatingRemovalListener())
+          .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
           .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
           .ticker(ticker)
           .build();
@@ -171,19 +164,25 @@ public class CachingCatalog implements Catalog {
   @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, purge);
-    invalidate(canonicalizeIdentifier(ident));
+    invalidate(ident);
     return dropped;
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     catalog.renameTable(from, to);
-    invalidate(canonicalizeIdentifier(from));
+    invalidate(from);
+  }
+
+  @Override
+  public void invalidateTable(TableIdentifier ident) {
+    invalidate(ident);
   }
 
   private void invalidate(TableIdentifier ident) {
-    tableCache.invalidate(ident);
-    tableCache.invalidateAll(metadataTableIdentifiers(ident));
+    TableIdentifier canonicalized = canonicalizeIdentifier(ident);
+    tableCache.invalidate(canonicalized);
+    tableCache.invalidateAll(metadataTableIdentifiers(canonicalized));
   }
 
   private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
@@ -271,7 +270,7 @@ public class CachingCatalog implements Catalog {
       // committed. when the transaction commits, invalidate the table in the cache if it is present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.replaceTransaction(),
-          () -> invalidate(canonicalizeIdentifier(ident)));
+          () -> invalidate(ident));
     }
 
     @Override
@@ -280,7 +279,7 @@ public class CachingCatalog implements Catalog {
       // committed. when the transaction commits, invalidate the table in the cache if it is present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.createOrReplaceTransaction(),
-          () -> invalidate(canonicalizeIdentifier(ident)));
+          () -> invalidate(ident));
     }
   }
 }

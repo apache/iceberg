@@ -78,6 +78,14 @@ Iceberg tables support table properties to configure table behavior, like the de
 | --------------------------------------------- | -------- | ------------------------------------------------------------- |
 | compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
 
+### Reserved table properties
+Reserved table properties are only used to control behaviors when creating or updating a table.
+The value of these properties are not persisted as a part of the table metadata.
+
+| Property       | Default  | Description                                                   |
+| -------------- | -------- | ------------------------------------------------------------- |
+| format-version | 1        | Table's format version (can be 1 or 2) as defined in the [Spec](./spec.md#format-versioning). |
+
 ## Catalog properties
 
 Iceberg catalogs support using catalog properties to configure catalog behaviors. Here is a list of commonly used catalog properties:

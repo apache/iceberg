@@ -72,6 +72,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
         0L, scalarSql("SELECT count(1) FROM %s", tableName));
   }
 
+  @Test
   public void testDeleteFromTableAtSnapshot() throws NoSuchTableException {
     Assume.assumeFalse(
         "Spark session catalog does not support extended table names",
