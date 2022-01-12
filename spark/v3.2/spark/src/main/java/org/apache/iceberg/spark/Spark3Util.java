@@ -751,7 +751,7 @@ public class Spark3Util {
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, String tableName, Path rootPath, String format,
+  public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format,
                                                    Map<String, String> partitionFilter) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
     Map<String, String> emptyMap = Collections.emptyMap();
@@ -778,7 +778,7 @@ public class Spark3Util {
     }
 
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions =
-        SparkUtil.getSparkFilterExpressions(schema, partitionFilter);
+        SparkUtil.partitionMapToExpression(schema, partitionFilter);
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaPartitionFilters =
         JavaConverters.asScalaBufferConverter(filterExpressions).asScala().toSeq();
 

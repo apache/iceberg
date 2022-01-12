@@ -200,8 +200,8 @@ public class SparkUtil {
    *                and value is the specific value to be filtered on the column.
    * @return a List of filters in the format of Spark Expression.
    */
-  public static List getSparkFilterExpressions(StructType schema,
-                                               Map<String, String> filters) {
+  public static List<Expression> partitionMapToExpression(StructType schema,
+                                                          Map<String, String> filters) {
     List<Expression> filterExpressions = Lists.newArrayList();
     for (Map.Entry<String, String> entry : filters.entrySet()) {
       try {
