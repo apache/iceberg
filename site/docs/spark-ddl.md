@@ -360,7 +360,15 @@ ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NUL
 !!! Note
     Table write order does not guarantee data order for queries. It only affects how data is written to the table.
 
-Only local sorting can be set at the same time, use `LOCALLY ORDERED BY`
+`WRITE ORDERED BY` sets a global ordering where rows are ordered across tasks, like using `ORDER BY` in an `INSERT` command:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY ts, category
+```
+
+If you want to introduce order within each task, not across tasks. you can use `LOCALLY ORDERED BY` to achieve it, like below:
 
 ```sql
 ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category, id
@@ -369,17 +377,17 @@ ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category ASC, id DESC
 -- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
 ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
 ```
+
 ### `ALTER TABLE ... WRITE DISTRIBUTED BY PARTITION` 
 
-Iceberg tables can be configured with a hash distribution where tuples that share the same values for clustering expressions are
-co-located in the same partition.
-
-To set the write hash for a table, use `WRITE DISTRIBUTED BY PARTITION`:
+`WRITE DISTRIBUTED BY PARTITION` will guarantee that a given partition is handled by one writer, the default implementation is hash distribution.
 
 ```sql
 ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION
 ```
-Iceberg tables can also be configured to use hash distribution and use local sort order.
+
+the user can specify `DISTRIBUTED BY PARTITION` and `LOCALLY ORDERED BY`, so the partition columns and sort columns can be different.
+The usual case is that the partition columns are a prefix of sort columns, but that is not required.
 
 ```sql
 ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY category, id
