@@ -138,7 +138,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @AfterClass
-  public static void afterClass() {
+  public static void afterClass() throws Exception {
     shell.stop();
   }
 
