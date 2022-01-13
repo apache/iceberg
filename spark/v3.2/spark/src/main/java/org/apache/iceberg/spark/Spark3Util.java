@@ -29,7 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileStatus;
-import javax.xml.bind.DatatypeConverter;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
@@ -836,12 +835,12 @@ public class Spark3Util {
     }
     String old = String.valueOf(value);
     if (dataType instanceof IntegerType) {
-      return DatatypeConverter.parseInt(old);
+      return Integer.parseInt(old);
     } else if (dataType instanceof DateType) {
       // days(ts) or date(ts) partition schema DataType
       return DateTimeUtil.daysFromDate(LocalDate.parse(old));
     } else if (dataType instanceof LongType) {
-      return DatatypeConverter.parseLong(old);
+      return Long.parseLong(old);
     } else if (dataType instanceof StringType) {
       return UTF8String.fromString(old);
     } else {
