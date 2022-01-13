@@ -325,33 +325,23 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
     // support [show partitions] syntax
-    String fileFormat = icebergTable.properties()
-            .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
-            new Path(icebergTable.location().concat("\\data")), fileFormat);
     List<InternalRow> rows = Lists.newArrayList();
     StructType schema = partitionSchema();
     StructField[] fields = schema.fields();
-    if (names.length == 0) {
-      partitions.forEach(p -> rows.add(partitionInternalRow(p, fields)));
-    } else {
-      partitions.forEach(p -> {
-        int idx = 0;
-        Map<String, String> values = p.getValues();
-        boolean exits = true;
-        while (idx < names.length) {
-          DataType dataType = schema.apply(names[idx]).dataType();
-          if (!values.get(names[idx]).equalsIgnoreCase(String.valueOf(ident.get(idx, dataType)))) {
-            exits = false;
-            break;
-          }
-          idx += 1;
-        }
-        if (exits) {
-          rows.add(partitionInternalRow(p, fields));
-        }
-      });
+    Map<String, String> partitionFilter = Maps.newHashMap();
+    if (names.length > 0) {
+      int idx = 0;
+      while (idx < names.length) {
+        DataType dataType = schema.apply(names[idx]).dataType();
+        partitionFilter.put(names[idx], String.valueOf(ident.get(idx, dataType)));
+        idx += 1;
+      }
     }
+    String fileFormat = icebergTable.properties()
+            .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(sparkSession(),
+            new Path(icebergTable.location().concat("\\data")), fileFormat, partitionFilter);
+    partitions.forEach(p -> rows.add(partitionInternalRow(p, fields)));
     return rows.toArray(new InternalRow[0]);
   }
 
