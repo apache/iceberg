@@ -86,6 +86,7 @@ public class BaseDeleteOrphanFilesSparkAction
       return path.substring(lastIndex + 1);
     }
   }, DataTypes.StringType);
+
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
 
   private final SerializableConfiguration hadoopConf;
@@ -100,6 +101,7 @@ public class BaseDeleteOrphanFilesSparkAction
       table.io().deleteFile(file);
     }
   };
+
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
   public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
