@@ -157,7 +157,7 @@ public class TestIcebergToGlueConverter {
                     ))
                     .build(),
                 Column.builder()
-                    .name("z")
+                    .name("y.z")
                     .type("int")
                     .parameters(ImmutableMap.of(
                         IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_SUBFIELD,
@@ -168,7 +168,7 @@ public class TestIcebergToGlueConverter {
                     ))
                     .build(),
                 Column.builder()
-                    .name("x")
+                    .name("x_identity")
                     .type("string")
                     .parameters(ImmutableMap.<String, String>builder()
                         .put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.PARTITION_FIELD)
