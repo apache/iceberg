@@ -98,7 +98,7 @@ public class TestHiveShell {
     started = true;
   }
 
-  public void stop() {
+  public void stop() throws Exception {
     if (client != null) {
       client.stop();
     }

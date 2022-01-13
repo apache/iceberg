@@ -80,7 +80,7 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
   }
 
   @AfterClass
-  public static void stopMetastore() {
+  public static void stopMetastore() throws Exception {
     metastore.stop();
     catalog = null;
   }
