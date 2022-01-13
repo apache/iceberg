@@ -43,7 +43,7 @@ extra:
     Spark: /getting-started/
   versions:
     iceberg: 0.12.1
-    nessie: 0.17.0
+    nessie: 0.18.0
   logo: img/favicon-96x96.png
   version: 0.12.1
   article_nav_top: false
