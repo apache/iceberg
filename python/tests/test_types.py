@@ -57,7 +57,7 @@ from iceberg.types import (
     ],
 )
 def test_repr_primitive_types(input_type):
-    assert input_type == eval(repr(input_type))
+    assert isinstance(eval(repr(input_type())), input_type)
 
 
 def test_fixed_type():
@@ -80,7 +80,7 @@ def test_decimal_type():
 def test_struct_type():
     type_var = StructType(
         [
-            NestedField(True, 1, "optional_field", IntegerType),
+            NestedField(True, 1, "optional_field", IntegerType()),
             NestedField(False, 2, "required_field", FixedType(5)),
             NestedField(
                 False,
@@ -89,7 +89,7 @@ def test_struct_type():
                 StructType(
                     [
                         NestedField(True, 4, "optional_field", DecimalType(8, 2)),
-                        NestedField(False, 5, "required_field", LongType),
+                        NestedField(False, 5, "required_field", LongType()),
                     ]
                 ),
             ),
@@ -108,7 +108,7 @@ def test_list_type():
             StructType(
                 [
                     NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-                    NestedField(False, 3, "required_field", LongType),
+                    NestedField(False, 3, "required_field", LongType()),
                 ]
             ),
         )
@@ -121,12 +121,12 @@ def test_list_type():
 
 def test_map_type():
     type_var = MapType(
-        NestedField(True, 1, "optional_field", DoubleType),
-        NestedField(False, 2, "required_field", UUIDType),
+        NestedField(True, 1, "optional_field", DoubleType()),
+        NestedField(False, 2, "required_field", UUIDType()),
     )
-    assert type_var.key.type == DoubleType
+    assert isinstance(type_var.key.type, DoubleType)
     assert type_var.key.field_id == 1
-    assert type_var.value.type == UUIDType
+    assert isinstance(type_var.value.type, UUIDType)
     assert type_var.value.field_id == 2
     assert str(type_var) == str(eval(repr(type_var)))
 
@@ -142,15 +142,15 @@ def test_nested_field():
                     True,
                     2,
                     "optional_field2",
-                    ListType(NestedField(False, 3, "required_field3", DoubleType)),
+                    ListType(NestedField(False, 3, "required_field3", DoubleType())),
                 ),
                 NestedField(
                     False,
                     4,
                     "required_field4",
                     MapType(
-                        NestedField(True, 5, "optional_field5", TimeType),
-                        NestedField(False, 6, "required_field6", UUIDType),
+                        NestedField(True, 5, "optional_field5", TimeType()),
+                        NestedField(False, 6, "required_field6", UUIDType()),
                     ),
                 ),
             ]
