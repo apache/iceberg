@@ -830,6 +830,25 @@ public class Spark3Util {
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
   }
 
+  public static Object convertPartitionType(Object value, DataType dataType) {
+    if (value == null && dataType instanceof NullType) {
+      return null;
+    }
+    String old = String.valueOf(value);
+    if (dataType instanceof IntegerType) {
+      return DatatypeConverter.parseInt(old);
+    } else if (dataType instanceof DateType) {
+      // days(ts) or date(ts) partition schema DataType
+      return DateTimeUtil.daysFromDate(LocalDate.parse(old));
+    } else if (dataType instanceof LongType) {
+      return DatatypeConverter.parseLong(old);
+    } else if (dataType instanceof StringType) {
+      return UTF8String.fromString(old);
+    } else {
+      return value;
+    }
+  }
+
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {
     private static final DescribeSortOrderVisitor INSTANCE = new DescribeSortOrderVisitor();
 
@@ -882,25 +901,6 @@ public class Spark3Util {
     public String unknown(String sourceName, int sourceId, String transform,
                           org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
       return String.format("%s(%s) %s %s", transform, sourceName, direction, nullOrder);
-    }
-  }
-
-  public static Object convertPartitionType(Object value, DataType dataType) {
-    if (value == null && dataType instanceof NullType) {
-      return null;
-    }
-    String old = String.valueOf(value);
-    if (dataType instanceof IntegerType) {
-      return DatatypeConverter.parseInt(old);
-    } else if (dataType instanceof DateType) {
-      // days(ts) or date(ts) partition schema DataType
-      return DateTimeUtil.daysFromDate(LocalDate.parse(old));
-    } else if (dataType instanceof LongType) {
-      return DatatypeConverter.parseLong(old);
-    } else if (dataType instanceof StringType) {
-      return UTF8String.fromString(old);
-    } else {
-      return value;
     }
   }
 }
