@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -225,9 +226,9 @@ class BaseFileScanTask implements FileScanTask {
     }
   }
 
-  static FileScanTask[] combineSimilarTasks(List<FileScanTask> tasks) {
+  static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
     if (tasks.isEmpty()) {
-      return new FileScanTask[0];
+      return Collections.emptyList();
     }
 
     List<FileScanTask> combinedScans = Lists.newArrayList();
@@ -235,7 +236,7 @@ class BaseFileScanTask implements FileScanTask {
 
     for (FileScanTask fileScanTask : tasks) {
       if (!(fileScanTask instanceof SplitScanTask)) {
-        // We do not know how to combine anything but SplitScanTasks
+        // Return any tasks not produced by split un-modified
         combinedScans.add(fileScanTask);
       } else {
         SplitScanTask split = (SplitScanTask) fileScanTask;
@@ -262,6 +263,6 @@ class BaseFileScanTask implements FileScanTask {
       combinedScans.add(lastSplit);
     }
 
-    return combinedScans.stream().toArray(FileScanTask[]::new);
+    return combinedScans;
   }
 }
