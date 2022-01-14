@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
@@ -46,7 +45,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
-import software.amazon.awssdk.services.glue.model.Schedule;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
@@ -297,7 +295,7 @@ class IcebergToGlueConverter {
       typeId = type.typeId().name();
       typeString = toTypeString(type);
     } catch (RuntimeException e) {
-      LOG.error("Failed to convert partition field to column", e);
+      LOG.error("Failed to retrieve partition field type information", e);
     }
 
     // avoid identity partition field name collide with schema columns
@@ -318,8 +316,8 @@ class IcebergToGlueConverter {
 
   private static Map<String, String> convertToParameters(String fieldUsage, NestedField field) {
     return ImmutableMap.of(ICEBERG_FIELD_USAGE, fieldUsage,
-        ICEBERG_FIELD_TYPE_TYPE_ID, safeString(field.type().typeId().toString()),
-        ICEBERG_FIELD_TYPE_STRING, safeString(toTypeString(field.type())),
+        ICEBERG_FIELD_TYPE_TYPE_ID, field.type().typeId().toString(),
+        ICEBERG_FIELD_TYPE_STRING, toTypeString(field.type()),
         ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
         ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
     );
@@ -338,7 +336,7 @@ class IcebergToGlueConverter {
         .build();
   }
 
-  private static String safeString(String s) {
-    return s != null ? s : "unknown";
+  private static String safeString(String str) {
+    return str != null ? str : "unknown";
   }
 }

@@ -331,7 +331,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
             ))
             .build(),
         Column.builder()
-            .name("z")
+            .name("c2.z")
             .type("int")
             .parameters(ImmutableMap.of(
                 IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_SUBFIELD,
