@@ -85,7 +85,7 @@ public class TestS3OutputStream {
 
   @Before
   public void before() {
-    properties.setETagCheckEnabled(false);
+    properties.setS3ChecksumEnabled(false);
     s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
   }
 
@@ -141,7 +141,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testWriteWithEtagEnabled() {
-    properties.setETagCheckEnabled(true);
+    properties.setS3ChecksumEnabled(true);
     writeTest();
   }
 

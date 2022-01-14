@@ -116,7 +116,7 @@ class S3OutputStream extends PositionOutputStream {
     multiPartSize = awsProperties.s3FileIoMultiPartSize();
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
-    isEtagCheckEnabled = awsProperties.isETagCheckEnabled();
+    isEtagCheckEnabled = awsProperties.isS3ChecksumEnabled();
     try {
       completeMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
