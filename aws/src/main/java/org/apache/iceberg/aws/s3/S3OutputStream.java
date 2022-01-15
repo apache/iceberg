@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.net.ProtocolException;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -64,6 +65,7 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+import software.amazon.awssdk.utils.BinaryUtils;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
@@ -264,7 +266,7 @@ class S3OutputStream extends PositionOutputStream {
               .contentLength(f.file().length());
 
           if (isEtagCheckEnabled) {
-            requestBuilder.contentMD5(getHexString(f.eTag.digest()));
+            requestBuilder.contentMD5(BinaryUtils.toBase64(f.eTag().digest()));
           }
 
           S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
@@ -273,7 +275,12 @@ class S3OutputStream extends PositionOutputStream {
 
           CompletableFuture<CompletedPart> future = CompletableFuture.supplyAsync(
               () -> {
-                UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f.file()));
+                UploadPartResponse response = null;
+                try {
+                  response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f.file()));
+                } catch (UncheckedIOException uncheckedIOException) {
+                  checkProtocolException(uncheckedIOException, uploadRequest.toString());
+                }
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
               },
               executorService
@@ -350,27 +357,29 @@ class S3OutputStream extends PositionOutputStream {
           .key(location.key());
 
       if (isEtagCheckEnabled) {
-        requestBuilder.contentMD5(getHexString(completeMessageDigest.digest()));
+        requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
       }
 
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
-      s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
+      PutObjectRequest putObjectRequest = requestBuilder.build();
+      try {
+        s3.putObject(putObjectRequest, RequestBody.fromInputStream(contentStream, contentLength));
+      } catch (UncheckedIOException uncheckedIOException) {
+        checkProtocolException(uncheckedIOException, putObjectRequest.toString());
+      }
     } else {
       uploadParts();
       completeMultiPartUpload();
     }
   }
 
-  private static String getHexString(byte[] bytes) {
-    StringBuilder hex = new StringBuilder();
-    hex.append("\"");
-    for (byte b : bytes) {
-      hex.append(String.format("%02x", b));
+  private static void checkProtocolException(UncheckedIOException uncheckedIOException, String requestString) {
+    if (uncheckedIOException.getCause() instanceof ProtocolException) {
+      LOG.error("S3 Request Failure: {}", requestString);
+      throw uncheckedIOException;
     }
-    hex.append("\"");
-    return hex.toString();
   }
 
   private static InputStream uncheckedInputStream(File file) {
