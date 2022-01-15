@@ -242,18 +242,18 @@ class BaseFileScanTask implements FileScanTask {
         SplitScanTask split = (SplitScanTask) fileScanTask;
         if (lastSplit != null) {
           if (lastSplit.isAdjacent(split)) {
-            // We can merge with the last split
+            // Merge with the last split
             lastSplit = new SplitScanTask(
                 lastSplit.offset,
                 lastSplit.len + split.len,
                 lastSplit.fileScanTask);
           } else {
-            // We cannot merge with the last split, add it to the set of tasks
+            // Last split is not adjacent, add it to finished adjacent groups
             combinedScans.add(lastSplit);
             lastSplit = split;
           }
         } else {
-          // We haven't seen another split yet, save this split in-case we can combine it later
+          // First split
           lastSplit = split;
         }
       }

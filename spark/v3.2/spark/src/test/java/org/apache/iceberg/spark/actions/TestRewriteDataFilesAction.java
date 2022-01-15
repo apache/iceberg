@@ -102,6 +102,8 @@ import static org.mockito.Mockito.spy;
 
 public class TestRewriteDataFilesAction extends SparkTestBase {
 
+  private static final int SCALE = 400000;
+
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -345,6 +347,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Result result = basicRewrite(table)
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSize))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(targetSize * 2 - 2000))
         .execute();
 
     Assert.assertEquals("Action should delete 1 data files", 1, result.rewrittenDataFilesCount());
@@ -358,12 +361,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackCombineMixedFiles() {
-    Table table = createTable(1); // 40000
+    Table table = createTable(1); // 400000
     shouldHaveFiles(table, 1);
 
     // Add one more small file, and one large file
-    writeRecords(1, 40000);
-    writeRecords(1, 120000);
+    writeRecords(1, SCALE);
+    writeRecords(1, SCALE * 3);
     shouldHaveFiles(table, 3);
 
     List<Object[]> expectedRecords = currentData();
@@ -372,7 +375,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Result result = basicRewrite(table)
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize + 1000))
-        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString(targetSize + 40000))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString(targetSize + 80000))
         .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 1000))
         .execute();
 
@@ -391,8 +394,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
 
-    List<Object[]> expectedRecords = currentData(); // 40000 Rows , 10000 per File
-    int targetSize = ((int) testDataSize(table) / 3); // 40000 Rows, 13333 per File
+    List<Object[]> expectedRecords = currentData();
+    int targetSize = ((int) testDataSize(table) / 3);
     // The test is to see if we can combine parts of files to make files of the correct size
 
     Result result = basicRewrite(table)
@@ -858,7 +861,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testSortCustomSortOrderRequiresRepartition() {
-    Table table = createTable(20);
+    Table table = createTable();
+    writeRecords(20, SCALE, 20);
     shouldHaveLastCommitUnsorted(table, "c3");
 
     // Add a partition column so this requires repartitioning
@@ -1043,16 +1047,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
               .flatMap(left -> columnBounds.stream().map(right -> Pair.of(left, right)))
               .filter(filePair -> {
                 Pair<T, T> left = filePair.first();
-                T lLower = left.first();
-                T lUpper = left.second();
+                T lMin = left.first();
+                T lMax = left.second();
                 Pair<T, T> right = filePair.second();
-                T rLower = right.first();
-                T rUpper = right.second();
-                boolean boundsOverlap =
-                    (comparator.compare(lUpper, rLower) >= 0 && comparator.compare(lUpper, rUpper) <= 0) ||
-                        (comparator.compare(lLower, rLower) >= 0 && comparator.compare(lLower, rUpper) <= 0);
+                T rMin = right.first();
+                T rMax = right.second();
+                boolean boundsDoNotOverlap =
+                    // Min and Max of a range are greater than or equal to the max value of the other range
+                    (comparator.compare(rMax, lMax) >= 0 && comparator.compare(rMin, lMax) >= 0) ||
+                        (comparator.compare(lMax, rMax) >= 0 && comparator.compare(lMin, rMax) >= 0);
 
-                return (left != right) && boundsOverlap;
+                return (left != right) && !boundsDoNotOverlap;
               })
               .collect(Collectors.toList());
           return overlappingFiles.stream();
@@ -1061,20 +1066,23 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     return overlaps.collect(Collectors.toList());
   }
 
+  protected Table createTable() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(20 * 1024)).commit();
+    Assert.assertNull("Table must be empty", table.currentSnapshot());
+    return table;
+  }
+
   /**
    * Create a table with a certain number of files, returns the size of a file
    * @param files number of files to create
    * @return the created table
    */
   protected Table createTable(int files) {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(40 * 1024)).commit();
-    Assert.assertNull("Table must be empty", table.currentSnapshot());
-
-    writeRecords(files, 40000);
-
+    Table table = createTable();
+    writeRecords(files, SCALE);
     return table;
   }
 
@@ -1087,7 +1095,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    writeRecords(files, 40000, partitions);
+    writeRecords(files, SCALE, partitions);
     return table;
   }
 
