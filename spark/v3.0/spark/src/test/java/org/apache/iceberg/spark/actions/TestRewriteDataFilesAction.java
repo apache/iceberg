@@ -237,67 +237,6 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackWithStartingSequenceNumber() {
-    Table table = createTablePartitioned(4, 2);
-    shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
-    table.refresh();
-    long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
-
-    Result result = basicRewrite(table)
-        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
-        .execute();
-    Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
-
-    shouldHaveFiles(table, 4);
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-
-    table.refresh();
-    Assert.assertTrue("Table sequence number should be incremented",
-        oldSequenceNumber < table.currentSnapshot().sequenceNumber());
-
-    Dataset<Row> rows = SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.ENTRIES);
-    for (Row row : rows.collectAsList()) {
-      if (row.getInt(0) == 1) {
-        Assert.assertEquals("Expect old sequence number for added entries", oldSequenceNumber, row.getLong(2));
-      }
-    }
-  }
-
-  @Test
-  public void testBinPackWithStartingSequenceNumberV1Compatibility() {
-    Table table = createTablePartitioned(4, 2);
-    shouldHaveFiles(table, 8);
-    List<Object[]> expectedRecords = currentData();
-    table.refresh();
-    long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
-    Assert.assertEquals("Table sequence number should be 0", 0, oldSequenceNumber);
-
-    Result result = basicRewrite(table)
-        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
-        .execute();
-    Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
-
-    shouldHaveFiles(table, 4);
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-
-    table.refresh();
-    Assert.assertEquals("Table sequence number should still be 0",
-        oldSequenceNumber, table.currentSnapshot().sequenceNumber());
-
-    Dataset<Row> rows = SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.ENTRIES);
-    for (Row row : rows.collectAsList()) {
-      Assert.assertEquals("Expect sequence number 0 for all entries",
-          oldSequenceNumber, row.getLong(2));
-    }
-  }
-
-  @Test
   public void testRewriteLargeTableHasResiduals() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
     Map<String, String> options = Maps.newHashMap();
