@@ -166,7 +166,7 @@ public class ParquetSchemaUtil {
 
   // Parquet LIST backwards-compatibility rules.
   // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
-  public static boolean isListElementType(Type repeatedType, String parentName) {
+  public static boolean isOldListElementType(Type repeatedType, String parentName) {
     return
         // For legacy 2-level list types with primitive element type, e.g.:
         //

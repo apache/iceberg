@@ -205,7 +205,25 @@ public class TestParquetSchemaUtil {
   }
 
   @Test
-  public void testSchemaConversionForHiveStyleTwoLevelList() {
+  public void testLegacyTwoLevelListTypeWithPrimitiveElement() {
+    String parquetSchemaString =
+        "message spark_schema {\n" +
+            "  optional group arraybytes (LIST) {\n" +
+            "    repeated binary array;\n" +
+            "  }\n" +
+            "}\n";
+    MessageType messageType = MessageTypeParser.parseMessageType(parquetSchemaString);
+
+    Schema expectedSchema = new Schema(
+        optional(1, "arraybytes", Types.ListType.ofRequired(1000, Types.BinaryType.get()))
+    );
+
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
+    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
+  @Test
+  public void testLegacyTwoLevelListTypeWithGroupTypeElementWithTwoFields() {
     String messageType =
         "message root {" +
             "  required group f0 {" +
@@ -236,20 +254,52 @@ public class TestParquetSchemaUtil {
   }
 
   @Test
-  public void testSchemaConversionListByteArray() {
-    String parquetSchemaString =
-        "message spark_schema {\n" +
-            "  optional group arraybytes (LIST) {\n" +
-            "    repeated binary array;\n" +
-            "  }\n" +
-            "}\n";
-    MessageType messageType = MessageTypeParser.parseMessageType(parquetSchemaString);
+  public void testLegacyTwoLevelListGenByParquetAvro() {
+    String messageType =
+        "message root {" +
+            "  optional group my_list (LIST) {" +
+            "    repeated group array {" +
+            "      required binary str (UTF8);" +
+            "    }" +
+            "  }" +
+            "}";
 
+    MessageType parquetScehma = MessageTypeParser.parseMessageType(messageType);
     Schema expectedSchema = new Schema(
-        optional(1, "arraybytes", Types.ListType.ofRequired(1000, Types.BinaryType.get()))
+        optional(1, "my_list", Types.ListType.ofRequired(
+            1001,
+            Types.StructType.of(
+                required(1000, "str", Types.StringType.get())
+            )
+        ))
     );
 
-    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
+    Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
+    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
+  @Test
+  public void testLegacyTwoLevelListGenByParquetThrift() {
+    String messageType =
+        "message root {" +
+            "  optional group my_list (LIST) {" +
+            "    repeated group my_list_tuple {" +
+            "      required binary str (UTF8);" +
+            "    }" +
+            "  }" +
+            "}";
+
+    MessageType parquetScehma = MessageTypeParser.parseMessageType(messageType);
+    Schema expectedSchema = new Schema(
+        optional(1, "my_list", Types.ListType.ofRequired(
+            1001,
+            Types.StructType.of(
+                required(1000, "str", Types.StringType.get())
+            )
+        ))
+    );
+
+    Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
     Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
   }
 

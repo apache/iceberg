@@ -67,10 +67,10 @@ public class TypeWithSchemaVisitor<T> {
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
 
-            boolean isElementType = ParquetSchemaUtil.isListElementType(repeatedElement, group.getName());
+            boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(repeatedElement, group.getName());
 
             Preconditions.checkArgument(
-                isElementType ||
+                isOldListElementType ||
                     repeatedElement.asGroupType().getFieldCount() <= 1,
                 "Invalid list: repeated group is not a single field: %s", group);
 
@@ -81,12 +81,12 @@ public class TypeWithSchemaVisitor<T> {
               element = list.fields().get(0);
             }
 
-            if (!isElementType) {
+            if (!isOldListElementType) {
               visitor.fieldNames.push(repeatedElement.getName());
             }
             try {
               T elementResult = null;
-              if (isElementType) {
+              if (isOldListElementType) {
                 elementResult = visitField(element, repeatedElement, visitor);
               } else if (repeatedElement.asGroupType().getFieldCount() > 0) {
                 elementResult = visitField(element, repeatedElement.asGroupType().getType(0), visitor);
@@ -94,7 +94,7 @@ public class TypeWithSchemaVisitor<T> {
 
               return visitor.list(list, group, elementResult);
             } finally {
-              if (!isElementType) {
+              if (!isOldListElementType) {
                 visitor.fieldNames.pop();
               }
             }
