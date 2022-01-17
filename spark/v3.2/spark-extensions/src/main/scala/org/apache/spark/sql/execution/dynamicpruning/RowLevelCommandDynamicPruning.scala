@@ -31,9 +31,13 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
+import org.apache.spark.sql.catalyst.plans.LeftSemi
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.catalyst.plans.logical.Join
+import org.apache.spark.sql.catalyst.plans.logical.JoinHint
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
@@ -89,6 +93,7 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
     val matchingRowsPlan = command match {
       case d: DeleteFromIcebergTable =>
         Filter(d.condition.get, relation)
+
       case u: UpdateIcebergTable =>
         // UPDATEs with subqueries are rewritten using a UNION with two identical scan relations
         // the analyzer clones of them and assigns fresh expr IDs so that attributes don't collide
@@ -100,6 +105,9 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
           case attr: AttributeReference if attrMap.contains(attr) => attrMap(attr)
         }
         Filter(transformedCond, relation)
+
+      case m: MergeIntoIcebergTable =>
+        Join(relation, m.sourceTable, LeftSemi, Some(m.mergeCondition), JoinHint.NONE)
     }
 
     // clone the original relation in the filtering plan and assign new expr IDs to avoid conflicts

@@ -217,21 +217,18 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode updateDistributionMode() {
-    return rowLevelCommandDistributionMode(TableProperties.UPDATE_DISTRIBUTION_MODE);
-  }
-
-  public DistributionMode mergeDistributionMode() {
-    return rowLevelCommandDistributionMode(TableProperties.MERGE_DISTRIBUTION_MODE);
-  }
-
-  private DistributionMode rowLevelCommandDistributionMode(String tableProperty) {
-    String modeName = confParser.stringConf()
+  public DistributionMode copyOnWriteMergeDistributionMode() {
+    String mergeModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
-        .tableProperty(tableProperty)
+        .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
         .parseOptional();
 
-    return modeName != null ? DistributionMode.fromName(modeName) : distributionMode();
+    if (mergeModeName != null) {
+      DistributionMode mergeMode = DistributionMode.fromName(mergeModeName);
+      return adjustWriteDistributionMode(mergeMode);
+    } else {
+      return distributionMode();
+    }
   }
 
   public boolean useTableDistributionAndOrdering() {

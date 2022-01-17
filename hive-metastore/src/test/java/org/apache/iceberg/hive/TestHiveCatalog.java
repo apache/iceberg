@@ -21,7 +21,6 @@ package org.apache.iceberg.hive;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
@@ -54,7 +53,6 @@ import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
-  private static final String hiveLocalDir = "file:/tmp/hive/" + UUID.randomUUID().toString();
   private static ImmutableMap meta = ImmutableMap.of(
       "owner", "apache",
       "group", "iceberg",
@@ -272,7 +270,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testCreateNamespace() throws TException {
+  public void testCreateNamespace() throws Exception {
     Namespace namespace1 = Namespace.of("noLocation");
     catalog.createNamespace(namespace1, meta);
     Database database1 = metastoreClient.getDatabase(namespace1.toString());
@@ -287,6 +285,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         AlreadyExistsException.class, "Namespace '" + namespace1 + "' already exists!", () -> {
           catalog.createNamespace(namespace1);
         });
+    String hiveLocalDir = temp.newFolder().toURI().toString();
+    // remove the trailing slash of the URI
+    hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
     ImmutableMap newMeta = ImmutableMap.<String, String>builder()
         .putAll(meta)
         .put("location", hiveLocalDir)
