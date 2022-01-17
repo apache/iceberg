@@ -67,6 +67,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private Configuration conf;
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
+  private boolean filterIcebergTable = false;
 
   public HiveCatalog() {
   }
@@ -87,6 +88,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
+    this.filterIcebergTable = Boolean.parseBoolean(properties.get(CatalogProperties.FILTER_ICEBERG_TABLE));
+
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
@@ -101,12 +104,21 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     try {
       List<String> tableNames = clients.run(client -> client.getAllTables(database));
-      List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
-      List<TableIdentifier> tableIdentifiers = tableObjects.stream()
-          .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-                  .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
-          .map(table -> TableIdentifier.of(namespace, table.getTableName()))
-          .collect(Collectors.toList());
+      List<TableIdentifier> tableIdentifiers;
+
+      if (filterIcebergTable) {
+        List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
+        tableIdentifiers = tableObjects.stream()
+                .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                        .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
+                .map(table -> TableIdentifier.of(namespace, table.getTableName()))
+                .collect(Collectors.toList());
+
+      } else {
+        tableIdentifiers = tableNames.stream()
+                .map(t -> TableIdentifier.of(namespace, t))
+                .collect(Collectors.toList());
+      }
 
       LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, tableIdentifiers);
       return tableIdentifiers;
