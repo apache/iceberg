@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -38,14 +37,13 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
 public class TableMigrationUtil {
   public static final String PARQUET_READ_PARALLELISM = "parquet.metadata.read.parallelism";
@@ -152,9 +150,9 @@ public class TableMigrationUtil {
         FileStatus stat = fileStatus.get(index);
         Metrics metrics;
         try {
-          ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
-          metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
-        } catch (IOException e) {
+          InputFile file = HadoopInputFile.fromPath(stat.getPath(), conf);
+          metrics = ParquetUtil.fileMetrics(file, metricsSpec, mapping);
+        } catch (RuntimeIOException e) {
           throw new RuntimeException("Unable to read the footer of the parquet file: " +
                   stat.getPath(), e);
         }
