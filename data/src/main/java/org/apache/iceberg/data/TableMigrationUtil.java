@@ -77,8 +77,6 @@ public class TableMigrationUtil {
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
                                              NameMapping mapping) {
     int parallelism = conf.getInt(PARQUET_READ_PARALLELISM, 1);
-    System.out.println("get parallelism");
-    System.out.println(parallelism);
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf, parallelism);
     } else if (format.contains("parquet")) {
@@ -202,7 +200,6 @@ public class TableMigrationUtil {
               .throwFailureWhenFinished();
 
       if (parallelism > 1) {
-        System.out.printf("parallelism %d\n", parallelism);
         task.executeWith(Executors.newFixedThreadPool(parallelism));
       }
       task.run(index -> {
@@ -247,7 +244,6 @@ public class TableMigrationUtil {
               .throwFailureWhenFinished();
 
       if (parallelism > 1) {
-        System.out.printf("parallelism %d\n", parallelism);
         task.executeWith(Executors.newFixedThreadPool(parallelism));
       }
       task.run(index -> {
@@ -297,7 +293,6 @@ public class TableMigrationUtil {
               .throwFailureWhenFinished();
 
       if (parallelism > 1) {
-        System.out.printf("parallelism %d\n", parallelism);
         task.executeWith(Executors.newFixedThreadPool(parallelism));
       }
       task.run(index -> {
