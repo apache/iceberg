@@ -1159,6 +1159,59 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeResolvesColumnsByName() {
+    createAndInitTable("id INT, badge INT, dep STRING",
+        "{ \"id\": 1, \"badge\": 1000, \"dep\": \"emp-id-one\" }\n" +
+        "{ \"id\": 6, \"badge\": 6000, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView("source", "badge INT, id INT, dep STRING",
+        "{ \"badge\": 1001, \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"badge\": 6006, \"id\": 6, \"dep\": \"emp-id-6\" }\n" +
+        "{ \"badge\": 7007, \"id\": 7, \"dep\": \"emp-id-7\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT * ", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, 1001, "emp-id-1"), // updated
+        row(6, 6006, "emp-id-6"), // updated
+        row(7, 7007, "emp-id-7")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows,
+        sql("SELECT id, badge, dep FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeShouldResolveWhenThereAreNoUnresolvedExpressionsOrColumns() {
+    // ensures that MERGE INTO will resolve into the correct action even if no columns
+    // or otherwise unresolved expressions exist in the query (testing SPARK-34962)
+    createAndInitTable("id INT, dep STRING");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON 1 != 1 " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, "emp-id-1"), // new
+        row(2, "emp-id-2"), // new
+        row(3, "emp-id-3")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void testMergeWithNonExistingColumns() {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
