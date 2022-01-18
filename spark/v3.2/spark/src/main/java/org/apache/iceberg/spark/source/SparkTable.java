@@ -96,7 +96,6 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
-    // snapshotId is not null iff we used the custom table syntax
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;

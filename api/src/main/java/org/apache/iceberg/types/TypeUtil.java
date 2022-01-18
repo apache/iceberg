@@ -334,7 +334,7 @@ public class TypeUtil {
    */
   public static void validateSchema(String context, Schema expectedSchema, Schema providedSchema,
                                     boolean checkNullability, boolean checkOrdering) {
-    String errMsg = String.format("Provided %s schema is incompatible with expected %s schema:", context, context);
+    String errMsg = String.format("Provided %s schema is incompatible with expected schema:", context);
     checkSchemaCompatibility(errMsg, expectedSchema, providedSchema, checkNullability, checkOrdering);
   }
 
@@ -353,11 +353,11 @@ public class TypeUtil {
           .append("\n")
           .append(schema)
           .append("\n")
-          .append("provided schema:")
+          .append("Provided schema:")
           .append("\n")
           .append(providedSchema)
           .append("\n")
-          .append("problems:");
+          .append("Problems:");
       for (String error : errors) {
         sb.append("\n* ").append(error);
       }
