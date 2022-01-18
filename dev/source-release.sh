@@ -68,7 +68,7 @@ if [ -z "$version" ] || [ -z "$rc" ]; then
   usage
 fi
 
-if ! git ls-remote --quiet --exit-code "$remote"; then
+if ! git ls-remote --exit-code "$remote" >/dev/null 2>&1 ; then
   echo "The target remote git repository, ${remote}, is not configured in git. Please pass a valid value for the remote git repository to target via the -g switch"
   usage
 fi
