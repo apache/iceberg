@@ -36,7 +36,7 @@ usage () {
 }
 
 # Default repository remote name
-remote="apache"
+remote="origin"
 
 while getopts "v:r:k:g:d" opt; do
   case "${opt}" in
@@ -65,6 +65,11 @@ shift $((OPTIND-1))
 
 if [ -z "$version" ] || [ -z "$rc" ]; then
   echo "You must specify the version and RC numbers using the -v and -r switches"
+  usage
+fi
+
+if ! git ls-remote --quiet --exit-code "$remote"; then
+  echo "The target remote git repository, ${remote}, is not configured in git. Please pass a valid value for the remote git repository to target via the -g switch"
   usage
 fi
 
