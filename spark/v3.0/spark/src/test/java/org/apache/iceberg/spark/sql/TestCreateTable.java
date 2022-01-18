@@ -23,7 +23,6 @@ import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -66,7 +65,6 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assert.assertEquals("Should not be partitioned", 0, table.spec().fields().size());
     Assert.assertNull("Should not have the default format set",
         table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
-    Assert.assertNotNull(((HasTableOperations) table).operations().current().uuid());
   }
 
   @Test

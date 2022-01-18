@@ -43,7 +43,7 @@ public class TableProperties {
   /**
    * Reserved table property for UUID.
    * <p>
-   * This reserved property is keyword is used to store the UUID of the table.
+   * This reserved property is used to store the UUID of the table.
    */
   public static final String UUID = "uuid";
 
