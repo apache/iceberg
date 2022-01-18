@@ -368,26 +368,21 @@ SELECT id, data, category, ts FROM another_table
 ORDER BY ts, category
 ```
 
-If you want to introduce order within each task, not across tasks. you can use `LOCALLY ORDERED BY` to achieve it, like below:
+To order within each task, not across tasks, use `LOCALLY ORDERED BY`:
 
 ```sql
 ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category, id
--- use optional ASC/DEC keyword to specify sort order of each field (default ASC)
-ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category ASC, id DESC
--- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
-ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
 ```
 
 ### `ALTER TABLE ... WRITE DISTRIBUTED BY PARTITION` 
 
-`WRITE DISTRIBUTED BY PARTITION` will guarantee that a given partition is handled by one writer, the default implementation is hash distribution.
+`WRITE DISTRIBUTED BY PARTITION` will request that each partition is handled by one writer, the default implementation is hash distribution.
 
 ```sql
 ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION
 ```
 
-the user can specify `DISTRIBUTED BY PARTITION` and `LOCALLY ORDERED BY`, so the partition columns and sort columns can be different.
-The usual case is that the partition columns are a prefix of sort columns, but that is not required.
+`DISTRIBUTED BY PARTITION` and `LOCALLY ORDERED BY` may be used together, to distribute by partition and locally order rows within each task.
 
 ```sql
 ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY category, id
