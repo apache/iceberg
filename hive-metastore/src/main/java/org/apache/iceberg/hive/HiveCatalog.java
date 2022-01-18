@@ -62,13 +62,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
+  public static final String LIST_ALL_TABLES = "hive.catalog.list-all-tables";
+  public static final String LIST_ALL_TABLES_DEFAULT = "true";
+
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
   private String name;
   private Configuration conf;
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
-  private boolean filterIcebergTable = false;
+  private boolean listAllTables = true;
 
   public HiveCatalog() {
   }
@@ -89,7 +92,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    this.filterIcebergTable = Boolean.parseBoolean(properties.get(CatalogProperties.FILTER_ICEBERG_TABLE));
+    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, LIST_ALL_TABLES_DEFAULT));
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
@@ -107,18 +110,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       List<String> tableNames = clients.run(client -> client.getAllTables(database));
       List<TableIdentifier> tableIdentifiers;
 
-      if (filterIcebergTable) {
+      if (listAllTables) {
+        tableIdentifiers = tableNames.stream()
+            .map(t -> TableIdentifier.of(namespace, t))
+            .collect(Collectors.toList());
+      } else {
         List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
         tableIdentifiers = tableObjects.stream()
-                .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-                        .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
-                .map(table -> TableIdentifier.of(namespace, table.getTableName()))
-                .collect(Collectors.toList());
-
-      } else {
-        tableIdentifiers = tableNames.stream()
-                .map(t -> TableIdentifier.of(namespace, t))
-                .collect(Collectors.toList());
+            .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
+            .map(table -> TableIdentifier.of(namespace, table.getTableName()))
+            .collect(Collectors.toList());
       }
 
       LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, tableIdentifiers);
@@ -536,7 +538,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @VisibleForTesting
-  void setFilterIcebergTable(boolean filterIcebergTable) {
-    this.filterIcebergTable = filterIcebergTable;
+  void setListAllTables(boolean listAllTables) {
+    this.listAllTables = listAllTables;
   }
 }

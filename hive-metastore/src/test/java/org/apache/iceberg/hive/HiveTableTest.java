@@ -325,11 +325,11 @@ public class HiveTableTest extends HiveTableBaseTest {
     org.apache.hadoop.hive.metastore.api.Table hiveTable = createHiveTable(hiveTableName);
     metastoreClient.createTable(hiveTable);
 
-    catalog.setFilterIcebergTable(true);
+    catalog.setListAllTables(false);
     List<TableIdentifier> tableIdents1 = catalog.listTables(TABLE_IDENTIFIER.namespace());
     Assert.assertEquals("should only 1 iceberg table .", 1, tableIdents1.size());
 
-    catalog.setFilterIcebergTable(false);
+    catalog.setListAllTables(true);
     List<TableIdentifier> tableIdents2 = catalog.listTables(TABLE_IDENTIFIER.namespace());
     Assert.assertEquals("should be 2 tables in namespace .", 2, tableIdents2.size());
 

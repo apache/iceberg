@@ -59,9 +59,6 @@ public class CatalogProperties {
   public static final String CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS = "client.pool.cache.eviction-interval-ms";
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
 
-  public static final String FILTER_ICEBERG_TABLE = "filter.iceberg.table";
-  public static final boolean FILTER_ICEBERG_TABLE_DEFAULT = false;
-
   public static final String LOCK_IMPL = "lock-impl";
 
   public static final String LOCK_HEARTBEAT_INTERVAL_MS = "lock.heartbeat-interval-ms";
