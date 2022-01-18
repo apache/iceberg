@@ -21,8 +21,6 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import org.apache.avro.file.CodecFactory;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -35,10 +33,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -162,26 +158,6 @@ public class TestTableProperties extends FlinkCatalogTestBase {
     Assert.assertEquals(compressionCodec, config.get(TableProperties.PARQUET_COMPRESSION));
     Assert.assertEquals(FileFormat.PARQUET.name(), config.get(TableProperties.DEFAULT_FILE_FORMAT));
 
-    DynFields.BoundField<Function> createContextFunc =
-        DynFields.builder().hiddenImpl(Parquet.WriteBuilder.class, "createContextFunc").build(writeBuilder);
-    Object apply = createContextFunc.get().apply(config);
-
-    Integer rowGroupSize =
-        (Integer) DynFields.builder().hiddenImpl(apply.getClass(), "rowGroupSize").build(apply).get();
-    Assert.assertEquals(groupSizeBytes, String.valueOf(rowGroupSize));
-
-    Integer pageSize =
-        (Integer) DynFields.builder().hiddenImpl(apply.getClass(), "pageSize").build(apply).get();
-    Assert.assertEquals(pageSizeBytes, String.valueOf(pageSize));
-
-    Integer dictionaryPageSize =
-        (Integer) DynFields.builder().hiddenImpl(apply.getClass(), "dictionaryPageSize").build(apply).get();
-    Assert.assertEquals(dictSizeBytes, String.valueOf(dictionaryPageSize));
-
-    CompressionCodecName codec =
-        (CompressionCodecName) DynFields.builder().hiddenImpl(apply.getClass(), "codec").build(apply).get();
-    Assert.assertEquals(CompressionCodecName.UNCOMPRESSED, codec);
-
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, parquetTableName);
   }
 
@@ -209,14 +185,6 @@ public class TestTableProperties extends FlinkCatalogTestBase {
     Assert.assertEquals(compressionCodec, config.get(TableProperties.AVRO_COMPRESSION));
     Assert.assertEquals(FileFormat.AVRO.name(), config.get(TableProperties.DEFAULT_FILE_FORMAT));
 
-    DynFields.BoundField<Function> createContextFunc =
-        DynFields.builder().hiddenImpl(Avro.WriteBuilder.class, "createContextFunc").build(writeBuilder);
-    Object apply = createContextFunc.get().apply(config);
-
-    CodecFactory codecFactory =
-        (CodecFactory) DynFields.builder().hiddenImpl(apply.getClass(), "codec").build(apply).get();
-
-    Assert.assertEquals(CodecFactory.snappyCodec().toString(), codecFactory.toString());
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, avroTableName);
   }
 
