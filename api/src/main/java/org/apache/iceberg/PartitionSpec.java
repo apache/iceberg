@@ -94,8 +94,12 @@ public class PartitionSpec implements Serializable {
     return lazyFieldList();
   }
 
+  public boolean isPartitioned() {
+    return fields.length > 0;
+  }
+
   public boolean isUnpartitioned() {
-    return fields.length < 1;
+    return !isPartitioned();
   }
 
   int lastAssignedFieldId() {

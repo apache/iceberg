@@ -41,9 +41,13 @@ import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Com
 
 public class SparkDistributionAndOrderingUtil {
 
+  private static final NamedReference SPEC_ID = Expressions.column(MetadataColumns.SPEC_ID.name());
+  private static final NamedReference PARTITION = Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME);
   private static final NamedReference FILE_PATH = Expressions.column(MetadataColumns.FILE_PATH.name());
   private static final NamedReference ROW_POSITION = Expressions.column(MetadataColumns.ROW_POSITION.name());
 
+  private static final SortOrder SPEC_ID_ORDER = Expressions.sort(SPEC_ID, SortDirection.ASCENDING);
+  private static final SortOrder PARTITION_ORDER = Expressions.sort(PARTITION, SortDirection.ASCENDING);
   private static final SortOrder FILE_PATH_ORDER = Expressions.sort(FILE_PATH, SortDirection.ASCENDING);
   private static final SortOrder ROW_POSITION_ORDER = Expressions.sort(ROW_POSITION, SortDirection.ASCENDING);
 
@@ -93,6 +97,42 @@ public class SparkDistributionAndOrderingUtil {
       return new SortOrder[]{FILE_PATH_ORDER, ROW_POSITION_ORDER};
     } else {
       return buildRequiredOrdering(table, distribution);
+    }
+  }
+
+  public static Distribution buildPositionDeltaDistribution(Table table, Command command,
+                                                            DistributionMode distributionMode) {
+    if (command == DELETE) {
+      return positionDeleteDistribution(distributionMode);
+    } else {
+      throw new IllegalArgumentException("Only position deletes are currently supported");
+    }
+  }
+
+  private static Distribution positionDeleteDistribution(DistributionMode distributionMode) {
+    switch (distributionMode) {
+      case NONE:
+        return Distributions.unspecified();
+
+      case HASH:
+        Expression[] clustering = new Expression[]{SPEC_ID, PARTITION};
+        return Distributions.clustered(clustering);
+
+      case RANGE:
+        SortOrder[] ordering = new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER};
+        return Distributions.ordered(ordering);
+
+      default:
+        throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
+    }
+  }
+
+  public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command, Distribution distribution) {
+    // the spec requires position delete files to be sorted by file and pos
+    if (command == DELETE) {
+      return new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
+    } else {
+      throw new IllegalArgumentException("Only position deletes are currently supported");
     }
   }
 

@@ -171,7 +171,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -191,7 +191,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "0", null, null);
+    validateCopyOnWrite(currentSnapshot, "0", null, null);
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -215,7 +215,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "3", "2");
+    validateCopyOnWrite(currentSnapshot, "2", "3", "2");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(-1, "hr")),
@@ -511,7 +511,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "2", "2");
+    validateCopyOnWrite(currentSnapshot,  "2", "2", "2");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(2, "hardware"), row(3, "hr")),
@@ -583,7 +583,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),

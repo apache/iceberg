@@ -33,6 +33,12 @@ public class SparkWriteOptions {
   // Overrides this table's write.target-file-size-bytes
   public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
+  // Overrides the default file format for delete files
+  public static final String DELETE_FORMAT = "delete-format";
+
+  // Overrides the default size for delete files
+  public static final String TARGET_DELETE_FILE_SIZE_BYTES = "target-delete-file-size-bytes";
+
   //  Sets the nullable check on fields(default: true)
   public static final String CHECK_NULLABILITY = "check-nullability";
 
