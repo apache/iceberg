@@ -21,7 +21,6 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -63,7 +62,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Parameters(name = "fileFormat={0}, catalog={1}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
+    Collection<Object[]> testParams = Lists.newArrayList();
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
     for (FileFormat fileFormat : HiveIcebergStorageHandlerTestUtils.FILE_FORMATS) {
@@ -99,7 +98,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   }
 
   @AfterClass
-  public static void afterClass() {
+  public static void afterClass() throws Exception {
     shell.stop();
   }
 

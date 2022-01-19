@@ -20,7 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +38,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,6 +59,7 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
 
@@ -101,7 +102,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}, isVectorized={3}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
+    Collection<Object[]> testParams = Lists.newArrayList();
     String javaVersion = System.getProperty("java.specification.version");
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
@@ -157,7 +158,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @AfterClass
-  public static void afterClass() {
+  public static void afterClass() throws Exception {
     shell.stop();
   }
 
@@ -374,7 +375,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers");
 
     // Check that everything is duplicated as expected
-    List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Record> records = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
@@ -394,7 +395,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers ORDER BY customer_id");
 
     // Check that everything is duplicated as expected
-    List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Record> records = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
@@ -775,6 +776,37 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement(insert);
     stats = shell.metastore().getTable(identifier).getParameters().get(StatsSetupConst.COLUMN_STATS_ACCURATE);
     Assert.assertTrue(stats.startsWith("{\"BASIC_STATS\":\"true\"")); // it's followed by column stats in Hive3
+  }
+
+  /**
+   * Tests that vectorized ORC reading code path correctly handles when the same ORC file is split into multiple parts.
+   * Although the split offsets and length will not always include the file tail that contains the metadata, the
+   * vectorized reader needs to make sure to handle the tail reading regardless of the offsets. If this is not done
+   * correctly, the last SELECT query will fail.
+   * @throws Exception - any test error
+   */
+  @Test
+  public void testVectorizedOrcMultipleSplits() throws Exception {
+    assumeTrue(isVectorized && FileFormat.ORC.equals(fileFormat));
+
+    // This data will be held by a ~870kB ORC file
+    List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        20000, 0L);
+
+    // To support splitting the ORC file, we need to specify the stripe size to a small value. It looks like the min
+    // value is about 220kB, no smaller stripes are written by ORC. Anyway, this setting will produce 4 stripes.
+    shell.setHiveSessionValue("orc.stripe.size", "210000");
+
+    testTables.createTable(shell, "targettab", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        fileFormat, records);
+
+    // Will request 4 splits, separated on the exact stripe boundaries within the ORC file.
+    // (Would request 5 if ORC split generation wouldn't be split (aka stripe) offset aware).
+    shell.setHiveSessionValue(InputFormatConfig.SPLIT_SIZE, "210000");
+    List<Object[]> result = shell.executeStatement("SELECT * FROM targettab ORDER BY last_name");
+
+    Assert.assertEquals(20000, result.size());
+
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {

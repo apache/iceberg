@@ -70,12 +70,21 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
 | history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep while expiring snapshots    |
 | history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep while expiring snapshots |
+| history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
 
 ### Compatibility flags
 
 | Property                                      | Default  | Description                                                   |
 | --------------------------------------------- | -------- | ------------------------------------------------------------- |
 | compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
+
+### Reserved table properties
+Reserved table properties are only used to control behaviors when creating or updating a table.
+The value of these properties are not persisted as a part of the table metadata.
+
+| Property       | Default  | Description                                                   |
+| -------------- | -------- | ------------------------------------------------------------- |
+| format-version | 1        | Table's format version (can be 1 or 2) as defined in the [Spec](./spec.md#format-versioning). |
 
 ## Catalog properties
 

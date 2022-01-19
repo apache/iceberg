@@ -49,7 +49,8 @@ Roll back a table to a specific snapshot ID.
 
 To roll back to a specific time, use [`rollback_to_timestamp`](#rollback_to_timestamp).
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -77,7 +78,8 @@ CALL catalog_name.system.rollback_to_snapshot('db.sample', 1)
 
 Roll back a table to the snapshot that was current at some time.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -106,7 +108,8 @@ Sets the current snapshot ID for a table.
 
 Unlike rollback, the snapshot is not required to be an ancestor of the current table state.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -137,7 +140,8 @@ Cherry-picking creates a new snapshot from an existing snapshot without altering
 
 Only append and dynamic overwrite snapshots can be cherry-picked.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -186,6 +190,8 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `table`       | ✔️  | string | Name of the table to update |
 | `older_than`  | ️   | timestamp | Timestamp before which snapshots will be removed (Default: 5 days ago) |
 | `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
+
+If `older_than` and `retain_last` are omitted, the table's [expiration properties](./configuration/#table-behavior-properties) will be used.
 
 #### Output
 
@@ -302,7 +308,8 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 See the [`RewriteManifestsAction` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteManifestsAction.html)
 to see more configuration options.
 
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+!!! Note
+    This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
@@ -334,6 +341,14 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false)
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.
 
+!!! Note
+    Parquet files written with Parquet writers that use names other than `list` and `element` for repeated group 
+    and element of the list respectively are **read incorrectly as nulls** by Iceberg upto 0.12.1 Iceberg versions. Most 
+    commonly such files are written by the following writers.
+    
+    1. *Hive*: when written to tables with`org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe` as it's SerDe.
+    2. *Spark*: when written with `spark.sql.parquet.writeLegacyFormat` set to `true`.
+
 ### `snapshot`
 
 Create a light-weight temporary copy of a table for testing, without changing the source table.
@@ -344,11 +359,12 @@ When inserts or overwrites run on the snapshot, new files are placed in the snap
 
 When finished testing a snapshot table, clean it up by running `DROP TABLE`.
 
-**Note** Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
-actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
-are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
-integrity. DELETE statements executed against the original Hive table will remove original data files and the
-`snapshot` table will no longer be able to access them.
+!!! Note
+    Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
+    actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+    are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
+    integrity. DELETE statements executed against the original Hive table will remove original data files and the
+    `snapshot` table will no longer be able to access them.
 
 See [`migrate`](#migrate-table-procedure) to replace an existing table with an Iceberg table.
 

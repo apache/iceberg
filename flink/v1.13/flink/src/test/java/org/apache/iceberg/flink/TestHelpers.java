@@ -33,7 +33,11 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
+import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -65,6 +69,16 @@ import org.junit.Assert;
 
 public class TestHelpers {
   private TestHelpers() {
+  }
+
+  public static <T> T roundTripKryoSerialize(Class<T> clazz, T table) throws IOException {
+    KryoSerializer<T> kryo = new KryoSerializer<>(clazz, new ExecutionConfig());
+
+    DataOutputSerializer outputView = new DataOutputSerializer(1024);
+    kryo.serialize(table, outputView);
+
+    DataInputDeserializer inputView = new DataInputDeserializer(outputView.getCopyOfBuffer());
+    return kryo.deserialize(inputView);
   }
 
   public static RowData copyRowData(RowData from, RowType rowType) {

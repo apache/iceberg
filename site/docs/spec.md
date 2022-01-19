@@ -566,6 +566,38 @@ Notes:
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
 
+#### Snapshot Reference
+
+Iceberg tables keep track of branches and tags using snapshot references. 
+Tags are labels for individual snapshots. Branches are mutable named references that can be updated by committing a new snapshot as the branch's referenced snapshot using the [Commit Conflict Resolution and Retry](#commit-conflict-resolution-and-retry) procedures.
+
+The snapshot reference object records all the information of a reference including snapshot ID, reference type and [Snapshot Retention Policy](#snapshot-retention-policy).
+
+| v1         | v2         | Field name                   | Type      | Description |
+| ---------- | ---------- | ---------------------------- | --------- | ----------- |
+| _required_ | _required_ | **`snapshot-id`**            | `long`    | A reference's snapshot ID. The tagged snapshot or latest snapshot of a branch. |
+| _required_ | _required_ | **`type`**                   | `string`  | Type of the reference, `tag` or `branch` |
+| _optional_ | _optional_ | **`min-snapshots-to-keep`**  | `int`     | For `branch` type only, a positive number for the minimum number of snapshots to keep in a branch while expiring snapshots. Defaults to table property `history.expire.min-snapshots-to-keep`. |
+| _optional_ | _optional_ | **`max-snapshot-age-ms`**    | `long`    | For `branch` type only, a positive number for the max age of snapshots to keep when expiring, including the latest snapshot. Defaults to table property `history.expire.max-snapshot-age-ms`. |
+| _optional_ | _optional_ | **`max-ref-age-ms`**         | `long`    | For snapshot references except the `main` branch, a positive number for the max age of the snapshot reference to keep while expiring snapshots. Defaults to table property `history.expire.max-ref-age-ms`. The `main` branch never expires. |
+
+Valid snapshot references are stored as the values of the `refs` map in table metadata. For serialization, see Appendix C.
+
+#### Snapshot Retention Policy
+
+Table snapshots expire and are removed from metadata to allow removed or replaced data files to be physically deleted.
+The snapshot expiration procedure removes snapshots from table metadata and applies the table's retention policy.
+Retention policy can be configured both globally and on snapshot reference through properties `min-snapshots-to-keep`, `max-snapshot-age-ms` and `max-ref-age-ms`.
+
+When expiring snapshots, retention policies in table and snapshot references are evaluated in the following way:
+
+1. Start with an empty set of snapshots to retain
+2. Remove any refs (other than main) where the referenced snapshot is older than `max-ref-age-ms`
+3. For each branch and tag, add the referenced snapshot to the retained set
+4. For each branch, add its ancestors to the retained set until:
+    1. The snapshot is older than `max-snapshot-age-ms`, AND
+    2. The snapshot is not one of the first `min-snapshots-to-keep` in the branch (including the branch's referenced snapshot)
+5. Expire any snapshot not in the set of snapshots to retain.
 
 ### Table Metadata
 
@@ -593,12 +625,13 @@ Table metadata consists of the following fields:
 | _optional_ | _required_ | **`default-spec-id`**| ID of the "current" spec that writers should use by default. |
 | _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
 | _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
-| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
+| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`. |
 | _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
 | _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
 | _optional_ | _optional_ | **`metadata-log`**| A list (optional) of timestamp and metadata file location pairs that encodes changes to the previous metadata files for the table. Each time a new metadata file is created, a new entry of the previous metadata file location should be added to the list. Tables can be configured to remove oldest metadata log entries and keep a fixed-size log of the most recent entries after a commit. |
 | _optional_ | _required_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. |
 | _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
+|            | _optional_ | **`refs`** | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
 
 For serialization details, see Appendix C.
 
@@ -1006,7 +1039,7 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
 |**`default-sort-order-id`**|`JSON int`|`0`|
-
+|**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 
 ### Name Mapping Serialization
 

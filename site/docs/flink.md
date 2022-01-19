@@ -17,25 +17,25 @@
 
 # Flink
 
-Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API to write records into an Iceberg table. Currently,
-we only integrate Iceberg with Apache Flink 1.11.x.
+Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. Currently,
+Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13, and 1.14. Previous versions of Iceberg also support Flink 1.11.
 
-| Feature support                                                        |  Flink 1.11.0      |  Notes                                                 |
-|------------------------------------------------------------------------|--------------------|--------------------------------------------------------|
-| [SQL create catalog](#creating-catalogs-and-using-catalogs)            | ✔️                 |                                                        |
-| [SQL create database](#create-database)                                | ✔️                 |                                                        |
-| [SQL create table](#create-table)                                      | ✔️                 |                                                        |
-| [SQL create table like](#create-table-like)                            | ✔️                 |                                                        |
-| [SQL alter table](#alter-table)                                        | ✔️                 | Only support altering table properties, Columns/PartitionKey changes are not supported now|
-| [SQL drop_table](#drop-table)                                          | ✔️                 |                                                        |
-| [SQL select](#querying-with-sql)                                       | ✔️                 | Support both streaming and batch mode                  |
-| [SQL insert into](#insert-into)                                        | ✔️ ️               | Support both streaming and batch mode                  |
-| [SQL insert overwrite](#insert-overwrite)                              | ✔️ ️               |                                                        |
-| [DataStream read](#reading-with-datastream)                            | ✔️ ️               |                                                        |
-| [DataStream append](#appending-data)                                   | ✔️ ️               |                                                        |
-| [DataStream overwrite](#overwrite-data)                                | ✔️ ️               |                                                        |
-| [Metadata tables](#inspecting-tables)                                  |    ️               | Support Java API but does not support Flink SQL        |
-| [Rewrite files action](#rewrite-files-action)                          | ✔️ ️               |                                                        |
+| Feature support                                             | Flink | Notes                                                        |
+| ----------------------------------------------------------- | ----- | ------------------------------------------------------------ |
+| [SQL create catalog](#creating-catalogs-and-using-catalogs) | ✔️     |                                                              |
+| [SQL create database](#create-database)                     | ✔️     |                                                              |
+| [SQL create table](#create-table)                           | ✔️     |                                                              |
+| [SQL create table like](#create-table-like)                 | ✔️     |                                                              |
+| [SQL alter table](#alter-table)                             | ✔️     | Only support altering table properties, column and partition changes are not supported |
+| [SQL drop_table](#drop-table)                               | ✔️     |                                                              |
+| [SQL select](#querying-with-sql)                            | ✔️     | Support both streaming and batch mode                        |
+| [SQL insert into](#insert-into)                             | ✔️ ️    | Support both streaming and batch mode                        |
+| [SQL insert overwrite](#insert-overwrite)                   | ✔️ ️    |                                                              |
+| [DataStream read](#reading-with-datastream)                 | ✔️ ️    |                                                              |
+| [DataStream append](#appending-data)                        | ✔️ ️    |                                                              |
+| [DataStream overwrite](#overwrite-data)                     | ✔️ ️    |                                                              |
+| [Metadata tables](#inspecting-tables)                       | ️      | Support Java API but does not support Flink SQL              |
+| [Rewrite files action](#rewrite-files-action)               | ✔️ ️    |                                                              |
 
 ## Preparation when using Flink SQL Client
 

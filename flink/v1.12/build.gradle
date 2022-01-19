@@ -140,6 +140,11 @@ project(':iceberg-flink:iceberg-flink-runtime-1.12') {
   dependencies {
     implementation project(':iceberg-flink:iceberg-flink-1.12')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }

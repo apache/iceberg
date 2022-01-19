@@ -21,6 +21,12 @@
       <img src="img/prestodb-logo.png" class="navigation-icon fa-fw"/> {{ nav_item.title }}
     </span>
   </a>
+  {%- elif nav_item.title == "Dremio" -%}
+  <a href="{{ nav_item.url }}" target="_blank" rel="noopener noreferrer" class="block wm-toc-text">
+    <span>
+      <img src="img/dremio-logo.png" class="navigation-icon fa-fw"/> {{ nav_item.title }}
+    </span>
+  </a>
   {%- else -%}
   <a href="{{ nav_item.url }}" class="wm-article-link wm-toc-text"
     >{{ nav_item.title }}</a

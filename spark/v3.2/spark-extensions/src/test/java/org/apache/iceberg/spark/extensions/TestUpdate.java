@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +36,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.SparkException;
@@ -45,12 +45,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -171,7 +171,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -191,7 +191,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "0", null, null);
+    validateCopyOnWrite(currentSnapshot, "0", null, null);
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -215,7 +215,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "3", "2");
+    validateCopyOnWrite(currentSnapshot, "2", "3", "2");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(-1, "hr")),
@@ -250,7 +250,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore // TODO: fails due to SPARK-33267
+  @Test
   public void testUpdateWithInAndNotInConditions() {
     createAndInitTable("id INT, dep STRING");
 
@@ -285,7 +285,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 100);
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, SPLIT_SIZE, 100);
 
-    List<Integer> ids = new ArrayList<>();
+    List<Integer> ids = Lists.newArrayListWithCapacity(200);
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }
@@ -511,7 +511,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "2", "2");
+    validateCopyOnWrite(currentSnapshot,  "2", "2", "2");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(2, "hardware"), row(3, "hr")),
@@ -583,7 +583,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -603,11 +603,14 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         ImmutableList.of(row(1, "hr"), row(2, "x")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    sql("UPDATE %s SET dep = 'y' WHERE " +
-        "id = (SELECT count(*) FROM (SELECT DISTINCT id FROM %s) AS t)", tableName, tableName);
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "hr"), row(2, "y")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+    // TODO: Spark does not support AQE and DPP with aggregates at the moment
+    withSQLConf(ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"), () -> {
+      sql("UPDATE %s SET dep = 'y' WHERE " +
+          "id = (SELECT count(*) FROM (SELECT DISTINCT id FROM %s) AS t)", tableName, tableName);
+      assertEquals("Should have expected rows",
+          ImmutableList.of(row(1, "hr"), row(2, "y")),
+          sql("SELECT * FROM %s ORDER BY id", tableName));
+    });
 
     sql("UPDATE %s SET id = (SELECT id - 2 FROM %s WHERE id = 1)", tableName, tableName);
     assertEquals("Should have expected rows",
@@ -633,7 +636,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
-  @Ignore // TODO: not supported since SPARK-25154 fix is not yet available
+  @Test
   public void testUpdateWithNotInSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -660,17 +663,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(5, "hr"), row(5, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
-  }
-
-  @Test
-  public void testUpdateWithNotInSubqueryNotSupported() {
-    createAndInitTable("id INT, dep STRING");
-
-    createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
-
-    AssertHelpers.assertThrows("Should complain about NOT IN subquery",
-        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
-        () -> sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id)", tableName));
   }
 
   @Test
@@ -754,10 +746,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     createOrReplaceView("updated_id", Arrays.asList(1, 100, null), Encoders.INT());
 
-    sql("UPDATE %s SET id = -1 WHERE id <= (SELECT min(value) FROM updated_id)", tableName);
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(-1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+    // TODO: Spark does not support AQE and DPP with aggregates at the moment
+    withSQLConf(ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"), () -> {
+      sql("UPDATE %s SET id = -1 WHERE id <= (SELECT min(value) FROM updated_id)", tableName);
+      assertEquals("Should have expected rows",
+          ImmutableList.of(row(-1, "hr"), row(2, "hardware"), row(null, "hr")),
+          sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+    });
   }
 
   @Test
