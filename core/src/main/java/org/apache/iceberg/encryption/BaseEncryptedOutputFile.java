@@ -25,10 +25,17 @@ class BaseEncryptedOutputFile implements EncryptedOutputFile {
 
   private final OutputFile encryptingOutputFile;
   private final EncryptionKeyMetadata keyMetadata;
+  private final NativeFileCryptoParameters nativeEncryptionParameters;
 
   BaseEncryptedOutputFile(OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
+    this(encryptingOutputFile, keyMetadata, null);
+  }
+
+  BaseEncryptedOutputFile(OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata,
+                          NativeFileCryptoParameters nativeEncryptionParameters) {
     this.encryptingOutputFile = encryptingOutputFile;
     this.keyMetadata = keyMetadata;
+    this.nativeEncryptionParameters = nativeEncryptionParameters;
   }
 
   @Override
@@ -39,5 +46,10 @@ class BaseEncryptedOutputFile implements EncryptedOutputFile {
   @Override
   public EncryptionKeyMetadata keyMetadata() {
     return keyMetadata;
+  }
+
+  @Override
+  public NativeFileCryptoParameters nativeEncryptionParameters() {
+    return nativeEncryptionParameters;
   }
 }

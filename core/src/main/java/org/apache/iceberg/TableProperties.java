@@ -276,50 +276,8 @@ public class TableProperties {
   @Deprecated
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
-<<<<<<< HEAD
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
-=======
-  /**
-   * Encryption manager type
-   */
-  public static final String ENCRYPTION_MANAGER_TYPE = "encryption.manager.type";
-  public static final String ENCRYPTION_MANAGER_TYPE_PLAINTEXT = "plaintext";
-  public static final String ENCRYPTION_MANAGER_TYPE_LEGACY = "legacy"; // TODO needed?
-  public static final String ENCRYPTION_MANAGER_TYPE_SINGLE_ENVELOPE = "envelope";
-  public static final String ENCRYPTION_MANAGER_TYPE_DOUBLE_ENVELOPE = "double.envelope";
-
-  public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key";
-
-  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data.key.length";
-  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
-
-  public static final String ENCRYPTION_DATA_ALGORITHM = "encryption.data.algorithm";
-  public static final String ENCRYPTION_DATA_ALGORITHM_DEFAULT = EncryptionAlgorithm.AES_GCM.toString();
-
-  /**
-   * Leverage file format native encryption instead of encrypting the entire file through Iceberg encryption stream
-   */
-  public static final String ENCRYPTION_PUSHDOWN_ENABLED = "encryption.pushdown";
-  public static final boolean ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT = true;
-
-  /**
-   * Implementation of the KMS client for envelope encryption.
-   */
-  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
-
-  /**
-   * Implementation of custom out/input files (for metadata and Avro data) in envelope encryption.
-   */
-  public static final String ENCRYPTION_OUTPUT_FILE_IMPL = "encryption.output.file-impl";
-  public static final String ENCRYPTION_INPUT_FILE_IMPL = "encryption.input.file-impl";
-
-  /**
-   * Implementation of legacy encryption manager.
-   * TODO needed?
-   */
-  public static final String ENCRYPTION_LEGACY_MANAGER_IMPL = "encryption.legacy.manager-impl";
->>>>>>> d4aad3190 (updates after review round 1)
 }

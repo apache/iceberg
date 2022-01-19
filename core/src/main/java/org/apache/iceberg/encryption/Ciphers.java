@@ -37,7 +37,7 @@ public class Ciphers {
     private final Cipher cipher;
     private final SecureRandom randomGenerator;
 
-    AesGcmEncryptor(byte[] keyBytes) {
+    public AesGcmEncryptor(byte[] keyBytes) {
       int keyLength = keyBytes.length;
       if (!(keyLength == 16 || keyLength == 24 || keyLength == 32)) {
         throw new IllegalArgumentException("Wrong key length " + keyLength);
@@ -53,7 +53,7 @@ public class Ciphers {
       this.randomGenerator = new SecureRandom();
     }
 
-    public byte[] encrypt(byte[] plainText) {
+    public byte[] encrypt(byte[] plainText, byte[] aad) {
       byte[] nonce = new byte[NONCE_LENGTH];
       randomGenerator.nextBytes(nonce);
       int cipherTextLength = NONCE_LENGTH + plainText.length + GCM_TAG_LENGTH;
@@ -62,6 +62,9 @@ public class Ciphers {
       try {
         GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
         cipher.init(Cipher.ENCRYPT_MODE, aesKey, spec);
+        if (null != aad) {
+          cipher.updateAAD(aad);
+        }
         cipher.doFinal(plainText, 0, plainText.length, cipherText, NONCE_LENGTH);
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to encrypt", e);
@@ -78,7 +81,7 @@ public class Ciphers {
     private final SecretKeySpec aesKey;
     private final Cipher cipher;
 
-    AesGcmDecryptor(byte[] keyBytes) {
+    public AesGcmDecryptor(byte[] keyBytes) {
       int keyLength = keyBytes.length;
       if (!(keyLength == 16 || keyLength == 24 || keyLength == 32)) {
         throw new IllegalArgumentException("Wrong key length " + keyLength);
@@ -93,7 +96,7 @@ public class Ciphers {
       }
     }
 
-    public byte[] decrypt(byte[] ciphertext)  {
+    public byte[] decrypt(byte[] ciphertext, byte[] aad)  {
       int plainTextLength = ciphertext.length - AesGcmEncryptor.GCM_TAG_LENGTH - AesGcmEncryptor.NONCE_LENGTH;
       if (plainTextLength < 1) {
         throw new RuntimeException("Wrong input length " + plainTextLength);
@@ -108,6 +111,9 @@ public class Ciphers {
       try {
         GCMParameterSpec spec = new GCMParameterSpec(AesGcmEncryptor.GCM_TAG_LENGTH_BITS, nonce);
         cipher.init(Cipher.DECRYPT_MODE, aesKey, spec);
+        if (null != aad) {
+          cipher.updateAAD(aad);
+        }
         cipher.doFinal(ciphertext, AesGcmEncryptor.NONCE_LENGTH, inputLength, plainText, 0);
       }  catch (AEADBadTagException e) {
         throw new RuntimeException("GCM tag check failed", e);

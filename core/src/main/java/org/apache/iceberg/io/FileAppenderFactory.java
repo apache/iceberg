@@ -32,6 +32,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
  */
 public interface FileAppenderFactory<T> {
 
+  // TODO deprecate/remove. Used in tests only.
   /**
    * Create a new {@link FileAppender}.
    *
@@ -40,6 +41,11 @@ public interface FileAppenderFactory<T> {
    * @return a newly created {@link FileAppender}
    */
   FileAppender<T> newAppender(OutputFile outputFile, FileFormat fileFormat);
+
+  // TODO document this, or change the previous function
+  default FileAppender<T> newAppender(EncryptedOutputFile outputFile, FileFormat fileFormat) {
+    return null;
+  }
 
   /**
    * Create a new {@link DataWriter}.

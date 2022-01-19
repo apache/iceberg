@@ -26,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Barebone encryption parameters, one object per content file.
- * Carries the file and column encryption keys (and optional AAD prefix).
+ * Carries the file encryption key (and optional AAD prefix, column keys).
  */
 public class NativeFileCryptoParameters {
   private ByteBuffer fileAadPrefix;

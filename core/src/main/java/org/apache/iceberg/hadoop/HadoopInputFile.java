@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -49,6 +50,7 @@ public class HadoopInputFile implements InputFile {
   private final Configuration conf;
   private FileStatus stat = null;
   private Long length = null;
+  private NativeFileCryptoParameters nativeDecryptionParameters;
 
   public static HadoopInputFile fromLocation(CharSequence location, Configuration conf) {
     FileSystem fs = Util.getFs(new Path(location.toString()), conf);
@@ -222,6 +224,16 @@ public class HadoopInputFile implements InputFile {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to check existence for file: %s", path);
     }
+  }
+
+  @Override
+  public NativeFileCryptoParameters getNativeDecryptionParameters() {
+    return nativeDecryptionParameters;
+  }
+
+  @Override
+  public void setNativeDecryptionParameters(NativeFileCryptoParameters nativeDecryptionParameters) {
+    this.nativeDecryptionParameters = nativeDecryptionParameters;
   }
 
   @Override

@@ -22,10 +22,11 @@ package org.apache.iceberg.encryption;
 import org.apache.iceberg.io.OutputFile;
 
 /**
- * TODO update comment
- * Thin wrapper around a {@link OutputFile} that is encrypting bytes written to the underlying
- * file system, via an encryption key that is symbolized by the enclosed
- * {@link EncryptionKeyMetadata}.
+ * A wrapper around a {@link OutputFile} that is encrypting bytes written to the underlying
+ * file system. The encryption is performed by either file format (supporting encryption natively, such as
+ * Parquet or ORC) or by a format-agnostic flat stream encryptor. The enclosed {@link EncryptionKeyMetadata} keeps
+ * the information required by the authorized readers to retrieve the encryption keys and other crypto parameters,
+ * necessary to decrypt the file.
  * <p>
  * The {@link EncryptionManager} returns instances of these when passed output files that should
  * be encrypted as they are being written to the backing file system.
@@ -33,25 +34,18 @@ import org.apache.iceberg.io.OutputFile;
 public interface EncryptedOutputFile {
 
   /**
-   * Use flat filestream encryption (default) or pushdown to native format encryption
-   */
-  default boolean useNativeEncryption() {
-    return false;
-  }
-
-  /**
    * An OutputFile instance that encrypts the bytes that are written to its output streams.
    */
   OutputFile encryptingOutputFile();
 
   /**
-   * Metadata about the encryption key that is being used to encrypt the associated
+   * Metadata about the encryption keys and other crypto parameters used to encrypt the associated
    * {@link #encryptingOutputFile()}.
    */
   EncryptionKeyMetadata keyMetadata();
 
   /**
-   * Return parameters of native encryption (if the latter is used for this file)
+   * Parameters of native encryption (if used for this file)
    */
   default NativeFileCryptoParameters nativeEncryptionParameters() {
     return null;
