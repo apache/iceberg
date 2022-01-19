@@ -275,47 +275,6 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackPartialCommitWithDeleteAllData() {
-    Map<String, String> options = Maps.newHashMap();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, options);
-    shouldHaveFiles(table, 1);
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
-
-    RowDelta rowDelta = table.newRowDelta();
-    // remove all data
-    writePosDeletesToFile(table, dataFiles.get(0), total)
-        .forEach(rowDelta::addDeletes);
-
-    rowDelta.commit();
-    table.refresh();
-    List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
-            .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
-            .execute();
-    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    Assert.assertEquals(
-        "Data manifest should not have existing data file",
-        0,
-        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
-    Assert.assertEquals("Data manifest should have 1 delete data file",
-        1L,
-        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
-    Assert.assertEquals(
-        "Delete manifest added row count should equal total count",
-        total,
-        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
-  }
-
-  @Test
   public void testBinPackWithStartingSequenceNumber() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
