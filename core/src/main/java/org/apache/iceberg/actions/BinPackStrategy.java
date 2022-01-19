@@ -259,7 +259,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, minFileSize, targetFileSize);
 
     Preconditions.checkArgument(targetFileSize < maxFileSize,
-        "Cannot set %s is less than or equal to %s, all files written will be larger than the threshold, %d >= %d",
+        "Cannot set %s is less than or equal to %s, all files written will be larger than the threshold, %d <= %d",
         MAX_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, maxFileSize, targetFileSize);
 
     Preconditions.checkArgument(minInputFiles > 0,
