@@ -773,4 +773,52 @@ public class TestHiveIcebergStorageHandlerNoScan {
   private String getCurrentSnapshotForHiveCatalogTable(org.apache.iceberg.Table icebergTable) {
     return ((BaseMetastoreTableOperations) ((BaseTable) icebergTable).operations()).currentMetadataLocation();
   }
+
+  @Test
+  public void testCreateTableWithIdentifierIds() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("default", "customers");
+    shell.executeStatement(
+        String.format("CREATE EXTERNAL TABLE %s ( " +
+                "  c1 INT, " +
+                "  c2 STRING, " +
+                "  c3 STRUCT<c4:STRING, c5:STRING> " +
+                ") " +
+                "PARTITIONED BY (c6 STRING) " +
+                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s " +
+                "TBLPROPERTIES (" +
+                "  '%s' = '%s'," +
+                "  '%s' = '%s'" +
+                ")",
+            tableIdentifier,
+            testTables.locationForCreateTableSQL(tableIdentifier),
+            InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c1,c2",
+            InputFormatConfig.CATALOG_NAME, testTables.catalogName()));
+
+    org.apache.iceberg.Table table = testTables.loadTable(tableIdentifier);
+    Assert.assertEquals(ImmutableSet.of(1, 2), table.schema().identifierFieldIds());
+  }
+
+  @Test
+  public void testCreateTableWithIdentifierIdsError() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("default", "customers");
+    Assert.assertThrows(
+        "Cannot add field c4 as an identifier field: must not in nested field",
+        IllegalArgumentException.class,
+        () -> shell.executeStatement(
+            String.format("CREATE EXTERNAL TABLE %s ( " +
+                    "  c1 INT, " +
+                    "  c2 STRING, " +
+                    "  c3 STRUCT<c4:STRING, c5:STRING> " +
+                    ") " +
+                    "PARTITIONED BY (c6 STRING) " +
+                    "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s " +
+                    "TBLPROPERTIES (" +
+                    "  '%s' = '%s'," +
+                    "  '%s' = '%s'" +
+                    ")",
+                tableIdentifier,
+                testTables.locationForCreateTableSQL(tableIdentifier),
+                InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c4",
+                InputFormatConfig.CATALOG_NAME, testTables.catalogName())));
+  }
 }

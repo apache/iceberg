@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
@@ -28,6 +31,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 
@@ -54,7 +58,11 @@ public final class HiveSchemaUtil {
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas) {
-    return convert(fieldSchemas, false);
+    return convert(fieldSchemas, false, Collections.emptySet());
+  }
+
+  public static Schema convert(List<FieldSchema> fieldSchemas, Set<String> identifierFieldNames) {
+    return convert(fieldSchemas, false, identifierFieldNames);
   }
 
   /**
@@ -63,9 +71,10 @@ public final class HiveSchemaUtil {
    * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
    *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
    *                    thrown.
+   * @param identifierFieldNames The identifierFieldSet which corresponds to identifierFieldIdSet.
    * @return An equivalent Iceberg Schema
    */
-  public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
+  public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert, Set<String> identifierFieldNames) {
     List<String> names = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     List<TypeInfo> typeInfos = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     List<String> comments = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
@@ -75,7 +84,36 @@ public final class HiveSchemaUtil {
       typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
       comments.add(col.getComment());
     }
-    return HiveSchemaConverter.convert(names, typeInfos, comments, autoConvert);
+    Schema schema = HiveSchemaConverter.convert(names, typeInfos, comments, autoConvert);
+    return rebuildSchemaWithIdentifierFieldIds(schema, identifierFieldNames);
+  }
+
+  /**
+   * Rebuild a schema with given schema and identifierFieldNames
+   * @param schema The origin schema.
+   * @param identifierFieldNames The identifierFieldNames.
+   * @return New schema with IdentifierFieldIds.
+   */
+  public static Schema rebuildSchemaWithIdentifierFieldIds(Schema schema, Set<String> identifierFieldNames) {
+    Map<Integer, Integer> indexParents = TypeUtil.indexParents(schema.asStruct());
+    Set<Integer> identifierFieldIds = identifierFieldNames.stream()
+        .map(name -> {
+          Types.NestedField field = schema.findField(name);
+          if (field == null) {
+            throw new IllegalArgumentException("Column " + name + " does not exist");
+          }
+          int id = field.fieldId();
+          if (indexParents.get(id) != null) {
+            // Field in nested is not support in iceberg, see org.apache.iceberg.Schema#validateIdentifierField
+            throw new IllegalArgumentException(
+                "Cannot add field " + name + " as an identifier field: must not in nested field");
+          }
+          return id;
+        }).collect(Collectors.toSet());
+    List<Types.NestedField> columns = schema.columns().stream()
+        .map(column -> identifierFieldIds.contains(column.fieldId()) ? column.asRequired() : column)
+        .collect(Collectors.toList());
+    return new Schema(columns, identifierFieldIds);
   }
 
   /**
@@ -112,8 +150,10 @@ public final class HiveSchemaUtil {
    *                    thrown.
    * @return The Iceberg schema
    */
-  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert) {
-    return HiveSchemaConverter.convert(names, types, comments, autoConvert);
+  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert,
+      Set<String> identifierFieldNames) {
+    Schema schema = HiveSchemaConverter.convert(names, types, comments, autoConvert);
+    return rebuildSchemaWithIdentifierFieldIds(schema, identifierFieldNames);
   }
 
   /**

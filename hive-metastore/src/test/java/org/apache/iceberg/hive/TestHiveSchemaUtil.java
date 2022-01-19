@@ -28,7 +28,9 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -168,6 +170,27 @@ public class TestHiveSchemaUtil {
         Arrays.asList("customer comment"));
 
     Assert.assertEquals(expected.asStruct(), schema.asStruct());
+  }
+
+  @Test
+  public void testRebuildSchemaWithIdentifierFieldIds() {
+    Schema actualSchema = HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "name"));
+
+    List<Types.NestedField> columns = Lists.newArrayList(COMPLEX_ICEBERG_SCHEMA.columns());
+    columns.set(0, columns.get(0).asRequired());
+    columns.set(1, columns.get(1).asRequired());
+    Schema expectedSchema = new Schema(columns, ImmutableSet.of(0, 1));
+
+    Assert.assertEquals(SchemaParser.toJson(expectedSchema), SchemaParser.toJson(actualSchema));
+  }
+
+  @Test
+  public void testRebuildSchemaWithIdentifierFieldIdsError() {
+    Assert.assertThrows("Cannot add field  as an identifier field: must not in nested field",
+            IllegalArgumentException.class,
+            () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
+                    ImmutableSet.of("id", "employee_info.id")));
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {

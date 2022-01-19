@@ -23,7 +23,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde.serdeConstants;
@@ -44,6 +46,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -176,12 +179,22 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       if (columnComments != null) {
         Collections.addAll(comments, columnComments.split(Character.toString(Character.MIN_VALUE)));
       }
+      String identifierFields = serDeProperties.getProperty(InputFormatConfig.IDENTIFIER_FIELD_NAMES);
+      Set<String> identifierFieldNames = getIdentifierFieldSet(identifierFields);
       Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
-              comments, autoConversion);
+              comments, autoConversion, identifierFieldNames);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {
       throw new SerDeException("Please provide an existing table or a valid schema", previousException);
     }
+  }
+
+  public static Set<String> getIdentifierFieldSet(@Nullable String identifierFields) {
+    return Optional.ofNullable(identifierFields)
+        .filter(s -> !s.isEmpty())
+        .map(value -> Arrays.asList((value).split(InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR)))
+        .map(ImmutableSet::copyOf)
+        .orElseGet(ImmutableSet::of);
   }
 }

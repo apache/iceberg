@@ -49,6 +49,8 @@ public class InputFormatConfig {
   public static final String SERIALIZED_TABLE_PREFIX = "iceberg.mr.serialized.table.";
   public static final String TABLE_CATALOG_PREFIX = "iceberg.mr.table.catalog.";
   public static final String LOCALITY = "iceberg.mr.locality";
+  public static final String IDENTIFIER_FIELD_NAMES = "iceberg.identifier-field-names";
+  public static final String IDENTIFIER_FIELDS_SEPARATOR = ",";
 
   /**
    * @deprecated please use {@link #catalogPropertyConfigKey(String, String)}
