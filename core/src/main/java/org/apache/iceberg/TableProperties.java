@@ -54,7 +54,8 @@ public class TableProperties {
    * The value of these properties are not persisted as a part of the table metadata.
    */
   public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
-      FORMAT_VERSION
+      FORMAT_VERSION,
+      UUID
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";

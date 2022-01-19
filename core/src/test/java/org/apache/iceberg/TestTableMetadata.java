@@ -884,5 +884,11 @@ public class TestTableMetadata {
         "Table properties should not contain reserved properties, but got {format-version=1}",
         () -> TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null, "/tmp",
             ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"), 1));
+
+    AssertHelpers.assertThrows("should not allow reserved table property when creating table metadata",
+        IllegalArgumentException.class,
+        "Table properties should not contain reserved properties, but got {uuid=uuid}",
+        () -> TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null, "/tmp",
+            ImmutableMap.of(TableProperties.UUID, "uuid"), 1));
   }
 }
