@@ -104,7 +104,7 @@ public final class HiveSchemaUtil {
           }
           int id = field.fieldId();
           if (indexParents.get(id) != null) {
-            // Field in nested is not support in iceberg, see org.apache.iceberg.Schema#validateIdentifierField
+            // Field in nested is not supported in iceberg, see org.apache.iceberg.Schema#validateIdentifierField
             throw new IllegalArgumentException(
                 "Cannot add field " + name + " as an identifier field: must not in nested field");
           }
