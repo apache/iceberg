@@ -1127,7 +1127,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   protected Table createTablePartitioned(int partitions, int files,
-                                         int numRecordsPerFile, Map<String, String> options) {
+                                         int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
         .truncate("c2", 2)
@@ -1135,7 +1135,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    writeRecords(files, numRecordsPerFile, partitions);
+    writeRecords(files, numRecords, partitions);
     return table;
   }
 
