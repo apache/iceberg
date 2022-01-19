@@ -240,7 +240,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testBinPackWithDeleteAllData() {
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, options);
+    Table table = createTablePartitioned(1, 1, 1, options);
     shouldHaveFiles(table, 1);
     table.refresh();
 
@@ -257,8 +257,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     table.refresh();
     List<Object[]> expectedRecords = currentData();
     Result result = actions().rewriteDataFiles(table)
-            .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-            .execute();
+        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
+        .execute();
     Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
 
     List<Object[]> actualRecords = currentData();
@@ -1126,7 +1126,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     return table;
   }
 
-  protected Table createTablePartitioned(int partitions, int files, Map<String, String> options) {
+  protected Table createTablePartitioned(int partitions, int files,
+                                         int numRecordsPerFile, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
         .truncate("c2", 2)
@@ -1134,12 +1135,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    writeRecords(files, SCALE, partitions);
+    writeRecords(files, numRecordsPerFile, partitions);
     return table;
   }
 
   protected Table createTablePartitioned(int partitions, int files) {
-    return createTablePartitioned(partitions, files, Maps.newHashMap());
+    return createTablePartitioned(partitions, files, SCALE, Maps.newHashMap());
   }
 
   protected int averageFileSize(Table table) {
