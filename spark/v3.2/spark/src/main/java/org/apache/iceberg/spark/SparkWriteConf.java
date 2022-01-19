@@ -212,10 +212,8 @@ public class SparkWriteConf {
         return deleteMode;
       }
     } else {
-      // use hash distribution if write distribution is range or hash
-      // avoid range-based shuffles unless the user asks explicitly
-      DistributionMode writeMode = distributionMode();
-      return writeMode != NONE ? HASH : NONE;
+      // use hash distribution by default
+      return HASH;
     }
   }
 

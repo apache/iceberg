@@ -36,6 +36,7 @@ import org.junit.Test;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
 
@@ -299,14 +300,70 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkWriteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
 
+  // =============================================================
+  // Distribution and ordering for copy-on-write DELETE operations
+  // =============================================================
+  //
+  // UNPARTITIONED UNORDERED
+  // -------------------------------------------------------------------------
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NONE -> unspecified distribution + empty ordering
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is RANGE -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  //
+  // UNPARTITIONED ORDERED BY id, data
+  // -------------------------------------------------------------------------
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NONE -> unspecified distribution + LOCALLY ORDER BY id, data
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is RANGE -> ORDER BY id, data
+  //
+  // PARTITIONED BY date, days(ts) UNORDERED
+  // -------------------------------------------------------------------------
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NONE -> unspecified distribution + LOCALLY ORDERED BY date, days(ts)
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is RANGE -> ORDER BY date, days(ts)
+  //
+  // PARTITIONED BY date ORDERED BY id
+  // -------------------------------------------------------------------------
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NONE -> unspecified distribution + LOCALLY ORDERED BY date, id
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is RANGE -> ORDERED BY date, id
+
   @Test
   public void testDefaultCopyOnWriteDeleteUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    Expression[] expectedClustering = new Expression[]{
+        Expressions.column(MetadataColumns.FILE_PATH.name()),
+    };
+    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+    };
+
+    checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testNoneCopyOnWriteDeleteUnpartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
     Distribution expectedDistribution = Distributions.unspecified();
     SortOrder[] expectedOrdering = new SortOrder[]{};
+
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
 
@@ -381,6 +438,31 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   }
 
   @Test
+  public void testNoneCopyOnWriteDeleteUnpartitionedSortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .asc("data")
+        .commit();
+
+    Distribution expectedDistribution = Distributions.unspecified();
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
+    };
+
+    checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
   public void testHashCopyOnWriteDeleteUnpartitionedSortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
@@ -440,6 +522,31 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         "PARTITIONED BY (date, days(ts))", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
+
+    Expression[] expectedClustering = new Expression[]{
+        Expressions.column(MetadataColumns.FILE_PATH.name()),
+    };
+    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+    };
+
+    checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testNoneCopyOnWriteDeletePartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, days(ts))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
 
     Distribution expectedDistribution = Distributions.unspecified();
 
@@ -518,6 +625,32 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     SortOrder[] expectedOrdering = new SortOrder[]{
         Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+    };
+
+    checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testNoneCopyOnWriteDeletePartitionedSortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    table.replaceSortOrder()
+        .desc("id")
+        .commit();
+
+    Distribution expectedDistribution = Distributions.unspecified();
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.DESCENDING)
     };
 
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
