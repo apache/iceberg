@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -379,6 +380,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Iceberg table contains correct data",
         sql("SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, date FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedByTimestampToPartitioned() {
+    createTsPartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, ts Timestamp) USING iceberg PARTITIONED BY (ts)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(4L, result);
+
+    assertEquals("Iceberg table contains correct data",
+            sql("SELECT id, name, dept, ts FROM %s ORDER BY id", sourceTableName),
+            sql("SELECT id, name, dept, ts FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -819,6 +839,26 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
               RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"))),
           new StructType(dateStruct)).repartition(2);
 
+  private static final StructField[] timeStampstruct = {
+      new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+      new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
+  };
+
+  private static Timestamp toTimestamp(String value) {
+    return new Timestamp(DateTime.parse(value).getMillis());
+  }
+
+  private static final Dataset<Row> timestampDF =
+      spark.createDataFrame(
+          ImmutableList.of(
+              RowFactory.create(1, "John Doe", "hr", toTimestamp("2021-01-01T00:00:00.999999999")),
+              RowFactory.create(2, "Jane Doe", "hr", toTimestamp("2021-01-01T00:00:00.999999999")),
+              RowFactory.create(3, "Matt Doe", "hr", toTimestamp("2021-01-02T00:00:00.999999999")),
+              RowFactory.create(4, "Will Doe", "facilities", toTimestamp("2021-01-02T00:00:00.999999999"))),
+          new StructType(timeStampstruct)).repartition(2);
+
   private void  createUnpartitionedFileTable(String format) {
     String createParquet =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s LOCATION '%s'";
@@ -899,5 +939,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
     dateDF.write().insertInto(sourceTableName);
+  }
+
+  private void  createTsPartitionedFileTable(String format) {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, ts timestamp) USING %s PARTITIONED BY (ts) " +
+            "LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+    timestampDF.write().insertInto(sourceTableName);
   }
 }
