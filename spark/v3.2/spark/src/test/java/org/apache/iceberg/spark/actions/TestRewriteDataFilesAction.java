@@ -255,11 +255,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     table.refresh();
     List<Object[]> expectedRecords = currentData();
     Result result = actions().rewriteDataFiles(table)
-            .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-            .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
             .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-            .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "false")
             .execute();
     Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
 
@@ -279,7 +275,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackWithDeleteAllDataAndSeqNum() {
+  public void testBinPackPartialCommitWithDeleteAllData() {
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, "2");
     Table table = createTablePartitioned(1, 1, options);
@@ -299,55 +295,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     table.refresh();
     List<Object[]> expectedRecords = currentData();
     Result result = actions().rewriteDataFiles(table)
-          .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-          .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-          .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-          .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-          .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
-          .execute();
-    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    Assert.assertEquals(
-        "Data manifest should not have existing data file",
-        0,
-        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
-    Assert.assertEquals("Data manifest should have 1 delete data file",
-        1L,
-        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
-    Assert.assertEquals(
-        "Delete manifest added row count should equal total count",
-        total,
-        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
-  }
-
-  @Test
-  public void testBinPackPartialCommitWithDeleteAllDataAndSeqNum() {
-    Map<String, String> options = Maps.newHashMap();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, options);
-    shouldHaveFiles(table, 1);
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
-
-    RowDelta rowDelta = table.newRowDelta();
-    // remove all data
-    writePosDeletesToFile(table, dataFiles.get(0), total)
-        .forEach(rowDelta::addDeletes);
-
-    rowDelta.commit();
-    table.refresh();
-    List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
-            .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-            .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
             .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
-            .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .execute();
     Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
