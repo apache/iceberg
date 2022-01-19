@@ -36,8 +36,8 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 public class TestTableProperties {
@@ -65,7 +65,7 @@ public class TestTableProperties {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = new HadoopTables().create(SCHEMA, spec, properties, tablePath);
 
-    Avro.WriteBuilder writeBuilder = Mockito.spy(Avro.write(Files.localOutput(TEMPORARY_FOLDER.newFile())));
+    Avro.WriteBuilder writeBuilder = spy(Avro.write(Files.localOutput(TEMPORARY_FOLDER.newFile())));
     writeBuilder.forTable(table);
     ArgumentCaptor<Map<String, String>> argument = ArgumentCaptor.forClass(Map.class);
     verify(writeBuilder).setAll(argument.capture());
