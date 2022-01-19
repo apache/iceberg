@@ -38,9 +38,9 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.row-group-size-bytes | 134217728 (128 MB) | Parquet row group size                             |
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
-| write.parquet.compression-codec    | gzip               | Parquet compression codec                          |
+| write.parquet.compression-codec    | gzip               | Parquet compression codec; zstd, brotli, lz4, gzip, snappy, uncompressed |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
-| write.avro.compression-codec       | gzip               | Avro compression codec                             |
+| write.avro.compression-codec       | gzip               | Avro compression codec; gzip(deflate with 9 level), gzip, snappy, uncompressed |
 | write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
