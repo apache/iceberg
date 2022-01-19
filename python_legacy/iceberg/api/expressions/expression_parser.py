@@ -30,6 +30,7 @@ from pyparsing import (
     opAssoc,
     pyparsing_common as ppc,
     quotedString,
+    removeQuotes,
     Word
 )
 
@@ -50,7 +51,7 @@ intNum = ppc.signed_integer()
 
 columnRval = (realNum
               | intNum
-              | quotedString
+              | quotedString.setParseAction(removeQuotes)
               | columnName)  # need to add support for alg expressions
 whereCondition = Group(
     (columnName + binop + columnRval)
@@ -126,15 +127,6 @@ def get_expr_tree(tokens):
                  binary_tuples]}
 
 
-def handle_str_expr(node):
-    if node.startswith("'") and node.endswith("'"):
-        return node.strip("'")
-    elif node.startswith("\"") and node.endswith("\""):
-        return node.strip("\"")
-    else:
-        return node
-
-
 def get_expr(node, expr_map):
     if isinstance(node, dict):
         for i in node.keys():
@@ -152,10 +144,8 @@ def get_expr(node, expr_map):
         return mapped_op(*get_expr(node[op], expr_map))
     elif isinstance(node, (list, tuple)):
         return (get_expr(item, expr_map) for item in node)
-    elif isinstance(node, (int, float)):
+    elif isinstance(node, (str, int, float)):
         return node
-    elif isinstance(node, str):
-        return handle_str_expr(node)
     else:
         raise RuntimeError("unknown node type" % node)
 
