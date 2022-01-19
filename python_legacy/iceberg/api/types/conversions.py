@@ -39,7 +39,7 @@ class Conversions(object):
                      TypeID.DECIMAL: lambda as_str: Decimal(as_str),
                      }
 
-    to_byte_buff_mapping = {TypeID.BOOLEAN: lambda type_id, value: struct.pack("<h", 1 if value else 0),
+    to_byte_buff_mapping = {TypeID.BOOLEAN: lambda type_id, value: struct.pack("<?", 1 if value else 0),
                             TypeID.INTEGER: lambda type_id, value: struct.pack("<i", value),
                             TypeID.DATE: lambda type_id, value: struct.pack("<i", value),
                             TypeID.LONG: lambda type_id, value: struct.pack("<q", value),
@@ -57,7 +57,7 @@ class Conversions(object):
                             #     Decimal('.' + "".join(['0' for x in range(0, type_var.scale)]) + '1'))
                             }
 
-    from_byte_buff_mapping = {TypeID.BOOLEAN: lambda type_id, value: struct.unpack('<h', value)[0] != 0,
+    from_byte_buff_mapping = {TypeID.BOOLEAN: lambda type_id, value: struct.unpack('<?', value)[0] != 0,
                               TypeID.INTEGER: lambda type_id, value: struct.unpack('<i', value)[0],
                               TypeID.DATE: lambda type_id, value: struct.unpack('<i', value)[0],
                               TypeID.LONG: lambda type_id, value: struct.unpack('<q', value)[0],
