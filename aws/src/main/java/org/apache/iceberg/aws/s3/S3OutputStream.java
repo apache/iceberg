@@ -121,7 +121,7 @@ class S3OutputStream extends PositionOutputStream {
     try {
       completeMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
-      throw new IOException("Failed to create message digest needed for eTag checks.", e);
+      throw new IOException("Failed to create message digest needed for s3 checksum checks.", e);
     }
 
     newStream();
@@ -210,7 +210,7 @@ class S3OutputStream extends PositionOutputStream {
     try {
       currentPartMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
-      throw new IOException(e);
+      throw new IOException("Failed to create message digest needed for s3 checksum checks.", e);
     }
 
     stagingFiles.add(new FileAndDigest(currentStagingFile));
@@ -257,13 +257,13 @@ class S3OutputStream extends PositionOutputStream {
         // do not upload any files that have already been processed
         .filter(Predicates.not(f -> multiPartMap.containsKey(f.file())))
         .forEach(fileAndDigest -> {
-          File f = fileAndDigest.file();
+          File file = fileAndDigest.file();
           UploadPartRequest.Builder requestBuilder = UploadPartRequest.builder()
               .bucket(location.bucket())
               .key(location.key())
               .uploadId(multipartUploadId)
               .partNumber(stagingFiles.indexOf(fileAndDigest) + 1)
-              .contentLength(f.length());
+              .contentLength(file.length());
 
           if (isEtagCheckEnabled) {
             requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.getDigest()));
@@ -277,7 +277,7 @@ class S3OutputStream extends PositionOutputStream {
               () -> {
                 UploadPartResponse response = null;
                 try {
-                  response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
+                  response = s3.uploadPart(uploadRequest, RequestBody.fromFile(file));
                 } catch (UncheckedIOException uncheckedIOException) {
                   logS3RequestAndThrow(uncheckedIOException, uploadRequest.toString());
                 }
@@ -286,9 +286,9 @@ class S3OutputStream extends PositionOutputStream {
               executorService
           ).whenComplete((result, thrown) -> {
             try {
-              Files.deleteIfExists(f.toPath());
+              Files.deleteIfExists(file.toPath());
             } catch (IOException e) {
-              LOG.warn("Failed to delete staging file: {}", f, e);
+              LOG.warn("Failed to delete staging file: {}", file, e);
             }
 
             if (thrown != null) {
@@ -296,7 +296,7 @@ class S3OutputStream extends PositionOutputStream {
               abortUpload();
             }
           });
-          multiPartMap.put(f, future);
+          multiPartMap.put(file, future);
         });
   }
 
