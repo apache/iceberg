@@ -147,7 +147,6 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stream.write(b);
-
     pos += 1;
 
     // switch to multipart upload
@@ -169,7 +168,6 @@ class S3OutputStream extends PositionOutputStream {
       int writeSize = multiPartSize - (int) stream.getCount();
 
       stream.write(b, relativeOffset, writeSize);
-
       remaining -= writeSize;
       relativeOffset += writeSize;
 
@@ -178,7 +176,6 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stream.write(b, relativeOffset, remaining);
-
     pos += len;
 
     // switch to multipart upload
