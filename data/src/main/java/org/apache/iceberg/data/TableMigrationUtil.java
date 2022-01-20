@@ -50,9 +50,8 @@ import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
-  public static final String PARQUET_READ_PARALLELISM = "parquet.metadata.read.parallelism";
   private static final PathFilter HIDDEN_PATH_FILTER =
-          p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+      p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
   private TableMigrationUtil() {
   }
