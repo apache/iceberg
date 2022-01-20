@@ -76,7 +76,7 @@ class PartitionSpec(object):
             result_type = field.transform.get_result_type(source_type)
             struct_fields.append(NestedField.optional(field.field_id,
                                                       field.name,
-                                                      result_type))
+                                                      result_type.get()))
 
         return StructType.of(struct_fields)
 
