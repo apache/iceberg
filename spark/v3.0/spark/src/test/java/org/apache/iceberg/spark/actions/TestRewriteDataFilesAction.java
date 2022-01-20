@@ -235,6 +235,46 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackWithDeleteAllData() {
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, "2");
+    Table table = createTablePartitioned(1, 1, 1, options);
+    shouldHaveFiles(table, 1);
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
+
+    RowDelta rowDelta = table.newRowDelta();
+    // remove all data
+    writePosDeletesToFile(table, dataFiles.get(0), total)
+        .forEach(rowDelta::addDeletes);
+
+    rowDelta.commit();
+    table.refresh();
+    List<Object[]> expectedRecords = currentData();
+    Result result = actions().rewriteDataFiles(table)
+        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
+        .execute();
+    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals(
+        "Data manifest should not have existing data file",
+        0,
+        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+    Assert.assertEquals("Data manifest should have 1 delete data file",
+        1L,
+        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+    Assert.assertEquals(
+        "Delete manifest added row count should equal total count",
+        total,
+        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
+  }
+
+  @Test
   public void testRewriteLargeTableHasResiduals() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
     Map<String, String> options = Maps.newHashMap();
@@ -1023,17 +1063,21 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     return table;
   }
 
-  protected Table createTablePartitioned(int partitions, int files) {
+  protected Table createTablePartitioned(int partitions, int files,
+                                         int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
         .truncate("c2", 2)
         .build();
-    Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    writeRecords(files, SCALE, partitions);
+    writeRecords(files, numRecords, partitions);
     return table;
+  }
+
+  protected Table createTablePartitioned(int partitions, int files) {
+    return createTablePartitioned(partitions, files, SCALE, Maps.newHashMap());
   }
 
   protected int averageFileSize(Table table) {
