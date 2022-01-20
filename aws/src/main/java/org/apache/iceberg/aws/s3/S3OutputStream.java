@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -87,7 +88,7 @@ class S3OutputStream extends PositionOutputStream {
   private final int multiPartThresholdSize;
   private final boolean isEtagCheckEnabled;
   private final MessageDigest completeMessageDigest;
-  private MessageDigest currentPartMessageDigest;
+  private final MessageDigest currentPartMessageDigest;
 
   private long pos = 0;
   private boolean closed = false;
@@ -119,6 +120,7 @@ class S3OutputStream extends PositionOutputStream {
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
     isEtagCheckEnabled = awsProperties.isS3ChecksumEnabled();
     try {
+      currentPartMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
       completeMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
       throw new IOException("Failed to create message digest needed for s3 checksum checks.", e);
@@ -145,11 +147,6 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stream.write(b);
-    if (isEtagCheckEnabled) {
-      byte byteValue = ((Integer) b).byteValue();
-      currentPartMessageDigest.update(byteValue);
-      completeMessageDigest.update(byteValue);
-    }
 
     pos += 1;
 
@@ -172,10 +169,6 @@ class S3OutputStream extends PositionOutputStream {
       int writeSize = multiPartSize - (int) stream.getCount();
 
       stream.write(b, relativeOffset, writeSize);
-      if (isEtagCheckEnabled) {
-        currentPartMessageDigest.update(b, relativeOffset, writeSize);
-        completeMessageDigest.update(b, relativeOffset, writeSize);
-      }
 
       remaining -= writeSize;
       relativeOffset += writeSize;
@@ -185,10 +178,6 @@ class S3OutputStream extends PositionOutputStream {
     }
 
     stream.write(b, relativeOffset, remaining);
-    if (isEtagCheckEnabled) {
-      currentPartMessageDigest.update(b, relativeOffset, remaining);
-      completeMessageDigest.update(b, relativeOffset, remaining);
-    }
 
     pos += len;
 
@@ -207,15 +196,17 @@ class S3OutputStream extends PositionOutputStream {
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
-    try {
-      currentPartMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
-    } catch (NoSuchAlgorithmException e) {
-      throw new IOException("Failed to create message digest needed for s3 checksum checks.", e);
-    }
 
     stagingFiles.add(new FileAndDigest(currentStagingFile));
 
-    stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
+    if (isEtagCheckEnabled) {
+      currentPartMessageDigest.reset();
+      stream = new CountingOutputStream(new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
+          new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest));
+    } else {
+      stream = new CountingOutputStream(new BufferedOutputStream(
+          new FileOutputStream(currentStagingFile)));
+    }
   }
 
   @Override
