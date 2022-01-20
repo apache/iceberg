@@ -86,7 +86,7 @@ public class TestS3OutputStream {
   private final String newTmpDirectory = "/tmp/newStagingDirectory";
 
   private final AwsProperties properties = new AwsProperties(ImmutableMap.of(
-      AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(FIVE_MBS),
+      AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
       AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
 
   public TestS3OutputStream() throws IOException {
@@ -149,7 +149,7 @@ public class TestS3OutputStream {
   }
 
   @Test
-  public void testWriteWithEtagEnabled() {
+  public void testWriteWithChecksumEnabled() {
     properties.setS3ChecksumEnabled(true);
     writeTest();
   }

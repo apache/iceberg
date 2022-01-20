@@ -86,7 +86,7 @@ class S3OutputStream extends PositionOutputStream {
   private final Map<File, CompletableFuture<CompletedPart>> multiPartMap = Maps.newHashMap();
   private final int multiPartSize;
   private final int multiPartThresholdSize;
-  private final boolean isEtagCheckEnabled;
+  private final boolean isChecksumEnabled;
   private final MessageDigest completeMessageDigest;
   private final MessageDigest currentPartMessageDigest;
 
@@ -118,12 +118,12 @@ class S3OutputStream extends PositionOutputStream {
     multiPartSize = awsProperties.s3FileIoMultiPartSize();
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
-    isEtagCheckEnabled = awsProperties.isS3ChecksumEnabled();
+    isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
     try {
-      currentPartMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
-      completeMessageDigest = isEtagCheckEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+      currentPartMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+      completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
-      throw new IOException("Failed to create message digest needed for s3 checksum checks.", e);
+      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks.", e);
     }
 
     newStream();
@@ -196,7 +196,7 @@ class S3OutputStream extends PositionOutputStream {
 
     stagingFiles.add(new FileAndDigest(currentStagingFile));
 
-    if (isEtagCheckEnabled) {
+    if (isChecksumEnabled) {
       currentPartMessageDigest.reset();
       stream = new CountingOutputStream(new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
           new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest));
@@ -253,7 +253,7 @@ class S3OutputStream extends PositionOutputStream {
               .partNumber(stagingFiles.indexOf(fileAndDigest) + 1)
               .contentLength(file.length());
 
-          if (isEtagCheckEnabled) {
+          if (fileAndDigest.hasDigest()) {
             requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.getDigest()));
           }
 
@@ -267,7 +267,8 @@ class S3OutputStream extends PositionOutputStream {
                 try {
                   response = s3.uploadPart(uploadRequest, RequestBody.fromFile(file));
                 } catch (UncheckedIOException uncheckedIOException) {
-                  logS3RequestAndThrow(uncheckedIOException, uploadRequest.toString());
+                  throw new UncheckedIOException(
+                      String.format("S3 Request Failure: %s", uploadRequest), uncheckedIOException.getCause());
                 }
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
               },
@@ -284,6 +285,7 @@ class S3OutputStream extends PositionOutputStream {
               abortUpload();
             }
           });
+
           multiPartMap.put(file, future);
         });
   }
@@ -344,7 +346,7 @@ class S3OutputStream extends PositionOutputStream {
           .bucket(location.bucket())
           .key(location.key());
 
-      if (isEtagCheckEnabled) {
+      if (isChecksumEnabled) {
         requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
       }
 
@@ -355,7 +357,8 @@ class S3OutputStream extends PositionOutputStream {
       try {
         s3.putObject(putObjectRequest, RequestBody.fromInputStream(contentStream, contentLength));
       } catch (UncheckedIOException uncheckedIOException) {
-        logS3RequestAndThrow(uncheckedIOException, putObjectRequest.toString());
+        throw new UncheckedIOException(
+            String.format("S3 Request Failure: %s", putObjectRequest), uncheckedIOException.getCause());
       }
     } else {
       uploadParts();
@@ -364,17 +367,11 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void closeStream() throws IOException {
-    if (isEtagCheckEnabled) {
-      if (stagingFiles.size() > 0) {
-        stagingFiles.get(stagingFiles.size() - 1).setDigest(currentPartMessageDigest.digest());
-      }
+    if (isChecksumEnabled && !stagingFiles.isEmpty()) {
+      FileAndDigest latestFileAndDigest = stagingFiles.get(stagingFiles.size() - 1);
+      latestFileAndDigest.setDigest(currentPartMessageDigest.digest());
     }
     stream.close();
-  }
-
-  private static void logS3RequestAndThrow(UncheckedIOException uncheckedIOException, String requestString) {
-    LOG.error("S3 Request Failure: {}", requestString);
-    throw uncheckedIOException;
   }
 
   private static InputStream uncheckedInputStream(File file) {
@@ -428,6 +425,10 @@ class S3OutputStream extends PositionOutputStream {
 
     File file() {
       return file;
+    }
+
+    boolean hasDigest() {
+      return this.isDigestSet;
     }
 
     void setDigest(byte[] digest) {
