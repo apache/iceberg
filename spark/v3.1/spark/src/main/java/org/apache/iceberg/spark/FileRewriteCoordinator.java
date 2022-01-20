@@ -55,7 +55,6 @@ public class FileRewriteCoordinator {
    * @param newDataFiles the new files which have been written
    */
   public void stageRewrite(Table table, String fileSetID, Set<DataFile> newDataFiles) {
-    Preconditions.checkArgument(newDataFiles != null && newDataFiles.size() > 0, "Cannot stage null or empty file set");
     LOG.debug("Staging the output for {} - fileset {} with {} files", table.name(), fileSetID, newDataFiles.size());
     Pair<String, String> id = toID(table, fileSetID);
     resultMap.put(id, newDataFiles);
