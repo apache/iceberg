@@ -202,19 +202,9 @@ public class SparkWriteConf {
     String deleteModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
-        .parseOptional();
-
-    if (deleteModeName != null) {
-      DistributionMode deleteMode = DistributionMode.fromName(deleteModeName);
-      if (deleteMode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-        return HASH;
-      } else {
-        return deleteMode;
-      }
-    } else {
-      // use hash distribution by default
-      return HASH;
-    }
+        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .parse();
+    return DistributionMode.fromName(deleteModeName);
   }
 
   public DistributionMode copyOnWriteUpdateDistributionMode() {

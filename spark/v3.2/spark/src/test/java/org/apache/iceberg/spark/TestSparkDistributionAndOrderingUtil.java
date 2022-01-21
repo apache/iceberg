@@ -309,27 +309,27 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
   // delete mode is NONE -> unspecified distribution + empty ordering
   // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
-  // delete mode is RANGE -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is RANGE -> ORDER BY _file, _pos
   //
   // UNPARTITIONED ORDERED BY id, data
   // -------------------------------------------------------------------------
-  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY id, data
   // delete mode is NONE -> unspecified distribution + LOCALLY ORDER BY id, data
-  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY id, data
   // delete mode is RANGE -> ORDER BY id, data
   //
   // PARTITIONED BY date, days(ts) UNORDERED
   // -------------------------------------------------------------------------
-  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY date, days(ts), _file, _pos
   // delete mode is NONE -> unspecified distribution + LOCALLY ORDERED BY date, days(ts)
-  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
-  // delete mode is RANGE -> ORDER BY date, days(ts)
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY date, days(ts), _file, _pos
+  // delete mode is RANGE -> ORDER BY date, days(ts), _file, _pos
   //
   // PARTITIONED BY date ORDERED BY id
   // -------------------------------------------------------------------------
-  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is NOT SET -> CLUSTER BY _file + LOCALLY ORDER BY date, id
   // delete mode is NONE -> unspecified distribution + LOCALLY ORDERED BY date, id
-  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY _file, _pos
+  // delete mode is HASH -> CLUSTER BY _file + LOCALLY ORDER BY date, id
   // delete mode is RANGE -> ORDERED BY date, id
 
   @Test
@@ -400,15 +400,12 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
         .commit();
 
-    Expression[] expectedClustering = new Expression[]{
-        Expressions.column(MetadataColumns.FILE_PATH.name()),
-    };
-    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
-
     SortOrder[] expectedOrdering = new SortOrder[]{
         Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
     };
+
+    Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
 
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
   }
@@ -430,8 +427,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
 
     SortOrder[] expectedOrdering = new SortOrder[]{
-        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
-        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
     };
 
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
@@ -483,8 +480,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
 
     SortOrder[] expectedOrdering = new SortOrder[]{
-        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
-        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
     };
 
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
@@ -529,6 +526,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
 
     SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
     };
@@ -576,6 +575,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
 
     SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
     };
@@ -597,7 +598,9 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     SortOrder[] expectedOrdering = new SortOrder[]{
         Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
-        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
     };
 
     Distribution expectedDistribution = Distributions.ordered(expectedOrdering);
@@ -623,8 +626,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
 
     SortOrder[] expectedOrdering = new SortOrder[]{
-        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
-        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.DESCENDING)
     };
 
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
@@ -678,8 +681,9 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution expectedDistribution = Distributions.clustered(expectedClustering);
 
     SortOrder[] expectedOrdering = new SortOrder[]{
-        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
-        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.bucket(8, "data"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING)
     };
 
     checkCopyOnWriteDeleteDistributionAndOrdering(table, expectedDistribution, expectedOrdering);
