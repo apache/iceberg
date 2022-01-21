@@ -89,6 +89,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
+  private final Set<StructLike> changedPartitions = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private PartitionSpec dataSpec;
 
@@ -182,6 +183,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // dropping the data in a partition also drops all deletes in the partition
     filterManager.dropPartition(specId, partition);
     deleteFilterManager.dropPartition(specId, partition);
+    changedPartitions.add(partition);
   }
 
   /**
@@ -189,6 +191,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void delete(DataFile file) {
     filterManager.delete(file);
+    changedPartitions.add(file.partition());
   }
 
   /**
@@ -196,6 +199,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void delete(DeleteFile file) {
     deleteFilterManager.delete(file);
+    changedPartitions.add(file.partition());
   }
 
   /**
@@ -215,6 +219,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     addedFilesSummary.addedFile(dataSpec(), file);
     hasNewFiles = true;
     newFiles.add(file);
+    changedPartitions.add(file.partition());
   }
 
   /**
@@ -227,6 +232,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteFiles.add(file);
     addedFilesSummary.addedFile(fileSpec, file);
     hasNewDeleteFiles = true;
+    changedPartitions.add(file.partition());
   }
 
   private void setDataSpec(DataFile file) {
@@ -292,9 +298,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
       if (conflicts.hasNext()) {
-        throw new ValidationException("Found conflicting files that can contain records matching %s: %s",
-            conflictDetectionFilter,
-            Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+        DataFile conflictDataFile = conflicts.next().file();
+        if (changedPartitions.contains(conflictDataFile.partition())) {
+          throw new ValidationException("Found conflicting files that can contain records matching %s: %s",
+              conflictDetectionFilter,
+              conflictDataFile.path().toString());
+        }
       }
 
     } catch (IOException e) {
@@ -394,9 +403,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
     DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter);
 
-    ValidationException.check(deletes.isEmpty(),
-        "Found new conflicting delete files that can apply to records matching %s: %s",
-        dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+    if (!deletes.isEmpty()) {
+      for (DeleteFile conflictDeleteFile : deletes.referencedDeleteFiles()) {
+        if (changedPartitions.contains(conflictDeleteFile.partition())) {
+          throw new ValidationException("Found new conflicting delete files that can apply to records matching %s: %s",
+              dataFilter,
+              conflictDeleteFile.path().toString());
+        }
+      }
+    }
   }
 
   protected void setNewFilesSequenceNumber(long sequenceNumber) {

@@ -321,7 +321,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .validateNoConflictingData();
 
     table.newAppend()
-        .appendFile(FILE_DAY_1)
+        .appendFile(FILE_DAY_2_MODIFIED)
         .commit();
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -331,6 +331,31 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     Assert.assertEquals("Should not create a new snapshot",
         committedSnapshotId, table.currentSnapshot().snapshotId());
+  }
+
+  @Test
+  public void testOverwriteCompatibleAdditionStrictValidatedNoConflict() {
+    table.newAppend()
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+    validateSnapshot(null, baseSnapshot, FILE_DAY_2);
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData();
+
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .commit();
+
+    overwrite.commit();
+
+    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
