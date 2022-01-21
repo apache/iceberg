@@ -123,12 +123,11 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   private static SortOrder[] buildCopyOnWriteDeleteOrdering(Table table, Distribution distribution) {
-    SortOrder[] tableOrdering = buildTableOrdering(table);
-
     if (distribution instanceof UnspecifiedDistribution) {
-      return tableOrdering;
+      return buildTableOrdering(table);
 
     } else if (distribution instanceof ClusteredDistribution) {
+      SortOrder[] tableOrdering = buildTableOrdering(table);
       if (table.sortOrder().isSorted()) {
         return tableOrdering;
       } else {
