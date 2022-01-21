@@ -72,6 +72,15 @@ catalog.createTable(tableId, schema, spec, tableProperties);
 
 The table level configuration overrides the global Hadoop configuration.
 
+#### Hive on Tez configuration
+
+To use Tez engine on Hive, Tez needs to be upgraded to >= `0.10.1` to contain the fix [Tez-4248](https://issues.apache.org/jira/browse/TEZ-4248).
+
+!!! Warning
+For Hive `2.3.x`, need to manual build from Tez `branch-0.9` for compatibility issue in Tez `0.10.1`.
+
+And also set the hive config `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
+
 ## Catalog Management
 
 ### Global Hive catalog
