@@ -211,14 +211,9 @@ public class SparkWriteConf {
     String updateModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
-        .parseOptional();
-
-    if (updateModeName != null) {
-      DistributionMode updateMode = DistributionMode.fromName(updateModeName);
-      return adjustWriteDistributionMode(updateMode);
-    } else {
-      return distributionMode();
-    }
+        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .parse();
+    return DistributionMode.fromName(updateModeName);
   }
 
   public DistributionMode copyOnWriteMergeDistributionMode() {
