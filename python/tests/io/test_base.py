@@ -15,102 +15,174 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import io
+import os
+import tempfile
+
+import pytest
 
 from iceberg.io.base import FileIO, InputFile, OutputFile
 
 
-class FooInputFile(InputFile):
+class LocalInputFile(InputFile):
+    """An InputFile implementation for local files (for test use only)"""
+
+    def __init__(self, location: str):
+        if not location.startswith("file://"):
+            raise ValueError("LocalInputFile location must start with `file://`")
+        super().__init__(location=location.split("file://")[1])
+
     def __len__(self):
-        return io.BytesIO(b"foo").getbuffer().nbytes
+        return os.path.getsize(self.location)
 
     def exists(self):
-        return True
+        return os.path.exists(self.location)
 
-    def __enter__(self):
-        super().__enter__()
-        return io.BytesIO(b"foo")
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        super().__exit__(exc_type, exc_value, exc_traceback)
-        return
+    def open(self):
+        return open(self.location, "rb")
 
 
-class FooOutputFile(OutputFile):
-    def __call__(self, overwrite: bool = False, **kwargs):
-        super().__call__(overwrite=True)
-        return self
+class LocalOutputFile(OutputFile):
+    """An OutputFile implementation for local files (for test use only)"""
+
+    def __init__(self, location: str):
+        if not location.startswith("file://"):
+            raise ValueError("LocalOutputFile location must start with `file://`")
+        super().__init__(location=location.split("file://")[1])
 
     def __len__(self):
         return len(self._file_obj)
 
     def exists(self):
-        return True
+        return os.path.exists(self.location)
 
     def to_input_file(self):
-        return FooInputFile(location=self.location)
+        return LocalInputFile(location=f"file://{self.location}")
 
-    def __enter__(self):
-        self._mock_storage = io.BytesIO()
-        return self._mock_storage
+    def create(self, overwrite: bool = False) -> None:
+        if not overwrite and self.exists():
+            raise FileExistsError(f"{self.location} already exists")
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        super().__exit__(exc_type, exc_value, exc_traceback)
-        return
+        return open(self.location, "wb")
 
 
-class FooFileIO(FileIO):
+class LocalFileIO(FileIO):
+    """A FileIO implementation for local files (for test use only)"""
+
     def new_input(self, location: str):
-        return FooInputFile(location=location)
+        return LocalInputFile(location=location)
 
     def new_output(self, location: str):
-        return FooOutputFile(location=location)
+        return LocalOutputFile(location=location)
 
     def delete(self, location: str):
-        return
+        os.remove(location)
 
 
-def test_custom_input_file():
+@pytest.mark.parametrize("CustomInputFile", [LocalInputFile])
+def test_custom_local_input_file(CustomInputFile):
+    with tempfile.NamedTemporaryFile("wb") as tmpfilename:
+        # Write to the temporary file and seek to the beginning
+        tmpfilename.write(b"foo")
+        tmpfilename.seek(0)
 
-    input_file = FooInputFile(location="foo/bar.json")
-    assert input_file.location == "foo/bar.json"
+        # Instantiate the input file
+        input_file = CustomInputFile(location=f"file://{tmpfilename.name}")
 
-    with input_file as f:
+        # Test opening and reading the file
+        f = input_file.open()
         data = f.read()
+        assert data == b"foo"
 
-    assert data == b"foo"
 
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
+def test_custom_local_output_file(CustomOutputFile):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        output_file_location = os.path.join(tmpdirname, "foo.txt")
 
-def test_custom_output_file():
+        # Instantiate an output file
+        output_file = CustomOutputFile(location=f"file://{output_file_location}")
 
-    output_file = FooOutputFile(location="foo/bar.json")
-    assert output_file.location == "foo/bar.json"
-
-    with output_file as f:
+        # Create the output file and write to it
+        f = output_file.create()
         f.write(b"foo")
 
-    output_file._mock_storage.seek(0)
-    assert output_file._mock_storage.read() == b"foo"
+        # Confirm that bytes were written
+        with open(output_file_location, "rb") as f:
+            assert f.read() == b"foo"
 
 
-def test_custom_output_file_with_overwrite():
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
+def test_custom_local_output_file_with_overwrite(CustomOutputFile):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        output_file_location = os.path.join(tmpdirname, "foo.txt")
 
-    output_file = FooOutputFile(location="foo/bar.json", overwrite=True)
-    assert output_file.location == "foo/bar.json"
-    assert output_file.overwrite == True
+        # Create a file in the temporary directory
+        with open(output_file_location, "wb") as f:
+            f.write(b"foo")
 
-    with output_file as f:
+        # Instantiate an output file
+        output_file = CustomOutputFile(location=f"file://{output_file_location}")
+
+        # Confirm that a FileExistsError is raised when overwrite=False
+        with pytest.raises(FileExistsError):
+            f = output_file.create(overwrite=False)
+            f.write(b"foo")
+
+        # Confirm that the file is overwritten with overwrite=True
+        f = output_file.create(overwrite=True)
+        f.write(b"bar")
+        with open(output_file_location, "rb") as f:
+            assert f.read() == b"bar"
+
+
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
+def test_output_file_to_input_file(CustomOutputFile):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        output_file_location = os.path.join(tmpdirname, "foo.txt")
+
+        # Create an output file instance
+        output_file = CustomOutputFile(location=f"file://{output_file_location}")
+
+        # Create the output file and write to it
+        f = output_file.create()
         f.write(b"foo")
 
-    output_file._mock_storage.seek(0)
-    assert output_file._mock_storage.read() == b"foo"
+        # Convert to an input file and confirm the contents
+        input_file = output_file.to_input_file()
+        with input_file.open() as f:
+            assert f.read() == b"foo"
 
 
-def test_custom_file_io():
+@pytest.mark.parametrize(
+    "CustomFileIO,CustomInputFile,CustomOutputFile",
+    [(LocalFileIO, LocalInputFile, LocalOutputFile)],
+)
+def test_custom_file_io(CustomFileIO, CustomInputFile, CustomOutputFile):
+    # Instantiate the file-io and create a new input and output file
+    file_io = CustomFileIO()
+    input_file = file_io.new_input(location="file://foo")
+    output_file = file_io.new_output(location="file://bar")
 
-    file_io = FooFileIO()
-    input_file = file_io.new_input(location="foo")
-    output_file = file_io.new_output(location="bar")
+    assert isinstance(input_file, CustomInputFile)
+    assert isinstance(output_file, CustomOutputFile)
 
-    assert isinstance(input_file, FooInputFile)
-    assert isinstance(output_file, FooOutputFile)
+
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO])
+def test_deleting_local_file_using_file_io(CustomFileIO):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Write to the temporary file
+        output_file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(output_file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Instantiate the file-io
+        file_io = CustomFileIO()
+
+        # Confirm that the file initially exists
+        assert os.path.exists(output_file_location)
+
+        # Delete the file using the file-io implementations delete method
+        file_io.delete(output_file_location)
+
+        # Confirm that the file no longer exists
+        assert not os.path.exists(output_file_location)
