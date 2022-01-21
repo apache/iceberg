@@ -462,7 +462,7 @@ class DeleteFileIndex {
       Iterable<ManifestFile> matchingManifests = evalCache == null ? deleteManifests :
           Iterables.filter(deleteManifests, manifest ->
               manifest.content() == ManifestContent.DELETES &&
-                  (manifest.hasAddedFiles() || manifest.hasDeletedFiles()) &&
+                  (manifest.hasAddedFiles() || manifest.hasDeletedFiles() || manifest.hasExistingFiles()) &&
                   evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       return Iterables.transform(

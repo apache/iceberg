@@ -397,4 +397,57 @@ public class TestDeleteFileIndex extends TableTestBase {
     Assert.assertEquals("Should have only pos delete file",
         unpartitionedPosDeleteFile.path(), task.deletes().get(0).path());
   }
+
+  @Test
+  public void testPartitionedTableWithExistingDeleteFile() {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "false")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_EQ_1)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_POS_1)
+        .commit();
+
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
+        .commit();
+
+    Assert.assertEquals("Should have two delete manifest",
+        2, table.currentSnapshot().deleteManifests().size());
+
+    // merge delete manifests
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    Assert.assertEquals("Should have one delete manifest",
+        1, table.currentSnapshot().deleteManifests().size());
+    Assert.assertEquals("Should have one existing delete file",
+        0, table.currentSnapshot().deleteManifests().get(0).addedFilesCount().intValue());
+    Assert.assertEquals("Should have one existing delete file",
+        0, table.currentSnapshot().deleteManifests().get(0).deletedFilesCount().intValue());
+    Assert.assertEquals("Should have one existing delete file",
+        2, table.currentSnapshot().deleteManifests().get(0).existingFilesCount().intValue());
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 2, tasks.size());
+
+    FileScanTask task = tasks.get(1);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have two associated delete files",
+        2, task.deletes().size());
+    Assert.assertEquals("Should have expected delete files",
+        Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()),
+        Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
+  }
 }
