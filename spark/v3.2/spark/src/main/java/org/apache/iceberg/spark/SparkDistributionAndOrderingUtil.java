@@ -39,6 +39,7 @@ import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 
 import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
 
 public class SparkDistributionAndOrderingUtil {
 
@@ -84,14 +85,14 @@ public class SparkDistributionAndOrderingUtil {
 
   public static Distribution buildCopyOnWriteDistribution(Table table, Command command,
                                                           DistributionMode distributionMode) {
-    if (command == DELETE) {
-      return buildCopyOnWriteDeleteDistribution(table, distributionMode);
+    if (command == DELETE || command == UPDATE) {
+      return buildCopyOnWriteDeleteUpdateDistribution(table, distributionMode);
     } else {
       return buildRequiredDistribution(table, distributionMode);
     }
   }
 
-  private static Distribution buildCopyOnWriteDeleteDistribution(Table table, DistributionMode distributionMode) {
+  private static Distribution buildCopyOnWriteDeleteUpdateDistribution(Table table, DistributionMode distributionMode) {
     switch (distributionMode) {
       case NONE:
         return Distributions.unspecified();
@@ -115,14 +116,14 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] buildCopyOnWriteOrdering(Table table, Command command, Distribution distribution) {
-    if (command == DELETE) {
-      return buildCopyOnWriteDeleteOrdering(table, distribution);
+    if (command == DELETE || command == UPDATE) {
+      return buildCopyOnWriteDeleteUpdateOrdering(table, distribution);
     } else {
       return buildRequiredOrdering(table, distribution);
     }
   }
 
-  private static SortOrder[] buildCopyOnWriteDeleteOrdering(Table table, Distribution distribution) {
+  private static SortOrder[] buildCopyOnWriteDeleteUpdateOrdering(Table table, Distribution distribution) {
     if (distribution instanceof UnspecifiedDistribution) {
       return buildTableOrdering(table);
 
