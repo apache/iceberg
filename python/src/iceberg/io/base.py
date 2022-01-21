@@ -14,6 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Base FileIO classes for implementing reading and writing table files
+
+The FileIO abstraction includes a subset of full filesystem implementations. Specifically,
+Iceberg needs to read or write a file at a given location (as a seekable stream), as well
+as check if a file exists. An implementation of the FileIO abstract base class is responsible
+for returning an InputFile instance, an OutputFile instance, and deleting a file given
+its location.
+"""
 
 from abc import ABC, abstractmethod
 
