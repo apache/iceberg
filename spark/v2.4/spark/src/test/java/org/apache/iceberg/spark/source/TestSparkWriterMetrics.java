@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestWriterMetrics;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -34,12 +34,12 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
   }
 
   @Override
-  protected FileWriterFactory<InternalRow> newWriterFactory(Schema dataSchema) {
-    return SparkFileWriterFactory.builderFor(table)
-        .dataSchema(table.schema())
+  protected FileWriterFactory<InternalRow> newWriterFactory(Table sourceTable) {
+    return SparkFileWriterFactory.builderFor(sourceTable)
+        .dataSchema(sourceTable.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
-        .positionDeleteRowSchema(table.schema())
+        .positionDeleteRowSchema(sourceTable.schema())
         .build();
   }
 
@@ -54,6 +54,15 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
     nested.update(1, longValue);
 
     row.update(2, nested);
+    return row;
+  }
+
+  @Override
+  protected InternalRow toGenericRow(int value, int repeated) {
+    InternalRow row = new GenericInternalRow(repeated);
+    for (int i = 0; i < repeated; i++) {
+      row.update(i, value);
+    }
     return row;
   }
 }
