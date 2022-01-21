@@ -47,26 +47,15 @@ class InputFile(ABC):
         """Checks whether the file exists"""
 
     @abstractmethod
-    def __enter__(self):
-        """Enter context for InputFile
-
-        This method should assign a seekable stream to `self.input_stream` and
-        return `self`. If the file does not exist, a FileNotFoundError should
-        be raised."""
-
-    @abstractmethod
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        """Exit context for InputFile
-
-        This method should perform any necessary teardown."""
+    def open(self):
+        """This method should return an instance of an seekable input stream."""
 
 
 class OutputFile(ABC):
     """A base class for OutputFile implementations"""
 
-    def __init__(self, location: str, overwrite: bool = False):
+    def __init__(self, location: str):
         self._location = location
-        self._overwrite = overwrite
 
     @abstractmethod
     def __len__(self) -> int:
@@ -78,11 +67,6 @@ class OutputFile(ABC):
         return self._location
 
     @property
-    def overwrite(self) -> bool:
-        """Whether or not to overwrite the file if it exists"""
-        return self._overwrite
-
-    @property
     @abstractmethod
     def exists(self) -> bool:
         """Checks whether the file exists"""
@@ -92,28 +76,12 @@ class OutputFile(ABC):
         """Returns an InputFile for the location of this output file"""
 
     @abstractmethod
-    def __enter__(self):
-        """Enter context for OutputFile
+    def create(self, overwrite: bool = False):
+        """This method should return a file-like object.
 
-        This method should return a file-like object. If the file already exists
-        at `self.location` and `self.overwrite` is False a FileExistsError should
-        be raised.
-
-        Example:
-            >>> with OutputFile(overwrite=True) as f:
-                    content = f.read()
-        """
-
-    @abstractmethod
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        """Exit context for OutputFile
-
-        This method should perform any necessary teardown.
-
-        Example:
-            >>> with OutputFile(connection=connection):
-                    content = f.read()
-                    connection.close()  # `__exit__` method would contain `del self._connection`
+        Args:
+            overwrite(bool): If the file already exists at `self.location`
+            and `overwrite` is False a FileExistsError should be raised.
         """
 
 
@@ -127,5 +95,5 @@ class FileIO(ABC):
         """Get an OutputFile instance to write bytes to the file at the given location"""
 
     @abstractmethod
-    def delete(self, location: str):
+    def delete(self, location: str) -> None:
         """Delete the file at the given path"""
