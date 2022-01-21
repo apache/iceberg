@@ -187,7 +187,7 @@ public class TestHiveSchemaUtil {
 
   @Test
   public void testRebuildSchemaWithIdentifierFieldIdsError() {
-    Assert.assertThrows("Cannot add field  as an identifier field: must not in nested field",
+    Assert.assertThrows("Cannot add field employee_info.id as an identifier field: must not in nested field",
             IllegalArgumentException.class,
             () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
                     ImmutableSet.of("id", "employee_info.id")));
