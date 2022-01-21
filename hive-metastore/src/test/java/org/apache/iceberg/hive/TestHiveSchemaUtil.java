@@ -39,38 +39,38 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestHiveSchemaUtil {
   private static final Schema SIMPLE_ICEBERG_SCHEMA = new Schema(
-      optional(0, "customer_id", Types.LongType.get(), "customer comment"),
-      optional(1, "first_name", Types.StringType.get(), "first name comment")
+      optional(1, "customer_id", Types.LongType.get(), "customer comment"),
+      optional(2, "first_name", Types.StringType.get(), "first name comment")
   );
 
   private static final Schema COMPLEX_ICEBERG_SCHEMA = new Schema(
-      optional(0, "id", Types.LongType.get(), ""),
-      optional(1, "name", Types.StringType.get(), ""),
-      optional(2, "employee_info", Types.StructType.of(
-          optional(3, "employer", Types.StringType.get()),
-          optional(4, "id", Types.LongType.get()),
-          optional(5, "address", Types.StringType.get())
+      optional(1, "id", Types.LongType.get(), ""),
+      optional(2, "name", Types.StringType.get(), ""),
+      optional(3, "employee_info", Types.StructType.of(
+          optional(4, "employer", Types.StringType.get()),
+          optional(5, "id", Types.LongType.get()),
+          optional(6, "address", Types.StringType.get())
       ), ""),
-      optional(6, "places_lived", Types.ListType.ofOptional(10, Types.StructType.of(
-          optional(7, "street", Types.StringType.get()),
-          optional(8, "city", Types.StringType.get()),
-          optional(9, "country", Types.StringType.get())
+      optional(7, "places_lived", Types.ListType.ofOptional(11, Types.StructType.of(
+          optional(8, "street", Types.StringType.get()),
+          optional(9, "city", Types.StringType.get()),
+          optional(10, "country", Types.StringType.get())
       )), ""),
-      optional(11, "memorable_moments", Types.MapType.ofOptional(15, 16,
+      optional(12, "memorable_moments", Types.MapType.ofOptional(16, 17,
           Types.StringType.get(),
           Types.StructType.of(
-              optional(12, "year", Types.IntegerType.get()),
-              optional(13, "place", Types.StringType.get()),
-              optional(14, "details", Types.StringType.get())
+              optional(13, "year", Types.IntegerType.get()),
+              optional(14, "place", Types.StringType.get()),
+              optional(15, "details", Types.StringType.get())
           )), ""),
-      optional(17, "current_address", Types.StructType.of(
-          optional(18, "street_address", Types.StructType.of(
-              optional(19, "street_number", Types.IntegerType.get()),
-              optional(20, "street_name", Types.StringType.get()),
-              optional(21, "street_type", Types.StringType.get())
+      optional(18, "current_address", Types.StructType.of(
+          optional(19, "street_address", Types.StructType.of(
+              optional(20, "street_number", Types.IntegerType.get()),
+              optional(21, "street_name", Types.StringType.get()),
+              optional(22, "street_type", Types.StringType.get())
           )),
-          optional(22, "country", Types.StringType.get()),
-          optional(23, "postal_code", Types.StringType.get())
+          optional(23, "country", Types.StringType.get()),
+          optional(24, "postal_code", Types.StringType.get())
       ), "")
   );
 
@@ -157,8 +157,8 @@ public class TestHiveSchemaUtil {
   @Test
   public void testConversionWithoutLastComment() {
     Schema expected = new Schema(
-        optional(0, "customer_id", Types.LongType.get(), "customer comment"),
-        optional(1, "first_name", Types.StringType.get(), null)
+        optional(1, "customer_id", Types.LongType.get(), "customer comment"),
+        optional(2, "first_name", Types.StringType.get(), null)
     );
 
     Schema schema = HiveSchemaUtil.convert(
@@ -198,16 +198,16 @@ public class TestHiveSchemaUtil {
 
   protected Schema getSchemaWithSupportedTypes() {
     return new Schema(
-        optional(0, "c_float", Types.FloatType.get(), "float comment"),
-        optional(1, "c_double", Types.DoubleType.get(), "double comment"),
-        optional(2, "c_boolean", Types.BooleanType.get(), "boolean comment"),
-        optional(3, "c_int", Types.IntegerType.get(), "int comment"),
-        optional(4, "c_long", Types.LongType.get(), "long comment"),
-        optional(5, "c_binary", Types.BinaryType.get()),
-        optional(6, "c_string", Types.StringType.get()),
-        optional(7, "c_timestamp", Types.TimestampType.withoutZone()),
-        optional(8, "c_date", Types.DateType.get()),
-        optional(9, "c_decimal", Types.DecimalType.of(38, 10)));
+        optional(1, "c_float", Types.FloatType.get(), "float comment"),
+        optional(2, "c_double", Types.DoubleType.get(), "double comment"),
+        optional(3, "c_boolean", Types.BooleanType.get(), "boolean comment"),
+        optional(4, "c_int", Types.IntegerType.get(), "int comment"),
+        optional(5, "c_long", Types.LongType.get(), "long comment"),
+        optional(6, "c_binary", Types.BinaryType.get()),
+        optional(7, "c_string", Types.StringType.get()),
+        optional(8, "c_timestamp", Types.TimestampType.withoutZone()),
+        optional(9, "c_date", Types.DateType.get()),
+        optional(10, "c_decimal", Types.DecimalType.of(38, 10)));
   }
 
   /**
