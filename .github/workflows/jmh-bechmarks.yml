@@ -27,6 +27,10 @@ on:
       ref:
         description: 'The branch name'
         required: true
+      spark_version:
+        description: 'The spark project version to use, such as iceberg-spark-3.2'
+        default: 'iceberg-spark-3.2'
+        required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
         required: true
@@ -57,6 +61,7 @@ jobs:
           echo "Repo: ${{ github.event.inputs.repo }}"
           echo "Ref: ${{ github.event.inputs.ref }}"
           echo "Benchmarks: ${{ needs.matrix.outputs.matrix }}"
+          echo "Spark Project Version: ${{ needs.matrix.outputs.spark_version }}"
           echo "Found Benchmarks? ${{ needs.matrix.outputs.foundlabel }}"
 
   run-benchmark:
@@ -82,7 +87,7 @@ jobs:
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
 
     - name: Run Benchmark
-      run: ./gradlew :iceberg-spark:iceberg-spark3:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
+      run: ./gradlew :iceberg-spark:${{ github.event.inputs.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
 
     - uses: actions/upload-artifact@v2
       if: ${{ always() }}
