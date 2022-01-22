@@ -88,6 +88,7 @@ public class TableMigrationUtil {
               .map(PartitionField::name)
               .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
               .collect(Collectors.joining("/"));
+      
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
       List<FileStatus> fileStatus = Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
@@ -101,6 +102,7 @@ public class TableMigrationUtil {
       if (parallelism > 1) {
         task.executeWith(migrationService(parallelism));
       }
+      
       if (format.contains("avro")) {
         task.run(index -> {
           Metrics metrics = getAvroMerics(fileStatus.get(index), conf);
@@ -131,7 +133,7 @@ public class TableMigrationUtil {
       long rowCount = Avro.rowCount(file);
       return new Metrics(rowCount, null, null, null, null);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the footer of the avro file: " +
+      throw new RuntimeException("Unable to read Avro file: " +
               stat.getPath(), e);
     }
   }
@@ -142,7 +144,7 @@ public class TableMigrationUtil {
       InputFile file = HadoopInputFile.fromPath(stat.getPath(), conf);
       return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the footer of the avro file: " +
+      throw new RuntimeException("Unable to read the metrics of the Parquet file: " +
               stat.getPath(), e);
     }
   }
@@ -153,7 +155,7 @@ public class TableMigrationUtil {
       return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
               metricsSpec, mapping);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the footer of the avro file: " +
+      throw new RuntimeException("Unable to read the metrics of the Orc file: " +
               stat.getPath(), e);
     }
   }
