@@ -50,7 +50,6 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
-  public static final String PARQUET_READ_PARALLELISM = "parquet.metadata.read.parallelism";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -85,6 +84,10 @@ public class TableMigrationUtil {
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsSpec,
                                              NameMapping mapping, int parallelism) {
     try {
+      String partitionKey = spec.fields().stream()
+              .map(PartitionField::name)
+              .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+              .collect(Collectors.joining("/"));
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
       List<FileStatus> fileStatus = Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
@@ -100,15 +103,15 @@ public class TableMigrationUtil {
       }
       if (format.contains("avro")) {
         task.run(index -> {
-          datafiles[index] = getAvroDataFile(fileStatus.get(index), partitionPath, spec, conf);
+          datafiles[index] = getAvroDataFile(fileStatus.get(index), partitionKey, spec, conf);
         });
       } else if (format.contains("parquet")) {
         task.run(index -> {
-          datafiles[index] = getParquetDataFile(fileStatus.get(index), partitionPath, spec, conf, metricsSpec, mapping);
+          datafiles[index] = getParquetDataFile(fileStatus.get(index), partitionKey, spec, conf, metricsSpec, mapping);
         });
       } else if (format.contains("orc")) {
         task.run(index -> {
-          datafiles[index] = getOrcDataFile(fileStatus.get(index), partitionPath, spec, conf, metricsSpec, mapping);
+          datafiles[index] = getOrcDataFile(fileStatus.get(index), partitionKey, spec, conf, metricsSpec, mapping);
         });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
@@ -119,7 +122,7 @@ public class TableMigrationUtil {
     }
   }
 
-  private static DataFile getAvroDataFile(FileStatus stat, Map<String, String> partitionPath,
+  private static DataFile getAvroDataFile(FileStatus stat, String partitionKey,
                                                   PartitionSpec spec, Configuration conf) {
     Metrics metrics;
     try {
@@ -131,11 +134,6 @@ public class TableMigrationUtil {
               stat.getPath(), e);
     }
 
-    String partitionKey = spec.fields().stream()
-            .map(PartitionField::name)
-            .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-            .collect(Collectors.joining("/"));
-
     return  DataFiles.builder(spec)
             .withPath(stat.getPath().toString())
             .withFormat("avro")
@@ -145,7 +143,7 @@ public class TableMigrationUtil {
             .build();
   }
 
-  private static DataFile getParquetDataFile(FileStatus stat, Map<String, String> partitionPath,
+  private static DataFile getParquetDataFile(FileStatus stat, String partitionKey,
                                                      PartitionSpec spec, Configuration conf,
                                                      MetricsConfig metricsSpec, NameMapping mapping) {
     Metrics metrics;
@@ -157,11 +155,6 @@ public class TableMigrationUtil {
               stat.getPath(), e);
     }
 
-    String partitionKey = spec.fields().stream()
-            .map(PartitionField::name)
-            .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-            .collect(Collectors.joining("/"));
-
     return  DataFiles.builder(spec)
             .withPath(stat.getPath().toString())
             .withFormat("parquet")
@@ -171,7 +164,7 @@ public class TableMigrationUtil {
             .build();
   }
 
-  private static DataFile getOrcDataFile(FileStatus stat, Map<String, String> partitionPath,
+  private static DataFile getOrcDataFile(FileStatus stat, String partitionKey,
                                              PartitionSpec spec, Configuration conf,
                                              MetricsConfig metricsSpec, NameMapping mapping) {
     Metrics metrics;
@@ -182,11 +175,6 @@ public class TableMigrationUtil {
       throw new RuntimeException("Unable to read the footer of the orc file: " +
               stat.getPath(), e);
     }
-
-    String partitionKey = spec.fields().stream()
-            .map(PartitionField::name)
-            .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-            .collect(Collectors.joining("/"));
 
     return  DataFiles.builder(spec)
             .withPath(stat.getPath().toString())
