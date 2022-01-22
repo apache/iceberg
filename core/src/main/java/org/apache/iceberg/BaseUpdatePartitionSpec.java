@@ -133,6 +133,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Pair<Integer, String> validationKey = Pair.of(sourceTransform.first(), sourceTransform.second().toString());
 
     PartitionField existing = transformToField.get(validationKey);
+    if (existing != null && deletes.contains(existing.fieldId()) &&
+        existing.transform().toString().equals(sourceTransform.second().toString())) {
+      deletes.remove(existing.fieldId());
+      return this;
+    }
     Preconditions.checkArgument(existing == null ||
         (deletes.contains(existing.fieldId()) &&
             !existing.transform().toString().equals(sourceTransform.second().toString())),

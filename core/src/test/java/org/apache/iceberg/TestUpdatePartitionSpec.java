@@ -477,12 +477,12 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testAddDeletedField() {
-    AssertHelpers.assertThrows("Should fail adding a duplicate field",
-        IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-            .removeField("shard")
-            .addField(bucket("id", 16))); // duplicates shard
+  public void testNoEffectAddDeletedSameField() {
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField("shard")
+        .addField(bucket("id", 16))
+        .apply();
+    Assert.assertEquals(PARTITIONED, updated);
   }
 
   @Test
