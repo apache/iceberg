@@ -103,15 +103,18 @@ public class TableMigrationUtil {
       }
       if (format.contains("avro")) {
         task.run(index -> {
-          datafiles[index] = getAvroDataFile(fileStatus.get(index), partitionKey, spec, conf);
+          Metrics metrics = getAvroMerics(fileStatus.get(index), conf);
+          datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
         });
       } else if (format.contains("parquet")) {
         task.run(index -> {
-          datafiles[index] = getParquetDataFile(fileStatus.get(index), partitionKey, spec, conf, metricsSpec, mapping);
+          Metrics metrics = getParquetMerics(fileStatus.get(index), conf, metricsSpec, mapping);
+          datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
         });
       } else if (format.contains("orc")) {
         task.run(index -> {
-          datafiles[index] = getOrcDataFile(fileStatus.get(index), partitionKey, spec, conf, metricsSpec, mapping);
+          Metrics metrics = getOrcMerics(fileStatus.get(index), conf, metricsSpec, mapping);
+          datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
         });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
@@ -122,63 +125,44 @@ public class TableMigrationUtil {
     }
   }
 
-  private static DataFile getAvroDataFile(FileStatus stat, String partitionKey,
-                                                  PartitionSpec spec, Configuration conf) {
-    Metrics metrics;
+  private static Metrics getAvroMerics(FileStatus stat,  Configuration conf) {
     try {
       InputFile file = HadoopInputFile.fromPath(stat.getPath(), conf);
       long rowCount = Avro.rowCount(file);
-      metrics = new Metrics(rowCount, null, null, null, null);
+      return new Metrics(rowCount, null, null, null, null);
     } catch (UncheckedIOException e) {
       throw new RuntimeException("Unable to read the footer of the avro file: " +
               stat.getPath(), e);
     }
-
-    return  DataFiles.builder(spec)
-            .withPath(stat.getPath().toString())
-            .withFormat("avro")
-            .withFileSizeInBytes(stat.getLen())
-            .withMetrics(metrics)
-            .withPartitionPath(partitionKey)
-            .build();
   }
 
-  private static DataFile getParquetDataFile(FileStatus stat, String partitionKey,
-                                                     PartitionSpec spec, Configuration conf,
-                                                     MetricsConfig metricsSpec, NameMapping mapping) {
-    Metrics metrics;
+  private static Metrics getParquetMerics(FileStatus stat,  Configuration conf,
+                                          MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(stat.getPath(), conf);
-      metrics = ParquetUtil.fileMetrics(file, metricsSpec, mapping);
+      return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the footer of the parquet file: " +
+      throw new RuntimeException("Unable to read the footer of the avro file: " +
               stat.getPath(), e);
     }
-
-    return  DataFiles.builder(spec)
-            .withPath(stat.getPath().toString())
-            .withFormat("parquet")
-            .withFileSizeInBytes(stat.getLen())
-            .withMetrics(metrics)
-            .withPartitionPath(partitionKey)
-            .build();
   }
 
-  private static DataFile getOrcDataFile(FileStatus stat, String partitionKey,
-                                             PartitionSpec spec, Configuration conf,
-                                             MetricsConfig metricsSpec, NameMapping mapping) {
-    Metrics metrics;
+  private static Metrics getOrcMerics(FileStatus stat,  Configuration conf,
+                                          MetricsConfig metricsSpec, NameMapping mapping) {
     try {
-      metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
+      return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
               metricsSpec, mapping);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the footer of the orc file: " +
+      throw new RuntimeException("Unable to read the footer of the avro file: " +
               stat.getPath(), e);
     }
+  }
 
+  private static DataFile buildDataFile(FileStatus stat, String partitionKey,
+                                      PartitionSpec spec, Metrics metrics, String format) {
     return  DataFiles.builder(spec)
             .withPath(stat.getPath().toString())
-            .withFormat("orc")
+            .withFormat(format)
             .withFileSizeInBytes(stat.getLen())
             .withMetrics(metrics)
             .withPartitionPath(partitionKey)
