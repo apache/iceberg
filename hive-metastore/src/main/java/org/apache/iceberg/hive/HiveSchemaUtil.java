@@ -31,7 +31,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 
@@ -95,24 +94,30 @@ public final class HiveSchemaUtil {
    * @return New schema with IdentifierFieldIds.
    */
   public static Schema rebuildSchemaWithIdentifierFieldIds(Schema schema, Set<String> identifierFieldNames) {
-    Map<Integer, Integer> indexParents = TypeUtil.indexParents(schema.asStruct());
+    // Identifier fields in nested field are not supported, so we just check the first level columns.
+    Map<String, Types.NestedField> columnsMap = schema.columns().stream()
+            .collect(Collectors.toMap(Types.NestedField::name, field -> field));
     Set<Integer> identifierFieldIds = identifierFieldNames.stream()
-        .map(name -> {
-          Types.NestedField field = schema.findField(name);
-          if (field == null) {
-            throw new IllegalArgumentException("Column " + name + " does not exist");
-          }
-          int id = field.fieldId();
-          if (indexParents.get(id) != null) {
-            // Field in nested is not supported in iceberg, see org.apache.iceberg.Schema#validateIdentifierField
-            throw new IllegalArgumentException(
-                "Cannot add field " + name + " as an identifier field: must not in nested field");
-          }
-          return id;
-        }).collect(Collectors.toSet());
+            .map(name -> {
+              Types.NestedField field = columnsMap.get(name);
+              if (field == null) {
+                // Does not exist or in nested field.
+                throw new IllegalArgumentException(
+                        String.format("Cannot add field `%s` as an identifier field: " +
+                                "must not in nested field and exist", name));
+              }
+              if (field.type().isNestedType()) {
+                // Field is nested.
+                throw new IllegalArgumentException(
+                        String.format("Cannot add field `%s` as an identifier field: " +
+                                "not a primitive type field", name));
+              }
+              return field.fieldId();
+            }).collect(Collectors.toSet());
+    // IdentifierFieldIds must be required.
     List<Types.NestedField> columns = schema.columns().stream()
-        .map(column -> identifierFieldIds.contains(column.fieldId()) ? column.asRequired() : column)
-        .collect(Collectors.toList());
+            .map(column -> identifierFieldIds.contains(column.fieldId()) ? column.asRequired() : column)
+            .collect(Collectors.toList());
     return new Schema(columns, identifierFieldIds);
   }
 
