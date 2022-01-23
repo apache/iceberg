@@ -703,6 +703,7 @@ components:
           properties:
             schema-id:
               type: integer
+              readOnly: true
             identifier-field-ids:
               type: array
               items:
@@ -742,6 +743,7 @@ components:
       properties:
         spec-id:
           type: integer
+          readOnly: true
         fields:
           type: array
           items:
@@ -779,8 +781,36 @@ components:
       properties:
         order-id:
           type: integer
+          readOnly: true
         fields:
           $ref: '#/components/schemas/SortField'
+
+    Snapshot:
+      type: object
+      required:
+        - snapshot-id
+        - timestamp-ms
+        - manifest-list
+      properties:
+        snapshot-id:
+          type: integer
+        timestamp-ms:
+          type: integer
+        manifest-list:
+          type: string
+          description: Location of the snapshot's manifest list file
+        schema-id:
+          type: integer
+        summary:
+          type: object
+          required:
+            - summary
+          properties:
+            summary:
+              type: string
+              enum: ["append", "replace", "overwrite", "delete"]
+          additionalProperties:
+            type: string
 
     BaseUpdate:
       type: object
@@ -790,12 +820,27 @@ components:
         action:
           type: string
           enum:
+            - upgrade-format-version
             - add-schema
             - set-current-schema
             - add-spec
             - set-default-spec
             - add-sort-order
             - set-default-sort-order
+            - add-snapshot
+            - set-current-snapshot
+            - remove-snapshots
+            - set-location
+            - set-properties
+            - remove-properties
+
+    UpgradeFormatVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            format-version:
+              type: integer
 
     AddSchemaUpdate:
       allOf:
@@ -848,14 +893,75 @@ components:
               type: integer
               description: Sort order ID to set as the default, or -1 to set last added sort order
 
+    AddSnapshotUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            snapshot:
+              $ref: '#/components/schemas/Snapshot'
+
+    SetCurrentSnapshotUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            snapshot-id:
+              type: integer
+
+    RemoveSnapshotsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            snapshot-ids:
+              type: array
+              items:
+                type: integer
+
+    SetLocationUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            location:
+              type: string
+
+    SetPropertiesUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            updates:
+              type: object
+              additionalProperties:
+                type: string
+
+    RemovePropertiesUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            removals:
+              type: array
+              items:
+                type: string
+
     TableUpdate:
       anyOf:
+        - $ref: '#/components/schemas/UpgradeFormatVersionUpdate'
         - $ref: '#/components/schemas/AddSchemaUpdate'
         - $ref: '#/components/schemas/SetCurrentSchemaUpdate'
         - $ref: '#/components/schemas/AddPartitionSpecUpdate'
         - $ref: '#/components/schemas/SetDefaultSpecUpdate'
         - $ref: '#/components/schemas/AddSortOrderUpdate'
         - $ref: '#/components/schemas/SetDefaultSortOrderUpdate'
+        - $ref: '#/components/schemas/AddSnapshotUpdate'
+        - $ref: '#/components/schemas/SetCurrentSnapshotUpdate'
+        - $ref: '#/components/schemas/RemoveSnapshotsUpdate'
+        - $ref: '#/components/schemas/SetLocationUpdate'
+        - $ref: '#/components/schemas/SetPropertiesUpdate'
+        - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
 
   #############################
