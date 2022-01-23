@@ -367,6 +367,36 @@ paths:
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
 
+    get:
+      tags:
+        - Catalog API
+      summary: Load a table from the catalog
+      operationId: loadTable
+      description: Load a table from the catalog
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/LoadTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/IcebergErrorResponse'
+              examples:
+                TableToRenameDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
     delete:
       tags:
         - Catalog API
@@ -1141,6 +1171,9 @@ components:
 
     TableCommitResponse:
       type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
 
 
   #############################
@@ -1345,6 +1378,18 @@ components:
                   in the namespace's properties. Represents a partial success response.
                   Server's do not need to implement this.
                 nullable: true
+
+    LoadTableResponse:
+      type: object
+      required:
+        - metadata
+      properties:
+        config:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
 
   #######################################
   # Common examples of different values #
