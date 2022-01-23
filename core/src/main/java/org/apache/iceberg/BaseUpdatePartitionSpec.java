@@ -143,7 +143,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         return renameField(existing.name(), newName);
       }
     }
-    
+
     Preconditions.checkArgument(existing == null ||
         (deletes.contains(existing.fieldId()) &&
             !existing.transform().toString().equals(sourceTransform.second().toString())),
@@ -235,6 +235,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         "Cannot find partition field to rename: %s", name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot delete and rename partition field: %s", name);
+    
     renames.put(name, newName);
 
     return this;
