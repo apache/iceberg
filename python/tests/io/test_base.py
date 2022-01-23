@@ -89,10 +89,7 @@ class LocalOutputFile(OutputFile):
         return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> None:
-        if not overwrite and self.exists():
-            raise FileExistsError(f"{self.location} already exists")
-
-        return open(self.parsed_location.path, "wb")
+        return open(self.parsed_location.path, "wb" if overwrite else "xb")
 
 
 class LocalFileIO(FileIO):
