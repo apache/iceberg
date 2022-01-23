@@ -397,6 +397,57 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+    post:
+      tags:
+        - Catalog API
+      summary: Commit updates to a table
+      operationId: updateTable
+      description:
+        Commit updates to a table.
+
+        Commits have two parts, requirements and updates. Requirements are assertions that will be validated
+        before attempting to make and commit changes. For example, assert-ref-snapshot-id will check that a
+        named ref's snapshot ID has a certain value.
+
+        Updates are changes to make to table metadata. For example, after asserting that the current main ref
+        is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
+        snapshot id.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitTableRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/CommitTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/IcebergErrorResponse'
+              examples:
+                TableToRenameDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        409:
+          description:
+            Conflict - CommitFailedException, one or more requirements failed. The client may retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/IcebergErrorResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
     delete:
       tags:
         - Catalog API
@@ -1154,7 +1205,7 @@ components:
         default-sort-order-id:
           type: integer
 
-    TableCommitRequest:
+    CommitTableRequest:
       type: object
       required:
         - requirements
@@ -1168,12 +1219,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableUpdate'
-
-    TableCommitResponse:
-      type: object
-      properties:
-        metadata:
-          $ref: '#/components/schemas/TableMetadata'
 
 
   #############################
@@ -1380,16 +1425,32 @@ components:
                 nullable: true
 
     LoadTableResponse:
-      type: object
-      required:
-        - metadata
-      properties:
-        config:
-          type: object
-          additionalProperties:
-            type: string
-        metadata:
-          $ref: '#/components/schemas/TableMetadata'
+      description: Table metadata result when loading a table
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - metadata
+            properties:
+              config:
+                type: object
+                additionalProperties:
+                  type: string
+              metadata:
+                $ref: '#/components/schemas/TableMetadata'
+
+    CommitTableResponse:
+      description: Table metadata result after committing updates to a table
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - metadata
+            properties:
+              metadata:
+                $ref: '#/components/schemas/TableMetadata'
 
   #######################################
   # Common examples of different values #
