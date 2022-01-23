@@ -24,6 +24,7 @@ its location.
 """
 
 from abc import ABC, abstractmethod
+from typing import Union
 
 
 class InputFile(ABC):
@@ -95,5 +96,5 @@ class FileIO(ABC):
         """Get an OutputFile instance to write bytes to the file at the given location"""
 
     @abstractmethod
-    def delete(self, location: str) -> None:
+    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given path"""

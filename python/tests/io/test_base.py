@@ -17,6 +17,7 @@
 
 import os
 import tempfile
+from typing import Union
 
 import pytest
 
@@ -74,8 +75,13 @@ class LocalFileIO(FileIO):
     def new_output(self, location: str):
         return LocalOutputFile(location=location)
 
-    def delete(self, location: str):
-        os.remove(location)
+    def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
+        filepath = (
+            location.location
+            if isinstance(location, (InputFile, OutputFile))
+            else location
+        )
+        os.remove(filepath)
 
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile])
@@ -169,6 +175,7 @@ def test_custom_file_io(CustomFileIO, CustomInputFile, CustomOutputFile):
 
 @pytest.mark.parametrize("CustomFileIO", [LocalFileIO])
 def test_deleting_local_file_using_file_io(CustomFileIO):
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -186,3 +193,57 @@ def test_deleting_local_file_using_file_io(CustomFileIO):
 
         # Confirm that the file no longer exists
         assert not os.path.exists(output_file_location)
+
+
+@pytest.mark.parametrize(
+    "CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile)]
+)
+def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFile):
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Write to the temporary file
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Instantiate the file-io
+        file_io = CustomFileIO()
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
+
+        # Instantiate the custom InputFile
+        input_file = CustomInputFile(location=f"file://{file_location}")
+
+        # Delete the file using the file-io implementations delete method
+        file_io.delete(input_file)
+
+        # Confirm that the file no longer exists
+        assert not os.path.exists(file_location)
+
+
+@pytest.mark.parametrize(
+    "CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile)]
+)
+def test_deleting_local_file_using_file_io_OutputFile(CustomFileIO, CustomOutputFile):
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Write to the temporary file
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Instantiate the file-io
+        file_io = CustomFileIO()
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
+
+        # Instantiate the custom OutputFile
+        output_file = CustomOutputFile(location=f"file://{file_location}")
+
+        # Delete the file using the file-io implementations delete method
+        file_io.delete(output_file)
+
+        # Confirm that the file no longer exists
+        assert not os.path.exists(file_location)
