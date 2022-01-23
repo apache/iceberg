@@ -80,7 +80,7 @@ class LocalOutputFile(OutputFile):
         return self._parsed_location
 
     def __len__(self):
-        return len(self._file_obj)
+        return os.path.getsize(self.parsed_location.path)
 
     def exists(self):
         return os.path.exists(self.parsed_location.path)
@@ -115,35 +115,43 @@ class LocalFileIO(FileIO):
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile])
 def test_custom_local_input_file(CustomInputFile):
-    with tempfile.NamedTemporaryFile("wb") as tmpfilename:
-        # Write to the temporary file and seek to the beginning
-        tmpfilename.write(b"foo")
-        tmpfilename.seek(0)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
 
         # Instantiate the input file
-        input_file = CustomInputFile(location=f"file://{tmpfilename.name}")
+        absolute_file_location = os.path.abspath(file_location)
+        input_file = CustomInputFile(location=f"file:{absolute_file_location}")
 
         # Test opening and reading the file
         f = input_file.open()
         data = f.read()
         assert data == b"foo"
+        assert len(input_file) == 3
 
 
 @pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
 def test_custom_local_output_file(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        output_file_location = os.path.join(tmpdirname, "foo.txt")
+        file_location = os.path.join(tmpdirname, "foo.txt")
 
-        # Instantiate an output file
-        output_file = CustomOutputFile(location=f"file://{output_file_location}")
+        # Instantiate the output file
+        absolute_file_location = os.path.abspath(file_location)
+        output_file = CustomOutputFile(location=f"file:{absolute_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
         f.write(b"foo")
 
         # Confirm that bytes were written
-        with open(output_file_location, "rb") as f:
+        with open(file_location, "rb") as f:
             assert f.read() == b"foo"
+
+        assert len(output_file) == 3
 
 
 @pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
