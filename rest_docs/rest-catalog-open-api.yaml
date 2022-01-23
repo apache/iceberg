@@ -372,7 +372,14 @@ paths:
         - Catalog API
       summary: Load a table from the catalog
       operationId: loadTable
-      description: Load a table from the catalog
+      description:
+        Load a table from the catalog.
+
+        The response contains both configuration and table metadata. The configuration, if non-empty is used
+        as additional configuration for the table that overrides catalog configuration. For example, this
+        configuration may change the FileIO implemented used for the table.
+
+        The response also contains the table's full metadata.
       responses:
         200:
           description: OK
