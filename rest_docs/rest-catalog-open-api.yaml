@@ -382,11 +382,7 @@ paths:
         The response also contains the table's full metadata.
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/LoadTableResponse'
+          $ref: '#/components/responses/LoadTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1115,16 +1111,12 @@ components:
     SetSnapshotRefUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
+        - $ref: '#/components/schemas/SnapshotReference'
         - type: object
           required:
             - ref
-            - snapshot-id
           properties:
             ref:
-              type: string
-            snapshot-id:
-              type: integer
-            additionalProperties:
               type: string
 
     RemoveSnapshotsUpdate:
