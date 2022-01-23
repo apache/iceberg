@@ -134,10 +134,16 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
     PartitionField existing = transformToField.get(validationKey);
     if (existing != null && deletes.contains(existing.fieldId()) &&
-        existing.transform().toString().equals(sourceTransform.second().toString())) {
+        existing.transform().equals(sourceTransform.second())) {
       deletes.remove(existing.fieldId());
-      return this;
+      if (existing.name().equals(name)) {
+        return this;
+      } else {
+        String newName = name == null ? sourceTransform.second().toString() : name;
+        return renameField(existing.name(), newName);
+      }
     }
+    
     Preconditions.checkArgument(existing == null ||
         (deletes.contains(existing.fieldId()) &&
             !existing.transform().toString().equals(sourceTransform.second().toString())),
@@ -229,7 +235,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         "Cannot find partition field to rename: %s", name);
     Preconditions.checkArgument(!deletes.contains(field.fieldId()),
         "Cannot delete and rename partition field: %s", name);
-
     renames.put(name, newName);
 
     return this;

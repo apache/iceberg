@@ -477,12 +477,33 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testNoEffectAddDeletedSameField() {
+  public void testNoEffectAddDeletedSameFieldWithSameName() {
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField("shard")
+        .addField("shard", bucket("id", 16))
+        .apply();
+    Assert.assertEquals(PARTITIONED, updated);
+  }
+
+  @Test
+  public void testGenerateNewSpecAddDeletedSameFieldWithDifferentName() {
     PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField("shard")
         .addField(bucket("id", 16))
         .apply();
-    Assert.assertEquals(PARTITIONED, updated);
+    Assert.assertEquals("Should match expected field size", 3, updated.fields().size());
+    Assert.assertEquals("Should match expected field name", "category",
+        updated.fields().get(0).name());
+    Assert.assertEquals("Should match expected field name", "ts_day",
+        updated.fields().get(1).name());
+    Assert.assertEquals("Should match expected field name", "bucket[16]",
+        updated.fields().get(2).name());
+    Assert.assertEquals("Should match expected field transform", "identity",
+        updated.fields().get(0).transform().toString());
+    Assert.assertEquals("Should match expected field transform", "day",
+        updated.fields().get(1).transform().toString());
+    Assert.assertEquals("Should match expected field transform", "bucket[16]",
+        updated.fields().get(2).transform().toString());
   }
 
   @Test
