@@ -18,6 +18,7 @@
 import os
 import tempfile
 from typing import Union
+from urllib.parse import ParseResult, urlparse
 
 import pytest
 
@@ -28,42 +29,70 @@ class LocalInputFile(InputFile):
     """An InputFile implementation for local files (for test use only)"""
 
     def __init__(self, location: str):
-        if not location.startswith("file://"):
-            raise ValueError("LocalInputFile location must start with `file://`")
-        super().__init__(location=location.split("file://")[1])
+
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        if (
+            parsed_location.scheme != "file"
+        ):  # Validate that a uri is provided with a scheme of `file`
+            raise ValueError("LocalInputFile location must have a scheme of `file`")
+        elif parsed_location.netloc:
+            raise ValueError(
+                f"Network location is not allowed for LocalInputFile: {parsed_location.netloc}"
+            )
+
+        super().__init__(location=location)
+        self._parsed_location = parsed_location
+
+    @property
+    def parsed_location(self) -> ParseResult:
+        return self._parsed_location
 
     def __len__(self):
-        return os.path.getsize(self.location)
+        return os.path.getsize(self.parsed_location.path)
 
     def exists(self):
-        return os.path.exists(self.location)
+        return os.path.exists(self.parsed_location.path)
 
     def open(self):
-        return open(self.location, "rb")
+        return open(self.parsed_location.path, "rb")
 
 
 class LocalOutputFile(OutputFile):
     """An OutputFile implementation for local files (for test use only)"""
 
     def __init__(self, location: str):
-        if not location.startswith("file://"):
-            raise ValueError("LocalOutputFile location must start with `file://`")
-        super().__init__(location=location.split("file://")[1])
+
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        if (
+            parsed_location.scheme != "file"
+        ):  # Validate that a uri is provided with a scheme of `file`
+            raise ValueError("LocalOutputFile location must have a scheme of `file`")
+        elif parsed_location.netloc:
+            raise ValueError(
+                f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}"
+            )
+
+        super().__init__(location=location)
+        self._parsed_location = parsed_location
+
+    @property
+    def parsed_location(self) -> ParseResult:
+        return self._parsed_location
 
     def __len__(self):
         return len(self._file_obj)
 
     def exists(self):
-        return os.path.exists(self.location)
+        return os.path.exists(self.parsed_location.path)
 
     def to_input_file(self):
-        return LocalInputFile(location=f"file://{self.location}")
+        return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> None:
         if not overwrite and self.exists():
             raise FileExistsError(f"{self.location} already exists")
 
-        return open(self.location, "wb")
+        return open(self.parsed_location.path, "wb")
 
 
 class LocalFileIO(FileIO):
@@ -76,12 +105,12 @@ class LocalFileIO(FileIO):
         return LocalOutputFile(location=location)
 
     def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
-        filepath = (
-            location.location
+        parsed_location = (
+            location.parsed_location
             if isinstance(location, (InputFile, OutputFile))
-            else location
+            else urlparse(location)
         )
-        os.remove(filepath)
+        os.remove(parsed_location.path)
 
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile])
