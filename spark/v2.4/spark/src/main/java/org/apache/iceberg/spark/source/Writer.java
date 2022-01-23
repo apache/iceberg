@@ -121,6 +121,10 @@ class Writer implements DataSourceWriter {
 
   protected void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description) {
     LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
+    if (numFiles == 0) {
+      return;
+    }
+
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
     }
