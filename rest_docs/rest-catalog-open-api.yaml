@@ -963,6 +963,44 @@ components:
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
+    TableRequirement:
+      type: object
+      required:
+        - requirement
+      properties:
+        requirement:
+          type: string
+          enum:
+            - assert-ref-snapshot-id
+            - assert-current-schema-id
+            - assert-default-spec-id
+            - assert-default-sort-order-id
+        ref:
+          type: string
+        snapshot-id:
+          type: integer
+        schema-id:
+          type: integer
+        default-spec-id:
+          type: integer
+        default-sort-order-id:
+          type: integer
+
+    TableCommitRequest:
+      type: object
+      required:
+        - requirements
+        - updates
+      properties:
+        requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableRequirement'
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableUpdate'
+
 
   #############################
   # Reusable Response Objects #
