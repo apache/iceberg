@@ -564,36 +564,6 @@ components:
           example: '{ "owner": "Hank Bendickson" }'
           default: '{ }'
 
-    Namespace:
-      description: Reference to one or more levels of a namespace
-      type: array
-      items:
-        type: string
-      example: [ "accounting", "tax" ]
-
-    RenameTableRequest:
-      type: object
-      properties:
-        source:
-          $ref: '#/components/schemas/TableIdentifier'
-        destination:
-          $ref: '#/components/schemas/TableIdentifier'
-
-    TableIdentifier:
-      type: object
-      required:
-        - namespace
-        - name
-      properties:
-        namespace:
-          type: array
-          description: Individual levels of the namespace
-          items:
-            type: string
-        name:
-          type: string
-          nullable: false
-
     UpdateNamespacePropertiesRequest:
       type: object
       properties:
@@ -609,6 +579,283 @@ components:
           items:
             type: string
           example: { "owner": "Hank Bendickson" }
+
+    RenameTableRequest:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/TableIdentifier'
+        destination:
+          $ref: '#/components/schemas/TableIdentifier'
+
+    Namespace:
+      description: Reference to one or more levels of a namespace
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax" ]
+
+    TableIdentifier:
+      type: object
+      required:
+        - namespace
+        - name
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        name:
+          type: string
+          nullable: false
+
+    PrimitiveType:
+      type: string
+      example:
+        - "long"
+        - "string"
+        - "fixed[16]"
+        - "decimal(10,2)"
+
+    StructField:
+      type: object
+      required:
+        - id
+        - name
+        - required
+        - type
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        required:
+          type: boolean
+        type:
+          $ref: '#/components/schemas/Type'
+        doc:
+          type: string
+
+    StructType:
+      type: object
+      required:
+        - fields
+      properties:
+        type:
+          type: string
+          enum: ["struct"]
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/StructField'
+
+    ListType:
+      type: object
+      required:
+        - type
+        - element-id
+        - element-required
+        - element
+      properties:
+        type:
+          type: string
+          enum: ["list"]
+        element-id:
+          type: integer
+        element-required:
+          type: boolean
+        element:
+          $ref: '#/components/schemas/Type'
+
+    MapType:
+      type: object
+      required:
+        - type
+        - key-id
+        - key
+        - value-id
+        - value-required
+        - value
+      properties:
+        type:
+          type: string
+          enum: ["map"]
+        key-id:
+          type: integer
+        key:
+          $ref: '#/components/schemas/Type'
+        value-id:
+          type: integer
+        value-required:
+          type: boolean
+        value:
+          $ref: '#/components/schemas/Type'
+
+    Type:
+      anyOf:
+        - $ref: '#/components/schemas/PrimitiveType'
+        - $ref: '#/components/schemas/StructType'
+        - $ref: '#/components/schemas/ListType'
+        - $ref: '#/components/schemas/MapType'
+
+    Schema:
+      allOf:
+        - $ref: '#/components/schemas/StructType'
+        - type: object
+          properties:
+            schema-id:
+              type: integer
+            identifier-field-ids:
+              type: array
+              items:
+                type: integer
+
+    Transform:
+      type: string
+      example:
+        - "identity"
+        - "year"
+        - "month"
+        - "day"
+        - "hour"
+        - "bucket[256]"
+        - "truncate[16]"
+
+    PartitionField:
+      type: object
+      required:
+        - source-id
+        - transform
+        - name
+      properties:
+        field-id:
+          type: integer
+        source-id:
+          type: integer
+        name:
+          type: string
+        transform:
+          $ref: '#/components/schemas/Transform'
+
+    PartitionSpec:
+      type: object
+      required:
+        - fields
+      properties:
+        spec-id:
+          type: integer
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartitionField'
+
+    SortDirection:
+      type: string
+      enum: ["asc", "desc"]
+
+    NullOrder:
+      type: string
+      enum: ["nulls-first", "nulls-last"]
+
+    SortField:
+      type: object
+      required:
+        - source-id
+        - transform
+        - direction
+        - null-order
+      properties:
+        source-id:
+          type: integer
+        transform:
+          $ref: '#/components/schemas/Transform'
+        direction:
+          $ref: '#/components/schemas/SortDirection'
+        null-order:
+          $ref: '#/components/schemas/NullOrder'
+
+    SortOrder:
+      type: object
+      required:
+        - fields
+      properties:
+        order-id:
+          type: integer
+        fields:
+          $ref: '#/components/schemas/SortField'
+
+    BaseUpdate:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - add-schema
+            - set-current-schema
+            - add-spec
+            - set-default-spec
+            - add-sort-order
+            - set-default-sort-order
+
+    AddSchemaUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            schema:
+              $ref: '#/components/schemas/Schema'
+
+    SetCurrentSchemaUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            schema-id:
+              type: integer
+              description: Schema ID to set as current, or -1 to set last added schema
+
+    AddPartitionSpecUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            spec:
+              $ref: '#/components/schemas/PartitionSpec'
+
+    SetDefaultSpecUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            spec-id:
+              type: integer
+              description: Partition spec ID to set as the default, or -1 to set last added spec
+
+    AddSortOrderUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            sort-order:
+              $ref: '#/components/schemas/SortOrder'
+
+    SetDefaultSortOrderUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          properties:
+            order-id:
+              type: integer
+              description: Sort order ID to set as the default, or -1 to set last added sort order
+
+    TableUpdate:
+      anyOf:
+        - $ref: '#/components/schemas/AddSchemaUpdate'
+        - $ref: '#/components/schemas/SetCurrentSchemaUpdate'
+        - $ref: '#/components/schemas/AddPartitionSpecUpdate'
+        - $ref: '#/components/schemas/SetDefaultSpecUpdate'
+        - $ref: '#/components/schemas/AddSortOrderUpdate'
+        - $ref: '#/components/schemas/SetDefaultSortOrderUpdate'
 
 
   #############################
