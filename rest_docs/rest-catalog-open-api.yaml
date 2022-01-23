@@ -893,8 +893,8 @@ components:
             summary:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
-          additionalProperties:
-            type: string
+            additionalProperties:
+              type: string
 
     SnapshotReference:
       type: object
