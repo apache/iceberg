@@ -189,17 +189,50 @@ def test_output_file_to_input_file(CustomOutputFile):
 
 
 @pytest.mark.parametrize(
-    "CustomFileIO,CustomInputFile,CustomOutputFile",
-    [(LocalFileIO, LocalInputFile, LocalOutputFile)],
+    "CustomFileIO,string_uri,scheme,netloc,path",
+    [
+        (LocalFileIO, "file:///foo/bar.parquet", "file", "", "/foo/bar.parquet"),
+        (LocalFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
+    ],
 )
-def test_custom_file_io(CustomFileIO, CustomInputFile, CustomOutputFile):
+def test_custom_file_io_locations(CustomFileIO, string_uri, scheme, netloc, path):
     # Instantiate the file-io and create a new input and output file
     file_io = CustomFileIO()
-    input_file = file_io.new_input(location="file://foo")
-    output_file = file_io.new_output(location="file://bar")
+    input_file = file_io.new_input(location=string_uri)
+    assert input_file.location == string_uri
+    assert input_file.parsed_location.scheme == scheme
+    assert input_file.parsed_location.netloc == netloc
+    assert input_file.parsed_location.path == path
 
-    assert isinstance(input_file, CustomInputFile)
-    assert isinstance(output_file, CustomOutputFile)
+    output_file = file_io.new_output(location=string_uri)
+    assert output_file.location == string_uri
+    assert output_file.parsed_location.scheme == scheme
+    assert output_file.parsed_location.netloc == netloc
+    assert output_file.parsed_location.path == path
+
+
+@pytest.mark.parametrize(
+    "string_uri_w_netloc",
+    ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
+)
+def test_raise_on_network_location_in_InputFile(string_uri_w_netloc):
+
+    with pytest.raises(ValueError) as exc_info:
+        LocalInputFile(location=string_uri_w_netloc)
+
+    assert ("Network location is not allowed for LocalInputFile") in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "string_uri_w_netloc",
+    ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
+)
+def test_raise_on_network_location_in_OutputFile(string_uri_w_netloc):
+
+    with pytest.raises(ValueError) as exc_info:
+        LocalInputFile(location=string_uri_w_netloc)
+
+    assert ("Network location is not allowed for LocalInputFile") in str(exc_info.value)
 
 
 @pytest.mark.parametrize("CustomFileIO", [LocalFileIO])
