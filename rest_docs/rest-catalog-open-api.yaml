@@ -812,6 +812,113 @@ components:
           additionalProperties:
             type: string
 
+    SnapshotReference:
+      type: object
+      required:
+        - type
+        - snapshot-id
+      properties:
+        type:
+          type: string
+          enum: ["tag", "branch"]
+        snapshot-id:
+          type: integer
+        max-ref-age-ms:
+          type: integer
+        max-snapshot-age-ms:
+          type: integer
+        min-snapshots-to-keep:
+          type: integer
+
+    SnapshotReferences:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/SnapshotReference'
+
+    SnapshotLog:
+      type: array
+      items:
+        type: object
+        required:
+          - snapshot-id
+          - timestamp-ms
+        properties:
+          snapshot-id:
+            type: integer
+          timestamp-ms:
+            type: integer
+
+    MetadataLog:
+      type: array
+      items:
+        type: object
+        required:
+          - metadata-file
+          - timestamp-ms
+        properties:
+          metadata-file:
+            type: string
+          timestamp-ms:
+            type: integer
+
+    TableMetadata:
+      type: object
+      required:
+        - format-version
+        - table-uuid
+      properties:
+        format-version:
+          type: integer
+        table-uuid:
+          type: string
+        location:
+          type: string
+        last-updated-ms:
+          type: integer
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        # schema tracking
+        schemas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Schema'
+        current-schema-id:
+          type: integer
+        last-column-id:
+          type: integer
+        # partition spec tracking
+        partition-specs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartitionSpec'
+        default-spec-id:
+          type: integer
+        last-partition-id:
+          type: integer
+        # sort order tracking
+        sort-orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortOrder'
+        default-sort-order-id:
+          type: integer
+        # snapshot tracking
+        snapshots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Snapshot'
+        refs:
+          $ref: '#/components/schemas/SnapshotReferences'
+        current-snapshot-id:
+          type: integer
+        # logs
+        snapshot-log:
+          $ref: '#/components/schemas/SnapshotLog'
+        metadata-log:
+          $ref: '#/components/schemas/MetadataLog'
+
     BaseUpdate:
       type: object
       required:
@@ -828,7 +935,7 @@ components:
             - add-sort-order
             - set-default-sort-order
             - add-snapshot
-            - set-current-snapshot
+            - set-snapshot-ref
             - remove-snapshots
             - set-location
             - set-properties
@@ -838,6 +945,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - format-version
           properties:
             format-version:
               type: integer
@@ -846,6 +955,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - schema
           properties:
             schema:
               $ref: '#/components/schemas/Schema'
@@ -854,6 +965,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - schema-id
           properties:
             schema-id:
               type: integer
@@ -863,6 +976,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - spec
           properties:
             spec:
               $ref: '#/components/schemas/PartitionSpec'
@@ -871,6 +986,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - spec-id
           properties:
             spec-id:
               type: integer
@@ -880,6 +997,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - sort-order
           properties:
             sort-order:
               $ref: '#/components/schemas/SortOrder'
@@ -888,6 +1007,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - order-id
           properties:
             order-id:
               type: integer
@@ -897,22 +1018,33 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - snapshot
           properties:
             snapshot:
               $ref: '#/components/schemas/Snapshot'
 
-    SetCurrentSnapshotUpdate:
+    SetSnapshotRefUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - ref
+            - snapshot-id
           properties:
+            ref:
+              type: string
             snapshot-id:
               type: integer
+            additionalProperties:
+              type: string
 
     RemoveSnapshotsUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - snapshot-ids
           properties:
             snapshot-ids:
               type: array
@@ -923,6 +1055,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - location
           properties:
             location:
               type: string
@@ -931,6 +1065,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - updates
           properties:
             updates:
               type: object
@@ -941,6 +1077,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
+            - removals
           properties:
             removals:
               type: array
@@ -957,7 +1095,7 @@ components:
         - $ref: '#/components/schemas/AddSortOrderUpdate'
         - $ref: '#/components/schemas/SetDefaultSortOrderUpdate'
         - $ref: '#/components/schemas/AddSnapshotUpdate'
-        - $ref: '#/components/schemas/SetCurrentSnapshotUpdate'
+        - $ref: '#/components/schemas/SetSnapshotRefUpdate'
         - $ref: '#/components/schemas/RemoveSnapshotsUpdate'
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
@@ -1000,6 +1138,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableUpdate'
+
+    TableCommitResponse:
+      type: object
 
 
   #############################
