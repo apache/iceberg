@@ -114,6 +114,15 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   }
 
   /**
+   * Choose Z-ORDER as a strategy for this rewrite operation with a specified list of columns to use
+   * @param columns Columns to be used to generate Z-Values
+   * @return this for method chaining
+   */
+  default RewriteDataFiles zOrder(String... columns) {
+    throw new UnsupportedOperationException("Z-ORDER Rewrite Strategy not implemented for this framework");
+  }
+
+  /**
    * A user provided filter for determining which files will be considered by the rewrite strategy. This will be used
    * in addition to whatever rules the rewrite strategy generates. For example this would be used for providing a
    * restriction to only run rewrite on a specific partition.

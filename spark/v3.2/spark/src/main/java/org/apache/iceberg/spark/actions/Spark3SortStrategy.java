@@ -155,4 +155,8 @@ public class Spark3SortStrategy extends SortStrategy {
   protected LogicalPlan sortPlan(Distribution distribution, SortOrder[] ordering, LogicalPlan plan, SQLConf conf) {
     return DistributionAndOrderingUtils$.MODULE$.prepareQuery(distribution, ordering, plan, conf);
   }
+
+  protected double sizeEstimateMultiple() {
+    return this.sizeEstimateMultiple;
+  }
 }
