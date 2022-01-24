@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,7 +49,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -75,7 +73,7 @@ import org.slf4j.LoggerFactory;
  *
  * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
-public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class HadoopCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
@@ -86,7 +84,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private String catalogName;
   private Configuration conf;
-  private CloseableGroup closeableGroup;
   private String warehouseLocation;
   private FileSystem fs;
   private FileIO fileIO;
@@ -110,9 +107,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     this.lockManager = LockManagers.from(properties);
 
-    this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(lockManager);
-    closeableGroup.setSuppressCloseFailure(true);
+    addCloseable(fs);
+    addCloseable(fileIO);
+    addCloseable(lockManager);
 
     this.suppressPermissionError = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_PERMISSION_ERROR));
   }
@@ -361,11 +358,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private boolean isNamespace(Path path) {
     return isDirectory(path) && !isTableDir(path);
-  }
-
-  @Override
-  public void close() throws IOException {
-    closeableGroup.close();
   }
 
   @Override

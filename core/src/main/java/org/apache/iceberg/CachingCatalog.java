@@ -24,6 +24,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import com.github.benmanes.caffeine.cache.Ticker;
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -44,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * See {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for more details
  * regarding special values for {@code expirationIntervalMillis}.
  */
-public class CachingCatalog implements Catalog {
+public class CachingCatalog implements Catalog, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
 
   public static Catalog wrap(Catalog catalog) {
@@ -200,6 +202,13 @@ public class CachingCatalog implements Catalog {
   @Override
   public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
     return new CachingTableBuilder(identifier, schema);
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (catalog instanceof Closeable) {
+      ((Closeable) catalog).close();
+    }
   }
 
   private class CachingTableBuilder implements TableBuilder {

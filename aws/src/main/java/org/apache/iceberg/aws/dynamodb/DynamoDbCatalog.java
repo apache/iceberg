@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.aws.dynamodb;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +42,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -86,7 +83,7 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 /**
  * DynamoDB implementation of Iceberg catalog
  */
-public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class DynamoDbCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbCatalog.class);
   private static final int CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX = 5;
@@ -110,7 +107,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   private String warehousePath;
   private AwsProperties awsProperties;
   private FileIO fileIO;
-  private CloseableGroup closeableGroup;
 
   public DynamoDbCatalog() {
   }
@@ -133,10 +129,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     this.dynamo = client;
     this.fileIO = io;
 
-    this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(dynamo);
-    closeableGroup.addCloseable(fileIO);
-    closeableGroup.setSuppressCloseFailure(true);
+    addCloseable(dynamo);
+    addCloseable(fileIO);
 
     ensureCatalogTableExistsOrCreate();
   }
@@ -433,11 +427,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   @Override
   public Configuration getConf() {
     return hadoopConf;
-  }
-
-  @Override
-  public void close() throws IOException {
-    closeableGroup.close();
   }
 
   /**

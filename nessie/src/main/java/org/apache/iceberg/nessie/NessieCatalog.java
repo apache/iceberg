@@ -76,7 +76,7 @@ import org.slf4j.LoggerFactory;
  * objects stored in them to assist with namespace-centric catalog exploration.
  * </p>
  */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
+public class NessieCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
 
   private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
@@ -96,6 +96,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     this.catalogOptions = ImmutableMap.copyOf(options);
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
+    addCloseable(fileIO);
     this.name = inputName == null ? "nessie" : inputName;
     // remove nessie prefix
     final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
@@ -103,6 +104,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     this.api = createNessieClientBuilder(options.get(NessieUtil.CONFIG_CLIENT_BUILDER_IMPL))
         .fromConfig(x -> options.get(removePrefix.apply(x)))
         .build(NessieApiV1.class);
+    addCloseable(api);
 
     this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
@@ -142,11 +144,6 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       clientBuilder = HttpClientBuilder.builder();
     }
     return clientBuilder;
-  }
-
-  @Override
-  public void close() {
-    api.close();
   }
 
   @Override

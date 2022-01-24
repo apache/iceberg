@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.jdbc;
 
-import java.io.Closeable;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -55,8 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
+public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable<Configuration>, SupportsNamespaces {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
@@ -87,10 +85,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     String fileIOImpl = properties.getOrDefault(
         CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
     this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    addCloseable(io);
 
     try {
       LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
       connections = new JdbcClientPool(uri, properties);
+      addCloseable(connections);
       initializeCatalogTables();
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
@@ -344,11 +344,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
     throw new UnsupportedOperationException(
         "Cannot remove properties " + namespace + " : removeProperties is not supported");
-  }
-
-  @Override
-  public void close() {
-    connections.close();
   }
 
   @Override

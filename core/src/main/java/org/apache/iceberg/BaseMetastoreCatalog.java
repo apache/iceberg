@@ -19,20 +19,25 @@
 
 package org.apache.iceberg;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseMetastoreCatalog implements Catalog {
+public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
+
+  private CloseableGroup closeableGroup;
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
@@ -99,9 +104,24 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return MoreObjects.toStringHelper(this).toString();
   }
 
+  @Override
+  public void close() throws IOException {
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
+  }
+
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
 
   protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
+
+  protected void addCloseable(AutoCloseable closeable) {
+    if (closeableGroup == null) {
+      closeableGroup = new CloseableGroup();
+      closeableGroup.setSuppressCloseFailure(true);
+    }
+    closeableGroup.addCloseable(closeable);
+  }
 
   protected class BaseMetastoreCatalogTableBuilder implements TableBuilder {
     private final TableIdentifier identifier;

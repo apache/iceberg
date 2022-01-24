@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.aws.glue;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +42,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -74,7 +71,7 @@ import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
 public class GlueCatalog extends BaseMetastoreCatalog
-    implements Closeable, SupportsNamespaces, Configurable<Configuration> {
+    implements SupportsNamespaces, Configurable<Configuration> {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
@@ -85,7 +82,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private LockManager lockManager;
-  private CloseableGroup closeableGroup;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -126,11 +122,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.lockManager = lock;
     this.fileIO = io;
 
-    this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(glue);
-    closeableGroup.addCloseable(lockManager);
-    closeableGroup.addCloseable(fileIO);
-    closeableGroup.setSuppressCloseFailure(true);
+    addCloseable(glue);
+    addCloseable(lockManager);
+    addCloseable(fileIO);
   }
 
   private String cleanWarehousePath(String path) {
@@ -434,11 +428,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public String name() {
     return catalogName;
-  }
-
-  @Override
-  public void close() throws IOException {
-    closeableGroup.close();
   }
 
   @Override
