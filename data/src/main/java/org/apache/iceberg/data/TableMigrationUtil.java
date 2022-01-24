@@ -88,6 +88,7 @@ public class TableMigrationUtil {
               .map(PartitionField::name)
               .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
               .collect(Collectors.joining("/"));
+
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
       List<FileStatus> fileStatus = Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
@@ -101,6 +102,7 @@ public class TableMigrationUtil {
       if (parallelism > 1) {
         task.executeWith(migrationService(parallelism));
       }
+
       if (format.contains("avro")) {
         task.run(index -> {
           Metrics metrics = getAvroMerics(fileStatus.get(index).getPath(), conf);
