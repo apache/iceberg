@@ -74,7 +74,7 @@ The table level configuration overrides the global Hadoop configuration.
 
 #### Hive on Tez configuration
 
-To use the Tez engine on Hive(requires version >= `3.1.3`), Tez needs to be upgraded to >= `0.10.1` which contains a necessary fix [Tez-4248](https://issues.apache.org/jira/browse/TEZ-4248).
+To use the Tez engine on Hive(requires version >= `3.1.2`), Tez needs to be upgraded to >= `0.10.1` which contains a necessary fix [Tez-4248](https://issues.apache.org/jira/browse/TEZ-4248).
 
 !!! Warning
 For Hive `2.3.x`, you will need to manually build Tez from the `branch-0.9` branch due to a backwards incompatibility issue with Tez `0.10.1`.
