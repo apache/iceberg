@@ -54,9 +54,11 @@ public class TableTestBase {
       required(4, "data", Types.StringType.get())
   );
 
+  protected static final int BUCKETS_NUMBER = 16;
+
   // Partition spec used to create tables
   protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", 16)
+      .bucket("data", BUCKETS_NUMBER)
       .build();
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
@@ -137,16 +139,17 @@ public class TableTestBase {
       .build();
   static final DataFile FILE_WITH_STATS = DataFiles.builder(SPEC)
       .withPath("/path/to/data-with-stats.parquet")
-      .withMetrics(new Metrics(10L,
+      .withMetrics(new Metrics(
+          10L,
           ImmutableMap.of(3, 100L, 4, 200L), // column sizes
           ImmutableMap.of(3, 90L, 4, 180L), // value counts
           ImmutableMap.of(3, 10L, 4, 20L), // null value counts
           ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
           ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
-             4, Conversions.toByteBuffer(Types.IntegerType.get(), 2)),  // lower bounds
+              4, Conversions.toByteBuffer(Types.IntegerType.get(), 2)),  // lower bounds
           ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
-             4, Conversions.toByteBuffer(Types.IntegerType.get(), 10))  // upperbounds
-          ))
+              4, Conversions.toByteBuffer(Types.IntegerType.get(), 10))  // upperbounds
+      ))
       .withFileSizeInBytes(350)
       .build();
 
@@ -325,7 +328,8 @@ public class TableTestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
-    Assert.assertEquals("Should not change delete manifests",
+    Assert.assertEquals(
+        "Should not change delete manifests",
         old != null ? Sets.newHashSet(old.deleteManifests()) : ImmutableSet.of(),
         Sets.newHashSet(snap.deleteManifests()));
     List<ManifestFile> oldManifests = old != null ? old.dataManifests() : ImmutableList.of();
@@ -333,7 +337,8 @@ public class TableTestBase {
     // copy the manifests to a modifiable list and remove the existing manifests
     List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests());
     for (ManifestFile oldManifest : oldManifests) {
-      Assert.assertTrue("New snapshot should contain old manifests",
+      Assert.assertTrue(
+          "New snapshot should contain old manifests",
           newManifests.remove(oldManifest));
     }
 
@@ -393,24 +398,27 @@ public class TableTestBase {
     return paths;
   }
 
-  void validateManifest(ManifestFile manifest,
-                        Iterator<Long> ids,
-                        Iterator<DataFile> expectedFiles) {
+  void validateManifest(
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles) {
     validateManifest(manifest, null, ids, expectedFiles, null);
   }
 
-  void validateManifest(ManifestFile manifest,
-                        Iterator<Long> seqs,
-                        Iterator<Long> ids,
-                        Iterator<DataFile> expectedFiles) {
+  void validateManifest(
+      ManifestFile manifest,
+      Iterator<Long> seqs,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles) {
     validateManifest(manifest, seqs, ids, expectedFiles, null);
   }
 
-  void validateManifest(ManifestFile manifest,
-                        Iterator<Long> seqs,
-                        Iterator<Long> ids,
-                        Iterator<DataFile> expectedFiles,
-                        Iterator<ManifestEntry.Status> statuses) {
+  void validateManifest(
+      ManifestFile manifest,
+      Iterator<Long> seqs,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
@@ -431,11 +439,12 @@ public class TableTestBase {
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
   }
 
-  void validateDeleteManifest(ManifestFile manifest,
-                              Iterator<Long> seqs,
-                              Iterator<Long> ids,
-                              Iterator<DeleteFile> expectedFiles,
-                              Iterator<ManifestEntry.Status> statuses) {
+  void validateDeleteManifest(
+      ManifestFile manifest,
+      Iterator<Long> seqs,
+      Iterator<Long> ids,
+      Iterator<DeleteFile> expectedFiles,
+      Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DeleteFile> entry : ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
@@ -490,10 +499,11 @@ public class TableTestBase {
     return positionDelete.set(path, pos, row);
   }
 
-  static void validateManifestEntries(ManifestFile manifest,
-                                      Iterator<Long> ids,
-                                      Iterator<DataFile> expectedFiles,
-                                      Iterator<ManifestEntry.Status> expectedStatuses) {
+  static void validateManifestEntries(
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> expectedStatuses) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();

@@ -32,6 +32,9 @@ import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.equal;
+
 public class TestDeleteFileIndex extends TableTestBase {
   public TestDeleteFileIndex() {
     super(2 /* table format version */);
@@ -421,7 +424,7 @@ public class TestDeleteFileIndex extends TableTestBase {
         .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
         .commit();
 
-    Assert.assertEquals("Should have two delete manifest",
+    Assert.assertEquals("Should have two delete manifests",
         2, table.currentSnapshot().deleteManifests().size());
 
     // merge delete manifests
@@ -431,17 +434,19 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     Assert.assertEquals("Should have one delete manifest",
         1, table.currentSnapshot().deleteManifests().size());
-    Assert.assertEquals("Should have one existing delete file",
+    Assert.assertEquals("Should have zero added file",
         0, table.currentSnapshot().deleteManifests().get(0).addedFilesCount().intValue());
-    Assert.assertEquals("Should have one existing delete file",
+    Assert.assertEquals("Should have zero deleted file",
         0, table.currentSnapshot().deleteManifests().get(0).deletedFilesCount().intValue());
-    Assert.assertEquals("Should have one existing delete file",
+    Assert.assertEquals("Should have two deleted manifest files",
         2, table.currentSnapshot().deleteManifests().get(0).existingFilesCount().intValue());
 
-    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
-    Assert.assertEquals("Should have one task", 2, tasks.size());
+    List<FileScanTask> tasks =
+        Lists.newArrayList(table.newScan().filter(equal(bucket("data", BUCKETS_NUMBER), 0))
+            .planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
 
-    FileScanTask task = tasks.get(1);
+    FileScanTask task = tasks.get(0);
     Assert.assertEquals("Should have the correct data file path",
         FILE_A.path(), task.file().path());
     Assert.assertEquals("Should have two associated delete files",
