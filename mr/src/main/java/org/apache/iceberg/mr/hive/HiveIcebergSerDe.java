@@ -182,7 +182,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       String identifierFields = serDeProperties.getProperty(InputFormatConfig.IDENTIFIER_FIELD_NAMES);
       Set<String> identifierFieldNames = getIdentifierFieldSet(identifierFields);
       Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
-              comments, autoConversion, identifierFieldNames);
+          comments, autoConversion, identifierFieldNames);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {

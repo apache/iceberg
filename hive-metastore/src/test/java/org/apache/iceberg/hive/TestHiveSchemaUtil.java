@@ -174,8 +174,9 @@ public class TestHiveSchemaUtil {
 
   @Test
   public void testRebuildSchemaWithIdentifierFieldIds() {
-    Schema actualSchema = HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
-            ImmutableSet.of("id", "name"));
+    Schema actualSchema = HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+        COMPLEX_ICEBERG_SCHEMA,
+        ImmutableSet.of("id", "name"));
 
     List<Types.NestedField> columns = Lists.newArrayList(COMPLEX_ICEBERG_SCHEMA.columns());
     columns.set(0, columns.get(0).asRequired());
@@ -187,21 +188,27 @@ public class TestHiveSchemaUtil {
 
   @Test
   public void testRebuildSchemaWithIdentifierFieldIdsError() {
-    Assert.assertThrows("Cannot add field `not_exist_column` as an identifier field: " +
-                    "the field must exist on the root level",
-            IllegalArgumentException.class,
-            () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
-                    ImmutableSet.of("id", "not_exist_column")));
-    Assert.assertThrows("Cannot add field `employee_info.id` as an identifier field: " +
-                    "the field must exist on the root level",
-            IllegalArgumentException.class,
-            () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
-                    ImmutableSet.of("id", "employee_info.id")));
-    Assert.assertThrows("Cannot add field `employee_info` as an identifier field: " +
-                    "only primitive fields are allowed",
-            IllegalArgumentException.class,
-            () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
-                    ImmutableSet.of("id", "employee_info")));
+    Assert.assertThrows(
+        "Cannot add field `not_exist_column` as an identifier field: " +
+            "the field must exist on the root level",
+        IllegalArgumentException.class,
+        () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+            COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "not_exist_column")));
+    Assert.assertThrows(
+        "Cannot add field `employee_info.id` as an identifier field: " +
+            "the field must exist on the root level",
+        IllegalArgumentException.class,
+        () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+            COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "employee_info.id")));
+    Assert.assertThrows(
+        "Cannot add field `employee_info` as an identifier field: " +
+            "only primitive fields are allowed",
+        IllegalArgumentException.class,
+        () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+            COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "employee_info")));
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
