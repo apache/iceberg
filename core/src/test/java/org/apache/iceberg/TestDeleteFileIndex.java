@@ -434,11 +434,11 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     Assert.assertEquals("Should have one delete manifest",
         1, table.currentSnapshot().deleteManifests().size());
-    Assert.assertEquals("Should have zero added file",
+    Assert.assertEquals("Should have zero added delete file",
         0, table.currentSnapshot().deleteManifests().get(0).addedFilesCount().intValue());
-    Assert.assertEquals("Should have zero deleted file",
+    Assert.assertEquals("Should have zero deleted delete file",
         0, table.currentSnapshot().deleteManifests().get(0).deletedFilesCount().intValue());
-    Assert.assertEquals("Should have two existing files",
+    Assert.assertEquals("Should have two existing delete files",
         2, table.currentSnapshot().deleteManifests().get(0).existingFilesCount().intValue());
 
     List<FileScanTask> tasks =
