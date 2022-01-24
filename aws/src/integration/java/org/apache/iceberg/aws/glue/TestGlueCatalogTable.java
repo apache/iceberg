@@ -298,9 +298,17 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
-    table.updateSchema().addColumn("c2", Types.StructType.of(
-        Types.NestedField.required(3, "z", Types.IntegerType.get())), "c2").commit();
+    table.updateSchema()
+        .addColumn("c2",
+            Types.StructType.of(Types.NestedField.required(3, "z", Types.IntegerType.get())), "c2")
+        .addColumn("c3", Types.StringType.get())
+        .addColumn("c4", Types.StringType.get())
+        .commit();
     table.updateSpec().addField(truncate("c1", 8)).commit();
+    table.updateSchema()
+        .deleteColumn("c3")
+        .renameColumn("c4", "c5")
+        .commit();
     GetTableResponse response = glue.getTable(GetTableRequest.builder()
         .databaseName(namespace).name(tableName).build());
     List<Column> actualColumns = response.table().storageDescriptor().columns();
@@ -312,7 +320,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .comment("c1")
             .parameters(ImmutableMap.of(
                 IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
-                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false"
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
             ))
             .build(),
         Column.builder()
@@ -321,7 +330,35 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .comment("c2")
             .parameters(ImmutableMap.of(
                 IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
-                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true"
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
+            ))
+            .build(),
+        Column.builder()
+            .name("c5")
+            .type("string")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "5",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
+            ))
+            .build(),
+        Column.builder()
+            .name("c3")
+            .type("string")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "4",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"
+            ))
+            .build(),
+        Column.builder()
+            .name("c4")
+            .type("string")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "5",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"
             ))
             .build()
     );
