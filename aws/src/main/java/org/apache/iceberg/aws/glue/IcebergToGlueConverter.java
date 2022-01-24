@@ -244,29 +244,24 @@ class IcebergToGlueConverter {
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
-      addColumnWithDedupe(columns, addedNames, field, field.name());
+      addColumnWithDedupe(columns, addedNames, field);
     }
 
     return columns;
   }
 
-  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe,
-                                          NestedField field, String fieldName) {
-    if (!dedupe.contains(fieldName)) {
+  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe, NestedField field) {
+    if (!dedupe.contains(field.name())) {
       columns.add(Column.builder()
-          .name(fieldName)
+          .name(field.name())
           .type(toTypeString(field.type()))
           .comment(field.doc())
-          .parameters(convertToParameters(field))
+          .parameters(ImmutableMap.of(
+              ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
+          ))
           .build());
-      dedupe.add(fieldName);
+      dedupe.add(field.name());
     }
-  }
-
-  private static Map<String, String> convertToParameters(NestedField field) {
-    return ImmutableMap.of(
-        ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
-        ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
-    );
   }
 }
