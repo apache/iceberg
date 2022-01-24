@@ -63,7 +63,7 @@ import org.slf4j.LoggerFactory;
 
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   public static final String LIST_ALL_TABLES = "list-all-tables";
-  public static final String LIST_ALL_TABLES_DEFAULT = "true";
+  public static final String LIST_ALL_TABLES_DEFAULT = "false";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -71,7 +71,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private Configuration conf;
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
-  private boolean listAllTables = true;
+  private boolean listAllTables = false;
 
   public HiveCatalog() {
   }
