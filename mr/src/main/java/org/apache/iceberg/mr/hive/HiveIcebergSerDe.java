@@ -179,8 +179,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       if (columnComments != null) {
         Collections.addAll(comments, columnComments.split(Character.toString(Character.MIN_VALUE)));
       }
-      String identifierFields = serDeProperties.getProperty(InputFormatConfig.IDENTIFIER_FIELD_NAMES);
-      Set<String> identifierFieldNames = getIdentifierFieldSet(identifierFields);
+      Set<String> identifierFieldNames = getIdentifierFieldSet((Map) serDeProperties);
       Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
           comments, autoConversion, identifierFieldNames);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
@@ -190,8 +189,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     }
   }
 
-  public static Set<String> getIdentifierFieldSet(@Nullable String identifierFields) {
-    return Optional.ofNullable(identifierFields)
+  public static Set<String> getIdentifierFieldSet(Map<String, String> parameters) {
+    return Optional.ofNullable(parameters.get(InputFormatConfig.IDENTIFIER_FIELD_NAMES))
         .filter(s -> !s.isEmpty())
         .map(value -> Arrays.asList((value).split(InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR)))
         .map(ImmutableSet::copyOf)
