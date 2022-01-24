@@ -46,6 +46,9 @@ class Type:
     def __str__(self):
         return self._type_string
 
+    def __eq__(self, other):
+        return type(self) is type(other)
+
     @property
     def is_primitive(self) -> bool:
         return self._is_primitive
@@ -61,6 +64,11 @@ class FixedType(Type):
     @property
     def length(self) -> int:
         return self._length
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.length == other.length
+        return False
 
 
 class DecimalType(Type):
@@ -80,6 +88,11 @@ class DecimalType(Type):
     @property
     def scale(self) -> int:
         return self._scale
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.precision == other.precision and self.scale == other.scale
+        return False
 
 
 class NestedField(object):
@@ -114,6 +127,10 @@ class NestedField(object):
         return self._name
 
     @property
+    def doc(self) -> Optional[str]:
+        return self._doc
+
+    @property
     def type(self) -> Type:
         return self._type
 
@@ -131,6 +148,17 @@ class NestedField(object):
             else f" ({self._doc})"
         )
 
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return (
+                self.is_optional == other.is_optional
+                and self.field_id == other.field_id
+                and self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+            )
+        return False
+
 
 class StructType(Type):
     def __init__(self, fields: list):
@@ -144,6 +172,11 @@ class StructType(Type):
     def fields(self) -> list:
         return self._fields
 
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.fields == other.fields
+        return False
+
 
 class ListType(Type):
     def __init__(self, element: NestedField):
@@ -153,6 +186,11 @@ class ListType(Type):
     @property
     def element(self) -> NestedField:
         return self._element_field
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.element == other.element
+        return False
 
 
 class MapType(Type):
@@ -171,6 +209,11 @@ class MapType(Type):
     @property
     def value(self) -> NestedField:
         return self._value_field
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.key == other.key and self.value == other.value
+        return False
 
 
 class BooleanType(Type):

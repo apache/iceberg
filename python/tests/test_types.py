@@ -66,6 +66,8 @@ def test_fixed_type():
     assert str(type_var) == "fixed[5]"
     assert repr(type_var) == "FixedType(length=5)"
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == FixedType(5)
+    assert type_var != FixedType(6)
 
 
 def test_decimal_type():
@@ -75,6 +77,8 @@ def test_decimal_type():
     assert str(type_var) == "decimal(9, 2)"
     assert repr(type_var) == "DecimalType(precision=9, scale=2)"
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == DecimalType(9, 2)
+    assert type_var != DecimalType(9, 3)
 
 
 def test_struct_type():
@@ -97,6 +101,10 @@ def test_struct_type():
     )
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == eval(repr(type_var))
+    assert type_var != StructType(
+        [NestedField(True, 1, "optional_field", IntegerType())]
+    )
 
 
 def test_list_type():
@@ -117,6 +125,19 @@ def test_list_type():
     assert len(type_var.element.type.fields) == 2
     assert type_var.element.field_id == 1
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == eval(repr(type_var))
+    assert type_var != ListType(
+        NestedField(
+            True,
+            1,
+            "required_field",
+            StructType(
+                [
+                    NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+                ]
+            ),
+        )
+    )
 
 
 def test_map_type():
@@ -129,6 +150,11 @@ def test_map_type():
     assert isinstance(type_var.value.type, UUIDType)
     assert type_var.value.field_id == 2
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == eval(repr(type_var))
+    assert type_var != MapType(
+        NestedField(True, 1, "optional_field", LongType()),
+        NestedField(False, 2, "required_field", UUIDType()),
+    )
 
 
 def test_nested_field():
@@ -161,3 +187,25 @@ def test_nested_field():
     assert field_var.field_id == 1
     assert isinstance(field_var.type, StructType)
     assert str(field_var) == str(eval(repr(field_var)))
+
+
+@pytest.mark.parametrize(
+    "input_type,equal_object,not_equal_object",
+    [
+        (BooleanType, BooleanType(), IntegerType()),
+        (IntegerType, IntegerType(), BooleanType()),
+        (LongType, LongType(), DoubleType()),
+        (FloatType, FloatType(), IntegerType()),
+        (DoubleType, DoubleType(), FloatType()),
+        (DateType, DateType(), TimeType()),
+        (TimeType, TimeType(), TimestampType()),
+        (TimestampType, TimestampType(), TimestamptzType()),
+        (TimestamptzType, TimestamptzType(), TimestampType()),
+        (StringType, StringType(), UUIDType()),
+        (UUIDType, UUIDType(), StringType()),
+        (BinaryType, BinaryType(), FixedType(6)),
+    ],
+)
+def test_primitive_equality(input_type, equal_object, not_equal_object):
+    assert equal_object == input_type()
+    assert not_equal_object != input_type()
