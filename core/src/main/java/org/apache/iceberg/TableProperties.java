@@ -41,13 +41,21 @@ public class TableProperties {
   public static final String FORMAT_VERSION = "format-version";
 
   /**
+   * Reserved table property for UUID.
+   * <p>
+   * This reserved property is used to store the UUID of the table.
+   */
+  public static final String UUID = "uuid";
+
+  /**
    * Reserved Iceberg table properties list.
    * <p>
    * Reserved table properties are only used to control behaviors when creating or updating a table.
    * The value of these properties are not persisted as a part of the table metadata.
    */
   public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
-      FORMAT_VERSION
+      FORMAT_VERSION,
+      UUID
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";

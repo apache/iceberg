@@ -262,7 +262,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       Map<String, String> summary = Optional.ofNullable(metadata.currentSnapshot())
           .map(Snapshot::summary)
           .orElseGet(ImmutableMap::of);
-      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
+      setHmsTableParameters(newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
@@ -352,18 +352,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return newTable;
   }
 
-  private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
+  private void setHmsTableParameters(String newMetadataLocation, Table tbl, TableMetadata metadata,
                                      Set<String> obsoleteProps, boolean hiveEngineEnabled,
                                      Map<String, String> summary) {
     Map<String, String> parameters = Optional.ofNullable(tbl.getParameters())
         .orElseGet(Maps::newHashMap);
 
     // push all Iceberg table properties into HMS
-    icebergTableProps.forEach((key, value) -> {
+    metadata.properties().forEach((key, value) -> {
       // translate key names between Iceberg and HMS where needed
       String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
       parameters.put(hmsKey, value);
     });
+    if (metadata.uuid() != null) {
+      parameters.put(TableProperties.UUID, metadata.uuid());
+    }
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
