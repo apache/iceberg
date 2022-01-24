@@ -209,14 +209,24 @@ public class TestHiveSchemaUtil {
 
   @Test
   public void testConvertToIcebergSchemaWithIdentifierFieldIds() {
-    Schema actualSchema = HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, false, ImmutableSet.of("id", "name"));
-
     List<Types.NestedField> columns = Lists.newArrayList(COMPLEX_ICEBERG_SCHEMA.columns());
     columns.set(0, columns.get(0).asRequired());
     columns.set(1, columns.get(1).asRequired());
     Schema expectedSchema = new Schema(columns, ImmutableSet.of(0, 1));
 
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    ImmutableSet<String> identifierFieldNames = ImmutableSet.of("id", "name");
+
+    Assert.assertEquals(
+        expectedSchema.asStruct(),
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, identifierFieldNames).asStruct());
+
+    Assert.assertEquals(
+        expectedSchema.asStruct(),
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA,false, identifierFieldNames).asStruct());
+
+    Assert.assertEquals(
+        expectedSchema.asStruct(),
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA,true, identifierFieldNames).asStruct());
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
