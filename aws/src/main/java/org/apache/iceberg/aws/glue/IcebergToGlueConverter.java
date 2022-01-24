@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -37,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.slf4j.Logger;
@@ -58,17 +56,8 @@ class IcebergToGlueConverter {
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
   public static final String GLUE_DB_LOCATION_KEY = "location";
   public static final String GLUE_DB_DESCRIPTION_KEY = "comment";
-  public static final String ICEBERG_FIELD_USAGE = "iceberg.field.usage";
-  public static final String ICEBERG_FIELD_TYPE_TYPE_ID = "iceberg.field.type.typeid";
-  public static final String ICEBERG_FIELD_TYPE_STRING = "iceberg.field.type.string";
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
-  public static final String ICEBERG_PARTITION_TRANSFORM = "iceberg.partition.transform";
-  public static final String ICEBERG_PARTITION_FIELD_ID = "iceberg.partition.field-id";
-  public static final String ICEBERG_PARTITION_SOURCE_ID = "iceberg.partition.source-id";
-  public static final String SCHEMA_COLUMN = "schema-column";
-  public static final String SCHEMA_SUBFIELD = "schema-subfield";
-  public static final String PARTITION_FIELD = "partition-field";
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -252,59 +241,27 @@ class IcebergToGlueConverter {
 
   private static List<Column> toColumns(TableMetadata metadata) {
     List<Column> columns = Lists.newArrayList();
-    Set<NestedField> rootColumnSet = Sets.newHashSet();
-    // Add schema-column fields
+    Set<String> addedNames = Sets.newHashSet();
+
     for (NestedField field : metadata.schema().columns()) {
-      rootColumnSet.add(field);
+      addColumnWithDedupe(columns, addedNames, field);
+    }
+
+    return columns;
+  }
+
+  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe, NestedField field) {
+    if (!dedupe.contains(field.name())) {
       columns.add(Column.builder()
           .name(field.name())
           .type(toTypeString(field.type()))
           .comment(field.doc())
-          .parameters(convertToParameters(SCHEMA_COLUMN, field))
+          .parameters(ImmutableMap.of(
+              ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
+          ))
           .build());
+      dedupe.add(field.name());
     }
-    // Add schema-subfield
-    for (NestedField field : TypeUtil.indexById(metadata.schema().asStruct()).values()) {
-      if (!rootColumnSet.contains(field)) {
-        columns.add(Column.builder()
-            .name(field.name())
-            .type(toTypeString(field.type()))
-            .comment(field.doc())
-            .parameters(convertToParameters(SCHEMA_SUBFIELD, field))
-            .build());
-      }
-    }
-    // Add partition-field
-    for (PartitionField partitionField : metadata.spec().fields()) {
-      Type type = partitionField.transform()
-          .getResultType(metadata.schema().findField(partitionField.sourceId()).type());
-      columns.add(Column.builder()
-          .name(partitionField.name())
-          .type(toTypeString(type))
-          .parameters(convertToPartitionFieldParameters(type, partitionField))
-          .build());
-    }
-    return columns;
-  }
-
-  private static Map<String, String> convertToParameters(String fieldUsage, NestedField field) {
-    return ImmutableMap.of(ICEBERG_FIELD_USAGE, fieldUsage,
-        ICEBERG_FIELD_TYPE_TYPE_ID, field.type().typeId().toString(),
-        ICEBERG_FIELD_TYPE_STRING, toTypeString(field.type()),
-        ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
-        ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
-    );
-  }
-
-  private static Map<String, String> convertToPartitionFieldParameters(Type type, PartitionField partitionField) {
-    return ImmutableMap.<String, String>builder()
-        .put(ICEBERG_FIELD_USAGE, PARTITION_FIELD)
-        .put(ICEBERG_FIELD_TYPE_TYPE_ID, type.typeId().toString())
-        .put(ICEBERG_FIELD_TYPE_STRING, toTypeString(type))
-        .put(ICEBERG_FIELD_ID, Integer.toString(partitionField.fieldId()))
-        .put(ICEBERG_PARTITION_TRANSFORM, partitionField.transform().toString())
-        .put(ICEBERG_PARTITION_FIELD_ID, Integer.toString(partitionField.fieldId()))
-        .put(ICEBERG_PARTITION_SOURCE_ID, Integer.toString(partitionField.sourceId()))
-        .build();
   }
 }
