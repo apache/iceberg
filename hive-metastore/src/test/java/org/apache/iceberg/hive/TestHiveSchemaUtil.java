@@ -28,7 +28,6 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -183,7 +182,7 @@ public class TestHiveSchemaUtil {
     columns.set(1, columns.get(1).asRequired());
     Schema expectedSchema = new Schema(columns, ImmutableSet.of(0, 1));
 
-    Assert.assertEquals(SchemaParser.toJson(expectedSchema), SchemaParser.toJson(actualSchema));
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
   @Test
@@ -206,6 +205,18 @@ public class TestHiveSchemaUtil {
         () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
             COMPLEX_ICEBERG_SCHEMA,
             ImmutableSet.of("id", "employee_info")));
+  }
+
+  @Test
+  public void testConvertToIcebergSchemaWithIdentifierFieldIds() {
+    Schema actualSchema = HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, false, ImmutableSet.of("id", "name"));
+
+    List<Types.NestedField> columns = Lists.newArrayList(COMPLEX_ICEBERG_SCHEMA.columns());
+    columns.set(0, columns.get(0).asRequired());
+    columns.set(1, columns.get(1).asRequired());
+    Schema expectedSchema = new Schema(columns, ImmutableSet.of(0, 1));
+
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
