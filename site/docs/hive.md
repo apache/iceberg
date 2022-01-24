@@ -74,12 +74,12 @@ The table level configuration overrides the global Hadoop configuration.
 
 #### Hive on Tez configuration
 
-To use Tez engine on Hive, Tez needs to be upgraded to >= `0.10.1` to contain the fix [Tez-4248](https://issues.apache.org/jira/browse/TEZ-4248).
+To use the Tez engine on Hive(requires version >= `3.1.3`), Tez needs to be upgraded to >= `0.10.1` which contains a necessary fix [Tez-4248](https://issues.apache.org/jira/browse/TEZ-4248).
 
 !!! Warning
-For Hive `2.3.x`, need to manual build from Tez `branch-0.9` for compatibility issue in Tez `0.10.1`.
+For Hive `2.3.x`, you will need to manually build Tez from the `branch-0.9` branch due to a backwards incompatibility issue with Tez `0.10.1`.
 
-And also set the hive config `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
+You will also need to set the following property in the Hive configuration: `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
 
 ## Catalog Management
 
