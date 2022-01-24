@@ -104,13 +104,13 @@ public final class HiveSchemaUtil {
                 // Does not exist or in nested field.
                 throw new IllegalArgumentException(
                         String.format("Cannot add field `%s` as an identifier field: " +
-                                "must not in nested field and exist", name));
+                                "the field must exist on the root level", name));
               }
-              if (field.type().isNestedType()) {
+              if (!field.type().isPrimitiveType()) {
                 // Field is nested.
                 throw new IllegalArgumentException(
                         String.format("Cannot add field `%s` as an identifier field: " +
-                                "not a primitive type field", name));
+                                "only primitive fields are allowed", name));
               }
               return field.fieldId();
             }).collect(Collectors.toSet());

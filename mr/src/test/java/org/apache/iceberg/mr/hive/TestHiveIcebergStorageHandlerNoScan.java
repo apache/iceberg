@@ -801,7 +801,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
   @Test
   public void testCreateTableWithIdentifierIdsError() {
     TableIdentifier tableIdentifier = TableIdentifier.of("default", "customers");
-    Assert.assertThrows("Cannot add field `c4` as an identifier field: must not in nested field and exist",
+    Assert.assertThrows("Cannot add field `c4` as an identifier field: the field must exist on the root level",
         IllegalArgumentException.class,
         () -> shell.executeStatement(
             String.format("CREATE EXTERNAL TABLE %s ( " +

@@ -188,16 +188,17 @@ public class TestHiveSchemaUtil {
   @Test
   public void testRebuildSchemaWithIdentifierFieldIdsError() {
     Assert.assertThrows("Cannot add field `not_exist_column` as an identifier field: " +
-                    "must not in nested field and exist",
+                    "the field must exist on the root level",
             IllegalArgumentException.class,
             () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
                     ImmutableSet.of("id", "not_exist_column")));
     Assert.assertThrows("Cannot add field `employee_info.id` as an identifier field: " +
-                    "must not in nested field and exist",
+                    "the field must exist on the root level",
             IllegalArgumentException.class,
             () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
                     ImmutableSet.of("id", "employee_info.id")));
-    Assert.assertThrows("Cannot add field `employee_info` as an identifier field: not a primitive type field",
+    Assert.assertThrows("Cannot add field `employee_info` as an identifier field: " +
+                    "only primitive fields are allowed",
             IllegalArgumentException.class,
             () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(COMPLEX_ICEBERG_SCHEMA,
                     ImmutableSet.of("id", "employee_info")));
