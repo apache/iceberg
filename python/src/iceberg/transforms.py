@@ -17,7 +17,10 @@
 
 import re
 import struct
-from typing import Any, Callable, Optional
+from decimal import Decimal
+from enum import Enum
+from typing import Callable, Optional
+from uuid import UUID
 
 import mmh3  # type: ignore
 
@@ -25,9 +28,7 @@ from iceberg.types import (
     BinaryType,
     DateType,
     DecimalType,
-    DoubleType,
     FixedType,
-    FloatType,
     IntegerType,
     LongType,
     StringType,
@@ -49,25 +50,20 @@ class Transform:
     Args:
         transform_string (str): name of the transform type
         repr_string (str): string representation of a transform instance
-        to_human_str (callable, optional): A function that returns the human-readable string
-          given a value. By default, the built-in `str` method is used.
     """
 
-    def __init__(
-        self,
-        transform_string: str,
-        repr_string: str,
-        to_human_str: Callable[[Any], str] = str,
-    ):
+    def __init__(self, transform_string: str, repr_string: str):
         self._transform_string = transform_string
         self._repr_string = repr_string
-        self._to_human_string = to_human_str
 
     def __repr__(self):
         return self._repr_string
 
     def __str__(self):
         return self._transform_string
+
+    def __call__(self, value):
+        return self.apply(value)
 
     def apply(self, value):
         raise NotImplementedError()
@@ -87,129 +83,244 @@ class Transform:
     def to_human_string(self, value) -> str:
         if value is None:
             return "null"
-        return self._to_human_string(value)
+        return str(value)
 
     def dedup_name(self) -> str:
         return self._transform_string
 
 
-class Bucket(Transform):
-    """Transforms a value into a bucket partition value
+class BaseBucketTransform(Transform):
+    """Base Transform class to transform a value into a bucket partition value
 
     Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
     hash of the source value to produce a positive value by mod the bucket number.
 
     Args:
       source_type (Type): An Iceberg Type of IntegerType, LongType, DecimalType, DateType, TimeType,
-      TimestampType, TimestamptzType, StringType, BinaryType, UUIDType, FloatType, or DoubleType.
+      TimestampType, TimestamptzType, StringType, BinaryType, FixedType, UUIDType.
       num_buckets (int): The number of buckets.
-
-    Raises:
-      ValueError: If a type is provided that is incompatible with a Bucket transform
     """
-
-    _MAX_32_BITS_INT = 2147483647
-    _INT_TRANSFORMABLE_TYPES = {
-        IntegerType,
-        DateType,
-        LongType,
-        TimeType,
-        TimestampType,
-        TimestamptzType,
-    }
-    _SAME_TRANSFORMABLE_TYPES = {
-        StringType,
-        BinaryType,
-        UUIDType,
-        FloatType,
-        DoubleType,
-    }
 
     def __init__(self, source_type: Type, num_buckets: int):
         super().__init__(
             f"bucket[{num_buckets}]",
             f"transforms.bucket(source_type={repr(source_type)}, num_buckets={num_buckets})",
         )
-        self._type = source_type
         self._num_buckets = num_buckets
-
-        if isinstance(self._type, FixedType) or isinstance(self._type, DecimalType):
-            self._can_transform = lambda t: type(self._type) is type(t)
-        elif self._type in Bucket._SAME_TRANSFORMABLE_TYPES:
-            self._can_transform = lambda t: self._type == t
-        elif self._type in Bucket._INT_TRANSFORMABLE_TYPES:
-            self._can_transform = (
-                lambda t: self._type in Bucket._INT_TRANSFORMABLE_TYPES
-            )
-        else:
-            raise ValueError(f"Cannot bucket by type: {source_type}")
-
-        if (
-            isinstance(self._type, FixedType)
-            or self._type == StringType
-            or self._type == BinaryType
-        ):
-            self._hash_func = lambda v: mmh3.hash(v)
-        elif isinstance(self._type, DecimalType):
-            self._hash_func = lambda v: mmh3.hash(transform_util.decimal_to_bytes(v))
-        elif self._type == FloatType or self._type == DoubleType:
-            # bucketing by Float/Double is not allowed by the spec, but they have hash implementation
-            self._hash_func = lambda v: mmh3.hash(struct.pack("d", v))
-        elif self._type == UUIDType:
-            self._hash_func = lambda v: mmh3.hash(
-                struct.pack(
-                    ">QQ",
-                    (v.int >> 64) & 0xFFFFFFFFFFFFFFFF,
-                    v.int & 0xFFFFFFFFFFFFFFFF,
-                )
-            )
-        else:
-            self._hash_func = lambda v: mmh3.hash(struct.pack("q", v))
 
     @property
     def num_buckets(self) -> int:
         return self._num_buckets
 
+    def hash(self, value) -> int:
+        raise NotImplementedError()
+
     def apply(self, value) -> Optional[int]:
         if value is None:
             return None
 
-        return (self._hash_func(value) & Bucket._MAX_32_BITS_INT) % self._num_buckets
+        return (self.hash(value) & IntegerType.max) % self._num_buckets
 
     def can_transform(self, target: Type) -> bool:
-        return self._can_transform(target)
+        raise NotImplementedError()
 
-    def result_type(self, source: Type):
-        return IntegerType
+    def result_type(self, source: Type) -> Type:
+        return IntegerType()
 
 
-class TimeTransform(Transform):
-    """Time class is for both Date transforms and Timestamp transforms."""
+class BucketIntegerTransform(BaseBucketTransform):
+    """Transforms a value of IntegerType or DateType into a bucket partition value
 
-    _TIME_SATISFIED_ORDER = dict(year=3, month=2, day=1, hour=0)
+    Example:
+        >>> transform = BucketIntegerTransform(100)
+        >>> transform.apply(34)
+        79
+    """
 
-    def __init__(self, source_type: Type, name: str, apply_func: Callable[[int], int]):
-        super().__init__(
-            name,
-            f"transforms.{name}(source_type={repr(source_type)})",
-            getattr(transform_util, f"human_{name}"),
+    def can_transform(self, target: Type) -> bool:
+        return type(target) in {IntegerType, DateType}
+
+    def hash(self, value) -> int:
+        return mmh3.hash(struct.pack("q", value))
+
+
+class BucketLongTransform(BaseBucketTransform):
+    """Transforms a value of LongType, TimeType, TimestampType, or TimestamptzType
+    into a bucket partition value
+
+    Example:
+        >>> transform = BucketLongTransform(100)
+        >>> transform.apply(81068000000)
+        59
+    """
+
+    def can_transform(self, target: Type) -> bool:
+        return type(target) in {LongType, TimeType, TimestampType, TimestamptzType}
+
+    def hash(self, value) -> int:
+        return mmh3.hash(struct.pack("q", value))
+
+
+class BucketDoubleTransform(BaseBucketTransform):
+    """Transforms a value of FloatType or DoubleType into a bucket partition value.
+
+    Note that bucketing by Double is not allowed by the spec, but this has the hash implementation.
+
+    Example:
+        >>> transform = BucketDoubleTransform(8)
+        >>> transform.hash(1.0)
+        -142385009
+    """
+
+    def hash(self, value) -> int:
+        return mmh3.hash(struct.pack("d", value))
+
+
+class BucketDecimalTransform(BaseBucketTransform):
+    """Transforms a value of DecimalType into a bucket partition value.
+
+    Example:
+        >>> transform = BucketDecimalTransform(100)
+        >>> transform.apply(Decimal("14.20"))
+        59
+    """
+
+    def can_transform(self, target: Type) -> bool:
+        return isinstance(target, DecimalType)
+
+    def hash(self, value: Decimal) -> int:
+        return mmh3.hash(transform_util.decimal_to_bytes(value))
+
+
+class BucketStringTransform(BaseBucketTransform):
+    """Transforms a value of StringType into a bucket partition value.
+
+    Example:
+        >>> transform = BucketStringTransform(100)
+        >>> transform.apply("iceberg")
+        89
+    """
+
+    def can_transform(self, target: Type) -> bool:
+        return isinstance(target, StringType)
+
+    def hash(self, value: str) -> int:
+        return mmh3.hash(value)
+
+
+class BucketFixedTransform(BaseBucketTransform):
+    """Transforms a value of FixedType into a bucket partition value.
+
+    Example:
+        >>> transform = BucketFixedTransform(128)
+        >>> transform.apply(b"foo")
+        32
+    """
+
+    def can_transform(self, target: Type) -> bool:
+        return isinstance(target, FixedType)
+
+    def hash(self, value: bytearray) -> int:
+        return mmh3.hash(value)
+
+
+class BucketBinaryTransform(BaseBucketTransform):
+    """Transforms a value of BinaryType into a bucket partition value.
+
+    Example:
+        >>> transform = BucketBinaryTransform(128)
+        >>> transform.apply(b"\x00\x01\x02\x03")
+        57
+    """
+
+    def can_transform(self, target: Type) -> bool:
+        return isinstance(target, BinaryType)
+
+    def hash(self, value: bytes) -> int:
+        return mmh3.hash(value)
+
+
+class BucketUUIDTransform(BaseBucketTransform):
+    """Transforms a value of UUIDType into a bucket partition value.
+
+    Example:
+        >>> transform = BucketUUIDTransform(100)
+        >>> transform.apply(UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"))
+        40
+    """
+
+    def can_transform(self, target: Type) -> bool:
+        return isinstance(target, UUIDType)
+
+    def hash(self, value: UUID) -> int:
+        return mmh3.hash(
+            struct.pack(
+                ">QQ",
+                (value.int >> 64) & 0xFFFFFFFFFFFFFFFF,
+                value.int & 0xFFFFFFFFFFFFFFFF,
+            )
         )
+
+
+class DateTimeTransform(Transform):
+    """Base transform class for transforms of DateType, TimestampType, and TimestamptzType."""
+
+    class Granularity(Enum):
+        def __init__(self, order: int, result_type: Type, human_string: Callable[[int], str]):
+            self.order = order
+            self.result_type = result_type
+            self.human_string = human_string
+
+        YEAR = 3, IntegerType(), transform_util.human_year
+        MONTH = 2, IntegerType(), transform_util.human_month
+        DAY = 1, DateType(), transform_util.human_day
+        HOUR = 0, IntegerType(), transform_util.human_hour
+
+    _DATE_APPLY_FUNCS = {
+        Granularity.YEAR: transform_util.years_for_days,
+        Granularity.MONTH: transform_util.months_for_days,
+        Granularity.DAY: lambda d: d,
+    }
+
+    _TIMESTAMP_APPLY_FUNCS = {
+        Granularity.YEAR: transform_util.years_for_ts,
+        Granularity.MONTH: transform_util.months_for_ts,
+        Granularity.DAY: transform_util.days_for_ts,
+        Granularity.HOUR: transform_util.hours_for_ts,
+    }
+
+    def __init__(self, source_type: Type, name: str):
+        super().__init__(name, f"transforms.{name}(source_type={repr(source_type)})")
+
         self._type = source_type
-        self._name = name
-        self._apply = apply_func
-        self._result_type = DateType if self._name == "day" else IntegerType
+        try:
+            self._granularity = DateTimeTransform.Granularity[name.upper()]
+
+            if isinstance(source_type, DateType):
+                self._apply = DateTimeTransform._DATE_APPLY_FUNCS[self._granularity]
+            elif type(source_type) in {TimestampType, TimestamptzType}:
+                self._apply = DateTimeTransform._TIMESTAMP_APPLY_FUNCS[self._granularity]
+            else:
+                raise KeyError
+        except KeyError:
+            raise ValueError(f"Cannot partition type {source_type} by {name}")
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self._type == other._type and self._granularity == other._granularity
+        return False
+
+    def can_transform(self, target: Type) -> bool:
+        if isinstance(self._type, DateType):
+            return isinstance(target, DateType)
+        else:  # self._type is either TimestampType or TimestamptzType
+            return not isinstance(target, DateType)
 
     def apply(self, value: int) -> int:
         return self._apply(value)
 
-    def can_transform(self, target: Type) -> bool:
-        if self._type == DateType:
-            return target == DateType
-        else:  # self._type is either TimestampType or TimestamptzType
-            return target == TimestampType or target == TimestamptzType
-
     def result_type(self, source_type: Type) -> Type:
-        return self._result_type
+        return self._granularity.result_type
 
     def preserves_order(self) -> bool:
         return True
@@ -218,28 +329,25 @@ class TimeTransform(Transform):
         if self == other:
             return True
 
-        if isinstance(other, TimeTransform):
-            return (
-                TimeTransform._TIME_SATISFIED_ORDER[self._name]
-                <= TimeTransform._TIME_SATISFIED_ORDER[other._name]
-            )
+        if isinstance(other, DateTimeTransform):
+            return self._granularity.order <= other._granularity.order
 
         return False
+
+    def to_human_string(self, value) -> str:
+        if value is None:
+            return "null"
+        return self._granularity.human_string(value)
 
     def dedup_name(self) -> str:
         return "time"
 
 
-class Identity(Transform):
-    def __init__(
-        self,
-        source_type: Type,
-        human_str: Callable[[Any], str],
-    ):
+class IdentityTransform(Transform):
+    def __init__(self, source_type: Type):
         super().__init__(
             "identity",
             f"transforms.identity(source_type={repr(source_type)})",
-            human_str,
         )
         self._type = source_type
 
@@ -255,8 +363,26 @@ class Identity(Transform):
     def satisfies_order_of(self, other: Transform) -> bool:
         return other.preserves_order()
 
+    def to_human_string(self, value) -> str:
+        if value is None:
+            return "null"
+        elif isinstance(self._type, DateType):
+            return transform_util.human_day(value)
+        elif isinstance(self._type, TimeType):
+            return transform_util.human_time(value)
+        elif isinstance(self._type, TimestampType):
+            return transform_util.human_timestamp(value)
+        elif isinstance(self._type, TimestamptzType):
+            return transform_util.human_timestamptz(value)
+        elif isinstance(self._type, FixedType):
+            return transform_util.base64encode(value)
+        elif isinstance(self._type, BinaryType):
+            return transform_util.base64encode(value)
+        else:
+            return str(value)
 
-class Truncate(Transform):
+
+class TruncateTransform(Transform):
     """A transform for truncating a value to a specified width.
 
     Args:
@@ -267,26 +393,22 @@ class Truncate(Transform):
       ValueError: If a type is provided that is incompatible with a Truncate transform
     """
 
-    _VALID_TYPES = {IntegerType, LongType, StringType, BinaryType}
-    _TO_HUMAN_STR = {BinaryType: transform_util.base64encode}
+    _VALID_TYPES = {IntegerType, LongType, StringType, BinaryType, DecimalType}
 
     def __init__(self, source_type: Type, width: int):
-        if source_type not in Truncate._VALID_TYPES and not isinstance(
-            source_type, DecimalType
-        ):
+        if type(source_type) not in TruncateTransform._VALID_TYPES:
             raise ValueError(f"Cannot truncate type: {source_type}")
 
         super().__init__(
             f"truncate[{width}]",
             f"transforms.truncate(source_type={repr(source_type)}, width={width})",
-            Truncate._TO_HUMAN_STR.get(source_type, str),
         )
         self._type = source_type
         self._width = width
 
-        if self._type == IntegerType or self._type == LongType:
+        if type(self._type) in {IntegerType, LongType}:
             self._apply = lambda v, w: v - v % w
-        elif self._type == StringType or self._type == BinaryType:
+        elif type(self._type) in {StringType, BinaryType}:
             self._apply = lambda v, w: v[0 : min(w, len(v))]
         else:  # decimal case
             self._apply = transform_util.truncate_decimal
@@ -309,14 +431,18 @@ class Truncate(Transform):
     def satisfies_order_of(self, other: Transform) -> bool:
         if self == other:
             return True
-        elif (
-            StringType == self._type
-            and isinstance(other, Truncate)
-            and StringType == other._type
-        ):
+        elif isinstance(self._type, StringType) and isinstance(other, TruncateTransform) and isinstance(other._type, StringType):
             return self._width >= other._width
 
         return False
+
+    def to_human_string(self, value) -> str:
+        if value is None:
+            return "null"
+        elif isinstance(self._type, BinaryType):
+            return transform_util.base64encode(value)
+        else:
+            return str(value)
 
 
 class UnknownTransform(Transform):
@@ -339,17 +465,17 @@ class UnknownTransform(Transform):
         self._transform = transform
 
     def apply(self, value):
-        raise AttributeError(f"Cannot apply unsupported transform: {self.__str__()}")
+        raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
     def can_transform(self, target: Type) -> bool:
-        return repr(self._type) == repr(target)
+        return self._type == target
 
     def result_type(self, source: Type) -> Type:
-        return StringType
+        return StringType()
 
 
 class VoidTransform(Transform):
-    """A transform that always returns null"""
+    """A transform that always returns None"""
 
     _instance = None
 
@@ -359,7 +485,7 @@ class VoidTransform(Transform):
         return cls._instance
 
     def __init__(self):
-        super().__init__("void", "transforms.always_null()", lambda v: "null")
+        super().__init__("void", "transforms.always_null()")
 
     def apply(self, value):
         return None
@@ -367,35 +493,11 @@ class VoidTransform(Transform):
     def can_transform(self, target: Type) -> bool:
         return True
 
+    def to_human_string(self, value) -> str:
+        return "null"
+
 
 _HAS_WIDTH = re.compile("(\\w+)\\[(\\d+)\\]")
-_TIME_TRANSFORMS = {
-    DateType: {
-        "year": TimeTransform(DateType, "year", transform_util.years_for_days),
-        "month": TimeTransform(DateType, "month", transform_util.months_for_days),
-        "day": TimeTransform(DateType, "day", lambda d: d),
-    },
-    TimestampType: {
-        "year": TimeTransform(TimestampType, "year", transform_util.years_for_ts),
-        "month": TimeTransform(TimestampType, "month", transform_util.months_for_ts),
-        "day": TimeTransform(TimestampType, "day", transform_util.days_for_ts),
-        "hour": TimeTransform(TimestampType, "hour", transform_util.hours_for_ts),
-    },
-    TimestamptzType: {
-        "year": TimeTransform(TimestamptzType, "year", transform_util.years_for_ts),
-        "month": TimeTransform(TimestamptzType, "month", transform_util.months_for_ts),
-        "day": TimeTransform(TimestamptzType, "day", transform_util.days_for_ts),
-        "hour": TimeTransform(TimestamptzType, "hour", transform_util.hours_for_ts),
-    },
-}
-
-_SPECIAL_IDENTITY_TRANSFORMS = {
-    DateType: Identity(DateType, transform_util.human_day),
-    TimeType: Identity(TimeType, transform_util.human_time),
-    TimestampType: Identity(TimestampType, transform_util.human_timestamp),
-    TimestamptzType: Identity(TimestamptzType, transform_util.human_timestamptz),
-    BinaryType: Identity(BinaryType, transform_util.base64encode),
-}
 
 
 def from_string(source_type: Type, transform: str) -> Transform:
@@ -406,16 +508,16 @@ def from_string(source_type: Type, transform: str) -> Transform:
         name = match.group(1)
         w = int(match.group(2))
         if name == "truncate":
-            return Truncate(source_type, w)
+            return TruncateTransform(source_type, w)
         elif name == "bucket":
-            return Bucket(source_type, w)
+            return BaseBucketTransform(source_type, w)
 
     if transform_lower == "identity":
         return identity(source_type)
 
     try:
-        return _TIME_TRANSFORMS[source_type][transform_lower]
-    except KeyError:
+        return DateTimeTransform(source_type, transform_lower)
+    except (KeyError, ValueError) as e:
         pass  # fall through to return unknown transform
 
     if transform_lower == "void":
@@ -424,47 +526,49 @@ def from_string(source_type: Type, transform: str) -> Transform:
     return UnknownTransform(source_type, transform)
 
 
-def identity(source_type: Type) -> Identity:
-    if isinstance(source_type, FixedType):
-        return Identity(source_type, transform_util.base64encode)
-    else:
-        return _SPECIAL_IDENTITY_TRANSFORMS.get(source_type, Identity(source_type, str))
+def identity(source_type: Type) -> IdentityTransform:
+    return IdentityTransform(source_type)
 
 
 def year(source_type: Type) -> Transform:
-    try:
-        return _TIME_TRANSFORMS[source_type]["year"]
-    except KeyError:
-        raise ValueError(f"Cannot partition type {source_type} by year")
+    return DateTimeTransform(source_type, "year")
 
 
 def month(source_type: Type) -> Transform:
-    try:
-        return _TIME_TRANSFORMS[source_type]["month"]
-    except KeyError:
-        raise ValueError(f"Cannot partition type {source_type} by month")
+    return DateTimeTransform(source_type, "month")
 
 
 def day(source_type: Type) -> Transform:
-    try:
-        return _TIME_TRANSFORMS[source_type]["day"]
-    except KeyError:
-        raise ValueError(f"Cannot partition type {source_type} by day")
+    return DateTimeTransform(source_type, "day")
 
 
 def hour(source_type: Type) -> Transform:
-    try:
-        return _TIME_TRANSFORMS[source_type]["hour"]
-    except KeyError:
-        raise ValueError(f"Cannot partition type {source_type} by hour")
+    return DateTimeTransform(source_type, "hour")
 
 
-def bucket(source_type: Type, num_buckets: int) -> Bucket:
-    return Bucket(source_type, num_buckets)
+def bucket(source_type: Type, num_buckets: int) -> BaseBucketTransform:
+    if isinstance(source_type, IntegerType):
+        return BucketIntegerTransform(source_type, num_buckets)
+    elif isinstance(source_type, DecimalType):
+        return BucketDecimalTransform(source_type, num_buckets)
+    elif isinstance(source_type, DateType):
+        return BucketIntegerTransform(source_type, num_buckets)
+    elif type(source_type) in {LongType, TimeType, TimestampType, TimestamptzType}:
+        return BucketLongTransform(source_type, num_buckets)
+    elif isinstance(source_type, StringType):
+        return BucketStringTransform(source_type, num_buckets)
+    elif isinstance(source_type, BinaryType):
+        return BucketBinaryTransform(source_type, num_buckets)
+    elif isinstance(source_type, FixedType):
+        return BucketFixedTransform(source_type, num_buckets)
+    elif isinstance(source_type, UUIDType):
+        return BucketUUIDTransform(source_type, num_buckets)
+    else:
+        raise ValueError(f"Cannot bucket by type: {source_type}")
 
 
-def truncate(source_type: Type, width: int) -> Truncate:
-    return Truncate(source_type, width)
+def truncate(source_type: Type, width: int) -> TruncateTransform:
+    return TruncateTransform(source_type, width)
 
 
 def always_null() -> Transform:

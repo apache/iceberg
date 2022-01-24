@@ -33,9 +33,7 @@ def human_year(year_ordinal: int) -> str:
 
 
 def human_month(month_ordinal: int) -> str:
-    return "{0:0=4d}-{1:0=2d}".format(
-        _EPOCH_YEAR + int(month_ordinal / 12), 1 + int(month_ordinal % 12)
-    )
+    return "{0:0=4d}-{1:0=2d}".format(_EPOCH_YEAR + int(month_ordinal / 12), 1 + int(month_ordinal % 12))
 
 
 def human_day(day_ordinal: int) -> str:
@@ -45,9 +43,7 @@ def human_day(day_ordinal: int) -> str:
 
 def human_hour(hour_ordinal: int) -> str:
     time = _EPOCH + timedelta(hours=hour_ordinal)
-    return "{0:0=4d}-{1:0=2d}-{2:0=2d}-{3:0=2d}".format(
-        time.year, time.month, time.day, time.hour
-    )
+    return "{0:0=4d}-{1:0=2d}-{2:0=2d}-{3:0=2d}".format(time.year, time.month, time.day, time.hour)
 
 
 def human_time(micros_from_midnight: int) -> str:
@@ -71,10 +67,7 @@ def base64encode(buffer: bytes) -> str:
 
 def _unscale_decimal(decimal_value: Decimal) -> int:
     value_tuple = decimal_value.as_tuple()
-    return int(
-        ("-" if value_tuple.sign else "")
-        + "".join([str(d) for d in value_tuple.digits])
-    )
+    return int(("-" if value_tuple.sign else "") + "".join([str(d) for d in value_tuple.digits]))
 
 
 def decimal_to_bytes(value: Decimal) -> bytes:
@@ -90,9 +83,7 @@ def truncate_decimal(value: Decimal, width: int) -> Decimal:
 
 
 def hours_for_ts(timestamp: int) -> int:
-    return int(
-        (datetime.utcfromtimestamp(timestamp / 1000000) - _EPOCH).total_seconds() / 3600
-    )
+    return int((datetime.utcfromtimestamp(timestamp / 1000000) - _EPOCH).total_seconds() / 3600)
 
 
 def days_for_ts(timestamp: int) -> int:
@@ -101,35 +92,19 @@ def days_for_ts(timestamp: int) -> int:
 
 def months_for_days(days: int) -> int:
     dt = datetime.utcfromtimestamp(days * 86400)
-    return (
-        (dt.year - _EPOCH_YEAR) * 12
-        + (dt.month - _EPOCH_MONTH)
-        - (1 if dt.day < _EPOCH_DAY else 0)
-    )
+    return (dt.year - _EPOCH_YEAR) * 12 + (dt.month - _EPOCH_MONTH) - (1 if dt.day < _EPOCH_DAY else 0)
 
 
 def months_for_ts(timestamp: int) -> int:
     dt = datetime.utcfromtimestamp(timestamp / 1000000)
-    return (
-        (dt.year - _EPOCH_YEAR) * 12
-        + (dt.month - _EPOCH_MONTH)
-        - (1 if dt.day < _EPOCH_DAY else 0)
-    )
+    return (dt.year - _EPOCH_YEAR) * 12 + (dt.month - _EPOCH_MONTH) - (1 if dt.day < _EPOCH_DAY else 0)
 
 
 def years_for_days(days: int) -> int:
     dt = datetime.utcfromtimestamp(days * 86400)
-    return (dt.year - _EPOCH_YEAR) - (
-        1
-        if dt.month < _EPOCH_MONTH or (dt.month == _EPOCH_MONTH and dt.day < _EPOCH_DAY)
-        else 0
-    )
+    return (dt.year - _EPOCH_YEAR) - (1 if dt.month < _EPOCH_MONTH or (dt.month == _EPOCH_MONTH and dt.day < _EPOCH_DAY) else 0)
 
 
 def years_for_ts(timestamp: int) -> int:
     dt = datetime.utcfromtimestamp(timestamp / 1000000)
-    return (dt.year - _EPOCH_YEAR) - (
-        1
-        if dt.month < _EPOCH_MONTH or (dt.month == _EPOCH_MONTH and dt.day < _EPOCH_DAY)
-        else 0
-    )
+    return (dt.year - _EPOCH_YEAR) - (1 if dt.month < _EPOCH_MONTH or (dt.month == _EPOCH_MONTH and dt.day < _EPOCH_DAY) else 0)
