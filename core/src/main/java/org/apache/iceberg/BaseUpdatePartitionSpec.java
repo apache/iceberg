@@ -124,6 +124,16 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     return addField(null, term);
   }
 
+  private BaseUpdatePartitionSpec rewriteDeleteAndAddField(
+      PartitionField existing, String name, Pair<Integer, Transform<?, ?>> sourceTransform) {
+    deletes.remove(existing.fieldId());
+    if (name == null || existing.name().equals(name)) {
+      return this;
+    } else {
+      return renameField(existing.name(), name);
+    }
+  }
+
   @Override
   public BaseUpdatePartitionSpec addField(String name, Term term) {
     PartitionField alreadyAdded = nameToAddedField.get(name);
@@ -133,6 +143,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Pair<Integer, String> validationKey = Pair.of(sourceTransform.first(), sourceTransform.second().toString());
 
     PartitionField existing = transformToField.get(validationKey);
+    if (existing != null && deletes.contains(existing.fieldId()) &&
+        existing.transform().equals(sourceTransform.second())) {
+      return rewriteDeleteAndAddField(existing, name, sourceTransform);
+    }
+
     Preconditions.checkArgument(existing == null ||
         (deletes.contains(existing.fieldId()) &&
             !existing.transform().toString().equals(sourceTransform.second().toString())),
