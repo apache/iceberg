@@ -246,13 +246,13 @@ class IcebergToGlueConverter {
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
-      addColumnWithDedupe(columns, addedNames, field, true);
+      addColumnWithDedupe(columns, addedNames, field, true /* is current */);
     }
 
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
-          addColumnWithDedupe(columns, addedNames, field, false);
+          addColumnWithDedupe(columns, addedNames, field, false /* is current */);
         }
       }
     }
