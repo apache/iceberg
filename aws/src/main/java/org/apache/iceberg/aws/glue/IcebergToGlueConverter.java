@@ -252,7 +252,7 @@ class IcebergToGlueConverter {
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
-          addColumnWithDedupe(columns, addedNames, field, false /* is current */);
+          addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
         }
       }
     }
