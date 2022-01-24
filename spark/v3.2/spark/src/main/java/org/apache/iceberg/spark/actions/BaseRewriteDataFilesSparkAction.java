@@ -106,6 +106,11 @@ public class BaseRewriteDataFilesSparkAction
     return this;
   }
 
+  /**
+   * The framework specific ZOrder Strategy
+   */
+  protected abstract SortStrategy zOrderStrategy(String... columnNames);
+
   @Override
   public RewriteDataFiles binPack() {
     Preconditions.checkArgument(this.strategy == null,
@@ -127,6 +132,12 @@ public class BaseRewriteDataFilesSparkAction
     Preconditions.checkArgument(this.strategy == null,
         "Cannot set strategy to sort, it has already been set to %s", this.strategy);
     this.strategy = sortStrategy();
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles zOrder(String... columnNames) {
+    this.strategy = zOrderStrategy(columnNames);
     return this;
   }
 
