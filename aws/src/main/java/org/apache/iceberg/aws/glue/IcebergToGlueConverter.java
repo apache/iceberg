@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -58,6 +59,7 @@ class IcebergToGlueConverter {
   public static final String GLUE_DB_DESCRIPTION_KEY = "comment";
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
+  public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -244,13 +246,22 @@ class IcebergToGlueConverter {
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
-      addColumnWithDedupe(columns, addedNames, field);
+      addColumnWithDedupe(columns, addedNames, field, true /* is current */);
+    }
+
+    for (Schema schema : metadata.schemas()) {
+      if (schema.schemaId() != metadata.currentSchemaId()) {
+        for (NestedField field : schema.columns()) {
+          addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+        }
+      }
     }
 
     return columns;
   }
 
-  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe, NestedField field) {
+  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe,
+                                          NestedField field, boolean isCurrent) {
     if (!dedupe.contains(field.name())) {
       columns.add(Column.builder()
           .name(field.name())
@@ -258,7 +269,8 @@ class IcebergToGlueConverter {
           .comment(field.doc())
           .parameters(ImmutableMap.of(
               ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
-              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional())
+              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
+              ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)
           ))
           .build());
       dedupe.add(field.name());
