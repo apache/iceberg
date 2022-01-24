@@ -483,20 +483,25 @@ public class TestUpdatePartitionSpec extends TableTestBase {
         .addField("shard", bucket("id", 16))
         .apply();
     Assert.assertEquals(PARTITIONED, updated);
+    updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField("shard")
+        .addField(bucket("id", 16))
+        .apply();
+    Assert.assertEquals(PARTITIONED, updated);
   }
 
   @Test
   public void testGenerateNewSpecAddDeletedSameFieldWithDifferentName() {
     PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField("shard")
-        .addField(bucket("id", 16))
+        .addField("new_shard", bucket("id", 16))
         .apply();
     Assert.assertEquals("Should match expected field size", 3, updated.fields().size());
     Assert.assertEquals("Should match expected field name", "category",
         updated.fields().get(0).name());
     Assert.assertEquals("Should match expected field name", "ts_day",
         updated.fields().get(1).name());
-    Assert.assertEquals("Should match expected field name", "bucket[16]",
+    Assert.assertEquals("Should match expected field name", "new_shard",
         updated.fields().get(2).name());
     Assert.assertEquals("Should match expected field transform", "identity",
         updated.fields().get(0).transform().toString());

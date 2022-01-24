@@ -127,11 +127,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private BaseUpdatePartitionSpec rewriteDeleteAndAddField(
       PartitionField existing, String name, Pair<Integer, Transform<?, ?>> sourceTransform) {
     deletes.remove(existing.fieldId());
-    if (existing.name().equals(name)) {
+    if (name == null || existing.name().equals(name)) {
       return this;
     } else {
-      String newName = name == null ? sourceTransform.second().toString() : name;
-      return renameField(existing.name(), newName);
+      return renameField(existing.name(), name);
     }
   }
 
