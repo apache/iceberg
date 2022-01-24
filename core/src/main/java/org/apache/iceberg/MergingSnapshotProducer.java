@@ -516,13 +516,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // filter any existing manifests
     List<ManifestFile> filtered = filterManager.filterManifests(
         base.schema(), current != null ? current.dataManifests() : null);
-    long minDataSequenceNumber = filtered.stream()
-        .map(ManifestFile::minSequenceNumber)
-        .filter(seq -> seq > 0) // filter out unassigned sequence numbers in rewritten manifests
-        .reduce(base.lastSequenceNumber(), Math::min);
-    deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
-    List<ManifestFile> filteredDeletes = deleteFilterManager.filterManifests(
-        base.schema(), current != null ? current.deleteManifests() : null);
+    List<ManifestFile> deleteManifests = current != null ? current.deleteManifests() : null;
+    Map<String, Long> minDataSequenceNumbers = filterManager.findMinDataSequenceNumbers(filtered, deleteManifests);
+    deleteFilterManager.dropDeleteFilesOlderthan(minDataSequenceNumbers);
+    List<ManifestFile> filteredDeletes = deleteFilterManager.filterManifests(base.schema(), deleteManifests);
 
     // only keep manifests that have live data files or that were written by this commit
     Predicate<ManifestFile> shouldKeep = manifest ->
