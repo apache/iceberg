@@ -137,11 +137,8 @@ public class TestIcebergToGlueConverter {
                     .type("string")
                     .comment("comment1")
                     .parameters(ImmutableMap.of(
-                        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
                         IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
-                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
-                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string",
-                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRING"
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false"
                     ))
                     .build(),
                 Column.builder()
@@ -149,40 +146,11 @@ public class TestIcebergToGlueConverter {
                     .type("struct<z:int>")
                     .comment("comment2")
                     .parameters(ImmutableMap.of(
-                        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
                         IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
-                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
-                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "struct<z:int>",
-                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRUCT"
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false"
                     ))
-                    .build(),
-                Column.builder()
-                    .name("y.z")
-                    .type("int")
-                    .parameters(ImmutableMap.of(
-                        IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_SUBFIELD,
-                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
-                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
-                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "int",
-                        IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "INTEGER"
-                    ))
-                    .build(),
-                Column.builder()
-                    .name("x_identity")
-                    .type("string")
-                    .parameters(ImmutableMap.<String, String>builder()
-                        .put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.PARTITION_FIELD)
-                        .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRING")
-                        .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string")
-                        .put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1000")
-                        .put(IcebergToGlueConverter.ICEBERG_PARTITION_FIELD_ID, "1000")
-                        .put(IcebergToGlueConverter.ICEBERG_PARTITION_SOURCE_ID, "1")
-                        .put(IcebergToGlueConverter.ICEBERG_PARTITION_TRANSFORM, "identity")
-                        .build()
-                    )
-                    .build()
-                )
-            ).build())
+                    .build()))
+            .build())
         .build();
 
     Assert.assertEquals(
