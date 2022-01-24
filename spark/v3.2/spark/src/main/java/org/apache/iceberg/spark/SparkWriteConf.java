@@ -140,6 +140,22 @@ public class SparkWriteConf {
         .parse();
   }
 
+  public FileFormat deleteFileFormat() {
+    String valueAsString = confParser.stringConf()
+        .option(SparkWriteOptions.DELETE_FORMAT)
+        .tableProperty(TableProperties.DELETE_DEFAULT_FILE_FORMAT)
+        .parseOptional();
+    return valueAsString != null ? FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH)) : dataFileFormat();
+  }
+
+  public long targetDeleteFileSize() {
+    return confParser.longConf()
+        .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES)
+        .tableProperty(TableProperties.DELETE_TARGET_FILE_SIZE_BYTES)
+        .defaultValue(TableProperties.DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT)
+        .parse();
+  }
+
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
@@ -186,35 +202,18 @@ public class SparkWriteConf {
     String deleteModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
-        .parseOptional();
-
-    if (deleteModeName != null) {
-      DistributionMode deleteMode = DistributionMode.fromName(deleteModeName);
-      if (deleteMode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-        return HASH;
-      } else {
-        return deleteMode;
-      }
-    } else {
-      // use hash distribution if write distribution is range or hash
-      // avoid range-based shuffles unless the user asks explicitly
-      DistributionMode writeMode = distributionMode();
-      return writeMode != NONE ? HASH : NONE;
-    }
+        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .parse();
+    return DistributionMode.fromName(deleteModeName);
   }
 
   public DistributionMode copyOnWriteUpdateDistributionMode() {
     String updateModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
-        .parseOptional();
-
-    if (updateModeName != null) {
-      DistributionMode updateMode = DistributionMode.fromName(updateModeName);
-      return adjustWriteDistributionMode(updateMode);
-    } else {
-      return distributionMode();
-    }
+        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .parse();
+    return DistributionMode.fromName(updateModeName);
   }
 
   public DistributionMode copyOnWriteMergeDistributionMode() {
@@ -228,6 +227,31 @@ public class SparkWriteConf {
       return adjustWriteDistributionMode(mergeMode);
     } else {
       return distributionMode();
+    }
+  }
+
+  public DistributionMode positionDeleteDistributionMode() {
+    String deleteModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
+        .parseOptional();
+
+    if (deleteModeName != null) {
+      DistributionMode deleteMode = DistributionMode.fromName(deleteModeName);
+      if (deleteMode == HASH && table.spec().isUnpartitioned()) {
+        return NONE;
+      } else {
+        return deleteMode;
+      }
+    } else {
+      // use hash distribution if write distribution is range or hash and table is partitioned
+      // avoid range-based shuffles unless the user asks explicitly
+      DistributionMode writeMode = distributionMode();
+      if (writeMode != NONE && table.spec().isPartitioned()) {
+        return HASH;
+      } else {
+        return writeMode;
+      }
     }
   }
 

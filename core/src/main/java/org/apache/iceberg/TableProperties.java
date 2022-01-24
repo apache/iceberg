@@ -194,8 +194,10 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
-  public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 512 * 1024 * 1024; // 512 MB
+
+  public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
+  public static final long DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT = 64 * 1024 * 1024; // 64 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
@@ -247,7 +249,15 @@ public class TableProperties {
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = "copy-on-write";
 
+  /**
+   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from 0.13.0.
+   */
+  @Deprecated
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
+  /**
+   * @deprecated will be removed in 0.14.0, the cardinality check is always performed starting from 0.13.0.
+   */
+  @Deprecated
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 
   public static final String MERGE_DISTRIBUTION_MODE = "write.merge.distribution-mode";

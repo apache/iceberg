@@ -171,7 +171,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -191,7 +191,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "0", null, null);
+    validateCopyOnWrite(currentSnapshot, "0", null, null);
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -209,13 +209,17 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", tableName);
     sql("INSERT INTO TABLE %s VALUES (null, 'hr')", tableName);
 
-    sql("UPDATE %s SET id = -1", tableName);
+    // set the num of shuffle partitions to 200 instead of default 4 to reduce the chance of hashing
+    // records for multiple source files to one writing task (needed for a predictable num of output files)
+    withSQLConf(ImmutableMap.of(SQLConf.SHUFFLE_PARTITIONS().key(), "200"), () -> {
+      sql("UPDATE %s SET id = -1", tableName);
+    });
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "3", "2");
+    validateCopyOnWrite(currentSnapshot, "2", "3", "3");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(-1, "hr")),
@@ -511,7 +515,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "2", "2");
+    validateCopyOnWrite(currentSnapshot,  "2", "2", "2");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(2, "hardware"), row(3, "hr")),
@@ -583,7 +587,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),

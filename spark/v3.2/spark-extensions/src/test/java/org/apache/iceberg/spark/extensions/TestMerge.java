@@ -74,8 +74,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS source");
   }
 
-  // TODO: add tests for multiple NOT MATCHED clauses when we move to Spark 3.1
-
   @Test
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
     createAndInitTable("id INT, dep STRING");
@@ -1109,6 +1107,108 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM tmp"));
 
     spark.sql("UNCACHE TABLE tmp");
+  }
+
+  @Test
+  public void testMergeWithMultipleNotMatchedActions() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN NOT MATCHED AND s.id = 1 THEN " +
+        "  INSERT (dep, id) VALUES (s.dep, -1)" +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(-1, "emp-id-1"), // new
+        row(0, "emp-id-0"),  // kept
+        row(2, "emp-id-2"),  // new
+        row(3, "emp-id-3")   // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeWithMultipleConditionalNotMatchedActions() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN NOT MATCHED AND s.id = 1 THEN " +
+        "  INSERT (dep, id) VALUES (s.dep, -1)" +
+        "WHEN NOT MATCHED AND s.id = 2 THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(-1, "emp-id-1"), // new
+        row(0, "emp-id-0"),  // kept
+        row(2, "emp-id-2")   // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeResolvesColumnsByName() {
+    createAndInitTable("id INT, badge INT, dep STRING",
+        "{ \"id\": 1, \"badge\": 1000, \"dep\": \"emp-id-one\" }\n" +
+        "{ \"id\": 6, \"badge\": 6000, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView("source", "badge INT, id INT, dep STRING",
+        "{ \"badge\": 1001, \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"badge\": 6006, \"id\": 6, \"dep\": \"emp-id-6\" }\n" +
+        "{ \"badge\": 7007, \"id\": 7, \"dep\": \"emp-id-7\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT * ", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, 1001, "emp-id-1"), // updated
+        row(6, 6006, "emp-id-6"), // updated
+        row(7, 7007, "emp-id-7")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows,
+        sql("SELECT id, badge, dep FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeShouldResolveWhenThereAreNoUnresolvedExpressionsOrColumns() {
+    // ensures that MERGE INTO will resolve into the correct action even if no columns
+    // or otherwise unresolved expressions exist in the query (testing SPARK-34962)
+    createAndInitTable("id INT, dep STRING");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON 1 != 1 " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, "emp-id-1"), // new
+        row(2, "emp-id-2"), // new
+        row(3, "emp-id-3")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test

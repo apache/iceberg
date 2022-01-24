@@ -493,7 +493,7 @@ public class SparkCatalog extends BaseCatalog {
       Table table;
       try {
         table = icebergCatalog.loadTable(namespaceAsIdent);
-      } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
+      } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw the original exception
         throw e;

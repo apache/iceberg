@@ -99,6 +99,7 @@ public class ManifestReader<F extends ContentFile<F>>
     try {
       try (AvroIterable<ManifestEntry<F>> headerReader = Avro.read(file)
           .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+          .classLoader(GenericManifestEntry.class.getClassLoader())
           .build()) {
         this.metadata = headerReader.getMetadata();
       }

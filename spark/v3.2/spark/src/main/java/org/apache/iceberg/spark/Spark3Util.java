@@ -86,6 +86,7 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
@@ -99,6 +100,13 @@ public class Spark3Util {
   private static final Joiner DOT = Joiner.on(".");
 
   private Spark3Util() {
+  }
+
+  public static CaseInsensitiveStringMap setOption(String key, String value, CaseInsensitiveStringMap options) {
+    Map<String, String> newOptions = Maps.newHashMap();
+    newOptions.putAll(options);
+    newOptions.put(key, value);
+    return new CaseInsensitiveStringMap(newOptions);
   }
 
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
