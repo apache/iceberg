@@ -138,7 +138,8 @@ public class TestIcebergToGlueConverter {
                     .comment("comment1")
                     .parameters(ImmutableMap.of(
                         IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
-                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false"
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
                     ))
                     .build(),
                 Column.builder()
@@ -147,7 +148,8 @@ public class TestIcebergToGlueConverter {
                     .comment("comment2")
                     .parameters(ImmutableMap.of(
                         IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
-                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false"
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
                     ))
                     .build()))
             .build())
