@@ -222,11 +222,11 @@ public class TestHiveSchemaUtil {
 
     Assert.assertEquals(
         expectedSchema.asStruct(),
-        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA,false, identifierFieldNames).asStruct());
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, false, identifierFieldNames).asStruct());
 
     Assert.assertEquals(
         expectedSchema.asStruct(),
-        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA,true, identifierFieldNames).asStruct());
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, true, identifierFieldNames).asStruct());
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
