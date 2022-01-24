@@ -362,6 +362,38 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+    post:
+      tags:
+        - Catalog API
+      summary: Create a table in the given namespace
+      description: Create table
+      operationId: createTable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTableRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/CreateTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/namespaces/{namespace}/tables:
+
   /v1/namespaces/{namespace}/tables/{table}:
     parameters:
       - $ref: '#/components/parameters/namespace'
@@ -1204,6 +1236,18 @@ components:
         default-sort-order-id:
           type: integer
 
+    LoadTableResult:
+      type: object
+      required:
+        - metadata
+      properties:
+        config:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
+
     CommitTableRequest:
       type: object
       required:
@@ -1218,6 +1262,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableUpdate'
+
+    CreateTableRequest:
+      type: object
+      required:
+        - name
+        - schema
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        schema:
+          $ref: '#/components/schemas/Schema'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        partition-spec:
+          $ref: '#/components/schemas/PartitionSpec'
+        sort-order:
+          $ref: '#/components/schemas/SortOrder'
+
 
 
   #############################
@@ -1423,21 +1489,19 @@ components:
                   Server's do not need to implement this.
                 nullable: true
 
+    CreateTableResponse:
+      description: Table metadata result after creating a table
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadTableResult'
+
     LoadTableResponse:
       description: Table metadata result when loading a table
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - metadata
-            properties:
-              config:
-                type: object
-                additionalProperties:
-                  type: string
-              metadata:
-                $ref: '#/components/schemas/TableMetadata'
+            $ref: '#/components/schemas/LoadTableResult'
 
     CommitTableResponse:
       description: Table metadata result after committing updates to a table
