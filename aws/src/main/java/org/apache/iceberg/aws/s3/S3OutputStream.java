@@ -27,6 +27,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -88,7 +89,7 @@ class S3OutputStream extends PositionOutputStream {
   private final int multiPartThresholdSize;
   private final boolean isChecksumEnabled;
   private final MessageDigest completeMessageDigest;
-  private final MessageDigest currentPartMessageDigest;
+  private MessageDigest currentPartMessageDigest;
 
   private long pos = 0;
   private boolean closed = false;
@@ -120,7 +121,6 @@ class S3OutputStream extends PositionOutputStream {
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
     isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
     try {
-      currentPartMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
       completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException("Failed to create message digest needed for s3 checksum checks.", e);
@@ -187,22 +187,32 @@ class S3OutputStream extends PositionOutputStream {
 
   private void newStream() throws IOException {
     if (stream != null) {
-      closeStream();
+      stream.close();
     }
 
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
+    try {
+      currentPartMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks.", e);
+    }
 
-    stagingFiles.add(new FileAndDigest(currentStagingFile));
+    stagingFiles.add(new FileAndDigest(currentStagingFile, currentPartMessageDigest));
 
     if (isChecksumEnabled) {
-      currentPartMessageDigest.reset();
-      stream = new CountingOutputStream(new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
-          new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest));
+      DigestOutputStream digestOutputStream = new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
+          new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest);
+
+      // if switched over to multipart threshold already, no need to update complete message digest
+      if (multipartUploadId != null) {
+        digestOutputStream.on(false);
+      }
+
+      stream = new CountingOutputStream(digestOutputStream);
     } else {
-      stream = new CountingOutputStream(new BufferedOutputStream(
-          new FileOutputStream(currentStagingFile)));
+      stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
     }
   }
 
@@ -216,7 +226,7 @@ class S3OutputStream extends PositionOutputStream {
     closed = true;
 
     try {
-      closeStream();
+      stream.close();
 
       completeUploads();
     } finally {
@@ -233,6 +243,7 @@ class S3OutputStream extends PositionOutputStream {
     multipartUploadId = s3.createMultipartUpload(requestBuilder.build()).uploadId();
   }
 
+  @SuppressWarnings("checkstyle:LocalVariableName")
   private void uploadParts() {
     // exit if multipart has not been initiated
     if (multipartUploadId == null) {
@@ -245,13 +256,13 @@ class S3OutputStream extends PositionOutputStream {
         // do not upload any files that have already been processed
         .filter(Predicates.not(f -> multiPartMap.containsKey(f.file())))
         .forEach(fileAndDigest -> {
-          File file = fileAndDigest.file();
+          File f = fileAndDigest.file();
           UploadPartRequest.Builder requestBuilder = UploadPartRequest.builder()
               .bucket(location.bucket())
               .key(location.key())
               .uploadId(multipartUploadId)
               .partNumber(stagingFiles.indexOf(fileAndDigest) + 1)
-              .contentLength(file.length());
+              .contentLength(f.length());
 
           if (fileAndDigest.hasDigest()) {
             requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.getDigest()));
@@ -263,21 +274,15 @@ class S3OutputStream extends PositionOutputStream {
 
           CompletableFuture<CompletedPart> future = CompletableFuture.supplyAsync(
               () -> {
-                UploadPartResponse response = null;
-                try {
-                  response = s3.uploadPart(uploadRequest, RequestBody.fromFile(file));
-                } catch (UncheckedIOException uncheckedIOException) {
-                  throw new UncheckedIOException(
-                      String.format("S3 Request Failure: %s", uploadRequest), uncheckedIOException.getCause());
-                }
+                UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
               },
               executorService
           ).whenComplete((result, thrown) -> {
             try {
-              Files.deleteIfExists(file.toPath());
+              Files.deleteIfExists(f.toPath());
             } catch (IOException e) {
-              LOG.warn("Failed to delete staging file: {}", file, e);
+              LOG.warn("Failed to delete staging file: {}", f, e);
             }
 
             if (thrown != null) {
@@ -286,7 +291,7 @@ class S3OutputStream extends PositionOutputStream {
             }
           });
 
-          multiPartMap.put(file, future);
+          multiPartMap.put(f, future);
         });
   }
 
@@ -353,25 +358,11 @@ class S3OutputStream extends PositionOutputStream {
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
-      PutObjectRequest putObjectRequest = requestBuilder.build();
-      try {
-        s3.putObject(putObjectRequest, RequestBody.fromInputStream(contentStream, contentLength));
-      } catch (UncheckedIOException uncheckedIOException) {
-        throw new UncheckedIOException(
-            String.format("S3 Request Failure: %s", putObjectRequest), uncheckedIOException.getCause());
-      }
+      s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
     } else {
       uploadParts();
       completeMultiPartUpload();
     }
-  }
-
-  private void closeStream() throws IOException {
-    if (isChecksumEnabled && !stagingFiles.isEmpty()) {
-      FileAndDigest latestFileAndDigest = stagingFiles.get(stagingFiles.size() - 1);
-      latestFileAndDigest.setDigest(currentPartMessageDigest.digest());
-    }
-    stream.close();
   }
 
   private static InputStream uncheckedInputStream(File file) {
@@ -416,29 +407,23 @@ class S3OutputStream extends PositionOutputStream {
 
   private static class FileAndDigest {
     private final File file;
-    private byte[] digest;
-    private boolean isDigestSet = false;
+    private final MessageDigest digest;
 
-    FileAndDigest(File file) {
+    FileAndDigest(File file, MessageDigest digest) {
       this.file = file;
+      this.digest = digest;
     }
 
     File file() {
       return file;
     }
 
-    boolean hasDigest() {
-      return this.isDigestSet;
-    }
-
-    void setDigest(byte[] digest) {
-      Preconditions.checkState(!this.isDigestSet, "Digest should only be set once.");
-      this.digest = digest;
-      this.isDigestSet = true;
-    }
-
     byte[] getDigest() {
-      return digest;
+      return digest.digest();
+    }
+
+    public boolean hasDigest() {
+      return digest != null;
     }
   }
 }
