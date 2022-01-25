@@ -20,7 +20,6 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
-import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
@@ -60,18 +59,4 @@ public interface InputFile {
    * @return true if the file exists, false otherwise
    */
   boolean exists();
-
-  // TODO remove this comment after review
-  // This is a minimum-disruption way to pass native decryption parameters to Parquet and ORC formats.
-  // Other possible solutions: 1. use a wrapper class (like EncryptedInputStream) with the native decryption parameter -
-  // this will require changes in dozens of data reading calls/classes.
-  // 2. add a new class/interface that implements/extends InputStream, and use an instanceof check where required. This
-  // approach needs to carefully handle the current instanceof checks of HadoopInputStream and HadoopSeekableInputStream
-  // objects that get class-specific treatment. Otherwise streams won't be closed, etc.
-  default NativeFileCryptoParameters getNativeDecryptionParameters() {
-    return null;
-  }
-
-  default void setNativeDecryptionParameters(NativeFileCryptoParameters nativeDecryptionParameters) {
-  }
 }

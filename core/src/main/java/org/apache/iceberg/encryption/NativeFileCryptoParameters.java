@@ -17,35 +17,29 @@
  * under the License.
  */
 
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Barebone encryption parameters, one object per content file.
- * Carries the file encryption key (and optional AAD prefix, column keys).
+ * Carries the file encryption key (later, will be extended with column keys and AAD prefix).
+ * Applicable only to formats with native encryption support (Parquet and ORC).
  */
 public class NativeFileCryptoParameters {
-  private ByteBuffer fileAadPrefix;
-  private Map<String, ByteBuffer> columnKeys;
   private ByteBuffer fileKey;
   private String fileEncryptionAlgorithm;
 
-  private NativeFileCryptoParameters(Map<String, ByteBuffer> columnKeys, ByteBuffer fileKey,
-                                     ByteBuffer fileAadPrefix, String fileEncryptionAlgorithm) {
-    Preconditions.checkState((columnKeys != null && columnKeys.size() > 0) || fileKey != null,
-            "No file or column keys are supplied");
-    this.columnKeys = columnKeys;
+  private NativeFileCryptoParameters(ByteBuffer fileKey, String fileEncryptionAlgorithm) {
+    Preconditions.checkState(fileKey != null, "File encryption key is not supplied");
     this.fileKey = fileKey;
-    this.fileAadPrefix = fileAadPrefix;
     this.fileEncryptionAlgorithm = fileEncryptionAlgorithm;
   }
 
   /**
    * Creates the builder.
+   *
    * @param fileKey per-file encryption key. For example, used as "footer key" DEK in Parquet encryption.
    */
   public static Builder create(ByteBuffer fileKey) {
@@ -53,29 +47,11 @@ public class NativeFileCryptoParameters {
   }
 
   public static class Builder {
-    private ByteBuffer fileAadPrefix;
-    private Map<String, ByteBuffer> columnKeys;
     private ByteBuffer fileKey;
     private String fileEncryptionAlgorithm;
 
     private Builder(ByteBuffer fileKey) {
       this.fileKey = fileKey;
-    }
-
-    /**
-     * Set column encryption keys.
-     * @param columnKeyMap Map of column names to column keys. Column names must be the original names,
-     *                     used during content file creation. For example, Parquet will use them to find and
-     *                     encrypt the relevant columns.
-     */
-    public Builder columnKeys(Map<String, ByteBuffer> columnKeyMap) {
-      this.columnKeys = columnKeyMap;
-      return this;
-    }
-
-    public Builder aadPrefix(ByteBuffer aadPrefix) {
-      this.fileAadPrefix = aadPrefix;
-      return this;
     }
 
     public Builder encryptionAlgorithm(String encryptionAlgorithm) {
@@ -84,20 +60,16 @@ public class NativeFileCryptoParameters {
     }
 
     public NativeFileCryptoParameters build() {
-      return new NativeFileCryptoParameters(columnKeys, fileKey, fileAadPrefix, fileEncryptionAlgorithm);
+      return new NativeFileCryptoParameters(fileKey, fileEncryptionAlgorithm);
     }
-  }
 
-  public ByteBuffer aadPrefix() {
-    return fileAadPrefix;
+    // TODO add back column encryption keys
+
+    // TODO add back AAD prefix (cryptographic file identity)
   }
 
   public ByteBuffer fileKey() {
     return fileKey;
-  }
-
-  public Map<String, ByteBuffer> columnKeys() {
-    return columnKeys;
   }
 
   public String encryptionAlgorithm() {

@@ -19,25 +19,11 @@
 
 package org.apache.iceberg.encryption;
 
-import org.apache.iceberg.io.OutputFile;
+/**
+ * a minimum client interface to connect to a key management service (KMS).
+ */
+public interface NativelyEncryptedFile {
+  NativeFileCryptoParameters getNativeCryptoParameters();
 
-class BaseEncryptedOutputFile implements EncryptedOutputFile {
-
-  private final OutputFile encryptingOutputFile;
-  private final EncryptionKeyMetadata keyMetadata;
-
-  BaseEncryptedOutputFile(OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
-    this.encryptingOutputFile = encryptingOutputFile;
-    this.keyMetadata = keyMetadata;
-  }
-
-  @Override
-  public OutputFile encryptingOutputFile() {
-    return encryptingOutputFile;
-  }
-
-  @Override
-  public EncryptionKeyMetadata keyMetadata() {
-    return keyMetadata;
-  }
+  void setNativeCryptoParameters(NativeFileCryptoParameters nativeDecryptionParameters);
 }

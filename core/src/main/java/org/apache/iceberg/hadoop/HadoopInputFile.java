@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.encryption.NativeFileCryptoParameters;
+import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -41,7 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * <p>
  * This class is based on Parquet's HadoopInputFile.
  */
-public class HadoopInputFile implements InputFile {
+public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   public static final String[] NO_LOCATION_PREFERENCE = new String[0];
 
   private final String location;
@@ -227,13 +228,13 @@ public class HadoopInputFile implements InputFile {
   }
 
   @Override
-  public NativeFileCryptoParameters getNativeDecryptionParameters() {
+  public NativeFileCryptoParameters getNativeCryptoParameters() {
     return nativeDecryptionParameters;
   }
 
   @Override
-  public void setNativeDecryptionParameters(NativeFileCryptoParameters nativeDecryptionParameters) {
-    this.nativeDecryptionParameters = nativeDecryptionParameters;
+  public void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters) {
+    this.nativeDecryptionParameters = nativeCryptoParameters;
   }
 
   @Override
