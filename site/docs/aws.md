@@ -466,7 +466,9 @@ AWS_PACKAGES=(
   "url-connection-client"
 )
 
+# NOTE: iceberg-spark3-runtime is required only for < EMR 6.5.0
 ICEBERG_PACKAGES=(
+  "iceberg-spark3-runtime"
   "iceberg-flink-runtime"
 )
 
