@@ -190,9 +190,12 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   }
 
   public static Set<String> getIdentifierFieldSet(Map<String, String> parameters) {
+    String separator = parameters.getOrDefault(
+        InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR,
+        InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR_DEFAULT);
     return Optional.ofNullable(parameters.get(InputFormatConfig.IDENTIFIER_FIELD_NAMES))
         .filter(s -> !s.isEmpty())
-        .map(value -> Arrays.asList((value).split(InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR)))
+        .map(value -> Arrays.asList(value.split(separator)))
         .map(ImmutableSet::copyOf)
         .orElseGet(ImmutableSet::of);
   }

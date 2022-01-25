@@ -51,7 +51,11 @@ import org.slf4j.LoggerFactory;
 public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME, InputFormatConfig.IDENTIFIER_FIELD_NAMES);
+      .of(InputFormatConfig.TABLE_SCHEMA,
+          Catalogs.LOCATION,
+          Catalogs.NAME,
+          InputFormatConfig.IDENTIFIER_FIELD_NAMES,
+          InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR);
   private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
       // We don't want to push down the metadata location props to Iceberg from HMS,
       // since the snapshot pointer in HMS would always be one step ahead
@@ -61,7 +65,8 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       // table commands since by then the HMS info can be stale + Iceberg does not store its partition spec in the props
       InputFormatConfig.PARTITION_SPEC,
       // The hive table property 'iceberg.identifier-field-names' will be converted to iceberg 'identifier-field-ids'
-      InputFormatConfig.IDENTIFIER_FIELD_NAMES);
+      InputFormatConfig.IDENTIFIER_FIELD_NAMES,
+      InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR);
 
   private final Configuration conf;
   private Table icebergTable = null;
