@@ -109,7 +109,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   @Override
   public Type list(GroupType list, Type element) {
     Type repeated = list.getType(0);
-    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(repeated, list.getName());
+    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(list);
     Type originalElement = isOldListElementType ? repeated : repeated.asGroupType().getType(0);
     Integer elementId = getId(originalElement);
 
@@ -117,7 +117,11 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       return list;
     } else if (element != null) {
       if (!Objects.equal(element, originalElement)) {
-        return list.withNewFields(repeated.asGroupType().withNewFields(element));
+        if (isOldListElementType) {
+          return list.withNewFields(element);
+        } else {
+          return list.withNewFields(repeated.asGroupType().withNewFields(element));
+        }
       }
       return list;
     }

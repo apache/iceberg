@@ -21,16 +21,11 @@ package org.apache.iceberg.spark.data;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
@@ -45,7 +40,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetWriteAdapter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -53,12 +47,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.avro.AvroParquetWriter;
-import org.apache.parquet.avro.AvroSchemaConverter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
-import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -176,60 +167,6 @@ public class TestSparkParquetReader extends AvroDataTest {
     for (int i = 0;  i < tableRecords.size(); i++) {
       GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));
     }
-  }
-
-  @Test
-  public void testWriteReadAvroBinary() throws IOException {
-    String schema = "{" +
-        "\"type\":\"record\"," +
-        "\"name\":\"DbRecord\"," +
-        "\"namespace\":\"com.iceberg\"," +
-        "\"fields\":[" +
-        "{\"name\":\"arraybytes\", " +
-        "\"type\":[ \"null\", { \"type\":\"array\", \"items\":\"bytes\"}], \"default\":null}," +
-        "{\"name\":\"topbytes\", \"type\":\"bytes\"}" +
-        "]" +
-        "}";
-
-    org.apache.avro.Schema.Parser parser = new org.apache.avro.Schema.Parser();
-    org.apache.avro.Schema avroSchema = parser.parse(schema);
-    AvroSchemaConverter converter = new AvroSchemaConverter();
-    MessageType parquetScehma = converter.convert(avroSchema);
-    Schema icebergSchema = ParquetSchemaUtil.convert(parquetScehma);
-
-    File testFile = temp.newFile();
-    Assert.assertTrue(testFile.delete());
-
-    ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
-        .withDataModel(GenericData.get())
-        .withSchema(avroSchema)
-        .config("parquet.avro.add-list-element-records", "true")
-        .config("parquet.avro.write-old-list-structure", "true")
-        .build();
-
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
-    List<ByteBuffer> expectedByteList = new ArrayList();
-    byte[] expectedByte = {0x00, 0x01};
-    expectedByteList.add(ByteBuffer.wrap(expectedByte));
-
-    recordBuilder.set("arraybytes", expectedByteList);
-    recordBuilder.set("topbytes", ByteBuffer.wrap(expectedByte));
-    GenericData.Record record = recordBuilder.build();
-    writer.write(record);
-    writer.close();
-
-    List<InternalRow> rows;
-    try (CloseableIterable<InternalRow> reader =
-             Parquet.read(Files.localInput(testFile))
-                 .project(icebergSchema)
-                 .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
-                 .build()) {
-      rows = Lists.newArrayList(reader);
-    }
-
-    InternalRow row = rows.get(0);
-    Assert.assertArrayEquals(row.getArray(0).getBinary(0), expectedByte);
-    Assert.assertArrayEquals(row.getBinary(1), expectedByte);
   }
 
   /**

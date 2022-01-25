@@ -188,12 +188,12 @@ public class SparkParquetReaders {
     public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
                                       ParquetValueReader<?> elementReader) {
       Type repeated = array.getFields().get(0);
-      boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(repeated, array.getName());
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
+      boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(array);
       Type elementType = isOldListElementType ? repeated : repeated.asGroupType().getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 

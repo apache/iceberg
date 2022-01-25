@@ -67,8 +67,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     Preconditions.checkArgument(elementType != null,
         "List type must have element field");
 
-    Type repeatedType = list.getFields().get(0);
-    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(repeatedType, list.getName());
+    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(list);
     MappedField field = nameMapping.find(currentPath());
 
     Types.GroupBuilder<GroupType> listBuilder = Types.buildGroup(list.getRepetition())

@@ -70,17 +70,12 @@ public class ParquetTypeVisitor<T> {
     Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
         "Invalid list: inner group is not repeated");
 
-    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(repeatedElement, list.getName());
-
-    Preconditions.checkArgument(isOldListElementType ||
-            repeatedElement.asGroupType().getFieldCount() <= 1,
-        "Invalid list: repeated group is not a single field: %s", list);
+    Type elementField = getElement(list);
 
     visitor.beforeRepeatedElement(repeatedElement);
     try {
       T elementResult = null;
-      if (isOldListElementType || repeatedElement.asGroupType().getFieldCount() > 0) {
-        Type elementField = isOldListElementType ? repeatedElement : repeatedElement.asGroupType().getType(0);
+      if (repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() > 0) {
         visitor.beforeElementField(elementField);
         try {
           elementResult = visit(elementField, visitor);
@@ -176,6 +171,17 @@ public class ParquetTypeVisitor<T> {
     }
 
     return results;
+  }
+
+  private static Type getElement(GroupType array) {
+    Type repeated = array.getType(0);
+
+    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(array);
+    Preconditions.checkArgument(isOldListElementType ||
+            repeated.asGroupType().getFieldCount() <= 1,
+        "Invalid list: repeated group is not a single field: %s", array);
+
+    return isOldListElementType ? repeated : repeated.asGroupType().getType(0);
   }
 
   public T message(MessageType message, List<T> fields) {

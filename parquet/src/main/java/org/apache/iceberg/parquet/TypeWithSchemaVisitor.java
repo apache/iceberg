@@ -67,36 +67,10 @@ public class TypeWithSchemaVisitor<T> {
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
 
-            boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(repeatedElement, group.getName());
-
-            Preconditions.checkArgument(
-                isOldListElementType ||
-                    repeatedElement.asGroupType().getFieldCount() <= 1,
-                "Invalid list: repeated group is not a single field: %s", group);
-
-            Types.ListType list = null;
-            Types.NestedField element = null;
-            if (iType != null) {
-              list = iType.asListType();
-              element = list.fields().get(0);
-            }
-
-            if (!isOldListElementType) {
-              visitor.fieldNames.push(repeatedElement.getName());
-            }
-            try {
-              T elementResult = null;
-              if (isOldListElementType) {
-                elementResult = visitField(element, repeatedElement, visitor);
-              } else if (repeatedElement.asGroupType().getFieldCount() > 0) {
-                elementResult = visitField(element, repeatedElement.asGroupType().getType(0), visitor);
-              }
-
-              return visitor.list(list, group, elementResult);
-            } finally {
-              if (!isOldListElementType) {
-                visitor.fieldNames.pop();
-              }
+            if (ParquetSchemaUtil.isOldListElementType(group)) {
+              return visitTwoLevelList(iType, visitor, group, repeatedElement);
+            } else {
+              return visitThreeLevelList(iType, visitor, group, repeatedElement);
             }
 
           case MAP:
@@ -157,6 +131,50 @@ public class TypeWithSchemaVisitor<T> {
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;
       return visitor.struct(struct, group, visitFields(struct, group, visitor));
+    }
+  }
+
+  private static <T> T visitTwoLevelList(
+      org.apache.iceberg.types.Type iType,
+      TypeWithSchemaVisitor<T> visitor,
+      GroupType group,
+      Type repeatedElement) {
+    Types.ListType list = null;
+    Types.NestedField element = null;
+    if (iType != null) {
+      list = iType.asListType();
+      element = list.fields().get(0);
+    }
+
+    T elementResult = visitField(element, repeatedElement, visitor);
+    return visitor.list(list, group, elementResult);
+  }
+
+  private static <T> T visitThreeLevelList(
+      org.apache.iceberg.types.Type iType,
+      TypeWithSchemaVisitor<T> visitor,
+      GroupType group,
+      Type repeatedElement) {
+    Preconditions.checkArgument(repeatedElement.asGroupType().getFieldCount() <= 1,
+        "Invalid list: repeated group is not a single field: %s", group);
+
+    Types.ListType list = null;
+    Types.NestedField element = null;
+    if (iType != null) {
+      list = iType.asListType();
+      element = list.fields().get(0);
+    }
+
+    visitor.fieldNames.push(repeatedElement.getName());
+    try {
+      T elementResult = null;
+      if (repeatedElement.asGroupType().getFieldCount() > 0) {
+        elementResult = visitField(element, repeatedElement.asGroupType().getType(0), visitor);
+      }
+
+      return visitor.list(list, group, elementResult);
+    } finally {
+      visitor.fieldNames.pop();
     }
   }
 

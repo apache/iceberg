@@ -32,7 +32,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -148,6 +147,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     spark.conf().set("hive.exec.dynamic.partition", "true");
     spark.conf().set("hive.exec.dynamic.partition.mode", "nonstrict");
+    spark.conf().set("spark.sql.parquet.writeLegacyFormat", false);
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", false);
     spark.sql(String.format("DROP TABLE IF EXISTS %s", baseTableName));
 
@@ -643,6 +643,9 @@ public class TestCreateActions extends SparkCatalogTestBase {
                                         false,
                                         Metadata.empty())
                                 }), false), true, Metadata.empty())});
+
+    // even though this list looks like three level list, it is actually a 2-level list where the items are
+    // structs with 1 field.
     String expectedParquetSchema =
         "message spark_schema {\n" +
             "  optional group col1 (LIST) {\n" +
@@ -668,7 +671,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     // verify generated parquet file has expected schema
     ParquetFileReader pqReader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(parquetFile.getPath()),
-        new Configuration()));
+        spark.sessionState().newHadoopConf()));
     MessageType schema = pqReader.getFooter().getFileMetaData().getSchema();
     Assert.assertEquals(expectedParquetSchema, schema.toString());
 
@@ -777,6 +780,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assert.assertTrue(results.size() > 0);
     assertEquals("Output must match", expected, results);
   }
+
 
   private SparkTable loadTable(String name) throws NoSuchTableException, ParseException {
     return (SparkTable) catalog.loadTable(Spark3Util.catalogAndIdentifier(spark, name).identifier());
