@@ -158,6 +158,39 @@ public class TestOverwriteWithValidation extends TableTestBase {
       ))
       .build();
 
+  private static final DataFile FILE_DAY_NULL = DataFiles
+      .builder(PARTITION_SPEC)
+      .withPath("/path/to/data-4.parquet")
+      .withFileSizeInBytes(0)
+      .withPartitionPath("date=null")
+      .withMetrics(new Metrics(5L,
+          null, // no column sizes
+          ImmutableMap.of(1, 5L, 2, 3L), // value count
+          ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
+          ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+          ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
+      ))
+      .build();
+
+  private static final DeleteFile FILE_DAY_NULL_EQ_DELETES = FileMetadata
+      .deleteFileBuilder(PARTITION_SPEC)
+      .ofEqualityDeletes()
+      .withPath("/path/to/data-4-eq-deletes.parquet")
+      .withPartitionPath("date=null")
+      .withFileSizeInBytes(10)
+      .withRecordCount(1)
+      .build();
+
+  private static final DeleteFile FILE_DAY_NULL_POS_DELETES = FileMetadata
+      .deleteFileBuilder(PARTITION_SPEC)
+      .ofPositionDeletes()
+      .withPath("/path/to/data-4-deletes.parquet")
+      .withPartitionPath("date=null")
+      .withFileSizeInBytes(10)
+      .withRecordCount(1)
+      .build();
+
   private static final Expression EXPRESSION_DAY_2 = equal("date", "2018-06-09");
 
   private static final Expression EXPRESSION_DAY_2_ID_RANGE = and(
@@ -334,7 +367,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
   }
 
   @Test
-  public void testOverwriteCompatibleAdditionStrictValidatedNoConflict() {
+  public void testOverwriteCompatibleAdditionStrictValidatedNoConflictWithAppend() {
     table.newAppend()
         .appendFile(FILE_DAY_2)
         .commit();
@@ -356,6 +389,101 @@ public class TestOverwriteWithValidation extends TableTestBase {
     overwrite.commit();
 
     validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+  }
+
+  @Test
+  public void testOverwriteCompatibleAdditionStrictValidatedNoConflictWithMultiSpec() {
+    table.newAppend()
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+    validateSnapshot(null, baseSnapshot, FILE_DAY_2);
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData();
+
+    table.updateSpec()
+        .removeField("date")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_DAY_NULL)
+        .commit();
+
+    overwrite.commit();
+
+    validateTableFiles(table, FILE_DAY_NULL, FILE_DAY_2_MODIFIED);
+  }
+
+  @Test
+  public void testOverwriteCompatibleAdditionStrictValidatedConflictWithOverwrite() {
+    table.newAppend()
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+    validateSnapshot(null, baseSnapshot, FILE_DAY_2);
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData();
+
+    table.updateSpec()
+        .removeField("date")
+        .commit();
+
+    table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .addFile(FILE_DAY_NULL)
+        .commit();
+
+    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Missing required files",
+        overwrite::commit);
+    Assert.assertEquals("Should not create a new snapshot",
+        committedSnapshotId, table.currentSnapshot().snapshotId());
+  }
+
+  @Test
+  public void testOverwriteCompatibleAdditionStrictValidatedNoConflictWithRowDelta() {
+    Assume.assumeTrue(formatVersion == 2);
+    table.newAppend()
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+    validateSnapshot(null, baseSnapshot, FILE_DAY_2);
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(alwaysTrue())
+        .validateNoConflictingData();
+
+    table.updateSpec()
+        .removeField("date")
+        .commit();
+
+    table.newRowDelta()
+        .addRows(FILE_DAY_NULL)
+        .addDeletes(FILE_DAY_NULL_POS_DELETES)
+        .addDeletes(FILE_DAY_NULL_EQ_DELETES)
+        .commit();
+
+    overwrite.commit();
+
+    validateTableFiles(table, FILE_DAY_2_MODIFIED, FILE_DAY_NULL);
+    validateTableDeleteFiles(table, FILE_DAY_NULL_POS_DELETES);
   }
 
   @Test
