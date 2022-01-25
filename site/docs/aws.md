@@ -444,10 +444,10 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{ versions.icebe
 [Hive](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hive.html), [Flink](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-flink.html),
 [Trino](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-presto.html) that can run Iceberg.
 
-Recently, Amazon EMR 6.5.0 [announced](https://aws.amazon.com/about-aws/whats-new/2022/01/amazon-emr-supports-apache-iceberg/) support of Apache Iceberg's Spark 3 Runtime.
-With the current release, you can use Apache Spark 3.1.2 on EMR clusters with the Iceberg table format. Please refer the [official documentation](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-create-cluster.html) to create a cluster with Iceberg installed.
+Amazon EMR [added Apache Iceberg](https://aws.amazon.com/about-aws/whats-new/2022/01/amazon-emr-supports-apache-iceberg/) in distribution since 6.5.0.
+You can use Apache Spark 3.1.2 on EMR clusters with the Iceberg table format. Please refer the [official documentation](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-create-cluster.html) to create a cluster with Iceberg installed.
 
-You can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html) similar to the following to pre-install all necessary dependencies:
+For versions before 6.5.0, you can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html) similar to the following to pre-install all necessary dependencies:
 
 ```sh
 #!/bin/bash
@@ -466,7 +466,6 @@ AWS_PACKAGES=(
   "url-connection-client"
 )
 
-# NOTE: iceberg-spark3-runtime is required only for < EMR 6.5.0
 ICEBERG_PACKAGES=(
   "iceberg-spark3-runtime"
   "iceberg-flink-runtime"
