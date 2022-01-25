@@ -136,9 +136,6 @@ To build and publish the convenience binaries, run the `dev/stage-binaries.sh` s
 dev/stage-binaries.sh
 ```
 
-!!!Note
-
-
 Next, you need to close the staging repository:
 
 1. Go to [Nexus](https://repository.apache.org/) and log in
@@ -146,6 +143,9 @@ Next, you need to close the staging repository:
 3. Select the Iceberg repository
 4. At the top, select "Close" and follow the instructions
     * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
+
+!!! Note
+   If multiple staging repositories are created after running the script, set `org.gradle.parallel=false` in `gradle.properties`
 
 ### Start a VOTE thread
 
