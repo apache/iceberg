@@ -19,19 +19,52 @@
 
 package org.apache.iceberg.io;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.Tasks;
 
 public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
-  private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
+  private Cache<PartitionKey, RollingFileWriter> writers;
 
   protected PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                          OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+                          OutputFileFactory fileFactory, FileIO io,
+                          long targetFileSize, Map<String, String> properties) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    int writersCacheSize = PropertyUtil.propertyAsInt(
+        properties,
+        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_SIZE,
+        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_SIZE_DEFAULT);
+    long evictionTimeout = PropertyUtil.propertyAsLong(
+        properties,
+        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS,
+        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS_DEFAULT);
+    initWritersCache(writersCacheSize, evictionTimeout);
+  }
+
+  private synchronized void initWritersCache(int writersCacheSize, long evictionTimeout) {
+    if (writers == null) {
+      writers = Caffeine.newBuilder()
+          .maximumSize(writersCacheSize)
+          .expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS)
+          .removalListener((key, value, cause) -> {
+            try {
+              ((RollingFileWriter) value).close();
+            } catch (IOException e) {
+              throw new UncheckedIOException("Failed to close rolling file writer", e);
+            }
+          })
+          .build();
+    }
   }
 
   /**
@@ -47,7 +80,7 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   public void write(T row) throws IOException {
     PartitionKey partitionKey = partition(row);
 
-    RollingFileWriter writer = writers.get(partitionKey);
+    RollingFileWriter writer = writers.getIfPresent(partitionKey);
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
@@ -60,11 +93,18 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
 
   @Override
   public void close() throws IOException {
-    if (!writers.isEmpty()) {
-      for (PartitionKey key : writers.keySet()) {
-        writers.get(key).close();
+    ConcurrentMap<PartitionKey, RollingFileWriter> writersMap = writers.asMap();
+    if (writersMap.size() > 0) {
+      // close all remaining rolling file writers
+      try {
+        Tasks.foreach(writersMap.values())
+            .throwFailureWhenFinished()
+            .noRetry()
+            .run(RollingFileWriter::close, IOException.class);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close rolling file writer", e);
       }
-      writers.clear();
     }
+    writers.invalidateAll();
   }
 }

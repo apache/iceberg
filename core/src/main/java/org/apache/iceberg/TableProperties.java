@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
@@ -209,6 +210,20 @@ public class TableProperties {
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
+
+  public static final String PARTITIONED_FANOUT_WRITERS_CACHE_SIZE = "write.partition.fanout.writers-cache-size";
+  public static final int PARTITIONED_FANOUT_WRITERS_CACHE_SIZE_DEFAULT = 256;
+
+  public static final String PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS =
+      "write.partition.fanout.writers-cache-eviction-ms";
+  public static final long PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
+
+  public static final String PARTITIONED_DELTA_WRITERS_CACHE_SIZE = "write.partition.delta.writers-cache-size";
+  public static final int PARTITIONED_DELTA_WRITERS_CACHE_SIZE_DEFAULT = 256;
+
+  public static final String PARTITIONED_DELTA_WRITERS_CACHE_EVICT_MS =
+      "write.partition.delta.writers-cache-eviction-ms";
+  public static final long PARTITIONED_DELTA_WRITERS_CACHE_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
 
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
