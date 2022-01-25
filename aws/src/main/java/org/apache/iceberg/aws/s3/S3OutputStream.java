@@ -122,7 +122,7 @@ class S3OutputStream extends PositionOutputStream {
     try {
       completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks.", e);
+      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks", e);
     }
 
     newStream();
@@ -201,12 +201,15 @@ class S3OutputStream extends PositionOutputStream {
     stagingFiles.add(new FileAndDigest(currentStagingFile, currentPartMessageDigest));
 
     if (isChecksumEnabled) {
-      DigestOutputStream digestOutputStream = new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
-          new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest);
+      DigestOutputStream digestOutputStream;
 
       // if switched over to multipart threshold already, no need to update complete message digest
       if (multipartUploadId != null) {
-        digestOutputStream.on(false);
+        digestOutputStream = new DigestOutputStream(new BufferedOutputStream(
+            new FileOutputStream(currentStagingFile)), currentPartMessageDigest);
+      } else {
+        digestOutputStream = new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
+            new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest);
       }
 
       stream = new CountingOutputStream(digestOutputStream);
@@ -264,7 +267,7 @@ class S3OutputStream extends PositionOutputStream {
               .contentLength(f.length());
 
           if (fileAndDigest.hasDigest()) {
-            requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.getDigest()));
+            requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
           }
 
           S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
@@ -417,7 +420,7 @@ class S3OutputStream extends PositionOutputStream {
       return file;
     }
 
-    byte[] getDigest() {
+    byte[] digest() {
       return digest.digest();
     }
 
