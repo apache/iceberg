@@ -68,10 +68,17 @@ public class TypeWithSchemaVisitor<T> {
                 "Invalid list: inner group is not repeated");
 
             Type listElement = ParquetSchemaUtil.determineListElementType(group);
+            Types.ListType list = null;
+            Types.NestedField element = null;
+            if (iType != null) {
+              list = iType.asListType();
+              element = list.fields().get(0);
+            }
+
             if (listElement.isRepetition(Type.Repetition.REPEATED)) {
-              return visitTwoLevelList(iType.asListType(), group, listElement, visitor);
+              return visitTwoLevelList(list, element, group, listElement, visitor);
             } else {
-              return visitThreeLevelList(iType.asListType(), group, listElement, visitor);
+              return visitThreeLevelList(list, element, group, listElement, visitor);
             }
 
           case MAP:
@@ -135,36 +142,24 @@ public class TypeWithSchemaVisitor<T> {
     }
   }
 
-  private static <T> T visitTwoLevelList(Types.ListType iListType, GroupType pListType, Type pListElement,
-      TypeWithSchemaVisitor<T> visitor) {
-    Types.ListType list = null;
-    Types.NestedField element = null;
-    if (iListType != null) {
-      list = iListType;
-      element = list.fields().get(0);
-    }
+  private static <T> T visitTwoLevelList(Types.ListType iListType, Types.NestedField iListElement, GroupType pListType,
+      Type pListElement, TypeWithSchemaVisitor<T> visitor) {
+    T elementResult = visitField(iListElement, pListElement, visitor);
 
-    T elementResult = visitField(element, pListElement, visitor);
-    return visitor.list(list, pListType, elementResult);
+    return visitor.list(iListType, pListType, elementResult);
   }
 
-  private static <T> T visitThreeLevelList(Types.ListType iListType, GroupType pListType, Type pListElement,
-      TypeWithSchemaVisitor<T> visitor) {
-    Types.ListType list = null;
-    Types.NestedField element = null;
-    if (iListType != null) {
-      list = iListType;
-      element = list.fields().get(0);
-    }
-
+  private static <T> T visitThreeLevelList(Types.ListType iListType, Types.NestedField iListElement,
+      GroupType pListType, Type pListElement, TypeWithSchemaVisitor<T> visitor) {
     visitor.fieldNames.push(pListType.getFieldName(0));
+
     try {
       T elementResult = null;
       if (pListElement != null) {
-        elementResult = visitField(element, pListElement, visitor);
+        elementResult = visitField(iListElement, pListElement, visitor);
       }
 
-      return visitor.list(list, pListType, elementResult);
+      return visitor.list(iListType, pListType, elementResult);
     } finally {
       visitor.fieldNames.pop();
     }
