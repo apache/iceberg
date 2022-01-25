@@ -165,9 +165,9 @@ public class ParquetSchemaUtil {
     }
   }
 
-  public static Type getListElementType(GroupType array) {
+  public static Type determineListElementType(GroupType array) {
     Type repeated = array.getFields().get(0);
-    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(array);
+    boolean isOldListElementType = isOldListElementType(array);
 
     Preconditions.checkArgument(isOldListElementType ||
             repeated.asGroupType().getFieldCount() <= 1,

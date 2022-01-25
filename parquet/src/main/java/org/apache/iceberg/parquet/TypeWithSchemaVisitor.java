@@ -67,10 +67,11 @@ public class TypeWithSchemaVisitor<T> {
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
 
-            if (ParquetSchemaUtil.isOldListElementType(group)) {
-              return visitTwoLevelList(iType, visitor, group, repeatedElement);
+            Type listElement = ParquetSchemaUtil.determineListElementType(group);
+            if (listElement.isRepetition(Type.Repetition.REPEATED)) {
+              return visitTwoLevelList(iType.asListType(), group, listElement, visitor);
             } else {
-              return visitThreeLevelList(iType, visitor, group, repeatedElement);
+              return visitThreeLevelList(iType.asListType(), group, listElement, visitor);
             }
 
           case MAP:
@@ -134,45 +135,36 @@ public class TypeWithSchemaVisitor<T> {
     }
   }
 
-  private static <T> T visitTwoLevelList(
-      org.apache.iceberg.types.Type iType,
-      TypeWithSchemaVisitor<T> visitor,
-      GroupType group,
-      Type repeatedElement) {
+  private static <T> T visitTwoLevelList(Types.ListType iListType, GroupType pListType, Type pListElement,
+      TypeWithSchemaVisitor<T> visitor) {
     Types.ListType list = null;
     Types.NestedField element = null;
-    if (iType != null) {
-      list = iType.asListType();
+    if (iListType != null) {
+      list = iListType;
       element = list.fields().get(0);
     }
 
-    T elementResult = visitField(element, repeatedElement, visitor);
-    return visitor.list(list, group, elementResult);
+    T elementResult = visitField(element, pListElement, visitor);
+    return visitor.list(list, pListType, elementResult);
   }
 
-  private static <T> T visitThreeLevelList(
-      org.apache.iceberg.types.Type iType,
-      TypeWithSchemaVisitor<T> visitor,
-      GroupType group,
-      Type repeatedElement) {
-    Preconditions.checkArgument(repeatedElement.asGroupType().getFieldCount() <= 1,
-        "Invalid list: repeated group is not a single field: %s", group);
-
+  private static <T> T visitThreeLevelList(Types.ListType iListType, GroupType pListType, Type pListElement,
+      TypeWithSchemaVisitor<T> visitor) {
     Types.ListType list = null;
     Types.NestedField element = null;
-    if (iType != null) {
-      list = iType.asListType();
+    if (iListType != null) {
+      list = iListType;
       element = list.fields().get(0);
     }
 
-    visitor.fieldNames.push(repeatedElement.getName());
+    visitor.fieldNames.push(pListType.getFieldName(0));
     try {
       T elementResult = null;
-      if (repeatedElement.asGroupType().getFieldCount() > 0) {
-        elementResult = visitField(element, repeatedElement.asGroupType().getType(0), visitor);
+      if (pListElement != null) {
+        elementResult = visitField(element, pListElement, visitor);
       }
 
-      return visitor.list(list, group, elementResult);
+      return visitor.list(list, pListType, elementResult);
     } finally {
       visitor.fieldNames.pop();
     }

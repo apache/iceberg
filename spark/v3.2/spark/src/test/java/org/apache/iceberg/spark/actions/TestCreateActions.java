@@ -37,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.actions.SnapshotTable;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -50,6 +51,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -655,7 +657,6 @@ public class TestCreateActions extends SparkCatalogTestBase {
             "  }\n" +
             "}\n";
 
-
     // generate parquet file with required schema
     List<String> testData = Collections.singletonList("{\"col1\": [{\"col2\": 1}]}");
     spark.read().schema(sparkSchema).json(
@@ -673,7 +674,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     ParquetFileReader pqReader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(parquetFile.getPath()),
         spark.sessionState().newHadoopConf()));
     MessageType schema = pqReader.getFooter().getFileMetaData().getSchema();
-    Assert.assertEquals(expectedParquetSchema, schema.toString());
+    Assert.assertEquals(MessageTypeParser.parseMessageType(expectedParquetSchema), schema);
 
     // create sql table on top of it
     sql("CREATE EXTERNAL TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" +

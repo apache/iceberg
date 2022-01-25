@@ -96,7 +96,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType array, Type elementType) {
-    org.apache.parquet.schema.Type element = ParquetSchemaUtil.getListElementType(array);
+    org.apache.parquet.schema.Type element = ParquetSchemaUtil.determineListElementType(array);
 
     Integer elementFieldId = getId(element);
 

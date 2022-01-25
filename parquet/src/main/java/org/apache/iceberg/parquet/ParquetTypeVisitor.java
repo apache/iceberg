@@ -70,25 +70,46 @@ public class ParquetTypeVisitor<T> {
     Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
         "Invalid list: inner group is not repeated");
 
-    Type elementField = ParquetSchemaUtil.getListElementType(list);
+    Type listElement = ParquetSchemaUtil.determineListElementType(list);
+    if (listElement.isRepetition(Type.Repetition.REPEATED)) {
+      return visitTwoLevelList(list, listElement, visitor);
+    } else {
+      return visitThreeLevelList(list, listElement, visitor);
+    }
+  }
+
+  private static <T> T visitTwoLevelList(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
+    T elementResult = visitListElement(list, listElement, visitor);
+    return visitor.list(list, elementResult);
+  }
+
+  private static <T> T visitThreeLevelList(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
+    Type repeatedElement = list.getFields().get(0);
 
     visitor.beforeRepeatedElement(repeatedElement);
     try {
-      T elementResult = null;
-      if (repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() > 0) {
-        visitor.beforeElementField(elementField);
-        try {
-          elementResult = visit(elementField, visitor);
-        } finally {
-          visitor.afterElementField(elementField);
-        }
-      }
+      T elementResult = visitListElement(list, listElement, visitor);
 
       return visitor.list(list, elementResult);
-
     } finally {
       visitor.afterRepeatedElement(repeatedElement);
     }
+  }
+
+  private static <T> T visitListElement(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
+    Type repeatedElement = list.getFields().get(0);
+    T elementResult = null;
+
+    if (repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() > 0) {
+      visitor.beforeElementField(listElement);
+      try {
+        elementResult = visit(listElement, visitor);
+      } finally {
+        visitor.afterElementField(listElement);
+      }
+    }
+
+    return elementResult;
   }
 
   private static <T> T visitMap(GroupType map, ParquetTypeVisitor<T> visitor) {

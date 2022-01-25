@@ -188,7 +188,7 @@ public abstract class BaseParquetReaders<T> {
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
-      Type elementType = ParquetSchemaUtil.getListElementType(array);
+      Type elementType = ParquetSchemaUtil.determineListElementType(array);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
       return new ParquetValueReaders.ListReader<>(repeatedD, repeatedR,
