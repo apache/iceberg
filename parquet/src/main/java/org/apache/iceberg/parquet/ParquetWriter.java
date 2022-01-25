@@ -235,6 +235,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (writer != null) {
         writer.end(metadata);
       }
+      this.compressor.release();
     }
   }
 }
