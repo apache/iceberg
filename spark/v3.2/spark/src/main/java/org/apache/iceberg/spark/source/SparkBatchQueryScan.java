@@ -168,7 +168,7 @@ class SparkBatchQueryScan extends SparkBatchScan implements SupportsRuntimeFilte
 
       for (Integer specId : specIds()) {
         PartitionSpec spec = table().specs().get(specId);
-        Expression inclusiveExpr = Projections.inclusive(spec).project(runtimeFilterExpr);
+        Expression inclusiveExpr = Projections.inclusive(spec, caseSensitive()).project(runtimeFilterExpr);
         Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
         evaluatorsBySpecId.put(specId, inclusive);
       }

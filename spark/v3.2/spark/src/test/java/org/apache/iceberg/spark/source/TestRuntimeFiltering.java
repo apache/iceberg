@@ -177,13 +177,21 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND f.data = d.data AND d.date = DATE '1970-01-02'",
         tableName);
 
+    String caseInsensitiveQuery = String.format(
+            "SELECT f.* FROM %s f JOIN dim d ON f.Id = d.id AND f.Data = d.data AND d.date = DATE '1970-01-02'",
+            tableName);
+
     assertQueryContainsRuntimeFilters(query, 2, "Query should have 2 runtime filters");
+    assertQueryContainsRuntimeFilters(caseInsensitiveQuery, 2, "Query should have 2 runtime filters");
 
     deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 AND data = '1970-01-02'", tableName),
         sql(query));
+    assertEquals("Should have expected rows",
+            sql("SELECT * FROM %s WHERE id = 1 AND data = '1970-01-02'", tableName),
+            sql(caseInsensitiveQuery));
   }
 
   @Test
