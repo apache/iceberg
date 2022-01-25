@@ -51,17 +51,43 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     TableMetadata metadataV2 = updateTable(table, ops);
 
     GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, new CommitFailedException("Datacenter on fire"));
+
+    AssertHelpers.assertThrows(
+        "Commit failed exception should directly throw",
+        CommitFailedException.class,
+        "Datacenter on fire",
+        () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testFailedCommitThrowsUnknownException() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps);
 
-    AssertHelpers.assertThrows("We should wrap the error to CommitFailedException if the " +
-            "commit actually doesn't succeed", CommitFailedException.class, "unexpected exception",
+    AssertHelpers.assertThrows(
+        "Should throw CommitStateUnknownException since exception is unexpected",
+        CommitStateUnknownException.class,
+        "Datacenter on fire",
         () -> spyOps.commit(metadataV2, metadataV1));
     Mockito.verify(spyOps, Mockito.times(1)).refresh();
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    Assert.assertEquals("Client could not determine outcome so new metadata file should also exist",
+        3, metadataFileCount(ops.current()));
   }
 
   @Test
@@ -113,7 +139,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   }
 
   @Test
-  public void testFailedCommitThrowsUnknownException() {
+  public void testFailedCommitThrowsUnknownExceptionWhenStatusCheckFails() {
     Table table = setupTable();
     GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
 
