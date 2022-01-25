@@ -223,7 +223,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
     Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
-        .filter(kv -> kv.getValue().size() > 1)
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     // Nothing to rewrite if there's only one DataFile in each partition.
