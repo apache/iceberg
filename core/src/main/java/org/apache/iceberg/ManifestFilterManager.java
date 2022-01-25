@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
 import org.apache.iceberg.util.ManifestFileUtil;
@@ -87,12 +88,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       Maps.newConcurrentMap();
 
   // tracking the min sequence number of data files on each partition
-  private final Map<String, Long> minSequenceNumberByPartition = Maps.newConcurrentMap();
+  private final StructLikeMap<Long> minSequenceNumberByPartition;
 
-  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById) {
+  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById, Types.StructType schema) {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
+    this.minSequenceNumberByPartition = StructLikeMap.create(schema);
   }
 
   protected abstract void deleteFile(String location);
@@ -138,7 +140,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    *
    * @param minSequenceNumbers the sequence number of data file on each partition
    */
-  protected void dropDeleteFilesOlderthan(Map<String, Long> minSequenceNumbers) {
+  protected void dropDeleteFilesOlderthan(StructLikeMap<Long> minSequenceNumbers) {
     minSequenceNumberByPartition.clear();
     minSequenceNumberByPartition.putAll(minSequenceNumbers);
   }
@@ -280,14 +282,17 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * Found the min sequence number of data file on each partition.
    * @param manifestFiles filtered data manifests
    * @param deleteManifests delete manifests
+   * @param newAddedDataFiles new added data files
+   * @param newFilesSequenceNumber override file sequence number
    * @return the min sequence number of data file on each partition
    */
-  Map<String, Long> findMinDataSequenceNumbers(List<ManifestFile> manifestFiles, List<ManifestFile> deleteManifests) {
+  StructLikeMap<Long> findMinDataSequenceNumbers(List<ManifestFile> manifestFiles, List<ManifestFile> deleteManifests,
+      List<DataFile> newAddedDataFiles, Long newFilesSequenceNumber) {
+    minSequenceNumberByPartition.clear();
     if (deleteManifests == null || deleteManifests.isEmpty()) {
-      return ImmutableMap.of();
+      return minSequenceNumberByPartition;
     }
 
-    minSequenceNumberByPartition.clear();
     for (ManifestFile manifest : manifestFiles) {
       if (ManifestContent.DATA == manifest.content()) {
         try (ManifestReader<F> reader = newManifestReader(manifest);) {
@@ -296,7 +301,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
             if (entry.status() != ManifestEntry.Status.DELETED &&
                 !deletePaths.contains(file.path()) && !dropPartitions.contains(file.specId(), file.partition())) {
-              minSequenceNumberByPartition.merge(file.partition().toString(), entry.sequenceNumber(), Math::min);
+              minSequenceNumberByPartition.merge(file.partition(), entry.sequenceNumber(), Math::min);
             }
           });
         } catch (IOException e) {
@@ -304,6 +309,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
         }
       }
     }
+
+    // overrider min sequence number
+    if (newFilesSequenceNumber != null && !newAddedDataFiles.isEmpty()) {
+      for (DataFile dataFile : newAddedDataFiles) {
+        minSequenceNumberByPartition.merge(dataFile.partition(), newFilesSequenceNumber, Math::min);
+      }
+    }
+
     return minSequenceNumberByPartition;
   }
 
@@ -476,9 +489,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     if (isDelete) {
       // if not contains the partition, this means the partition have no data files,
       // so the delete file can be dropped
-      return !minSequenceNumberByPartition.containsKey(file.partition().toString()) ||
+      return !minSequenceNumberByPartition.containsKey(file.partition()) ||
           (entry.sequenceNumber() > 0 &&
-              entry.sequenceNumber() < minSequenceNumberByPartition.get(file.partition().toString()));
+              entry.sequenceNumber() < minSequenceNumberByPartition.get(file.partition()));
     } else {
       return deletePaths.contains(file.path()) || dropPartitions.contains(file.specId(), file.partition());
     }

@@ -301,7 +301,7 @@ public class TestRewriteFiles extends TableTestBase {
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     Snapshot pending = table.newRewrite()
         .validateFromSnapshot(table.currentSnapshot().snapshotId())
-        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber)
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A2), oldSequenceNumber)
         .apply();
 
     Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests().size());
@@ -310,7 +310,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     long pendingId = pending.snapshotId();
     ManifestFile newManifest = pending.allManifests().get(0);
-    validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED));
+    validateManifestEntries(newManifest, ids(pendingId), files(FILE_A2), statuses(ADDED));
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
       Assert.assertEquals("Should have old sequence number for manifest entries",
           oldSequenceNumber, (long) entry.sequenceNumber());
@@ -324,10 +324,10 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, EXISTING, EXISTING));
 
     validateDeleteManifest(pending.allManifests().get(2),
-        seqs(1, 1),
-        ids(baseSnapshotId, baseSnapshotId),
+        seqs(1, 2),
+        ids(baseSnapshotId, pendingId),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(ADDED, ADDED));
+        statuses(EXISTING, EXISTING));
 
     // We should only get the 4 manifests that this test is expected to add.
     Assert.assertEquals("Only 4 manifests should exist", 4, listManifestFiles().size());
@@ -401,10 +401,10 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, EXISTING, EXISTING));
 
     validateDeleteManifest(pending.allManifests().get(2),
-        seqs(2, 2),
-        ids(pending.snapshotId(), pending.snapshotId()),
+        seqs(2, 1),
+        ids(pending.snapshotId(), baseSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(DELETED, DELETED));
+        statuses(DELETED, EXISTING));
 
     AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
         CommitFailedException.class, "Injected failure", rewrite::commit);
@@ -486,11 +486,12 @@ public class TestRewriteFiles extends TableTestBase {
         files(FILE_A, FILE_B, FILE_C),
         statuses(DELETED, EXISTING, EXISTING));
 
+    // FILE_B_DELETES can't delete because FILE_B is existing
     validateDeleteManifest(manifest3,
-        seqs(2, 2),
-        ids(pending.snapshotId(), pending.snapshotId()),
+        seqs(2, 1),
+        ids(pending.snapshotId(), baseSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(DELETED, DELETED));
+        statuses(DELETED, EXISTING));
 
     rewrite.commit();
 
@@ -542,11 +543,13 @@ public class TestRewriteFiles extends TableTestBase {
         files(FILE_B_DELETES),
         statuses(ADDED));
 
+    // because FILE_A2 is still alive, the FILE_A2_DELETES should not be deleted
+    // that means delete file compaction will not drop the delete files before the data file be rewritten
     validateDeleteManifest(manifest3,
-        seqs(2),
-        ids(pending.snapshotId()),
+        seqs(1),
+        ids(baseSnapshotId),
         files(FILE_A2_DELETES),
-        statuses(DELETED));
+        statuses(ADDED));
 
     rewrite.commit();
 
