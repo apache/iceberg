@@ -28,8 +28,10 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.util.UUIDUtil;
@@ -73,7 +75,9 @@ public class Conversions {
         return Literal.of(asString).to(Types.DateType.get()).value();
       case TIMESTAMP:
         if (!asString.contains("T")) {
-          return java.sql.Timestamp.valueOf(asString).getTime() * 1000;
+          Instant instant = java.sql.Timestamp.valueOf(asString).toInstant();
+          return TimeUnit.SECONDS.toMicros(instant.getEpochSecond()) +
+              TimeUnit.NANOSECONDS.toMicros(instant.getNano());
         } else {
           return Literal.of(asString).to(Types.TimestampType.withoutZone()).value();
         }

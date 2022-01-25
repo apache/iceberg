@@ -34,8 +34,11 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -847,10 +850,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   };
 
   private static Timestamp toTimestamp(String value) {
-    return new Timestamp(DateTime.parse(value).getMillis());
+    Literal<Long> timestamp = Literal.of(value).to(Types.TimestampType.withZone());
+    return Timestamp.valueOf(DateTimeUtil.timestampFromMicros(timestamp.value()));
   }
 
   private static final Dataset<Row> timestampDF =
+
       spark.createDataFrame(
           ImmutableList.of(
               RowFactory.create(1, "John Doe", "hr", toTimestamp("2021-01-01T00:00:00.999999999")),
