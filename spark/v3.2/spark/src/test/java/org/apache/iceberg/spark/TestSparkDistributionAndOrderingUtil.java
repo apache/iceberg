@@ -1322,7 +1322,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // delete mode is NOT SET -> CLUSTER BY _spec_id, _partition + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
   // delete mode is NONE -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
   // delete mode is HASH -> CLUSTER BY _spec_id, _partition + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
-  // delete mode is RANGE -> ORDER BY _spec_id, _partition, _file, _pos
+  // delete mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
+  //                         LOCALLY ORDER BY _spec_id, _partition, _file, _pos
 
   @Test
   public void testDefaultPositionDeltaDeleteUnpartitionedTable() {
