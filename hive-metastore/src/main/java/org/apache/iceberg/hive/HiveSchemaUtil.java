@@ -103,6 +103,9 @@ public final class HiveSchemaUtil {
    */
   @VisibleForTesting
   static Schema rebuildSchemaWithIdentifierFieldIds(Schema schema, Set<String> identifierFieldNames) {
+    if (identifierFieldNames.size() == 0) {
+      return schema;
+    }
     // Identifier fields in nested field are not supported, so we just check the first level columns.
     Map<String, Types.NestedField> columnsMap = schema.columns().stream()
         .collect(Collectors.toMap(Types.NestedField::name, field -> field));
