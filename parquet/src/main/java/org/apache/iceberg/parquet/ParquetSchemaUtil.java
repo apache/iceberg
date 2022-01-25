@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -164,9 +165,20 @@ public class ParquetSchemaUtil {
     }
   }
 
+  public static Type getListElementType(GroupType array) {
+    Type repeated = array.getFields().get(0);
+    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(array);
+
+    Preconditions.checkArgument(isOldListElementType ||
+            repeated.asGroupType().getFieldCount() <= 1,
+        "Invalid list: repeated group is not a single field: %s", array);
+
+    return isOldListElementType ? repeated : repeated.asGroupType().getType(0);
+  }
+
   // Parquet LIST backwards-compatibility rules.
   // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#backward-compatibility-rules
-  public static boolean isOldListElementType(GroupType list) {
+  static boolean isOldListElementType(GroupType list) {
     Type repeatedType = list.getFields().get(0);
     String parentName = list.getName();
 

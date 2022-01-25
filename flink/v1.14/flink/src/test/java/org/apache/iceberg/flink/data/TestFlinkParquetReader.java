@@ -89,11 +89,11 @@ public class TestFlinkParquetReader extends DataTest {
         .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
         .build()) {
       Iterator<RowData> rows = reader.iterator();
-      Assert.assertTrue("Should have one row row", rows.hasNext());
+      Assert.assertTrue("Should have at least one row", rows.hasNext());
       RowData rowData = rows.next();
       Assert.assertArrayEquals(rowData.getArray(0).getBinary(0), expectedByte);
       Assert.assertArrayEquals(rowData.getBinary(1), expectedByte);
-      Assert.assertFalse("Should not have only one row", rows.hasNext());
+      Assert.assertFalse("Should not have more than one row", rows.hasNext());
     }
   }
 

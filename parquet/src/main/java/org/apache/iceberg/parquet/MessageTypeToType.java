@@ -96,7 +96,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType array, Type elementType) {
-    org.apache.parquet.schema.Type element = getElement(array);
+    org.apache.parquet.schema.Type element = ParquetSchemaUtil.getListElementType(array);
 
     Integer elementFieldId = getId(element);
 
@@ -250,10 +250,5 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     } else {
       return nameToIdFunc.apply(path(type.getName()));
     }
-  }
-
-  private static org.apache.parquet.schema.Type getElement(GroupType array) {
-    org.apache.parquet.schema.Type repeated = array.getType(0);
-    return ParquetSchemaUtil.isOldListElementType(array) ? repeated : repeated.asGroupType().getType(0);
   }
 }

@@ -70,7 +70,7 @@ public class ParquetTypeVisitor<T> {
     Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
         "Invalid list: inner group is not repeated");
 
-    Type elementField = getElement(list);
+    Type elementField = ParquetSchemaUtil.getListElementType(list);
 
     visitor.beforeRepeatedElement(repeatedElement);
     try {
@@ -171,17 +171,6 @@ public class ParquetTypeVisitor<T> {
     }
 
     return results;
-  }
-
-  private static Type getElement(GroupType array) {
-    Type repeated = array.getType(0);
-
-    boolean isOldListElementType = ParquetSchemaUtil.isOldListElementType(array);
-    Preconditions.checkArgument(isOldListElementType ||
-            repeated.asGroupType().getFieldCount() <= 1,
-        "Invalid list: repeated group is not a single field: %s", array);
-
-    return isOldListElementType ? repeated : repeated.asGroupType().getType(0);
   }
 
   public T message(MessageType message, List<T> fields) {
