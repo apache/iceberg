@@ -198,7 +198,7 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode copyOnWriteDeleteDistributionMode() {
+  public DistributionMode deleteDistributionMode() {
     String deleteModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
@@ -207,7 +207,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(deleteModeName);
   }
 
-  public DistributionMode copyOnWriteUpdateDistributionMode() {
+  public DistributionMode updateDistributionMode() {
     String updateModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
@@ -228,15 +228,6 @@ public class SparkWriteConf {
     } else {
       return distributionMode();
     }
-  }
-
-  public DistributionMode positionDeleteDistributionMode() {
-    String deleteModeName = confParser.stringConf()
-        .option(SparkWriteOptions.DISTRIBUTION_MODE)
-        .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
-        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
-        .parse();
-    return DistributionMode.fromName(deleteModeName);
   }
 
   public boolean useTableDistributionAndOrdering() {
