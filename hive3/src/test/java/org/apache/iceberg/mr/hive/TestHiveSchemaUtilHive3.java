@@ -44,7 +44,7 @@ public class TestHiveSchemaUtilHive3 extends TestHiveSchemaUtil {
     Schema schema = super.getSchemaWithSupportedTypes();
     List<Types.NestedField> columns = Lists.newArrayList(schema.columns());
     // timestamp local tz only present in Hive3
-    columns.add(optional(columns.size(), "c_timestamptz", Types.TimestampType.withZone()));
+    columns.add(optional(columns.size() + 1, "c_timestamptz", Types.TimestampType.withZone()));
     return new Schema(columns);
   }
 }
