@@ -855,7 +855,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private static final Dataset<Row> timestampDF =
-
       spark.createDataFrame(
           ImmutableList.of(
               RowFactory.create(1, "John Doe", "hr", toTimestamp("2021-01-01T00:00:00.999999999")),
