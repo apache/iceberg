@@ -22,13 +22,20 @@ package org.apache.iceberg.flink.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.iceberg.*;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -142,7 +149,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     icebergTableUnPartitioned.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "64").commit();
     icebergTableUnPartitioned.refresh();
 
-    ArrayList<String> data = Lists.newArrayList();
+    List<String> data = Lists.newArrayList();
     for (int i = 0; i < 200; i++) {
       data.add(String.format("(%d, '%s')", i, "abc"));
     }
@@ -160,7 +167,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
                     .execute();
 
     Assert.assertEquals("Should have 2 data files before rewrite", 2, result.addedDataFiles().size());
-    icebergTableUnPartitioned.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, oldRowGroupSize).commit();
+    icebergTableUnPartitioned.updateProperties()
+            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, oldRowGroupSize).commit();
     icebergTableUnPartitioned.refresh();
   }
 
