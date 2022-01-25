@@ -103,7 +103,7 @@ public class RowDataRewriter implements Serializable {
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
       writer = new SparkPartitionedFanoutWriter(
           spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
-          structType);
+          structType, properties);
     } else {
       writer = new SparkPartitionedWriter(
           spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
