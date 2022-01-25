@@ -265,7 +265,7 @@ public abstract class TestWriterMetrics<T> {
         SortOrder.unsorted(),
         FORMAT_V2);
     maxColumnTable.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE,
-        TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT.toString()).commit();
+        TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT).commit();
     OutputFileFactory maxColFactory = OutputFileFactory.builderFor(maxColumnTable, 1, 1)
         .format(fileFormat).build();
 
