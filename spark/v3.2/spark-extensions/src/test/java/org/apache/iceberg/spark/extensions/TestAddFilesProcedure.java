@@ -850,7 +850,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   };
 
   private static Timestamp toTimestamp(String value) {
-    Literal<Long> timestamp = Literal.of(value).to(Types.TimestampType.withZone());
+    Literal<Long> timestamp = Literal.of(value).to(Types.TimestampType.withoutZone());
     return Timestamp.valueOf(DateTimeUtil.timestampFromMicros(timestamp.value()));
   }
 
