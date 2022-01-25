@@ -18,5 +18,5 @@
 # under the License.
 #
 
-./gradlew -Prelease publishApachePublicationToMavenRepository
+./gradlew -Prelease -DflinkVersions=1.12,1.13,1.14 -DsparkVersions=2.4,3.0,3.1,3.2 -DhiveVersions=2,3 publishApachePublicationToMavenRepository
 
