@@ -177,18 +177,44 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
         "SELECT f.* FROM %s f JOIN dim d ON f.id = d.id AND f.data = d.data AND d.date = DATE '1970-01-02'",
         tableName);
 
-    String caseInsensitiveQuery = String.format(
-        "SELECT f.* FROM %s f JOIN dim d ON f.Id = d.id AND f.Data = d.data AND d.date = DATE '1970-01-02'",
-        tableName);
-
     assertQueryContainsRuntimeFilters(query, 2, "Query should have 2 runtime filters");
-    assertQueryContainsRuntimeFilters(caseInsensitiveQuery, 2, "Query should have 2 runtime filters");
 
     deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
 
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 AND data = '1970-01-02'", tableName),
         sql(query));
+  }
+
+  @Test
+  public void testCaseSensitivityOfRuntimeFilters() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (data, bucket(8, id))", tableName);
+
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
+
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
+
+    sql("CREATE TABLE dim (id BIGINT, date DATE, data STRING) USING parquet");
+    Dataset<Row> dimDF = spark.range(1, 2)
+        .withColumn("date", expr("DATE '1970-01-02'"))
+        .withColumn("data", expr("'1970-01-02'"))
+        .select("id", "date", "data");
+    dimDF.coalesce(1).write().mode("append").insertInto("dim");
+
+    String caseInsensitiveQuery = String.format(
+        "select f.* from %s F join dim d ON f.Id = d.iD and f.DaTa = d.dAtA and d.dAtE = date '1970-01-02'",
+        tableName);
+
+    assertQueryContainsRuntimeFilters(caseInsensitiveQuery, 2, "Query should have 2 runtime filters");
+
+    deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
+
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 AND data = '1970-01-02'", tableName),
         sql(caseInsensitiveQuery));
