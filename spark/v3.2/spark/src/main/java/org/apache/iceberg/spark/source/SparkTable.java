@@ -338,7 +338,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     StructType schema = partitionSchema();
     if (names.length > 0) {
       df.collectAsList().forEach(row -> {
-        GenericRowWithSchema genericRow = (GenericRowWithSchema)row.apply(0);
+        GenericRowWithSchema genericRow = (GenericRowWithSchema) row.apply(0);
         Object[] values = transform(schema, genericRow.values());
         boolean exits = true;
         int index = 0;
@@ -357,7 +357,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       });
     } else {
       df.collectAsList().forEach(row -> {
-        GenericRowWithSchema genericRow = (GenericRowWithSchema)row.apply(0);
+        GenericRowWithSchema genericRow = (GenericRowWithSchema) row.apply(0);
         rows.add(new GenericInternalRow(transform(schema, genericRow.values())));
       });
     }
