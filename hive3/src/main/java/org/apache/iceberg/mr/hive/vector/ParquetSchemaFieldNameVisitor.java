@@ -31,7 +31,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 
 /**
- * Collects to top level field names from Parquet schema. During schema visit it translates the expected schema's
+ * Collects the top level field names from Parquet schema. During schema visit it translates the expected schema's
  * field names to what fields the visitor can match in the file schema to support column renames.
  */
 class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {

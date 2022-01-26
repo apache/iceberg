@@ -267,10 +267,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testJoinTablesSupportedTypes() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
-      if (isUnsupportedOrcVectorizedTypeForHive(type)) {
-        continue;
-      }
-      if (isUnsupportedParquetVectorizedTypeForHive(type)) {
+      if (isUnsupportedVectorizedTypeForHive(type)) {
         continue;
       }
       // TODO: remove this filter when issue #1881 is resolved
@@ -296,10 +293,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testSelectDistinctFromTable() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
-      if (isUnsupportedOrcVectorizedTypeForHive(type)) {
-        continue;
-      }
-      if (isUnsupportedParquetVectorizedTypeForHive(type)) {
+      if (isUnsupportedVectorizedTypeForHive(type)) {
         continue;
       }
       // TODO: remove this filter when issue #1881 is resolved
@@ -814,21 +808,26 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   }
 
-  // These types are not supported Parquet vectorized types in Hive 3.1.2
-  private boolean isUnsupportedParquetVectorizedTypeForHive(Type type) {
-    return (
-        (Types.DecimalType.of(3, 1).equals(type) ||
-            type == Types.TimestampType.withoutZone() ||
-            type == Types.TimeType.get()
-        ) && isVectorized && fileFormat == FileFormat.PARQUET);
-  }
-
-  // These types are not supported ORC vectorized types in Hive 3.1.2
-  private boolean isUnsupportedOrcVectorizedTypeForHive(Type type) {
-    return (
-        (type == Types.TimestampType.withZone() ||
-            type == Types.TimeType.get()
-        ) && isVectorized && fileFormat == FileFormat.ORC);
+  /**
+   * Checks if the certain type is an unsupported vectorized types in Hive 3.1.2
+   * @param type - data type
+   * @return - true if unsupported
+   */
+  private boolean isUnsupportedVectorizedTypeForHive(Type type) {
+    if (!isVectorized) {
+      return false;
+    }
+    switch (fileFormat) {
+      case PARQUET:
+        return Types.DecimalType.of(3, 1).equals(type) ||
+                type == Types.TimestampType.withoutZone() ||
+                type == Types.TimeType.get();
+      case ORC:
+        return type == Types.TimestampType.withZone() ||
+            type == Types.TimeType.get();
+      default:
+        return false;
+    }
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
