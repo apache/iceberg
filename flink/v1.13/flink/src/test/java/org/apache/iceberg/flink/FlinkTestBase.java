@@ -63,7 +63,7 @@ public abstract class FlinkTestBase extends TestBaseUtils {
   }
 
   @AfterClass
-  public static void stopMetastore() {
+  public static void stopMetastore() throws Exception {
     metastore.stop();
     FlinkTestBase.catalog = null;
   }

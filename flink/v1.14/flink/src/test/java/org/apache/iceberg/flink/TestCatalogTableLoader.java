@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Map;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -58,9 +60,11 @@ public class TestCatalogTableLoader extends FlinkTestBase {
   }
 
   @AfterClass
-  public static void dropWarehouse() {
+  public static void dropWarehouse() throws IOException {
     if (warehouse != null && warehouse.exists()) {
-      warehouse.delete();
+      Path warehousePath = new Path(warehouse.getAbsolutePath());
+      FileSystem fs = warehousePath.getFileSystem(hiveConf);
+      Assert.assertTrue("Failed to delete " + warehousePath, fs.delete(warehousePath, true));
     }
   }
 

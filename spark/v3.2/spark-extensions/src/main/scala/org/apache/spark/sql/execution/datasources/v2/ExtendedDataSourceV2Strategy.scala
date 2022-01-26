@@ -35,10 +35,12 @@ import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeRows
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
@@ -77,6 +79,18 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case ReplaceData(_: DataSourceV2Relation, query, r: DataSourceV2Relation, Some(write)) =>
       // refresh the cache using the original relation
       ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
+
+    case WriteDelta(_: DataSourceV2Relation, query, r: DataSourceV2Relation, projs, Some(write)) =>
+      // refresh the cache using the original relation
+      WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
+
+    case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
+        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        output, child) =>
+
+      MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
+        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        output, planLater(child)) :: Nil
 
     case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output), condition, None) =>
       // the optimizer has already checked that this delete can be handled using a metadata operation

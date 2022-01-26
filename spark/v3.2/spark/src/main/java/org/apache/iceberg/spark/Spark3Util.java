@@ -93,6 +93,7 @@ import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
@@ -106,6 +107,13 @@ public class Spark3Util {
   private static final Joiner DOT = Joiner.on(".");
 
   private Spark3Util() {
+  }
+
+  public static CaseInsensitiveStringMap setOption(String key, String value, CaseInsensitiveStringMap options) {
+    Map<String, String> newOptions = Maps.newHashMap();
+    newOptions.putAll(options);
+    newOptions.put(key, value);
+    return new CaseInsensitiveStringMap(newOptions);
   }
 
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
@@ -827,25 +835,6 @@ public class Spark3Util {
     String table = identifier.name();
     Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
-  }
-
-  public static Object convertPartitionType(Object value, DataType dataType) {
-    if (value == null && dataType instanceof NullType) {
-      return null;
-    }
-    String old = String.valueOf(value);
-    if (dataType instanceof IntegerType) {
-      return Integer.parseInt(old);
-    } else if (dataType instanceof DateType) {
-      // days(ts) or date(ts) partition schema DataType
-      return DateTimeUtil.daysFromDate(LocalDate.parse(old));
-    } else if (dataType instanceof LongType) {
-      return Long.parseLong(old);
-    } else if (dataType instanceof StringType) {
-      return UTF8String.fromString(old);
-    } else {
-      return value;
-    }
   }
 
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {
