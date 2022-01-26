@@ -205,6 +205,42 @@ public class TestFlinkManifest {
     }
   }
 
+  @Test
+  public void testManifestOutputFileFactoryOnSameSubTask()  {
+    long checkpointId = 1;
+    String flinkJobId = newFlinkJobId();
+    ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
+        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
+        flinkJobId, 1, 1);
+    OutputFile outputFile1 = factory.create(checkpointId);
+
+    ManifestOutputFileFactory factory2 = new ManifestOutputFileFactory(
+        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
+        flinkJobId, 1, 1);
+    OutputFile outputFile2 = factory2.create(checkpointId);
+
+    Assert.assertNotEquals(factory, factory2);
+    Assert.assertNotEquals(outputFile1.location(), outputFile2.location());
+  }
+
+  @Test
+  public void testManifestOutputFileFactoryOnDifferentSubTask() {
+    long checkpointId = 1;
+    String flinkJobId = newFlinkJobId();
+    ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
+        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
+        flinkJobId, 1, 1);
+    OutputFile outputFile1 = factory.create(checkpointId);
+
+    ManifestOutputFileFactory factory2 = new ManifestOutputFileFactory(
+        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
+        flinkJobId, 2, 1);
+    OutputFile outputFile2 = factory2.create(checkpointId);
+
+    Assert.assertNotEquals(factory, factory2);
+    Assert.assertNotEquals(outputFile1.location(), outputFile2.location());
+  }
+
   private static class V1Serializer implements SimpleVersionedSerializer<ManifestFile> {
 
     @Override

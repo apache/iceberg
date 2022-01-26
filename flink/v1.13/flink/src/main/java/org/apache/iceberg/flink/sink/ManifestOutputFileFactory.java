@@ -37,7 +37,7 @@ class ManifestOutputFileFactory {
   private final String flinkJobId;
   private final int subTaskId;
   private final long attemptNumber;
-  private final AtomicInteger fileCount = new AtomicInteger(0);
+  private static final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
                             String flinkJobId, int subTaskId, long attemptNumber) {
