@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -181,19 +181,17 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
   @Test
   public void testAddPartition() {
     // only check V2 command [IF NOT EXISTS] syntax
-    Table table = validationCatalog.loadTable(tableIdent);
-    sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION (id_trunc=2)", tableName);
-    table.refresh();
-    Assert.assertEquals("Table should start with 1 partition field", 1, table.spec().fields().size());
+    AssertHelpers.assertThrows("Cannot explicitly create partitions in Iceberg tables",
+            UnsupportedOperationException.class,
+            () -> sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION (id_trunc=2)", tableName));
   }
 
   @Test
   public void testDropPartition() {
     // only check V2 command [IF EXISTS] syntax
-    Table table = validationCatalog.loadTable(tableIdent);
-    sql("ALTER TABLE %s DROP IF EXISTS PARTITION (id_trunc=2)", tableName);
-    table.refresh();
-    Assert.assertEquals("Table should start with 1 partition field", 1, table.spec().fields().size());
+    AssertHelpers.assertThrows("Cannot explicitly drop partitions in Iceberg tables",
+            UnsupportedOperationException.class,
+            () -> sql("ALTER TABLE %s DROP IF EXISTS PARTITION (id_trunc=0)", tableName));
   }
 
   @Test
