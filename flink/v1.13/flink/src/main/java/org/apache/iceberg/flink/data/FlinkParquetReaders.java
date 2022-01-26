@@ -22,10 +22,12 @@ package org.apache.iceberg.flink.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericRowData;
@@ -264,6 +266,10 @@ public class FlinkParquetReaders {
         case INT64:
         case DOUBLE:
           return new ParquetValueReaders.UnboxedReader<>(desc);
+        case INT96:
+          // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
+          // compatibility we try to read INT96 as timestamps.
+          return new TimestampInt96Reader(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -318,6 +324,29 @@ public class FlinkParquetReaders {
     @Override
     public DecimalData read(DecimalData ignored) {
       return DecimalData.fromUnscaledLong(column.nextLong(), precision, scale);
+    }
+  }
+
+  private static class TimestampInt96Reader extends ParquetValueReaders.UnboxedReader<Long> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
+              TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
     }
   }
 
