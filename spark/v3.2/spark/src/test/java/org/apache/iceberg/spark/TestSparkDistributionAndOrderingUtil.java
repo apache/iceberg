@@ -51,9 +51,24 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   private static final Distribution FILE_CLUSTERED_DISTRIBUTION = Distributions.clustered(new Expression[]{
       Expressions.column(MetadataColumns.FILE_PATH.name())
   });
+  private static final Distribution SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION = Distributions.clustered(new Expression[]{
+      Expressions.column(MetadataColumns.SPEC_ID.name()),
+      Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME)
+  });
 
   private static final SortOrder[] EMPTY_ORDERING = new SortOrder[]{};
   private static final SortOrder[] FILE_POSITION_ORDERING = new SortOrder[]{
+      Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+      Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
+  };
+  private static final SortOrder[] SPEC_ID_PARTITION_FILE_ORDERING = new SortOrder[]{
+      Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+      Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+      Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING)
+  };
+  private static final SortOrder[] SPEC_ID_PARTITION_FILE_POSITION_ORDERING = new SortOrder[]{
+      Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+      Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
       Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
       Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING)
   };
@@ -1300,6 +1315,132 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
+  // ===================================================================================
+  // Distribution and ordering for merge-on-read DELETE operations with position deletes
+  // ===================================================================================
+  //
+  // delete mode is NOT SET -> CLUSTER BY _spec_id, _partition + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // delete mode is NONE -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // delete mode is HASH -> CLUSTER BY _spec_id, _partition + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // delete mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
+  //                         LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+
+  @Test
+  public void testDefaultPositionDeltaDeleteUnpartitionedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testNonePositionDeltaDeleteUnpartitionedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testHashPositionDeltaDeleteUnpartitionedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testRangePositionDeltaDeleteUnpartitionedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+
+    Distribution expectedDistribution = Distributions.ordered(SPEC_ID_PARTITION_FILE_ORDERING);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testDefaultPositionDeltaDeletePartitionedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, bucket(8, data))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testNonePositionDeltaDeletePartitionedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, bucket(8, data))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testHashPositionDeltaDeletePartitionedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, bucket(8, data))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testRangePositionDeltaDeletePartitionedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, bucket(8, data))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(DELETE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+
+    Distribution expectedDistribution = Distributions.ordered(SPEC_ID_PARTITION_FILE_ORDERING);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
   private void checkWriteDistributionAndOrdering(Table table, Distribution expectedDistribution,
                                                  SortOrder[] expectedOrdering) {
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
@@ -1333,6 +1474,29 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         return writeConf.copyOnWriteUpdateDistributionMode();
       case MERGE:
         return writeConf.copyOnWriteMergeDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + command);
+    }
+  }
+
+  private void checkPositionDeltaDistributionAndOrdering(Table table, Command command,
+                                                         Distribution expectedDistribution,
+                                                         SortOrder[] expectedOrdering) {
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+    DistributionMode mode = positionDeltaDistributionMode(command, writeConf);
+
+    Distribution distribution = SparkDistributionAndOrderingUtil.buildPositionDeltaDistribution(table, command, mode);
+    Assert.assertEquals("Distribution must match", expectedDistribution, distribution);
+
+    SortOrder[] ordering = SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(table, command, distribution);
+    Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
+  }
+
+  private DistributionMode positionDeltaDistributionMode(Command command, SparkWriteConf writeConf) {
+    switch (command) {
+      case DELETE:
+        return writeConf.positionDeleteDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }
