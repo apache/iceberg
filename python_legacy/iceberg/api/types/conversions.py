@@ -15,13 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from decimal import Decimal
 import struct
 import sys
 import uuid
+from decimal import Decimal
 
 from .type import TypeID
 
+def decimal_to_bytes(type_id, value: Decimal):
+    scale = abs(value.as_tuple().exponent)
+    quantizedValue = value.quantize(Decimal("10")**-scale)
+    unscaledValue = int((quantizedValue * 10**scale).to_integral_value())
+    minNumBytes = (unscaledValue.bit_length() + 7) // 8
+    return unscaledValue.to_bytes(minNumBytes, 'big', signed=True)
 
 class Conversions(object):
     HIVE_NULL = "__HIVE_DEFAULT_PARTITION__"
@@ -53,23 +59,24 @@ class Conversions(object):
                                                                             & 0xFFFFFFFFFFFFFFFF),
                             TypeID.FIXED: lambda type_id, value: value,
                             TypeID.BINARY: lambda type_id, value: value,
-                            # TypeId.DECIMAL: lambda type_var, value: struct.pack(value.quantize(
-                            #     Decimal('.' + "".join(['0' for x in range(0, type_var.scale)]) + '1'))
+                            TypeID.DECIMAL: decimal_to_bytes
                             }
 
-    from_byte_buff_mapping = {TypeID.BOOLEAN: lambda type_id, value: struct.unpack('<?', value)[0] != 0,
-                              TypeID.INTEGER: lambda type_id, value: struct.unpack('<i', value)[0],
-                              TypeID.DATE: lambda type_id, value: struct.unpack('<i', value)[0],
-                              TypeID.LONG: lambda type_id, value: struct.unpack('<q', value)[0],
-                              TypeID.TIME: lambda type_id, value: struct.unpack('<q', value)[0],
-                              TypeID.TIMESTAMP: lambda type_id, value: struct.unpack('<q', value)[0],
-                              TypeID.FLOAT: lambda type_id, value: struct.unpack('<f', value)[0],
-                              TypeID.DOUBLE: lambda type_id, value: struct.unpack('<d', value)[0],
-                              TypeID.STRING: lambda type_id, value: bytes(value).decode("utf-8"),
-                              TypeID.UUID: lambda type_id, value:
+    from_byte_buff_mapping = {TypeID.BOOLEAN: lambda type_var, value: struct.unpack('<?', value)[0] != 0,
+                              TypeID.INTEGER: lambda type_var, value: struct.unpack('<i', value)[0],
+                              TypeID.DATE: lambda type_var, value: struct.unpack('<i', value)[0],
+                              TypeID.LONG: lambda type_var, value: struct.unpack('<q', value)[0],
+                              TypeID.TIME: lambda type_var, value: struct.unpack('<q', value)[0],
+                              TypeID.TIMESTAMP: lambda type_var, value: struct.unpack('<q', value)[0],
+                              TypeID.FLOAT: lambda type_var, value: struct.unpack('<f', value)[0],
+                              TypeID.DOUBLE: lambda type_var, value: struct.unpack('<d', value)[0],
+                              TypeID.STRING: lambda type_var, value: bytes(value).decode("utf-8"),
+                              TypeID.UUID: lambda type_var, value:
                               uuid.UUID(int=struct.unpack('>QQ', value)[0] << 64 | struct.unpack('>QQ', value)[1]),
-                              TypeID.FIXED: lambda type_id, value: value,
-                              TypeID.BINARY: lambda type_id, value: value}
+                              TypeID.FIXED: lambda type_var, value: value,
+                              TypeID.BINARY: lambda type_var, value: value,
+                              TypeID.DECIMAL: lambda type_var, value: Decimal(int.from_bytes(value, 'big', signed=True)*10**-type_var.scale)
+                              }
 
     @staticmethod
     def from_partition_string(type_var, as_string):
@@ -90,11 +97,7 @@ class Conversions(object):
 
     @staticmethod
     def from_byte_buffer(type_var, buffer_var):
-        return Conversions.internal_from_byte_buffer(type_var.type_id, buffer_var)
-
-    @staticmethod
-    def internal_from_byte_buffer(type_id, buffer_var):
         try:
-            return Conversions.from_byte_buff_mapping.get(type_id)(type_id, buffer_var)
+            return Conversions.from_byte_buff_mapping.get(type_var.type_id)(type_var, buffer_var)
         except KeyError:
-            raise TypeError("Cannot deserialize Type: %s" % type_id)
+            raise TypeError("Cannot deserialize Type: %s" % type_var)

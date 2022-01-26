@@ -17,6 +17,7 @@
 
 import unittest
 import uuid
+from decimal import Decimal
 
 from iceberg.api.expressions import Literal
 from iceberg.api.types import (BinaryType,
@@ -32,6 +33,7 @@ from iceberg.api.types import (BinaryType,
                                TimeType,
                                UUIDType)
 from iceberg.api.types.conversions import Conversions
+from iceberg.api.types.types import DecimalType
 
 
 class TestConversions(unittest.TestCase):
@@ -60,6 +62,12 @@ class TestConversions(unittest.TestCase):
                          Conversions.from_byte_buffer(UUIDType.get(), b'\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7'))
         self.assertEqual(b'foo', Conversions.from_byte_buffer(FixedType.of_length(3), b'foo'))
         self.assertEqual(b'foo', Conversions.from_byte_buffer(BinaryType.get(), b'foo'))
+        self.assertEqual(Decimal(123.45).quantize(Decimal(".01")), 
+                         Conversions.from_byte_buffer(DecimalType.of(5, 2), b'\x30\x39').quantize(Decimal(".01")))
+        self.assertEqual(Decimal(123.4567).quantize(Decimal(".0001")), 
+                         Conversions.from_byte_buffer(DecimalType.of(5, 4), b'\x00\x12\xd6\x87').quantize(Decimal(".0001")))
+        self.assertEqual(Decimal(-123.4567).quantize(Decimal(".0001")), 
+                         Conversions.from_byte_buffer(DecimalType.of(5, 4), b'\xff\xed\x29\x79').quantize(Decimal(".0001")))
 
     def test_to_bytes(self):
         self.assertEqual(b'\x00', Literal.of(False).to_byte_buffer())
@@ -79,3 +87,9 @@ class TestConversions(unittest.TestCase):
                          Literal.of(uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")).to_byte_buffer())
         self.assertEqual(b'foo', Literal.of(bytes(b'foo')).to_byte_buffer())
         self.assertEqual(b'foo', Literal.of(bytearray(b'foo')).to_byte_buffer())
+        # Decimal on 2-bytes
+        self.assertEqual(b'\x30\x39', Literal.of(123.45).to(DecimalType.of(5, 2)).to_byte_buffer())
+        # Decimal on 3-bytes to test that we use the minimum number of bytes
+        self.assertEqual(b'\x12\xd6\x87', Literal.of(123.4567).to(DecimalType.of(7, 4)).to_byte_buffer())
+        # Negative decimal to test two's complement
+        self.assertEqual(b'\xed\x29\x79', Literal.of(-123.4567).to(DecimalType.of(7, 4)).to_byte_buffer())
