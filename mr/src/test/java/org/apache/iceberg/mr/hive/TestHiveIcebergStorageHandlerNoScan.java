@@ -774,24 +774,28 @@ public class TestHiveIcebergStorageHandlerNoScan {
     return ((BaseMetastoreTableOperations) ((BaseTable) icebergTable).operations()).currentMetadataLocation();
   }
 
+  private String getCreateHiveTableSqlWithFixedColumns(
+      TableIdentifier tableIdentifier,
+      Map<String, String> tableProperties) {
+    return String.format(
+        "CREATE EXTERNAL TABLE %s ( " +
+            "  c1 INT, " +
+            "  c2 STRING, " +
+            "  c3 STRUCT<c4:STRING, c5:STRING> " +
+            ") " +
+            "PARTITIONED BY (c6 STRING) " +
+            "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s %s",
+        tableIdentifier,
+        testTables.locationForCreateTableSQL(tableIdentifier),
+        testTables.propertiesForCreateTableSQL(tableProperties));
+  }
+
   @Test
   public void testCreateTableWithIdentifierFieldNames() {
     TableIdentifier tableIdentifier = TableIdentifier.of("default", "customers");
     Map<String, String> tableProperties = ImmutableMap.of(
         InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c1,c2");
-    shell.executeStatement(
-        String.format(
-            "CREATE EXTERNAL TABLE %s ( " +
-                "  c1 INT, " +
-                "  c2 STRING, " +
-                "  c3 STRUCT<c4:STRING, c5:STRING> " +
-                ") " +
-                "PARTITIONED BY (c6 STRING) " +
-                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s %s",
-            tableIdentifier,
-            testTables.locationForCreateTableSQL(tableIdentifier),
-            testTables.propertiesForCreateTableSQL(tableProperties)));
-
+    shell.executeStatement(getCreateHiveTableSqlWithFixedColumns(tableIdentifier, tableProperties));
     org.apache.iceberg.Table table = testTables.loadTable(tableIdentifier);
     Assert.assertEquals(ImmutableSet.of(1, 2), table.schema().identifierFieldIds());
   }
@@ -802,19 +806,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Map<String, String> tableProperties = ImmutableMap.of(
         InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c1 c2",
         InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR, " ");
-    shell.executeStatement(
-        String.format(
-            "CREATE EXTERNAL TABLE %s ( " +
-                "  c1 INT, " +
-                "  c2 STRING, " +
-                "  c3 STRUCT<c4:STRING, c5:STRING> " +
-                ") " +
-                "PARTITIONED BY (c6 STRING) " +
-                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s %s",
-            tableIdentifier,
-            testTables.locationForCreateTableSQL(tableIdentifier),
-            testTables.propertiesForCreateTableSQL(tableProperties)));
-
+    shell.executeStatement(getCreateHiveTableSqlWithFixedColumns(tableIdentifier, tableProperties));
     org.apache.iceberg.Table table = testTables.loadTable(tableIdentifier);
     Assert.assertEquals(ImmutableSet.of(1, 2), table.schema().identifierFieldIds());
   }
@@ -828,17 +820,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assert.assertThrows(
         "Cannot add field `c4` as an identifier field: the field must exist on the root level",
         IllegalArgumentException.class,
-        () -> shell.executeStatement(
-            String.format(
-                "CREATE EXTERNAL TABLE %s ( " +
-                    "  c1 INT, " +
-                    "  c2 STRING, " +
-                    "  c3 STRUCT<c4:STRING, c5:STRING> " +
-                    ") " +
-                    "PARTITIONED BY (c6 STRING) " +
-                    "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s %s",
-                tableIdentifier,
-                testTables.locationForCreateTableSQL(tableIdentifier),
-                testTables.propertiesForCreateTableSQL(tableProperties))));
+        () -> shell.executeStatement(getCreateHiveTableSqlWithFixedColumns(tableIdentifier, tableProperties)));
   }
 }
