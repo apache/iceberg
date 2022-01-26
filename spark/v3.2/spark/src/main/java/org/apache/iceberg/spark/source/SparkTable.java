@@ -295,8 +295,9 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     Types.StructType structType = Partitioning.partitionType(table());
     List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(structType.fields().size());
     structType.fields().forEach(nestedField -> {
-      if (nestedField.name().endsWith("hour") || nestedField.name().endsWith("month")
-              || nestedField.name().endsWith("year")) {
+      if (nestedField.name().endsWith("hour") ||
+              nestedField.name().endsWith("month") ||
+              nestedField.name().endsWith("year")) {
         structFields.add(Types.NestedField.optional(nestedField.fieldId(), nestedField.name(), Types.StringType.get()));
       } else {
         // do nothing
@@ -412,15 +413,15 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       Object catalystValue = values[fieldIndex];
       if (field.name().endsWith("hour")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
-        catalystValue = UTF8String.fromString(hour.toHumanString((int)catalystValue));
+        catalystValue = UTF8String.fromString(hour.toHumanString((int) catalystValue));
       } else if (field.name().endsWith("day")) {
         catalystValue = DateTimeUtil.daysFromDate(LocalDate.parse(catalystValue.toString()));
       } else if (field.name().endsWith("month")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> month = Transforms.month(Types.DateType.get());
-        catalystValue = UTF8String.fromString(month.toHumanString((int)catalystValue));
+        catalystValue = UTF8String.fromString(month.toHumanString((int) catalystValue));
       } else if (field.name().endsWith("year")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> year = Transforms.year(Types.DateType.get());
-        catalystValue = UTF8String.fromString(year.toHumanString((int)catalystValue));
+        catalystValue = UTF8String.fromString(year.toHumanString((int) catalystValue));
       }
 
       if (field.dataType() instanceof StringType) {
