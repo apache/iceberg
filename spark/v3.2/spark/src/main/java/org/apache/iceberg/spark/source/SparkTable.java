@@ -422,9 +422,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       } else if (field.name().endsWith("year")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> year = Transforms.year(Types.DateType.get());
         catalystValue = UTF8String.fromString(year.toHumanString((int) catalystValue));
-      }
-
-      if (field.dataType() instanceof StringType) {
+      } else if (field.dataType() instanceof StringType) {
         catalystValue = UTF8String.fromString(catalystValue.toString());
       }
       resultValues[fieldIndex] = catalystValue;
