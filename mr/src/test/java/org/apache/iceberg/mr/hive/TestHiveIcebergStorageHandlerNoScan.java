@@ -774,8 +774,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     return ((BaseMetastoreTableOperations) ((BaseTable) icebergTable).operations()).currentMetadataLocation();
   }
 
-  private String getCreateHiveTableSqlWithFixedColumns(
-      TableIdentifier tableIdentifier,
+  private String getCreateHiveTableSqlWithFixedColumns(TableIdentifier tableIdentifier,
       Map<String, String> tableProperties) {
     return String.format(
         "CREATE EXTERNAL TABLE %s ( " +
