@@ -23,12 +23,12 @@ import uuid
 from .type import TypeID
 
 
-def decimal_to_bytes(type_id, value: Decimal):
+def decimal_to_bytes(type_id, value):
     scale = abs(value.as_tuple().exponent)
-    quantizedValue = value.quantize(Decimal("10")**-scale)
-    unscaledValue = int((quantizedValue * 10**scale).to_integral_value())
-    minNumBytes = (unscaledValue.bit_length() + 7) // 8
-    return unscaledValue.to_bytes(minNumBytes, 'big', signed=True)
+    quantized_value = value.quantize(Decimal("10")**-scale)
+    unscaled_value = int((quantized_value * 10**scale).to_integral_value())
+    min_num_bytes = (unscaled_value.bit_length() + 7) // 8
+    return unscaled_value.to_bytes(min_num_bytes, 'big', signed=True)
 
 
 class Conversions(object):
