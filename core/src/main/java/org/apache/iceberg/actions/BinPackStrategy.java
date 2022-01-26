@@ -87,6 +87,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
+  static final long SPLIT_OVERHEAD = 1024 * 5;
+
   private int minInputFiles;
   private int deleteFileThreshold;
   private long minFileSize;
@@ -199,11 +201,12 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   /**
-   * Returns the smaller of our max write file threshold, and our estimated split size based on
-   * the number of output files we want to generate.
+   * Returns the smallest of our max write file threshold, and our estimated split size based on
+   * the number of output files we want to generate. Add a overhead onto the estimated splitSize to try to avoid
+   * small errors in size creating brand-new files.
    */
   protected long splitSize(long totalSizeInBytes) {
-    long estimatedSplitSize = totalSizeInBytes / numOutputFiles(totalSizeInBytes);
+    long estimatedSplitSize = (totalSizeInBytes / numOutputFiles(totalSizeInBytes)) + SPLIT_OVERHEAD;
     return Math.min(estimatedSplitSize, writeMaxFileSize());
   }
 
@@ -257,7 +260,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
     Preconditions.checkArgument(targetFileSize < maxFileSize,
         "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %d >= %d",
-        MAX_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, maxFileSize, targetFileSize);
+        RewriteDataFiles.TARGET_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, targetFileSize, maxFileSize);
 
     Preconditions.checkArgument(minInputFiles > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",

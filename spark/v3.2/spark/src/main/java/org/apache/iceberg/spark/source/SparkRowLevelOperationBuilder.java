@@ -63,6 +63,8 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
     switch (mode) {
       case COPY_ON_WRITE:
         return new SparkCopyOnWriteOperation(spark, table, info, isolationLevel);
+      case MERGE_ON_READ:
+        return new SparkPositionDeltaOperation(spark, table, info, isolationLevel);
       default:
         throw new IllegalArgumentException("Unsupported operation mode: " + mode);
     }

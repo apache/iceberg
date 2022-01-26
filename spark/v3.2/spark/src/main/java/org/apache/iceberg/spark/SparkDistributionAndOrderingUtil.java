@@ -23,12 +23,14 @@ import java.util.List;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.connector.distributions.ClusteredDistribution;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.distributions.OrderedDistribution;
+import org.apache.spark.sql.connector.distributions.UnspecifiedDistribution;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -36,16 +38,22 @@ import org.apache.spark.sql.connector.expressions.SortDirection;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 
-import static org.apache.iceberg.DistributionMode.HASH;
 import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
 
 public class SparkDistributionAndOrderingUtil {
 
+  private static final NamedReference SPEC_ID = Expressions.column(MetadataColumns.SPEC_ID.name());
+  private static final NamedReference PARTITION = Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME);
   private static final NamedReference FILE_PATH = Expressions.column(MetadataColumns.FILE_PATH.name());
   private static final NamedReference ROW_POSITION = Expressions.column(MetadataColumns.ROW_POSITION.name());
 
+  private static final SortOrder SPEC_ID_ORDER = Expressions.sort(SPEC_ID, SortDirection.ASCENDING);
+  private static final SortOrder PARTITION_ORDER = Expressions.sort(PARTITION, SortDirection.ASCENDING);
   private static final SortOrder FILE_PATH_ORDER = Expressions.sort(FILE_PATH, SortDirection.ASCENDING);
   private static final SortOrder ROW_POSITION_ORDER = Expressions.sort(ROW_POSITION, SortDirection.ASCENDING);
+
+  private static final SortOrder[] EXISTING_FILE_ORDERING = new SortOrder[]{FILE_PATH_ORDER, ROW_POSITION_ORDER};
 
   private SparkDistributionAndOrderingUtil() {
   }
@@ -59,8 +67,7 @@ public class SparkDistributionAndOrderingUtil {
         return Distributions.clustered(Spark3Util.toTransforms(table.spec()));
 
       case RANGE:
-        org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
-        return Distributions.ordered(convert(requiredSortOrder));
+        return Distributions.ordered(buildTableOrdering(table));
 
       default:
         throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
@@ -71,33 +78,114 @@ public class SparkDistributionAndOrderingUtil {
     if (distribution instanceof OrderedDistribution) {
       OrderedDistribution orderedDistribution = (OrderedDistribution) distribution;
       return orderedDistribution.ordering();
-
     } else {
-      org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
-      return convert(requiredSortOrder);
+      return buildTableOrdering(table);
     }
   }
 
   public static Distribution buildCopyOnWriteDistribution(Table table, Command command,
                                                           DistributionMode distributionMode) {
-    if (command == DELETE && distributionMode == HASH) {
-      Expression[] clustering = new Expression[]{FILE_PATH};
-      return Distributions.clustered(clustering);
+    if (command == DELETE || command == UPDATE) {
+      return buildCopyOnWriteDeleteUpdateDistribution(table, distributionMode);
     } else {
       return buildRequiredDistribution(table, distributionMode);
     }
   }
 
+  private static Distribution buildCopyOnWriteDeleteUpdateDistribution(Table table, DistributionMode distributionMode) {
+    switch (distributionMode) {
+      case NONE:
+        return Distributions.unspecified();
+
+      case HASH:
+        Expression[] clustering = new Expression[]{FILE_PATH};
+        return Distributions.clustered(clustering);
+
+      case RANGE:
+        SortOrder[] tableOrdering = buildTableOrdering(table);
+        if (table.sortOrder().isSorted()) {
+          return Distributions.ordered(tableOrdering);
+        } else {
+          SortOrder[] ordering = ObjectArrays.concat(tableOrdering, EXISTING_FILE_ORDERING, SortOrder.class);
+          return Distributions.ordered(ordering);
+        }
+
+      default:
+        throw new IllegalArgumentException("Unexpected distribution mode: " + distributionMode);
+    }
+  }
+
   public static SortOrder[] buildCopyOnWriteOrdering(Table table, Command command, Distribution distribution) {
-    if (command == DELETE && distribution instanceof ClusteredDistribution) {
-      return new SortOrder[]{FILE_PATH_ORDER, ROW_POSITION_ORDER};
+    if (command == DELETE || command == UPDATE) {
+      return buildCopyOnWriteDeleteUpdateOrdering(table, distribution);
     } else {
       return buildRequiredOrdering(table, distribution);
+    }
+  }
+
+  private static SortOrder[] buildCopyOnWriteDeleteUpdateOrdering(Table table, Distribution distribution) {
+    if (distribution instanceof UnspecifiedDistribution) {
+      return buildTableOrdering(table);
+
+    } else if (distribution instanceof ClusteredDistribution) {
+      SortOrder[] tableOrdering = buildTableOrdering(table);
+      if (table.sortOrder().isSorted()) {
+        return tableOrdering;
+      } else {
+        return ObjectArrays.concat(tableOrdering, EXISTING_FILE_ORDERING, SortOrder.class);
+      }
+
+    } else if (distribution instanceof OrderedDistribution) {
+      OrderedDistribution orderedDistribution = (OrderedDistribution) distribution;
+      return orderedDistribution.ordering();
+
+    } else {
+      throw new IllegalArgumentException("Unexpected distribution type: " + distribution.getClass().getName());
+    }
+  }
+
+  public static Distribution buildPositionDeltaDistribution(Table table, Command command,
+                                                            DistributionMode distributionMode) {
+    if (command == DELETE) {
+      return positionDeleteDistribution(distributionMode);
+    } else {
+      throw new IllegalArgumentException("Only position deletes are currently supported");
+    }
+  }
+
+  private static Distribution positionDeleteDistribution(DistributionMode distributionMode) {
+    switch (distributionMode) {
+      case NONE:
+        return Distributions.unspecified();
+
+      case HASH:
+        Expression[] clustering = new Expression[]{SPEC_ID, PARTITION};
+        return Distributions.clustered(clustering);
+
+      case RANGE:
+        SortOrder[] ordering = new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER};
+        return Distributions.ordered(ordering);
+
+      default:
+        throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
+    }
+  }
+
+  public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command, Distribution distribution) {
+    // the spec requires position delete files to be sorted by file and pos
+    if (command == DELETE) {
+      return new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
+    } else {
+      throw new IllegalArgumentException("Only position deletes are currently supported");
     }
   }
 
   public static SortOrder[] convert(org.apache.iceberg.SortOrder sortOrder) {
     List<SortOrder> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark(sortOrder.schema()));
     return converted.toArray(new SortOrder[0]);
+  }
+
+  private static SortOrder[] buildTableOrdering(Table table) {
+    return convert(SortOrderUtil.buildSortOrder(table));
   }
 }

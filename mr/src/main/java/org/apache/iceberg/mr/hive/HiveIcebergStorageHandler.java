@@ -187,7 +187,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @param table The Iceberg table object
    */
   public static void checkAndSetIoConfig(Configuration config, Table table) {
-    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+    if (table != null && config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
         InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).setConf(config);
     }
@@ -204,7 +204,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @param table The Iceberg table object
    */
   public static void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
-    if (config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+    if (table != null && config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
         InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new NonSerializingConfig(config)::get);
     }

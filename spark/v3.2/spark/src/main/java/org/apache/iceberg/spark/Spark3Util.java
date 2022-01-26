@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
-import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -61,7 +60,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -85,14 +83,10 @@ import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
-import org.apache.spark.sql.types.NullType;
-import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
@@ -106,6 +100,13 @@ public class Spark3Util {
   private static final Joiner DOT = Joiner.on(".");
 
   private Spark3Util() {
+  }
+
+  public static CaseInsensitiveStringMap setOption(String key, String value, CaseInsensitiveStringMap options) {
+    Map<String, String> newOptions = Maps.newHashMap();
+    newOptions.putAll(options);
+    newOptions.put(key, value);
+    return new CaseInsensitiveStringMap(newOptions);
   }
 
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
@@ -827,25 +828,6 @@ public class Spark3Util {
     String table = identifier.name();
     Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
     return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
-  }
-
-  public static Object convertPartitionType(Object value, DataType dataType) {
-    if (value == null && dataType instanceof NullType) {
-      return null;
-    }
-    String old = String.valueOf(value);
-    if (dataType instanceof IntegerType) {
-      return Integer.parseInt(old);
-    } else if (dataType instanceof DateType) {
-      // days(ts) or date(ts) partition schema DataType
-      return DateTimeUtil.daysFromDate(LocalDate.parse(old));
-    } else if (dataType instanceof LongType) {
-      return Long.parseLong(old);
-    } else if (dataType instanceof StringType) {
-      return UTF8String.fromString(old);
-    } else {
-      return value;
-    }
   }
 
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {

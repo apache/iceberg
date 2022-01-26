@@ -102,6 +102,8 @@ import static org.mockito.Mockito.spy;
 
 public class TestRewriteDataFilesAction extends SparkTestBase {
 
+  private static final int SCALE = 400000;
+
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -235,6 +237,46 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackWithDeleteAllData() {
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, "2");
+    Table table = createTablePartitioned(1, 1, 1, options);
+    shouldHaveFiles(table, 1);
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
+
+    RowDelta rowDelta = table.newRowDelta();
+    // remove all data
+    writePosDeletesToFile(table, dataFiles.get(0), total)
+        .forEach(rowDelta::addDeletes);
+
+    rowDelta.commit();
+    table.refresh();
+    List<Object[]> expectedRecords = currentData();
+    Result result = actions().rewriteDataFiles(table)
+        .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
+        .execute();
+    Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals(
+        "Data manifest should not have existing data file",
+        0,
+        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+    Assert.assertEquals("Data manifest should have 1 delete data file",
+        1L,
+        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+    Assert.assertEquals(
+        "Delete manifest added row count should equal total count",
+        total,
+        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
+  }
+
+  @Test
   public void testBinPackWithStartingSequenceNumber() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
@@ -345,9 +387,40 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Result result = basicRewrite(table)
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSize))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(targetSize * 2 - 2000))
         .execute();
 
     Assert.assertEquals("Action should delete 1 data files", 1, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFilesCount());
+
+    shouldHaveFiles(table, 2);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackCombineMixedFiles() {
+    Table table = createTable(1); // 400000
+    shouldHaveFiles(table, 1);
+
+    // Add one more small file, and one large file
+    writeRecords(1, SCALE);
+    writeRecords(1, SCALE * 3);
+    shouldHaveFiles(table, 3);
+
+    List<Object[]> expectedRecords = currentData();
+
+    int targetSize = averageFileSize(table);
+
+    Result result = basicRewrite(table)
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize + 1000))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString(targetSize + 80000))
+        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 1000))
+        .execute();
+
+    Assert.assertEquals("Action should delete 3 data files", 3, result.rewrittenDataFilesCount());
+    // Should Split the big files into 3 pieces, one of which should be combined with the two smaller files
     Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFilesCount());
 
     shouldHaveFiles(table, 3);
@@ -357,28 +430,21 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testBinPackCombineMixedFiles() {
-    // One file too big
-    Table table = createTable(1);
-    shouldHaveFiles(table, 1);
-
-    // Two files too small
-    writeRecords(1, 100);
-    writeRecords(1, 100);
-    shouldHaveFiles(table, 3);
+  public void testBinPackCombineMediumFiles() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
 
     List<Object[]> expectedRecords = currentData();
-
-    int targetSize = averageFileSize(table);
+    int targetSize = ((int) testDataSize(table) / 3);
+    // The test is to see if we can combine parts of files to make files of the correct size
 
     Result result = basicRewrite(table)
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize))
-        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString(targetSize + 1000))
-        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 1000))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((int) (targetSize * 1.8)))
+        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 100)) // All files too small
         .execute();
 
-    Assert.assertEquals("Action should delete 3 data files", 3, result.rewrittenDataFilesCount());
-    // Should Split the big files into 3 pieces, one of which should be combined with the two smaller files
+    Assert.assertEquals("Action should delete 4 data files", 4, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFilesCount());
 
     shouldHaveFiles(table, 3);
@@ -835,7 +901,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testSortCustomSortOrderRequiresRepartition() {
-    Table table = createTable(20);
+    Table table = createTable();
+    writeRecords(20, SCALE, 20);
     shouldHaveLastCommitUnsorted(table, "c3");
 
     // Add a partition column so this requires repartitioning
@@ -1020,16 +1087,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
               .flatMap(left -> columnBounds.stream().map(right -> Pair.of(left, right)))
               .filter(filePair -> {
                 Pair<T, T> left = filePair.first();
-                T lLower = left.first();
-                T lUpper = left.second();
+                T lMin = left.first();
+                T lMax = left.second();
                 Pair<T, T> right = filePair.second();
-                T rLower = right.first();
-                T rUpper = right.second();
-                boolean boundsOverlap =
-                    (comparator.compare(lUpper, rLower) >= 0 && comparator.compare(lUpper, rUpper) <= 0) ||
-                        (comparator.compare(lLower, rLower) >= 0 && comparator.compare(lLower, rUpper) <= 0);
+                T rMin = right.first();
+                T rMax = right.second();
+                boolean boundsDoNotOverlap =
+                    // Min and Max of a range are greater than or equal to the max value of the other range
+                    (comparator.compare(rMax, lMax) >= 0 && comparator.compare(rMin, lMax) >= 0) ||
+                        (comparator.compare(lMax, rMax) >= 0 && comparator.compare(lMin, rMax) >= 0);
 
-                return (left != right) && boundsOverlap;
+                return (left != right) && !boundsDoNotOverlap;
               })
               .collect(Collectors.toList());
           return overlappingFiles.stream();
@@ -1038,34 +1106,41 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     return overlaps.collect(Collectors.toList());
   }
 
+  protected Table createTable() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(20 * 1024)).commit();
+    Assert.assertNull("Table must be empty", table.currentSnapshot());
+    return table;
+  }
+
   /**
    * Create a table with a certain number of files, returns the size of a file
    * @param files number of files to create
    * @return the created table
    */
   protected Table createTable(int files) {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1024").commit();
-    Assert.assertNull("Table must be empty", table.currentSnapshot());
-
-    writeRecords(files, 40000);
-
+    Table table = createTable();
+    writeRecords(files, SCALE);
     return table;
   }
 
-  protected Table createTablePartitioned(int partitions, int files) {
+  protected Table createTablePartitioned(int partitions, int files,
+                                         int numRecords, Map<String, String> options) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
         .truncate("c2", 2)
         .build();
-    Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    writeRecords(files, 2000, partitions);
+    writeRecords(files, numRecords, partitions);
     return table;
+  }
+
+  protected Table createTablePartitioned(int partitions, int files) {
+    return createTablePartitioned(partitions, files, SCALE, Maps.newHashMap());
   }
 
   protected int averageFileSize(Table table) {

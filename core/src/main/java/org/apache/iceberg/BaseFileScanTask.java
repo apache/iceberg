@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -84,7 +85,7 @@ class BaseFileScanTask implements FileScanTask {
   public Iterable<FileScanTask> split(long targetSplitSize) {
     if (file.format().isSplittable()) {
       if (file.splitOffsets() != null) {
-        return () -> new OffsetsAwareTargetSplitSizeScanTaskIterator(file.splitOffsets(), this, targetSplitSize);
+        return () -> new OffsetsAwareTargetSplitSizeScanTaskIterator(file.splitOffsets(), this);
       } else {
         return () -> new FixedSizeSplitScanTaskIterator(targetSplitSize, this);
       }
@@ -109,14 +110,11 @@ class BaseFileScanTask implements FileScanTask {
     private final List<Long> offsets;
     private final List<Long> splitSizes;
     private final FileScanTask parentScanTask;
-    private final long targetSplitSize;
     private int sizeIdx = 0;
 
-    OffsetsAwareTargetSplitSizeScanTaskIterator(
-        List<Long> offsetList, FileScanTask parentScanTask, long targetSplitSize) {
+    OffsetsAwareTargetSplitSizeScanTaskIterator(List<Long> offsetList, FileScanTask parentScanTask) {
       this.offsets = ImmutableList.copyOf(offsetList);
       this.parentScanTask = parentScanTask;
-      this.targetSplitSize = targetSplitSize;
       this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
       if (offsets.size() > 0) {
         int lastIndex = offsets.size() - 1;
@@ -139,11 +137,7 @@ class BaseFileScanTask implements FileScanTask {
       }
       int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
-      sizeIdx += 1; // always consume at least one file split
-      while (sizeIdx < splitSizes.size() && currentSize + splitSizes.get(sizeIdx) <= targetSplitSize) {
-        currentSize += splitSizes.get(sizeIdx);
-        sizeIdx += 1;
-      }
+      sizeIdx += 1; // Create 1 split per offset
       FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
       return combinedTask;
     }
@@ -224,5 +218,51 @@ class BaseFileScanTask implements FileScanTask {
     public Iterable<FileScanTask> split(long splitSize) {
       throw new UnsupportedOperationException("Cannot split a task which is already split");
     }
+
+    public boolean isAdjacent(SplitScanTask other) {
+      return (other != null) &&
+          (this.file().equals(other.file())) &&
+          (this.offset + this.len == other.offset);
+    }
+  }
+
+  static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
+    if (tasks.isEmpty()) {
+      return Collections.emptyList();
+    }
+
+    List<FileScanTask> combinedScans = Lists.newArrayList();
+    SplitScanTask lastSplit = null;
+
+    for (FileScanTask fileScanTask : tasks) {
+      if (!(fileScanTask instanceof SplitScanTask)) {
+        // Return any tasks not produced by split un-modified
+        combinedScans.add(fileScanTask);
+      } else {
+        SplitScanTask split = (SplitScanTask) fileScanTask;
+        if (lastSplit != null) {
+          if (lastSplit.isAdjacent(split)) {
+            // Merge with the last split
+            lastSplit = new SplitScanTask(
+                lastSplit.offset,
+                lastSplit.len + split.len,
+                lastSplit.fileScanTask);
+          } else {
+            // Last split is not adjacent, add it to finished adjacent groups
+            combinedScans.add(lastSplit);
+            lastSplit = split;
+          }
+        } else {
+          // First split
+          lastSplit = split;
+        }
+      }
+    }
+
+    if (lastSplit != null) {
+      combinedScans.add(lastSplit);
+    }
+
+    return combinedScans;
   }
 }

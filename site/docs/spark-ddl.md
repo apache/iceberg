@@ -360,3 +360,32 @@ ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NUL
 !!! Note
     Table write order does not guarantee data order for queries. It only affects how data is written to the table.
 
+`WRITE ORDERED BY` sets a global ordering where rows are ordered across tasks, like using `ORDER BY` in an `INSERT` command:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY ts, category
+```
+
+To order within each task, not across tasks, use `LOCALLY ORDERED BY`:
+
+```sql
+ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category, id
+```
+
+### `ALTER TABLE ... WRITE DISTRIBUTED BY PARTITION` 
+
+`WRITE DISTRIBUTED BY PARTITION` will request that each partition is handled by one writer, the default implementation is hash distribution.
+
+```sql
+ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION
+```
+
+`DISTRIBUTED BY PARTITION` and `LOCALLY ORDERED BY` may be used together, to distribute by partition and locally order rows within each task.
+
+```sql
+ALTER TABLE prod.db.sample WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY category, id
+```
+
+

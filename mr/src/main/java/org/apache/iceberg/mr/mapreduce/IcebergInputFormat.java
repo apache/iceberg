@@ -37,6 +37,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
@@ -151,7 +152,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     // if enabled, do not serialize FileIO hadoop config to decrease split size
-    HiveIcebergStorageHandler.checkAndSkipIoConfigSerialization(conf, table);
+    // However, do not skip serialization for metatable queries, because some metadata tasks cache the IO object and we
+    // wouldn't be able to inject the config into these tasks on the deserializer-side, unlike for standard queries
+    if (scan instanceof DataTableScan) {
+      HiveIcebergStorageHandler.checkAndSkipIoConfigSerialization(conf, table);
+    }
 
     return splits;
   }
