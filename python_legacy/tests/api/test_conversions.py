@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from decimal import Decimal
 import unittest
 import uuid
-from decimal import Decimal
 
 from iceberg.api.expressions import Literal
 from iceberg.api.types import (BinaryType,
@@ -62,11 +62,11 @@ class TestConversions(unittest.TestCase):
                          Conversions.from_byte_buffer(UUIDType.get(), b'\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7'))
         self.assertEqual(b'foo', Conversions.from_byte_buffer(FixedType.of_length(3), b'foo'))
         self.assertEqual(b'foo', Conversions.from_byte_buffer(BinaryType.get(), b'foo'))
-        self.assertEqual(Decimal(123.45).quantize(Decimal(".01")), 
+        self.assertEqual(Decimal(123.45).quantize(Decimal(".01")),
                          Conversions.from_byte_buffer(DecimalType.of(5, 2), b'\x30\x39').quantize(Decimal(".01")))
-        self.assertEqual(Decimal(123.4567).quantize(Decimal(".0001")), 
+        self.assertEqual(Decimal(123.4567).quantize(Decimal(".0001")),
                          Conversions.from_byte_buffer(DecimalType.of(5, 4), b'\x00\x12\xd6\x87').quantize(Decimal(".0001")))
-        self.assertEqual(Decimal(-123.4567).quantize(Decimal(".0001")), 
+        self.assertEqual(Decimal(-123.4567).quantize(Decimal(".0001")),
                          Conversions.from_byte_buffer(DecimalType.of(5, 4), b'\xff\xed\x29\x79').quantize(Decimal(".0001")))
 
     def test_to_bytes(self):

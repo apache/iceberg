@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from decimal import Decimal
 import struct
 import sys
 import uuid
-from decimal import Decimal
 
 from .type import TypeID
+
 
 def decimal_to_bytes(type_id, value: Decimal):
     scale = abs(value.as_tuple().exponent)
@@ -28,6 +29,7 @@ def decimal_to_bytes(type_id, value: Decimal):
     unscaledValue = int((quantizedValue * 10**scale).to_integral_value())
     minNumBytes = (unscaledValue.bit_length() + 7) // 8
     return unscaledValue.to_bytes(minNumBytes, 'big', signed=True)
+
 
 class Conversions(object):
     HIVE_NULL = "__HIVE_DEFAULT_PARTITION__"
@@ -75,7 +77,7 @@ class Conversions(object):
                               uuid.UUID(int=struct.unpack('>QQ', value)[0] << 64 | struct.unpack('>QQ', value)[1]),
                               TypeID.FIXED: lambda type_var, value: value,
                               TypeID.BINARY: lambda type_var, value: value,
-                              TypeID.DECIMAL: lambda type_var, value: Decimal(int.from_bytes(value, 'big', signed=True)*10**-type_var.scale)
+                              TypeID.DECIMAL: lambda type_var, value: Decimal(int.from_bytes(value, 'big', signed=True) * 10**-type_var.scale)
                               }
 
     @staticmethod
