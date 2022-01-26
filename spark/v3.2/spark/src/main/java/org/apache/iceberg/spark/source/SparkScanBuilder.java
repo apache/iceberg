@@ -33,9 +33,12 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -54,6 +57,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   private final SparkSession spark;
   private final Table table;
+  private final CaseInsensitiveStringMap options;
   private final SparkReadConf readConf;
   private final List<String> metaColumns = Lists.newArrayList();
 
@@ -67,6 +71,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.spark = spark;
     this.table = table;
     this.schema = schema;
+    this.options = options;
     this.readConf = new SparkReadConf(spark, table, options);
     this.caseSensitive = readConf.caseSensitive();
   }
@@ -153,8 +158,90 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   @Override
   public Scan build() {
-    return new SparkBatchQueryScan(
-        spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
+    Long snapshotId = readConf.snapshotId();
+    Long asOfTimestamp = readConf.asOfTimestamp();
+
+    Preconditions.checkArgument(snapshotId == null || asOfTimestamp == null,
+        "Cannot set both %s and %s to select which table snapshot to scan",
+        SparkReadOptions.SNAPSHOT_ID, SparkReadOptions.AS_OF_TIMESTAMP);
+
+    Long startSnapshotId = readConf.startSnapshotId();
+    Long endSnapshotId = readConf.endSnapshotId();
+
+    if (snapshotId != null || asOfTimestamp != null) {
+      Preconditions.checkArgument(startSnapshotId == null && endSnapshotId == null,
+          "Cannot set %s and %s for incremental scans when either %s or %s is set",
+          SparkReadOptions.START_SNAPSHOT_ID, SparkReadOptions.END_SNAPSHOT_ID,
+          SparkReadOptions.SNAPSHOT_ID, SparkReadOptions.AS_OF_TIMESTAMP);
+    }
+
+    Preconditions.checkArgument(startSnapshotId != null || endSnapshotId == null,
+        "Cannot set only %s for incremental scans. Please, set %s too.",
+        SparkReadOptions.END_SNAPSHOT_ID, SparkReadOptions.START_SNAPSHOT_ID);
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    TableScan scan = table.newScan()
+        .caseSensitive(caseSensitive)
+        .filter(filterExpression())
+        .project(expectedSchema);
+
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
+    }
+
+    if (asOfTimestamp != null) {
+      scan = scan.asOfTime(asOfTimestamp);
+    }
+
+    if (startSnapshotId != null) {
+      if (endSnapshotId != null) {
+        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
+      } else {
+        scan = scan.appendsAfter(startSnapshotId);
+      }
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  public Scan buildMergeOnReadScan() {
+    Preconditions.checkArgument(readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        "Cannot set time travel options %s and %s for row-level command scans",
+        SparkReadOptions.SNAPSHOT_ID, SparkReadOptions.AS_OF_TIMESTAMP);
+
+    Preconditions.checkArgument(readConf.startSnapshotId() == null && readConf.endSnapshotId() == null,
+        "Cannot set incremental scan options %s and %s for row-level command scans",
+        SparkReadOptions.START_SNAPSHOT_ID, SparkReadOptions.END_SNAPSHOT_ID);
+
+    Snapshot snapshot = table.currentSnapshot();
+
+    if (snapshot == null) {
+      return new SparkBatchQueryScan(spark, table, null, readConf, schemaWithMetadataColumns(), filterExpressions);
+    }
+
+    // remember the current snapshot ID for commit validation
+    long snapshotId = snapshot.snapshotId();
+
+    CaseInsensitiveStringMap adjustedOptions = Spark3Util.setOption(
+        SparkReadOptions.SNAPSHOT_ID,
+        Long.toString(snapshotId),
+        options);
+    SparkReadConf adjustedReadConf = new SparkReadConf(spark, table, adjustedOptions);
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    TableScan scan = table.newScan()
+        .useSnapshot(snapshotId)
+        .caseSensitive(caseSensitive)
+        .filter(filterExpression())
+        .project(expectedSchema);
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkBatchQueryScan(spark, table, scan, adjustedReadConf, expectedSchema, filterExpressions);
   }
 
   public Scan buildCopyOnWriteScan() {

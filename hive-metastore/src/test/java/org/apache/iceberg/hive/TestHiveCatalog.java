@@ -28,6 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -442,4 +443,29 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         "hive.metastore.warehouse.dir", "") +  "/" + namespace.level(0) + ".db";
   }
 
+  @Test
+  public void testUUIDinTableProperties() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    try {
+      catalog.buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .create();
+
+      String tableName = tableIdentifier.name();
+      org.apache.hadoop.hive.metastore.api.Table hmsTable =
+          metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
+
+      // check parameters are in expected state
+      Map<String, String> parameters = hmsTable.getParameters();
+      Assert.assertNotNull(parameters.get(TableProperties.UUID));
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
 }

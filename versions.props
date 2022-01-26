@@ -24,7 +24,7 @@ javax.activation:activation = 1.1.1
 org.glassfish.jaxb:jaxb-runtime = 2.3.3
 software.amazon.awssdk:* = 2.15.7
 org.scala-lang:scala-library = 2.12.10
-org.projectnessie:* = 0.17.0
+org.projectnessie:* = 0.18.0
 com.google.cloud:libraries-bom = 24.1.0
 
 # test deps

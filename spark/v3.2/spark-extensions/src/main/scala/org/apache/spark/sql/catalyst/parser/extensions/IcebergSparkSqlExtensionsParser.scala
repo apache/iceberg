@@ -41,6 +41,9 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoContext
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
+import org.apache.spark.sql.catalyst.plans.logical.UnresolvedMergeIntoIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
 import org.apache.spark.sql.catalyst.trees.Origin
@@ -127,13 +130,19 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     }
   }
 
-  private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan match {
+  private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsDown {
     case DeleteFromTable(UnresolvedIcebergTable(aliasedTable), condition) =>
       DeleteFromIcebergTable(aliasedTable, condition)
+
     case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
       UpdateIcebergTable(aliasedTable, assignments, condition)
-    case _ =>
-      plan
+
+    case MergeIntoTable(UnresolvedIcebergTable(aliasedTable), source, cond, matchedActions, notMatchedActions) =>
+      // cannot construct MergeIntoIcebergTable right away as MERGE operations require special resolution
+      // that's why the condition and actions must be hidden from the regular resolution rules in Spark
+      // see ResolveMergeIntoTableReferences for details
+      val context = MergeIntoContext(cond, matchedActions, notMatchedActions)
+      UnresolvedMergeIntoIcebergTable(aliasedTable, source, context)
   }
 
   object UnresolvedIcebergTable {

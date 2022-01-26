@@ -30,6 +30,9 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -62,9 +65,11 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+import software.amazon.awssdk.utils.BinaryUtils;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
+  private static final String digestAlgorithm = "MD5";
 
   private static volatile ExecutorService executorService;
 
@@ -74,13 +79,16 @@ class S3OutputStream extends PositionOutputStream {
   private final AwsProperties awsProperties;
 
   private CountingOutputStream stream;
-  private final List<File> stagingFiles = Lists.newArrayList();
+  private final List<FileAndDigest> stagingFiles = Lists.newArrayList();
   private final File stagingDirectory;
   private File currentStagingFile;
   private String multipartUploadId;
   private final Map<File, CompletableFuture<CompletedPart>> multiPartMap = Maps.newHashMap();
   private final int multiPartSize;
   private final int multiPartThresholdSize;
+  private final boolean isChecksumEnabled;
+  private final MessageDigest completeMessageDigest;
+  private MessageDigest currentPartMessageDigest;
 
   private long pos = 0;
   private boolean closed = false;
@@ -110,6 +118,12 @@ class S3OutputStream extends PositionOutputStream {
     multiPartSize = awsProperties.s3FileIoMultiPartSize();
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
     stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
+    isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
+    try {
+      completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks", e);
+    }
 
     newStream();
   }
@@ -178,9 +192,30 @@ class S3OutputStream extends PositionOutputStream {
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
-    stagingFiles.add(currentStagingFile);
+    try {
+      currentPartMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException("Failed to create message digest needed for s3 checksum checks.", e);
+    }
 
-    stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
+    stagingFiles.add(new FileAndDigest(currentStagingFile, currentPartMessageDigest));
+
+    if (isChecksumEnabled) {
+      DigestOutputStream digestOutputStream;
+
+      // if switched over to multipart threshold already, no need to update complete message digest
+      if (multipartUploadId != null) {
+        digestOutputStream = new DigestOutputStream(new BufferedOutputStream(
+            new FileOutputStream(currentStagingFile)), currentPartMessageDigest);
+      } else {
+        digestOutputStream = new DigestOutputStream(new DigestOutputStream(new BufferedOutputStream(
+            new FileOutputStream(currentStagingFile)), currentPartMessageDigest), completeMessageDigest);
+      }
+
+      stream = new CountingOutputStream(digestOutputStream);
+    } else {
+      stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
+    }
   }
 
   @Override
@@ -210,6 +245,7 @@ class S3OutputStream extends PositionOutputStream {
     multipartUploadId = s3.createMultipartUpload(requestBuilder.build()).uploadId();
   }
 
+  @SuppressWarnings("checkstyle:LocalVariableName")
   private void uploadParts() {
     // exit if multipart has not been initiated
     if (multipartUploadId == null) {
@@ -218,16 +254,21 @@ class S3OutputStream extends PositionOutputStream {
 
     stagingFiles.stream()
         // do not upload the file currently being written
-        .filter(f -> closed || !f.equals(currentStagingFile))
+        .filter(f -> closed || !f.file().equals(currentStagingFile))
         // do not upload any files that have already been processed
-        .filter(Predicates.not(multiPartMap::containsKey))
-        .forEach(f -> {
+        .filter(Predicates.not(f -> multiPartMap.containsKey(f.file())))
+        .forEach(fileAndDigest -> {
+          File f = fileAndDigest.file();
           UploadPartRequest.Builder requestBuilder = UploadPartRequest.builder()
               .bucket(location.bucket())
               .key(location.key())
               .uploadId(multipartUploadId)
-              .partNumber(stagingFiles.indexOf(f) + 1)
+              .partNumber(stagingFiles.indexOf(fileAndDigest) + 1)
               .contentLength(f.length());
+
+          if (fileAndDigest.hasDigest()) {
+            requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
+          }
 
           S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
@@ -293,7 +334,7 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void cleanUpStagingFiles() {
-    Tasks.foreach(stagingFiles)
+    Tasks.foreach(stagingFiles.stream().map(FileAndDigest::file))
         .suppressFailureWhenFinished()
         .onFailure((file, thrown) -> LOG.warn("Failed to delete staging file: {}", file, thrown))
         .run(File::delete);
@@ -301,8 +342,9 @@ class S3OutputStream extends PositionOutputStream {
 
   private void completeUploads() {
     if (multipartUploadId == null) {
-      long contentLength = stagingFiles.stream().mapToLong(File::length).sum();
+      long contentLength = stagingFiles.stream().map(FileAndDigest::file).mapToLong(File::length).sum();
       InputStream contentStream = new BufferedInputStream(stagingFiles.stream()
+          .map(FileAndDigest::file)
           .map(S3OutputStream::uncheckedInputStream)
           .reduce(SequenceInputStream::new)
           .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
@@ -310,6 +352,10 @@ class S3OutputStream extends PositionOutputStream {
       PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
           .bucket(location.bucket())
           .key(location.key());
+
+      if (isChecksumEnabled) {
+        requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
+      }
 
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       S3RequestUtil.configurePermission(awsProperties, requestBuilder);
@@ -358,6 +404,28 @@ class S3OutputStream extends PositionOutputStream {
       String trace = Joiner.on("\n\t").join(
           Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+    }
+  }
+
+  private static class FileAndDigest {
+    private final File file;
+    private final MessageDigest digest;
+
+    FileAndDigest(File file, MessageDigest digest) {
+      this.file = file;
+      this.digest = digest;
+    }
+
+    File file() {
+      return file;
+    }
+
+    byte[] digest() {
+      return digest.digest();
+    }
+
+    public boolean hasDigest() {
+      return digest != null;
     }
   }
 }
