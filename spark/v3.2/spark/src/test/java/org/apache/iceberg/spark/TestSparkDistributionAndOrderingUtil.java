@@ -1567,6 +1567,370 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         table, UPDATE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
   }
 
+  // ==================================================================================
+  // Distribution and ordering for merge-on-read MERGE operations with position deletes
+  // ==================================================================================
+  //
+  // UNPARTITIONED UNORDERED
+  // -------------------------------------------------------------------------
+  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NONE -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is HASH -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is RANGE -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  //
+  // UNPARTITIONED ORDERED BY id, data
+  // -------------------------------------------------------------------------
+  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NONE -> unspecified distribution +
+  //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, id, data
+  // merge mode is HASH -> unspecified distribution +
+  //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, id, data
+  // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file, id, data +
+  //                        LOCALLY ORDER BY _spec_id, _partition, _file, _pos, id, data
+  //
+  // PARTITIONED BY date, days(ts) UNORDERED
+  // -------------------------------------------------------------------------
+  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NONE -> unspecified distribution +
+  //                       LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // merge mode is HASH -> CLUSTER BY _spec_id, _partition, date, days(ts) +
+  //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file, date, days(ts) +
+  //                        LOCALLY ORDER BY _spec_id, _partition, _file, _pos, date, days(ts)
+  //
+  // PARTITIONED BY date ORDERED BY id
+  // -------------------------------------------------------------------------
+  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NONE -> unspecified distribution +
+  //                       LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, id
+  // merge mode is HASH -> CLUSTER BY _spec_id, _partition, date +
+  //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, date, id
+  // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file, date, id
+  //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, id
+
+  @Test
+  public void testNonPositionDeltaMergeUnpartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testHashPositionDeltaMergeUnpartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testRangePositionDeltaMergeUnpartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+  }
+
+  @Test
+  public void testNonePositionDeltaMergeUnpartitionedSortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .asc("data")
+        .commit();
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+  }
+
+  @Test
+  public void testHashPositionDeltaMergeUnpartitionedSortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .asc("data")
+        .commit();
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+  }
+
+  @Test
+  public void testRangePositionDeltaMergeUnpartitionedSortedTable() {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .asc("data")
+        .commit();
+
+    SortOrder[] expectedDistributionOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
+    };
+    Distribution expectedDistribution = Distributions.ordered(expectedDistributionOrdering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testNonePositionDeltaMergePartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, days(ts))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+  }
+
+  @Test
+  public void testHashPositionDeltaMergePartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, days(ts))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+
+    Expression[] expectedClustering = new Expression[]{
+        Expressions.column(MetadataColumns.SPEC_ID.name()),
+        Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME),
+        Expressions.identity("date"),
+        Expressions.days("ts")
+    };
+    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testRangePositionDeltaMergePartitionedUnsortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, days(ts))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+
+    SortOrder[] expectedDistributionOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
+    };
+    Distribution expectedDistribution = Distributions.ordered(expectedDistributionOrdering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.days("ts"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testNonePositionDeltaMergePartitionedSortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE)
+        .commit();
+
+    table.replaceSortOrder()
+        .desc("id")
+        .commit();
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.DESCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+  }
+
+  @Test
+  public void testHashPositionDeltaMergePartitionedSortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date, bucket(8, data))", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .commit();
+
+    Expression[] expectedClustering = new Expression[]{
+        Expressions.column(MetadataColumns.SPEC_ID.name()),
+        Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME),
+        Expressions.identity("date"),
+        Expressions.bucket(8, "data")
+    };
+    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.bucket(8, "data"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+  }
+
+  @Test
+  public void testRangePositionDeltaMergePartitionedSortedTable() {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (date)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .commit();
+
+    SortOrder[] expectedDistributionOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING)
+    };
+    Distribution expectedDistribution = Distributions.ordered(expectedDistributionOrdering);
+
+    SortOrder[] expectedOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column("id"), SortDirection.ASCENDING)
+    };
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+  }
+
   private void checkWriteDistributionAndOrdering(Table table, Distribution expectedDistribution,
                                                  SortOrder[] expectedOrdering) {
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
@@ -1599,7 +1963,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
       case UPDATE:
         return writeConf.updateDistributionMode();
       case MERGE:
-        return writeConf.copyOnWriteMergeDistributionMode();
+        return writeConf.mergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }
@@ -1615,7 +1979,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     Distribution distribution = SparkDistributionAndOrderingUtil.buildPositionDeltaDistribution(table, command, mode);
     Assert.assertEquals("Distribution must match", expectedDistribution, distribution);
 
-    SortOrder[] ordering = SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(table, command, distribution);
+    SortOrder[] ordering = SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(table, command);
     Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
   }
 
@@ -1625,6 +1989,8 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         return writeConf.deleteDistributionMode();
       case UPDATE:
         return writeConf.updateDistributionMode();
+      case MERGE:
+        return writeConf.mergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }

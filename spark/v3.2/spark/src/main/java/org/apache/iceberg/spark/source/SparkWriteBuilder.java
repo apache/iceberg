@@ -207,7 +207,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       case UPDATE:
         return writeConf.updateDistributionMode();
       case MERGE:
-        return writeConf.copyOnWriteMergeDistributionMode();
+        return writeConf.mergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + copyOnWriteCommand);
     }

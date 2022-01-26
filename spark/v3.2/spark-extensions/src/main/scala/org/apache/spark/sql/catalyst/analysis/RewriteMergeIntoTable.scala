@@ -23,6 +23,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
+import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
 import org.apache.spark.sql.catalyst.expressions.IsNotNull
@@ -31,8 +32,10 @@ import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
 import org.apache.spark.sql.catalyst.expressions.Literal.TrueLiteral
 import org.apache.spark.sql.catalyst.expressions.MonotonicallyIncreasingID
 import org.apache.spark.sql.catalyst.plans.FullOuter
+import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.LeftAnti
 import org.apache.spark.sql.catalyst.plans.LeftOuter
+import org.apache.spark.sql.catalyst.plans.RightOuter
 import org.apache.spark.sql.catalyst.plans.logical.AppendData
 import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
 import org.apache.spark.sql.catalyst.plans.logical.Filter
@@ -49,12 +52,16 @@ import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.expressions.FieldReference
+import org.apache.spark.sql.connector.expressions.NamedReference
 import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.MERGE
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.types.IntegerType
 
 /**
  * Assigns a rewrite plan for v2 tables that support rewriting data to handle MERGE statements.
@@ -67,6 +74,10 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
   private final val ROW_FROM_SOURCE = "__row_from_source"
   private final val ROW_FROM_TARGET = "__row_from_target"
   private final val ROW_ID = "__row_id"
+
+  private final val ROW_FROM_SOURCE_REF = FieldReference(ROW_FROM_SOURCE)
+  private final val ROW_FROM_TARGET_REF = FieldReference(ROW_FROM_TARGET)
+  private final val ROW_ID_REF = FieldReference(ROW_ID)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
@@ -142,7 +153,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
           val table = RowLevelOperationTable(tbl, operation)
           val rewritePlan = operation match {
             case _: SupportsDelta =>
-              throw new AnalysisException("Delta merges are not currently supported")
+              buildWriteDeltaPlan(r, table, source, cond, matchedActions, notMatchedActions)
             case _ =>
               buildReplaceDataPlan(r, table, source, cond, matchedActions, notMatchedActions)
           }
@@ -197,15 +208,9 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     val notMatchedConditions = notMatchedActions.map(actionCondition)
     val notMatchedOutputs = notMatchedActions.map(actionOutput(_, metadataAttrs))
 
-    val rowIdAttr = ExtendedV2ExpressionUtils.resolveRef[AttributeReference](
-      FieldReference(ROW_ID),
-      joinPlan)
-    val rowFromSourceAttr = ExtendedV2ExpressionUtils.resolveRef[AttributeReference](
-      FieldReference(ROW_FROM_SOURCE),
-      joinPlan)
-    val rowFromTargetAttr = ExtendedV2ExpressionUtils.resolveRef[AttributeReference](
-      FieldReference(ROW_FROM_TARGET),
-      joinPlan)
+    val rowIdAttr = resolveAttrRef(ROW_ID_REF, joinPlan)
+    val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
+    val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
     val mergeRows = MergeRows(
       isSourceRowPresent = IsNotNull(rowFromSourceAttr),
@@ -226,6 +231,82 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     ReplaceData(writeRelation, mergeRows, relation)
   }
 
+  // build a rewrite plan for sources that support row deltas
+  private def buildWriteDeltaPlan(
+      relation: DataSourceV2Relation,
+      operationTable: RowLevelOperationTable,
+      source: LogicalPlan,
+      cond: Expression,
+      matchedActions: Seq[MergeAction],
+      notMatchedActions: Seq[MergeAction]): WriteDelta = {
+
+    // resolve all needed attrs (e.g. row ID and any required metadata attrs)
+    val rowAttrs = relation.output
+    val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
+
+    // construct a scan relation and include all required metadata columns
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
+    val readAttrs = readRelation.output
+
+    // project an extra column to check if a target row exists after the join
+    val targetTableProjExprs = readAttrs :+ Alias(TrueLiteral, ROW_FROM_TARGET)()
+    val targetTableProj = Project(targetTableProjExprs, readRelation)
+
+    // project an extra column to check if a source row exists after the join
+    val sourceTableProjExprs = source.output :+ Alias(TrueLiteral, ROW_FROM_SOURCE)()
+    val sourceTableProj = Project(sourceTableProjExprs, source)
+
+    // use inner join if there is no NOT MATCHED action, unmatched source rows can be discarded
+    // use right outer join in all other cases, unmatched source rows may be needed
+    // also disable broadcasts for the target table to perform the cardinality check later
+    val joinType = if (notMatchedActions.isEmpty) Inner else RightOuter
+    val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
+    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
+
+    val deleteRowValues = buildDeltaDeleteRowValues(rowAttrs, rowIdAttrs)
+    val metadataReadAttrs = readAttrs.filterNot(relation.outputSet.contains)
+
+    val matchedConditions = matchedActions.map(actionCondition)
+    val matchedOutputs = matchedActions.map { action =>
+      deltaActionOutput(action, deleteRowValues, metadataReadAttrs)
+    }
+
+    val notMatchedConditions = notMatchedActions.map(actionCondition)
+    val notMatchedOutputs = notMatchedActions.map { action =>
+      deltaActionOutput(action, deleteRowValues, metadataReadAttrs)
+    }
+
+    val operationTypeAttr = AttributeReference(OPERATION_COLUMN, IntegerType, nullable = false)()
+    val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
+    val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
+
+    // merged rows must contain values for the operation type and all read attrs
+    val mergeRowsOutput = buildMergeRowsOutput(
+      matchedOutputs,
+      notMatchedOutputs,
+      attrs = operationTypeAttr +: readAttrs)
+
+    val mergeRows = MergeRows(
+      isSourceRowPresent = IsNotNull(rowFromSourceAttr),
+      isTargetRowPresent = if (notMatchedActions.isEmpty) TrueLiteral else IsNotNull(rowFromTargetAttr),
+      matchedConditions = matchedConditions,
+      matchedOutputs = matchedOutputs,
+      notMatchedConditions = notMatchedConditions,
+      notMatchedOutputs = notMatchedOutputs,
+      targetOutput = Nil,
+      rowIdAttrs = rowIdAttrs,
+      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      emitNotMatchedTargetRows = false,
+      output = mergeRowsOutput,
+      joinPlan)
+
+    // build a plan to write the row delta to the table
+    val writeRelation = relation.copy(table = operationTable)
+    val projections = buildWriteDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
+    WriteDelta(writeRelation, mergeRows, relation, projections)
+  }
+
   private def actionCondition(action: MergeAction): Expression = {
     action.condition.getOrElse(TrueLiteral)
   }
@@ -243,6 +324,27 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
       case i: InsertAction =>
         i.assignments.map(_.value) ++ metadataAttrs.map(attr => Literal(null, attr.dataType))
+
+      case other =>
+        throw new AnalysisException(s"Unexpected action: $other")
+    }
+  }
+
+  private def deltaActionOutput(
+      action: MergeAction,
+      deleteRowValues: Seq[Expression],
+      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
+
+    action match {
+      case u: UpdateAction =>
+        Seq(Literal(UPDATE_OPERATION)) ++ u.assignments.map(_.value) ++ metadataAttrs
+
+      case _: DeleteAction =>
+        Seq(Literal(DELETE_OPERATION)) ++ deleteRowValues ++ metadataAttrs
+
+      case i: InsertAction =>
+        val metadataAttrValues = metadataAttrs.map(attr => Literal(null, attr.dataType))
+        Seq(Literal(INSERT_OPERATION)) ++ i.assignments.map(_.value) ++ metadataAttrValues
 
       case other =>
         throw new AnalysisException(s"Unexpected action: $other")
@@ -271,5 +373,21 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
   private def isCardinalityCheckNeeded(actions: Seq[MergeAction]): Boolean = actions match {
     case Seq(DeleteAction(None)) => false
     case _ => true
+  }
+
+  private def buildDeltaDeleteRowValues(
+      rowAttrs: Seq[Attribute],
+      rowIdAttrs: Seq[Attribute]): Seq[Expression] = {
+
+    // nullify all row attrs that are not part of the row ID
+    val rowIdAttSet = AttributeSet(rowIdAttrs)
+    rowAttrs.map {
+      case attr if rowIdAttSet.contains(attr) => attr
+      case attr => Literal(null, attr.dataType)
+    }
+  }
+
+  private def resolveAttrRef(ref: NamedReference, plan: LogicalPlan): AttributeReference = {
+    ExtendedV2ExpressionUtils.resolveRef[AttributeReference](ref, plan)
   }
 }

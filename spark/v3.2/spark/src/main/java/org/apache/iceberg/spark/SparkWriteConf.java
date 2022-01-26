@@ -216,7 +216,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(updateModeName);
   }
 
-  public DistributionMode copyOnWriteMergeDistributionMode() {
+  public DistributionMode mergeDistributionMode() {
     String mergeModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)

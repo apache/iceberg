@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -38,6 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.spark.SparkException;
@@ -84,16 +86,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
-    append(tableName,
-        "{ \"id\": 1, \"dep\": \"software\" }\n" +
-        "{ \"id\": 11, \"dep\": \"software\" }\n" +
-        "{ \"id\": 1, \"dep\": \"hr\" }");
+    // add a data file to the 'software' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
+
+    // add a data file to the 'hr' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
 
     Table table = validationCatalog.loadTable(tableIdent);
 
     Snapshot snapshot = table.currentSnapshot();
     String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
     Assert.assertEquals("Must have 2 files before MERGE", "2", dataFilesCount);
+
+    // remove the data file from the 'hr' partition to ensure it is not scanned
+    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedFiles());
+    table.io().deleteFile(dataFile.path().toString());
 
     createOrReplaceView("source",
         "{ \"id\": 1, \"dep\": \"finance\" }\n" +
@@ -108,20 +115,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           "WHEN NOT MATCHED THEN " +
           "  INSERT (dep, id) VALUES (source.dep, source.id)", tableName);
     });
-
-    table.refresh();
-
-    Snapshot mergeSnapshot = table.currentSnapshot();
-    String deletedDataFilesCount = mergeSnapshot.summary().get(SnapshotSummary.DELETED_FILES_PROP);
-    Assert.assertEquals("Must overwrite only 1 file", "1", deletedDataFilesCount);
-
-    ImmutableList<Object[]> expectedRows = ImmutableList.of(
-        row(1L, "finance"),  // updated
-        row(1L, "hr"),       // kept
-        row(2L, "hardware"), // new
-        row(11L, "software") // kept
-    );
-    assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }
 
   @Test

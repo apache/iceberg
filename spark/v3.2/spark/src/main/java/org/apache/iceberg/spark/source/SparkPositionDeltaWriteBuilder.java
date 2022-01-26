@@ -96,7 +96,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     Distribution distribution = SparkDistributionAndOrderingUtil.buildPositionDeltaDistribution(
         table, command, distributionMode());
     SortOrder[] ordering = SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(
-        table, command, distribution);
+        table, command);
 
     return new SparkPositionDeltaWrite(
         spark, table, command, scan, isolationLevel, writeConf,
@@ -114,6 +114,8 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
         return writeConf.deleteDistributionMode();
       case UPDATE:
         return writeConf.updateDistributionMode();
+      case MERGE:
+        return writeConf.mergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }

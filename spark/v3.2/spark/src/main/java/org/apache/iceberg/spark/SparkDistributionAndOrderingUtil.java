@@ -149,7 +149,30 @@ public class SparkDistributionAndOrderingUtil {
     if (command == DELETE || command == UPDATE) {
       return buildPositionDeleteUpdateDistribution(distributionMode);
     } else {
-      throw new IllegalArgumentException("Only position deletes and updates are currently supported");
+      return buildPositionMergeDistribution(table, distributionMode);
+    }
+  }
+
+  private static Distribution buildPositionMergeDistribution(Table table, DistributionMode distributionMode) {
+    Distribution dataDistribution = buildRequiredDistribution(table, distributionMode);
+
+    if (dataDistribution instanceof ClusteredDistribution) {
+      Expression[] deleteClustering = new Expression[]{SPEC_ID, PARTITION};
+      Expression[] dataClustering = ((ClusteredDistribution) dataDistribution).clustering();
+      Expression[] clustering = ObjectArrays.concat(deleteClustering, dataClustering, Expression.class);
+      return Distributions.clustered(clustering);
+
+    } else if (dataDistribution instanceof OrderedDistribution) {
+      SortOrder[] deleteOrdering = new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER};
+      SortOrder[] dataOrdering = ((OrderedDistribution) dataDistribution).ordering();
+      SortOrder[] ordering = ObjectArrays.concat(deleteOrdering, dataOrdering, SortOrder.class);
+      return Distributions.ordered(ordering);
+
+    } else if (dataDistribution instanceof UnspecifiedDistribution) {
+      return Distributions.unspecified();
+
+    } else {
+      throw new IllegalArgumentException("Unexpected data distribution type: " + dataDistribution);
     }
   }
 
@@ -171,12 +194,16 @@ public class SparkDistributionAndOrderingUtil {
     }
   }
 
-  public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command, Distribution distribution) {
+  public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command) {
     // the spec requires position delete files to be sorted by file and pos
+    SortOrder[] deleteOrdering = {SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
+
     if (command == DELETE || command == UPDATE) {
-      return new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
+      return deleteOrdering;
     } else {
-      throw new IllegalArgumentException("Only position deletes and updates are currently supported");
+      // all metadata columns like _spec_id, _file, _pos will be null for new data records
+      SortOrder[] dataOrdering = buildTableOrdering(table);
+      return ObjectArrays.concat(deleteOrdering, dataOrdering, SortOrder.class);
     }
   }
 
