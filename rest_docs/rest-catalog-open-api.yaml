@@ -481,7 +481,22 @@ paths:
               schema:
                 $ref: '#/components/responses/IcebergErrorResponse'
         5XX:
-          $ref: '#/components/responses/ServerErrorResponse'
+          description:
+            A server-side problem that might not be addressable from the client side.
+
+            Error codes 500 and 504 indicate that the commit state is unknown and the client should
+            check the table state before considering the commit successful or failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "InternalServerError",
+                  "code": 500
+                }
+              }
 
     delete:
       tags:
