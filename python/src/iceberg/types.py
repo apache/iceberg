@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Data types used in describing Iceberg schemas
+"""
+Data types used in describing Iceberg schemas
 This module implements the data types described in the Iceberg specification for Iceberg schemas. To
 describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
 
