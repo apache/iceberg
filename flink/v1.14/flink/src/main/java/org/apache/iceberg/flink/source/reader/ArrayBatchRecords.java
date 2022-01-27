@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.source.reader;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nullable;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.file.src.util.Pool;
