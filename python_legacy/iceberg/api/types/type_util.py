@@ -143,7 +143,30 @@ def visit(arg, visitor): # noqa: ignore=C901
 
             return visitor.list(list_var, element_result)
         elif type_var.type_id == TypeID.MAP:
-            raise NotImplementedError()
+            # TODO: How could this be improved to avoid copy-pasting the same logic for key and value fields?
+            map_var = type_var.as_nested_type().asMapType()
+            visitor.field_ids.append(map_var.key_field.field_id)
+            visitor.field_names.append(map_var.key_field.name)
+            try:
+                key_result = visit(map_var.key_type(), visitor)
+            except NotImplementedError:
+                # will remove it after missing functions are implemented.
+                pass
+            finally:
+                visitor.field_ids.pop()
+                visitor.field_names.pop()
+
+            visitor.field_ids.append(map_var.value_field.field_id)
+            visitor.field_names.append(map_var.value_field.name)
+            try:
+                value_result = visit(map_var.value_type(), visitor)
+            except NotImplementedError:
+                # will remove it after missing functions are implemented.
+                pass
+            finally:
+                visitor.field_ids.pop()
+                visitor.field_names.pop()
+            return visitor.map(map_var, key_result, value_result)
         else:
             return visitor.primitive(arg.as_primitive_type())
     else:
@@ -385,7 +408,7 @@ class IndexById(SchemaVisitor):
             self.index[field.field_id] = field
 
     def map(self, map_var, key_result, value_result):
-        for field in map_var.fields:
+        for field in map_var.fields():
             self.index[field.field_id] = field
 
 
