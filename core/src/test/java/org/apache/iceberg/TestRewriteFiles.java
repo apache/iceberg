@@ -324,10 +324,10 @@ public class TestRewriteFiles extends TableTestBase {
         statuses(DELETED, EXISTING, EXISTING));
 
     validateDeleteManifest(pending.allManifests().get(2),
-        seqs(1, 2),
-        ids(baseSnapshotId, pendingId),
+        seqs(1, 1),
+        ids(baseSnapshotId, baseSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(EXISTING, EXISTING));
+        statuses(ADDED, ADDED));
 
     // We should only get the 4 manifests that this test is expected to add.
     Assert.assertEquals("Only 4 manifests should exist", 4, listManifestFiles().size());
@@ -523,7 +523,7 @@ public class TestRewriteFiles extends TableTestBase {
     // Apply and commit the rewrite transaction.
     RewriteFiles rewrite = table.newRewrite().rewriteFiles(
         ImmutableSet.of(), ImmutableSet.of(FILE_A2_DELETES),
-        ImmutableSet.of(), ImmutableSet.of(FILE_B_DELETES)
+        ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES)
     );
     Snapshot pending = rewrite.apply();
 
@@ -540,7 +540,7 @@ public class TestRewriteFiles extends TableTestBase {
     validateDeleteManifest(manifest2,
         seqs(2),
         ids(pending.snapshotId()),
-        files(FILE_B_DELETES),
+        files(FILE_A_DELETES),
         statuses(ADDED));
 
     // because FILE_A2 is still alive, the FILE_A2_DELETES should not be deleted
@@ -563,7 +563,7 @@ public class TestRewriteFiles extends TableTestBase {
         metadata.currentSnapshot().allManifests(), committedManifests);
 
     // As commit success all the manifests added with rewrite should be available.
-    Assert.assertEquals("4 manifests should exist", 4, listManifestFiles().size());
+    Assert.assertEquals("3 manifests should exist", 3, listManifestFiles().size());
   }
 
   @Test

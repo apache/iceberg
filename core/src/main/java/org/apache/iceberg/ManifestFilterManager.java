@@ -32,6 +32,7 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.StructCopy;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -88,7 +89,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       Maps.newConcurrentMap();
 
   // tracking the min sequence number of data files on each partition
-  private final StructLikeMap<Long> minSequenceNumberByPartition;
+  private final Map<StructLike, Long> minSequenceNumberByPartition;
 
   protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById, Types.StructType schema) {
     this.specsById = specsById;
@@ -140,7 +141,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    *
    * @param minSequenceNumbers the sequence number of data file on each partition
    */
-  protected void dropDeleteFilesOlderthan(StructLikeMap<Long> minSequenceNumbers) {
+  protected void dropDeleteFilesOlderthan(Map<StructLike, Long> minSequenceNumbers) {
     minSequenceNumberByPartition.clear();
     minSequenceNumberByPartition.putAll(minSequenceNumbers);
   }
@@ -286,7 +287,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * @param newFilesSequenceNumber override file sequence number
    * @return the min sequence number of data file on each partition
    */
-  StructLikeMap<Long> findMinDataSequenceNumbers(List<ManifestFile> manifestFiles, List<ManifestFile> deleteManifests,
+  Map<StructLike, Long> findMinDataSequenceNumbers(List<ManifestFile> manifestFiles, List<ManifestFile> deleteManifests,
       List<DataFile> newAddedDataFiles, Long newFilesSequenceNumber) {
     minSequenceNumberByPartition.clear();
     if (deleteManifests == null || deleteManifests.isEmpty()) {
@@ -299,9 +300,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
           reader.entries().forEach(entry -> {
             F file = entry.file();
 
-            if (entry.status() != ManifestEntry.Status.DELETED &&
-                !deletePaths.contains(file.path()) && !dropPartitions.contains(file.specId(), file.partition())) {
-              minSequenceNumberByPartition.merge(file.partition(), entry.sequenceNumber(), Math::min);
+            if (entry.status() != ManifestEntry.Status.DELETED && !deletePaths.contains(file.path()) &&
+                !dropPartitions.contains(file.specId(), file.partition())) {
+              minSequenceNumberByPartition.merge(((PartitionData)file.partition()).copy(),
+                  entry.sequenceNumber(), Math::min);
             }
           });
         } catch (IOException e) {
