@@ -899,7 +899,9 @@ components:
           type: integer
           readOnly: true
         fields:
-          $ref: '#/components/schemas/SortField'
+          type: array
+          items:
+            $ref: '#/components/schemas/SortField'
 
     Snapshot:
       type: object
