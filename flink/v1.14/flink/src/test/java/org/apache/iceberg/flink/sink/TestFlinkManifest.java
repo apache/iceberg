@@ -88,9 +88,10 @@ public class TestFlinkManifest {
   @Test
   public void testIO() throws IOException {
     String flinkJobId = newFlinkJobId();
+    String operatorId = newOperatorUniqueId();
     for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
       ManifestOutputFileFactory factory =
-          FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+          FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, operatorId, 1);
       final long curCkpId = checkpointId;
 
       List<DataFile> dataFiles = generateDataFiles(10);
@@ -123,11 +124,12 @@ public class TestFlinkManifest {
   public void testUserProvidedManifestLocation() throws IOException {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
+    String operatorId = newOperatorUniqueId();
     File userProvidedFolder = tempFolder.newFolder();
     Map<String, String> props = ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
         ((HasTableOperations) table).operations(), table.io(), props,
-        flinkJobId, 1, 1);
+        flinkJobId, 1, operatorId, 1);
 
     List<DataFile> dataFiles = generateDataFiles(5);
     DeltaManifests deltaManifests = FlinkManifestUtil.writeCompletedFiles(
@@ -157,7 +159,9 @@ public class TestFlinkManifest {
   public void testVersionedSerializer() throws IOException {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
-    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+    String operatorId = newOperatorUniqueId();
+    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1,
+        operatorId, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     List<DeleteFile> eqDeleteFiles = generateEqDeleteFiles(10);
@@ -187,7 +191,9 @@ public class TestFlinkManifest {
     // The v2 deserializer should be able to deserialize the v1 binary.
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
-    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+    String operatorId = newOperatorUniqueId();
+    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1,
+        operatorId, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest = FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
@@ -204,42 +210,6 @@ public class TestFlinkManifest {
     for (int i = 0; i < 10; i++) {
       TestHelpers.assertEquals(dataFiles.get(i), actualFiles.get(i));
     }
-  }
-
-  @Test
-  public void testManifestOutputFileFactoryOnSameSubTask()  {
-    long checkpointId = 1;
-    String flinkJobId = newFlinkJobId();
-    ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
-        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
-        flinkJobId, 1, 1);
-    OutputFile outputFile1 = factory.create(checkpointId);
-
-    ManifestOutputFileFactory factory2 = new ManifestOutputFileFactory(
-        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
-        flinkJobId, 1, 1);
-    OutputFile outputFile2 = factory2.create(checkpointId);
-
-    Assert.assertNotEquals(factory, factory2);
-    Assert.assertNotEquals(outputFile1.location(), outputFile2.location());
-  }
-
-  @Test
-  public void testManifestOutputFileFactoryOnDifferentSubTask() {
-    long checkpointId = 1;
-    String flinkJobId = newFlinkJobId();
-    ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
-        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
-        flinkJobId, 1, 1);
-    OutputFile outputFile1 = factory.create(checkpointId);
-
-    ManifestOutputFileFactory factory2 = new ManifestOutputFileFactory(
-        ((HasTableOperations) table).operations(), table.io(), ImmutableMap.of(),
-        flinkJobId, 2, 1);
-    OutputFile outputFile2 = factory2.create(checkpointId);
-
-    Assert.assertNotEquals(factory, factory2);
-    Assert.assertNotEquals(outputFile1.location(), outputFile2.location());
   }
 
   private static class V1Serializer implements SimpleVersionedSerializer<ManifestFile> {
@@ -306,6 +276,10 @@ public class TestFlinkManifest {
   }
 
   private static String newFlinkJobId() {
+    return UUID.randomUUID().toString();
+  }
+
+  private static String newOperatorUniqueId() {
     return UUID.randomUUID().toString();
   }
 }

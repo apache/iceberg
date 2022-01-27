@@ -28,7 +28,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 class ManifestOutputFileFactory {
-  private static final AtomicInteger fileCount = new AtomicInteger(0);
   // Users could define their own flink manifests directory by setting this value in table properties.
   static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
 
@@ -37,21 +36,24 @@ class ManifestOutputFileFactory {
   private final Map<String, String> props;
   private final String flinkJobId;
   private final int subTaskId;
+  private final String operatorUniqueId;
   private final long attemptNumber;
+  private final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
-                            String flinkJobId, int subTaskId, long attemptNumber) {
+                            String flinkJobId, int subTaskId, String operatorUniqueId, long attemptNumber) {
     this.ops = ops;
     this.io = io;
     this.props = props;
     this.flinkJobId = flinkJobId;
     this.subTaskId = subTaskId;
+    this.operatorUniqueId = operatorUniqueId;
     this.attemptNumber = attemptNumber;
   }
 
   private String generatePath(long checkpointId) {
-    return FileFormat.AVRO.addExtension(String.format("%s-%05d-%d-%d-%05d", flinkJobId, subTaskId,
-        attemptNumber, checkpointId, fileCount.incrementAndGet()));
+    return FileFormat.AVRO.addExtension(String.format("%s-%05d-%s-%d-%d-%05d", flinkJobId, subTaskId,
+        operatorUniqueId, attemptNumber, checkpointId, fileCount.incrementAndGet()));
   }
 
   OutputFile create(long checkpointId) {
