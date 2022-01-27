@@ -21,14 +21,7 @@ import sys
 import uuid
 
 from .type import TypeID
-
-
-def decimal_to_bytes(type_id, value):
-    scale = abs(value.as_tuple().exponent)
-    quantized_value = value.quantize(Decimal("10")**-scale)
-    unscaled_value = int((quantized_value * 10**scale).to_integral_value())
-    min_num_bytes = (unscaled_value.bit_length() + 7) // 8
-    return unscaled_value.to_bytes(min_num_bytes, 'big', signed=True)
+from .type_util import decimal_to_bytes
 
 
 class Conversions(object):
@@ -86,20 +79,20 @@ class Conversions(object):
             return None
         part_func = Conversions.value_mapping.get(type_var.type_id)
         if part_func is None:
-            raise RuntimeError("Unsupported type for fromPartitionString: %s" % type_var)
+            raise RuntimeError(f"Unsupported type for from_partition_string: {type_var}")
 
         return part_func(as_string)
 
     @staticmethod
     def to_byte_buffer(type_id, value):
         try:
-            return Conversions.to_byte_buff_mapping.get(type_id)(type_id, value)
+            return Conversions.to_byte_buff_mapping[type_id](type_id, value)
         except KeyError:
-            raise TypeError("Cannot Serialize Type: %s" % type_id)
+            raise TypeError(f"Cannot serialize type, no conversion mapping found for TypeID: {type_id}")
 
     @staticmethod
     def from_byte_buffer(type_var, buffer_var):
         try:
-            return Conversions.from_byte_buff_mapping.get(type_var.type_id)(type_var, buffer_var)
+            return Conversions.from_byte_buff_mapping[type_var.type_id](type_var, buffer_var)
         except KeyError:
-            raise TypeError("Cannot deserialize Type: %s" % type_var)
+            raise TypeError(f"Cannot deserialize type, no conversion mapping found for TypeID: {type_var.type_id}")
