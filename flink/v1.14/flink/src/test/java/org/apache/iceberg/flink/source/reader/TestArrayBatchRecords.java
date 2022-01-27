@@ -42,11 +42,11 @@ public class TestArrayBatchRecords {
     AtomicBoolean recycled = new AtomicBoolean();
 
     ArrayBatchRecords<String> recordsWithSplitIds = ArrayBatchRecords.forRecords(splitId,
-        ignored -> recycled.set(true), elements, elements.length, fileOffset, startingRecordOffset);
+        ignored -> recycled.set(true), elements, numberOfRecords, fileOffset, startingRecordOffset);
 
     Assert.assertEquals(splitId, recordsWithSplitIds.nextSplit());
 
-    for (int i = 0; i < elements.length; i++) {
+    for (int i = 0; i < numberOfRecords; i++) {
       RecordAndPosition<String> recAndPos = recordsWithSplitIds.nextRecordFromSplit();
       Assert.assertEquals(elements[i], recAndPos.record());
       Assert.assertEquals(fileOffset, recAndPos.fileOffset());
