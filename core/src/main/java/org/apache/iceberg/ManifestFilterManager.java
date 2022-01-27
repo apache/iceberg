@@ -32,11 +32,9 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
-import org.apache.iceberg.io.StructCopy;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -89,13 +87,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       Maps.newConcurrentMap();
 
   // tracking the min sequence number of data files on each partition
-  private final Map<StructLike, Long> minSequenceNumberByPartition;
+  private final Map<String, Long> minSequenceNumberByPartition = Maps.newHashMap();
 
   protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById, Types.StructType schema) {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
-    this.minSequenceNumberByPartition = StructLikeMap.create(schema);
   }
 
   protected abstract void deleteFile(String location);
@@ -141,7 +138,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    *
    * @param minSequenceNumbers the sequence number of data file on each partition
    */
-  protected void dropDeleteFilesOlderthan(Map<StructLike, Long> minSequenceNumbers) {
+  protected void dropDeleteFilesOlderthan(Map<String, Long> minSequenceNumbers) {
     minSequenceNumberByPartition.clear();
     minSequenceNumberByPartition.putAll(minSequenceNumbers);
   }
@@ -287,7 +284,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * @param newFilesSequenceNumber override file sequence number
    * @return the min sequence number of data file on each partition
    */
-  Map<StructLike, Long> findMinDataSequenceNumbers(List<ManifestFile> manifestFiles, List<ManifestFile> deleteManifests,
+  Map<String, Long> findMinDataSequenceNumbers(List<ManifestFile> manifestFiles, List<ManifestFile> deleteManifests,
       List<DataFile> newAddedDataFiles, Long newFilesSequenceNumber) {
     minSequenceNumberByPartition.clear();
     if (deleteManifests == null || deleteManifests.isEmpty()) {
@@ -302,8 +299,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
             if (entry.status() != ManifestEntry.Status.DELETED && !deletePaths.contains(file.path()) &&
                 !dropPartitions.contains(file.specId(), file.partition())) {
-              minSequenceNumberByPartition.merge(((PartitionData)file.partition()).copy(),
-                  entry.sequenceNumber(), Math::min);
+              minSequenceNumberByPartition.merge(file.partition().toString(), entry.sequenceNumber(), Math::min);
             }
           });
         } catch (IOException e) {
@@ -315,7 +311,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // overrider min sequence number
     if (newFilesSequenceNumber != null && !newAddedDataFiles.isEmpty()) {
       for (DataFile dataFile : newAddedDataFiles) {
-        minSequenceNumberByPartition.merge(dataFile.partition(), newFilesSequenceNumber, Math::min);
+        minSequenceNumberByPartition.merge(dataFile.partition().toString(), newFilesSequenceNumber, Math::min);
       }
     }
 
@@ -491,9 +487,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     if (isDelete) {
       // if not contains the partition, this means the partition have no data files,
       // so the delete file can be dropped
-      return !minSequenceNumberByPartition.containsKey(file.partition()) ||
+      return !minSequenceNumberByPartition.containsKey(file.partition().toString()) ||
           (entry.sequenceNumber() > 0 &&
-              entry.sequenceNumber() < minSequenceNumberByPartition.get(file.partition()));
+              entry.sequenceNumber() < minSequenceNumberByPartition.get(file.partition().toString()));
     } else {
       return deletePaths.contains(file.path()) || dropPartitions.contains(file.specId(), file.partition());
     }
