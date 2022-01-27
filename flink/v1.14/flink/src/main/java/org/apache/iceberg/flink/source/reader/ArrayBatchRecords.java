@@ -94,7 +94,7 @@ public class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPositi
 
   /**
    * This method is called when all records from this batch has been emitted.
-   * When can
+   * If recycler is set, it should be called to return the records array back to pool.
    */
   @Override
   public void recycle() {
@@ -125,11 +125,11 @@ public class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPositi
    *                We never have multiple records from multiple splits.
    * @param recycler Because {@link DataIterator} with {@link RowData} returns an iterator of reused RowData object,
    *                 we need to clone RowData eagerly when constructing a batch fo records.
-   *                 Object pool is used to recycle the RowData array, which can be expensive to create.
-   *                 This recycler is called to return the array object back to pool after read is exhausted.
-   *                 If the {@link DataIterator} returns an iterator of non-reused objects (like Avro GenericRecord),
-   *                 we don't need to clone objects. It is cheap to just create the batch array without cloning.
-   *                 Hence, we don't use object pool and recycler can be set to null.
+   *                 We can use object pool to reuse the RowData array object which can be expensive to create.
+   *                 This recycler can be provided to recycle the array object back to pool after read is exhausted.
+   *                 If the {@link DataIterator} returns an iterator of non-reused objects,
+   *                 we don't need to clone objects. It is cheap to just create the batch array.
+   *                 Hence, we don't need object pool and recycler can be set to null.
    * @param records an array (maybe reused) holding a batch of records
    * @param numberOfRecords actual number of records in the array
    * @param fileOffset fileOffset for all records in this batch
