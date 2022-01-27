@@ -28,7 +28,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 class ManifestOutputFileFactory {
-  private static final AtomicInteger fileCount = new AtomicInteger(0);
   // Users could define their own flink manifests directory by setting this value in table properties.
   static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
 
@@ -38,6 +37,7 @@ class ManifestOutputFileFactory {
   private final String flinkJobId;
   private final int subTaskId;
   private final long attemptNumber;
+  private static final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
                             String flinkJobId, int subTaskId, long attemptNumber) {
