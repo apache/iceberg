@@ -22,6 +22,8 @@ package org.apache.iceberg.aws.s3;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
+import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -29,7 +31,9 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
 
-public class S3OutputFile extends BaseS3File implements OutputFile {
+public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncryptedFile {
+  private NativeFileCryptoParameters nativeEncryptionParameters;
+
   public static S3OutputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
       MetricsContext metrics) {
     return new S3OutputFile(client, new S3URI(location), awsProperties, metrics);
@@ -66,5 +70,15 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
   @Override
   public InputFile toInputFile() {
     return new S3InputFile(client(), uri(), awsProperties(), metrics());
+  }
+
+  @Override
+  public NativeFileCryptoParameters nativeCryptoParameters() {
+    return nativeEncryptionParameters;
+  }
+
+  @Override
+  public void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters) {
+    this.nativeEncryptionParameters = nativeCryptoParameters;
   }
 }

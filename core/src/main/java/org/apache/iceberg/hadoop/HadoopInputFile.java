@@ -228,7 +228,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   }
 
   @Override
-  public NativeFileCryptoParameters getNativeCryptoParameters() {
+  public NativeFileCryptoParameters nativeCryptoParameters() {
     return nativeDecryptionParameters;
   }
 

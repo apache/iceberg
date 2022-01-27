@@ -39,8 +39,8 @@ public class Ciphers {
     public AesGcmEncryptor(byte[] keyBytes) {
       int keyLength = keyBytes.length;
       if (!(keyLength == 16 || keyLength == 24 || keyLength == 32)) {
-        throw new IllegalArgumentException("Wrong key length " + keyLength +
-            ". Must be 16, 24 or 32 bytes");
+        throw new IllegalArgumentException("Cannot use a key of length " + keyLength +
+            " because AES only allows 16, 24 or 32 bytes");
       }
       this.aesKey = new SecretKeySpec(keyBytes, "AES");
 
@@ -84,7 +84,8 @@ public class Ciphers {
     public AesGcmDecryptor(byte[] keyBytes) {
       int keyLength = keyBytes.length;
       if (!(keyLength == 16 || keyLength == 24 || keyLength == 32)) {
-        throw new IllegalArgumentException("Wrong key length " + keyLength);
+        throw new IllegalArgumentException("Cannot use a key of length " + keyLength +
+            " because AES only allows 16, 24 or 32 bytes");
       }
 
       this.aesKey = new SecretKeySpec(keyBytes, "AES");

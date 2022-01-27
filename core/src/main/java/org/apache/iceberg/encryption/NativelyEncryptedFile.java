@@ -20,10 +20,12 @@
 package org.apache.iceberg.encryption;
 
 /**
- * a minimum client interface to connect to a key management service (KMS).
+ * This interface is applied to OutputFile and InputFile implementations, in order to enable delivery of crypto
+ * parameters (such as encryption keys etc) from the Iceberg key management module to the writers/readers of file
+ * formats that support encryption natively (Parquet and ORC).
  */
 public interface NativelyEncryptedFile {
-  NativeFileCryptoParameters getNativeCryptoParameters();
+  NativeFileCryptoParameters nativeCryptoParameters();
 
-  void setNativeCryptoParameters(NativeFileCryptoParameters nativeDecryptionParameters);
+  void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters);
 }
