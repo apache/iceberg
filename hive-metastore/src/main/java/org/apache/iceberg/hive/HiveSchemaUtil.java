@@ -65,7 +65,7 @@ public final class HiveSchemaUtil {
    * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema. If some of the types are not convertible
    * then exception is thrown.
    * @param fieldSchemas The list of the columns.
-   * @param identifierFieldNames The identifierFieldSet which corresponds to identifierFieldIdSet.
+   * @param identifierFieldNames The names of the identifier fields for the schema.
    * @return An equivalent Iceberg Schema.
    */
   public static Schema convert(List<FieldSchema> fieldSchemas, Set<String> identifierFieldNames) {
@@ -78,7 +78,7 @@ public final class HiveSchemaUtil {
    * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
    *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
    *                    thrown.
-   * @param identifierFieldNames The identifierFieldSet which corresponds to identifierFieldIdSet.
+   * @param identifierFieldNames The names of the identifier fields for the schema.
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert, Set<String> identifierFieldNames) {
@@ -96,9 +96,9 @@ public final class HiveSchemaUtil {
   }
 
   /**
-   * Rebuild a schema with given schema and identifierFieldNames
+   * Rebuild a schema with given schema and identifier fields.
    * @param schema The origin schema.
-   * @param identifierFieldNames The identifierFieldNames.
+   * @param identifierFieldNames The names of the identifier fields in the new schema.
    * @return New schema with IdentifierFieldIds.
    */
   @VisibleForTesting
@@ -106,6 +106,7 @@ public final class HiveSchemaUtil {
     if (identifierFieldNames.size() == 0) {
       return schema;
     }
+
     // Identifier fields in nested field are not supported, so we just check the first level columns.
     Map<String, Types.NestedField> columnsMap = schema.columns().stream()
         .collect(Collectors.toMap(Types.NestedField::name, field -> field));
@@ -126,6 +127,7 @@ public final class HiveSchemaUtil {
           }
           return field.fieldId();
         }).collect(Collectors.toSet());
+
     // IdentifierFieldIds must be required.
     List<Types.NestedField> columns = schema.columns().stream()
         .map(column -> identifierFieldIds.contains(column.fieldId()) ? column.asRequired() : column)
@@ -165,7 +167,7 @@ public final class HiveSchemaUtil {
    * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
    *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
    *                    thrown.
-   * @param identifierFieldNames The identifierFieldSet which corresponds to identifierFieldIdSet.
+   * @param identifierFieldNames The names of the identifier fields for the schema.
    * @return The Iceberg schema
    */
   public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert,
