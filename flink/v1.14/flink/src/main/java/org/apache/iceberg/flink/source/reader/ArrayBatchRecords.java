@@ -28,6 +28,7 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.file.src.util.Pool;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.flink.source.DataIterator;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * {@link RecordsWithSplitIds} is used to pass a batch of records from fetcher to source reader.
@@ -58,13 +59,17 @@ public class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPositi
   private int position;
 
   private ArrayBatchRecords(
-      String splitId, Pool.Recycler<T[]> recycler, T[] records, int numberOfRecords,
-      int fileOffset, long startingRecordOffset, Set<String> finishedSplits) {
+      @Nullable String splitId, @Nullable Pool.Recycler<T[]> recycler, @Nullable T[] records,
+      int numberOfRecords, int fileOffset, long startingRecordOffset, Set<String> finishedSplits) {
+    Preconditions.checkArgument(numberOfRecords >= 0, "numberOfRecords can't be negative");
+    Preconditions.checkArgument(fileOffset >= 0, "fileOffset can't be negative");
+    Preconditions.checkArgument(startingRecordOffset >= 0, "numberOfRecords can't be negative");
+
     this.splitId = splitId;
     this.recycler = recycler;
     this.records = records;
     this.numberOfRecords = numberOfRecords;
-    this.finishedSplits = finishedSplits;
+    this.finishedSplits = Preconditions.checkNotNull(finishedSplits);
     this.recordAndPosition = new RecordAndPosition<>();
 
     recordAndPosition.set(null, fileOffset, startingRecordOffset);
