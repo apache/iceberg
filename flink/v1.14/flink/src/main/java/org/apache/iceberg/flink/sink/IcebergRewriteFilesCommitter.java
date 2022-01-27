@@ -22,10 +22,10 @@ package org.apache.iceberg.flink.sink;
 import java.util.Map;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -37,7 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<RewriteResult, Void>, BoundedOneInput {
+    implements OneInputStreamOperator<RewriteResult, Void> {
 
   private static final long serialVersionUID = 1L;
 
@@ -47,6 +47,7 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
 
   private transient Table table;
   private transient TableOperations ops;
+  private transient PartitionSpec spec;
 
   private final Map<Long, RewriteResult.Builder> rewriteResults = Maps.newLinkedHashMap();
 
@@ -59,6 +60,7 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
     this.ops = ((HasTableOperations) table).operations();
+    this.spec = table.spec();
   }
 
   @Override
@@ -74,14 +76,10 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
   public void processElement(StreamRecord<RewriteResult> record) throws Exception {
     RewriteResult result = record.getValue();
 
-    long snapshotId = result.startingSnapshotId();
-    RewriteResult.Builder collector = rewriteResults.getOrDefault(snapshotId, RewriteResult.builder(snapshotId));
-
-    collector.partitions(result.partitions())
+    rewriteResults.computeIfAbsent(result.startingSnapshotId(), k -> RewriteResult.builder(k, spec.partitionType()))
+        .partitions(result.partitions())
         .addAddedDataFiles(result.addedDataFiles())
         .addRewrittenDataFiles(result.rewrittenDataFiles());
-
-    rewriteResults.putIfAbsent(snapshotId, collector);
   }
 
   private void commitRewriteResults() {
@@ -114,11 +112,6 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
           .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
           .run(ops.io()::deleteFile);
     }
-  }
-
-  @Override
-  public void endInput() throws Exception {
-    commitRewriteResults();
   }
 
   @Override

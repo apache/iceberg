@@ -38,11 +38,59 @@ public class FlinkSinkOptions {
   public static final String STREAMING_REWRITE_CASE_SENSITIVE = "flink.rewrite.case-sensitive";
   public static final boolean STREAMING_REWRITE_CASE_SENSITIVE_DEFAULT = false;
 
-  public static final String STREAMING_REWRITE_MAX_FILES_COUNT = "flink.rewrite.max-files-count";
-  public static final int STREAMING_REWRITE_MAX_FILES_COUNT_DEFAULT = Integer.MAX_VALUE;
+  /**
+   * The output file size attempt to generate when rewriting files.
+   * <p>
+   * Defaults will use the {@link TableProperties#WRITE_TARGET_FILE_SIZE_BYTES} value.
+   */
+  public static final String STREAMING_REWRITE_TARGET_FILE_SIZE_BYTES = "flink.rewrite.target-file-size-bytes";
 
-  public static final String STREAMING_REWRITE_TARGET_FILE_SIZE = "flink.rewrite.target-file-size-bytes";
-  public static final long STREAMING_REWRITE_TARGET_FILE_SIZE_DEFAULT =
-      TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
+  /**
+   * Adjusts files which will be considered for rewriting.
+   * Files smaller than this value will be considered for rewriting.
+   * <p>
+   * Defaults to 75% of the target file size
+   */
+  public static final String STREAMING_REWRITE_MIN_FILE_SIZE_BYTES = "flink.rewrite.min-file-size-bytes";
+  public static final double STREAMING_REWRITE_MIN_FILE_SIZE_DEFAULT_RATIO = 0.75d;
+
+  /**
+   * Adjusts files which will be considered for rewriting.
+   * Files larger than this value will be considered for rewriting.
+   * <p>
+   * Defaults to 180% of the target file size
+   */
+  public static final String STREAMING_REWRITE_MAX_FILE_SIZE_BYTES = "flink.rewrite.max-file-size-bytes";
+  public static final double STREAMING_REWRITE_MAX_FILE_SIZE_DEFAULT_RATIO = 1.80d;
+
+  /**
+   * The minimum number of files that need to be in a file group for it to be considered for rewriting,
+   * if the total size of that group is reach the {@link #STREAMING_REWRITE_TARGET_FILE_SIZE_BYTES} or
+   * the total number of files of that group is reach to the {@link #STREAMING_REWRITE_MAX_GROUP_FILES}.
+   * <p>
+   * Defaults to 2 files, which is mean at less 2 files in a file group will be considered for rewriting.
+   */
+  public static final String STREAMING_REWRITE_MIN_GROUP_FILES = "flink.rewrite.min-group-files";
+  public static final int STREAMING_REWRITE_MIN_GROUP_FILES_DEFAULT = 2;
+
+  /**
+   * The maximum number of files that allow to be in a file group for it to be considered for rewriting.
+   * Once the total number of files of that group is reach to this value, the file group will be rewritten
+   * regardless of whether the total size of that group reaches the {@link #STREAMING_REWRITE_TARGET_FILE_SIZE_BYTES}.
+   * <p>
+   * Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
+   */
+  public static final String STREAMING_REWRITE_MAX_GROUP_FILES = "flink.rewrite.max-group-files";
+  public static final int STREAMING_REWRITE_MAX_GROUP_FILES_DEFAULT = Integer.MAX_VALUE;
+
+  /**
+   * The maximum number of commits will be wait for a file group. If no more file append to this file group after
+   * this number of commits, this file group will be rewritten regardless of whether the total size of that group
+   * reaches the {@link #STREAMING_REWRITE_TARGET_FILE_SIZE_BYTES}.
+   * <p>
+   * Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
+   */
+  public static final String STREAMING_REWRITE_MAX_WAITING_COMMITS = "flink.rewrite.nums-of-commit-after-append";
+  public static final int STREAMING_REWRITE_MAX_WAITING_COMMITS_DEFAULT = Integer.MAX_VALUE;
 
 }

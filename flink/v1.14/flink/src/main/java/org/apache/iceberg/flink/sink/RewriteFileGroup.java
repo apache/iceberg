@@ -38,26 +38,26 @@ class RewriteFileGroup {
 
   private long latestSequenceNumber;
   private long latestSnapshotId;
-  private int filesCount;
-  private long filesSize;
+  private long rewriteFilesSize;
+  private int totalFilesCount;
   private final StructLike partition;
   private final List<DeltaManifests> manifestsList;
 
   RewriteFileGroup(StructLike partition) {
     this.latestSequenceNumber = 0;
     this.latestSnapshotId = 0;
-    this.filesCount = 0;
-    this.filesSize = 0;
+    this.rewriteFilesSize = 0;
+    this.totalFilesCount = 0;
     this.partition = partition;
     this.manifestsList = Lists.newArrayList();
   }
 
-  private RewriteFileGroup(long latestSequenceNumber, long latestSnapshotId, int filesCount, long filesSize,
+  private RewriteFileGroup(long latestSequenceNumber, long latestSnapshotId, long rewriteFilesSize, int totalFilesCount,
                            StructLike partition, List<DeltaManifests> manifestsList) {
     this.latestSequenceNumber = latestSequenceNumber;
     this.latestSnapshotId = latestSnapshotId;
-    this.filesCount = filesCount;
-    this.filesSize = filesSize;
+    this.rewriteFilesSize = rewriteFilesSize;
+    this.totalFilesCount = totalFilesCount;
     this.partition = partition;
     this.manifestsList = manifestsList;
   }
@@ -70,41 +70,45 @@ class RewriteFileGroup {
     return latestSnapshotId;
   }
 
-  int filesCount() {
-    return filesCount;
+  StructLike partition() {
+    return partition;
   }
 
-  long filesSize() {
-    return filesSize;
+  long rewriteFilesSize() {
+    return rewriteFilesSize;
+  }
+
+  int totalFilesCount() {
+    return totalFilesCount;
   }
 
   List<DeltaManifests> manifestsList() {
     return manifestsList;
   }
 
-  StructLike partition() {
-    return partition;
-  }
-
   Iterable<ManifestFile> manifestFiles() {
     return Iterables.concat(Lists.transform(manifestsList, DeltaManifests::manifests));
   }
 
-  void add(int dataFilesCount, long dataFliesSize, long sequenceNumber, long snapshotId, DeltaManifests deltaManifests)
+  boolean isEmpty() {
+    return manifestsList.isEmpty();
+  }
+
+  void add(long sequenceNumber, long snapshotId, long deltaFilesSize, int deltaFilesCount, DeltaManifests manifests)
       throws IOException {
-    if (deltaManifests == null || deltaManifests.manifests().isEmpty()) {
+    if (manifests == null || manifests.manifests().isEmpty()) {
       return;
     }
 
     // v1 table sequence number is always 0.
     if (sequenceNumber >= latestSequenceNumber) {
-      latestSequenceNumber = sequenceNumber;
-      latestSnapshotId = snapshotId;
+      this.latestSequenceNumber = sequenceNumber;
+      this.latestSnapshotId = snapshotId;
     }
 
-    filesCount += dataFilesCount;
-    filesSize += dataFliesSize;
-    manifestsList.add(deltaManifests);
+    this.rewriteFilesSize += deltaFilesSize;
+    this.totalFilesCount += deltaFilesCount;
+    this.manifestsList.add(manifests);
   }
 
   @Override
@@ -113,8 +117,8 @@ class RewriteFileGroup {
         .add("latestSequenceNumber", latestSequenceNumber)
         .add("latestSnapshotId", latestSnapshotId)
         .add("partition", partition)
-        .add("dataFilesCount", filesCount)
-        .add("dataFilesSize", filesSize)
+        .add("rewriteFilesSize", rewriteFilesSize)
+        .add("totalFilesCount", totalFilesCount)
         .toString();
   }
 
@@ -136,8 +140,8 @@ class RewriteFileGroup {
 
       out.writeLong(rewriteFileGroup.latestSequenceNumber());
       out.writeLong(rewriteFileGroup.latestSnapshotId());
-      out.writeInt(rewriteFileGroup.filesCount());
-      out.writeLong(rewriteFileGroup.filesSize());
+      out.writeLong(rewriteFileGroup.rewriteFilesSize());
+      out.writeInt(rewriteFileGroup.totalFilesCount());
       out.writeObject(rewriteFileGroup.partition());
 
       int size = rewriteFileGroup.manifestsList().size();
@@ -167,8 +171,8 @@ class RewriteFileGroup {
 
       long latestSequenceNumber = in.readLong();
       long latestSnapshotId = in.readLong();
-      int filesCount = in.readInt();
-      long filesSize = in.readLong();
+      long rewriteFilesSize = in.readLong();
+      int totalFilesCount = in.readInt();
       StructLike partition;
       try {
         partition = (StructLike) in.readObject();
@@ -187,7 +191,7 @@ class RewriteFileGroup {
         manifestsList.add(deltaManifests);
       }
 
-      return new RewriteFileGroup(latestSequenceNumber, latestSnapshotId, filesCount, filesSize, partition,
+      return new RewriteFileGroup(latestSequenceNumber, latestSnapshotId, rewriteFilesSize, totalFilesCount, partition,
           manifestsList);
     }
   }

@@ -21,15 +21,13 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
-import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.operators.testutils.MockEnvironment;
 import org.apache.flink.runtime.operators.testutils.MockEnvironmentBuilder;
 import org.apache.flink.runtime.operators.testutils.MockInputSplitProvider;
@@ -39,19 +37,29 @@ import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.events.CreateSnapshotEvent;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -60,16 +68,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.apache.iceberg.flink.sink.FlinkSinkOptions.STREAMING_REWRITE_MAX_FILES_COUNT;
-import static org.apache.iceberg.flink.sink.FlinkSinkOptions.STREAMING_REWRITE_TARGET_FILE_SIZE;
 
 @RunWith(Parameterized.class)
 public class TestIcebergStreamRewriter {
@@ -79,35 +83,26 @@ public class TestIcebergStreamRewriter {
 
   private Table table;
   private String tablePath;
-  private File flinkManifestFolder;
   private FileAppenderFactory<RowData> appenderFactory;
 
   private final FileFormat format;
   private final int formatVersion;
-  private final boolean partitioned;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion={1}, Partitioned={2}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion={1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 2, false},
-        new Object[] {"parquet", 2, true},
-        new Object[] {"orc", 1, false},
-        new Object[] {"orc", 1, true},
-        new Object[] {"orc", 2, false},
-        new Object[] {"orc", 2, true},
+        new Object[] {"avro", 1},
+        new Object[] {"avro", 2},
+        new Object[] {"parquet", 1},
+        new Object[] {"parquet", 2},
+        new Object[] {"orc", 1},
+        new Object[] {"orc", 2},
     };
   }
 
-  public TestIcebergStreamRewriter(String format, int formatVersion, boolean partitioned) {
+  public TestIcebergStreamRewriter(String format, int formatVersion) {
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.formatVersion = formatVersion;
-    this.partitioned = partitioned;
   }
 
   @Before
@@ -116,7 +111,7 @@ public class TestIcebergStreamRewriter {
     Assert.assertTrue(tableDir.delete());
 
     tablePath = tableDir.getAbsolutePath();
-    flinkManifestFolder = temp.newFolder();
+    File flinkManifestFolder = temp.newFolder();
 
     // Construct the iceberg table.
     Map<String, String> props = ImmutableMap.of(
@@ -124,547 +119,128 @@ public class TestIcebergStreamRewriter {
         TableProperties.FORMAT_VERSION, String.valueOf(formatVersion),
         ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath()
     );
-    table = SimpleDataUtil.createTable(tablePath, props, partitioned);
+    // partitioned must be false for `createRewriteTask`
+    table = SimpleDataUtil.createTable(tablePath, props, false);
 
     appenderFactory = createDeletableAppenderFactory();
   }
 
   @Test
-  public void testRewriteWithTargetFileSize() throws Exception {
-    long targetFileSize = 5000;
-    table.updateProperties()
-        .set(STREAMING_REWRITE_TARGET_FILE_SIZE, String.valueOf(targetFileSize))
-        .set(TableProperties.SPLIT_OPEN_FILE_COST, "0")
-        .commit();
-
+  public void testRewriteFiles() throws Exception {
     long timestamp = 0;
-    long checkpointId = 0;
     JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
+    try (OneInputStreamOperatorTestHarness<RewriteTask, RewriteResult> harness = createStreamOpr(jobID)) {
       harness.setup();
       harness.open();
 
-      StructLike partition = SimpleDataUtil.createPartition(partitioned ? "xxx" : null);
+      StructLike partition = SimpleDataUtil.createPartition(null);
 
-      List<RowData> expected = Lists.newArrayList();
-      expected.add(SimpleDataUtil.createRowData(0, "xxx"));
-      DataFile triggerFile = writeDataFile("data-0", partition, ImmutableList.copyOf(expected));
-
-      int cnt = 0;
-      long commitFilesSize = 0;
-      long weight = triggerFile.fileSizeInBytes();
-      while (targetFileSize - commitFilesSize > weight) {
-        RowData rowData = SimpleDataUtil.createRowData(cnt, "xxx");
-        expected.add(rowData);
-        DataFile dataFile = writeDataFile("data-" + cnt, partition, ImmutableList.of(rowData));
-
-        commitFilesSize += dataFile.fileSizeInBytes();
-        cnt++;
-
-        PartitionFileGroup fileGroup = commit(partition, ImmutableList.of(dataFile), ImmutableList.of());
-        harness.processElement(fileGroup, ++timestamp);
-        harness.snapshot(++checkpointId, ++timestamp);
-        assertFlinkManifests(cnt);
-        Assert.assertTrue(harness.extractOutputValues().isEmpty());
-      }
-
-      // trigger rewrite
-      PartitionFileGroup fileGroup = commit(partition, ImmutableList.of(triggerFile), ImmutableList.of());
-      harness.processElement(fileGroup, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
-      Assert.assertEquals(1, harness.extractOutputValues().size());
-      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
-
-      Assert.assertEquals(1, rewriteResult.partitions().size());
-      Assert.assertEquals(wrap(partition), wrap(rewriteResult.partitions().iterator().next()));
-      Assert.assertEquals(formatVersion > 1 ? fileGroup.snapshotId() : 0, rewriteResult.startingSnapshotId());
-      Assert.assertEquals(++cnt, Iterables.size(rewriteResult.rewrittenDataFiles()));
-      Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));
-
-      commitRewrite(rewriteResult);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(expected));
-    }
-  }
-
-  @Test
-  public void testRecoveryFromValidSnapshot() throws Exception {
-    table.updateProperties()
-        .set(STREAMING_REWRITE_MAX_FILES_COUNT, "4")
-        .commit();
-
-    StructLike partition = SimpleDataUtil.createPartition(partitioned ? "xxx" : null);
-
-    OperatorSubtaskState snapshot;
-    long timestamp = 0;
-    long checkpointId = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      DataFile dataFile11 = writeDataFile("data-txn1-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "xxx"),
-          SimpleDataUtil.createRowData(2, "xxx"),
-          SimpleDataUtil.createRowData(3, "xxx")
-      ));
-      PartitionFileGroup fileGroup1 = commit(partition, ImmutableList.of(dataFile11), ImmutableList.of());
-
-      harness.processElement(fileGroup1, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(1);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      DataFile dataFile21 = writeDataFile("data-txn2-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(4, "xxx"),
-          SimpleDataUtil.createRowData(5, "xxx")
-      ));
-      DataFile dataFile22 = writeDataFile("data-txn2-2", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(6, "xxx")
-      ));
-      PartitionFileGroup fileGroup2 = commit(partition, ImmutableList.of(dataFile21, dataFile22), ImmutableList.of());
-
-      harness.processElement(fileGroup2, ++timestamp);
-      snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(2);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-    }
-
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.initializeState(snapshot);
-      harness.open();
-
-      DataFile dataFile31 = writeDataFile("data-txn3-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(7, "xxx")
-      ));
-      PartitionFileGroup fileGroup3 = commit(partition, ImmutableList.of(dataFile31), ImmutableList.of());
-
-      harness.processElement(fileGroup3, ++timestamp);
-      assertFlinkManifests(3);  // manifests should not be deleted before snapshot
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
-      Assert.assertEquals(1, harness.extractOutputValues().size());
-      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
-
-      Assert.assertEquals(1, rewriteResult.partitions().size());
-      Assert.assertEquals(wrap(partition), wrap(rewriteResult.partitions().iterator().next()));
-      Assert.assertEquals(formatVersion > 1 ? fileGroup3.snapshotId() : 0, rewriteResult.startingSnapshotId());
-      Assert.assertEquals(4, Iterables.size(rewriteResult.rewrittenDataFiles()));
-      Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));
-
-      commitRewrite(rewriteResult);
-      List<RowData> expected = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "xxx"),
-          SimpleDataUtil.createRowData(2, "xxx"),
-          SimpleDataUtil.createRowData(3, "xxx"),
-          SimpleDataUtil.createRowData(4, "xxx"),
-          SimpleDataUtil.createRowData(5, "xxx"),
-          SimpleDataUtil.createRowData(6, "xxx"),
-          SimpleDataUtil.createRowData(7, "xxx")
-      );
-      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(expected));
-    }
-  }
-
-  @Test
-  public void testRewriteUnpartitionedAppendOnlyTable() throws Exception {
-    Assume.assumeTrue("Only test for unpartitioned table.", !partitioned);
-
-    table.updateProperties()
-        .set(STREAMING_REWRITE_MAX_FILES_COUNT, "4")
-        .commit();
-
-    StructLike partition = SimpleDataUtil.createPartition(null);
-
-    long timestamp = 0;
-    long checkpointId = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      // Txn#1 Table[<1, "aaa">, <2, "bbb">, <3, "ccc">]
-      DataFile dataFile11 = writeDataFile("data-txn1-1", partition, ImmutableList.of(
+      DataFile dataFile1 = writeDataFile("data-1", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(1, "aaa"),
           SimpleDataUtil.createRowData(2, "bbb"),
           SimpleDataUtil.createRowData(3, "ccc")
       ));
-      PartitionFileGroup fileGroup1 = commit(partition, ImmutableList.of(dataFile11), ImmutableList.of());
-
-      harness.processElement(fileGroup1, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(1);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#2 Table[<1, "aaa">, <2, "bbb">, <3, "ccc">, <4, "ddd">, <3, "eee">, <2, "fff">]
-      DataFile dataFile21 = writeDataFile("data-txn2-1", partition, ImmutableList.of(
+      DataFile dataFile2 = writeDataFile("data-2", partition, ImmutableList.of(
           SimpleDataUtil.createRowData(4, "ddd"),
-          SimpleDataUtil.createRowData(3, "eee")
+          SimpleDataUtil.createRowData(5, "eee")
       ));
-      DataFile dataFile22 = writeDataFile("data-txn2-2", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(2, "fff")
+      DeleteFile posDeleteFile = writePosDeleteFile("pos-delete-txn1-1", partition, ImmutableList.of(
+          Pair.of(dataFile1.path(), 1L))
+      );
+      commit(
+          ImmutableList.of(dataFile1, dataFile2),
+          formatVersion > 1 ? ImmutableList.of(posDeleteFile) : ImmutableList.of(),
+          formatVersion > 1 ? ImmutableList.of(dataFile1.path()) : ImmutableList.of()
+      );
+
+      DataFile dataFile3 = writeDataFile("data-3", partition, ImmutableList.of(
+          SimpleDataUtil.createRowData(6, "fff"),
+          SimpleDataUtil.createRowData(7, "ggg")
       ));
-      PartitionFileGroup fileGroup2 = commit(partition, ImmutableList.of(dataFile21, dataFile22), ImmutableList.of());
-
-      harness.processElement(fileGroup2, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(2);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#3 Table[<1, "aaa">, <2, "bbb">, <3, "ccc">, <4, "ddd">, <3, "eee">, <2, "fff">, <1, "ggg">]
-      DataFile dataFile31 = writeDataFile("data-txn3-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "ggg")
+      DeleteFile eqDeleteFile = writeEqDeleteFile("eq-delete-txn2-1", partition, ImmutableList.of(
+          SimpleDataUtil.createRowData(3, "ccc"),
+          SimpleDataUtil.createRowData(4, "ddd")
       ));
-      PartitionFileGroup fileGroup3 = commit(partition, ImmutableList.of(dataFile31), ImmutableList.of());
+      CommitResult commit = commit(
+          ImmutableList.of(dataFile3),
+          formatVersion > 1 ? ImmutableList.of(eqDeleteFile) : ImmutableList.of(),
+          ImmutableList.of()
+      );
 
-      harness.processElement(fileGroup3, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
+      RewriteTask rewriteTask = formatVersion > 1 ? createRewriteTask(commit.snapshotId(), partition,
+          combined(dataFile1, posDeleteFile, eqDeleteFile),
+          combined(dataFile2, eqDeleteFile),
+          combined(dataFile3)
+      ) : createRewriteTask(commit.snapshotId(), partition,
+          combined(dataFile1),
+          combined(dataFile2),
+          combined(dataFile3)
+      );
+
+      harness.processElement(rewriteTask, ++timestamp);
       Assert.assertEquals(1, harness.extractOutputValues().size());
-      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
 
+      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
       Assert.assertEquals(1, rewriteResult.partitions().size());
       Assert.assertEquals(wrap(partition), wrap(rewriteResult.partitions().iterator().next()));
-      Assert.assertEquals(formatVersion > 1 ? fileGroup3.snapshotId() : 0, rewriteResult.startingSnapshotId());
-      Assert.assertEquals(4, Iterables.size(rewriteResult.rewrittenDataFiles()));
+      Assert.assertEquals(rewriteTask.snapshotId(), rewriteResult.startingSnapshotId());
+      Assert.assertEquals(3, Iterables.size(rewriteResult.rewrittenDataFiles()));
       Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));
 
       commitRewrite(rewriteResult);
-      List<RowData> expected = ImmutableList.of(
+      List<RowData> expected = formatVersion > 1 ? ImmutableList.of(
+          SimpleDataUtil.createRowData(1, "aaa"),
+          SimpleDataUtil.createRowData(5, "eee"),
+          SimpleDataUtil.createRowData(6, "fff"),
+          SimpleDataUtil.createRowData(7, "ggg")
+      ) : ImmutableList.of(
           SimpleDataUtil.createRowData(1, "aaa"),
           SimpleDataUtil.createRowData(2, "bbb"),
           SimpleDataUtil.createRowData(3, "ccc"),
           SimpleDataUtil.createRowData(4, "ddd"),
-          SimpleDataUtil.createRowData(3, "eee"),
-          SimpleDataUtil.createRowData(2, "fff"),
-          SimpleDataUtil.createRowData(1, "ggg")
-      );
-      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(expected));
-    }
-  }
-
-  @Test
-  public void testRewritePartitionedAppendOnlyTable() throws Exception {
-    Assume.assumeTrue("Only test for partitioned table.", partitioned);
-
-    table.updateProperties()
-        .set(STREAMING_REWRITE_MAX_FILES_COUNT, "3")
-        .commit();
-
-    long timestamp = 0;
-    long checkpointId = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      StructLike partitionA = SimpleDataUtil.createPartition("aaa");
-      StructLike partitionB = SimpleDataUtil.createPartition("bbb");
-
-      // Txn#1: PartitionA[<1, "aaa">, <2, "aaa">] PartitionB[<1, "bbb">]
-      DataFile dataFile11 = writeDataFile("data-txn1-1", partitionA, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "aaa")
-      ));
-      PartitionFileGroup fileGroup11 = commit(dataFile11.partition(), ImmutableList.of(dataFile11),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup11, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(1);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      DataFile dataFile12 = writeDataFile("data-txn1-2", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "bbb")
-      ));
-      PartitionFileGroup fileGroup12 = commit(dataFile12.partition(), ImmutableList.of(dataFile12),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup12, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(2);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#2: PartitionA[<1, "aaa">, <2, "aaa">] PartitionB[<1, "bbb">, <2, "bbb">]
-      DataFile dataFile21 = writeDataFile("data-txn2-1", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(2, "bbb")
-      ));
-      PartitionFileGroup fileGroup21 = commit(dataFile21.partition(), ImmutableList.of(dataFile21),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup21, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(3);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#3: PartitionA[<1, "aaa">, <2, "aaa">, <3, "aaa">] PartitionB[<1, "bbb">, <2, "bbb">, <3, "bbb">]
-      DataFile dataFile31 = writeDataFile("data-txn3-1", partitionA, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "aaa")
-      ));
-      PartitionFileGroup fileGroup31 = commit(dataFile31.partition(), ImmutableList.of(dataFile31),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup31, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(4);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      DataFile dataFile32 = writeDataFile("data-txn3-2", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "bbb")
-      ));
-      PartitionFileGroup fileGroup32 = commit(dataFile32.partition(), ImmutableList.of(dataFile32),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup32, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(2);
-      Assert.assertEquals(1, harness.extractOutputValues().size());
-      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
-
-      Assert.assertEquals(1, rewriteResult.partitions().size());
-      Assert.assertEquals(wrap(fileGroup32.partition()), wrap(rewriteResult.partitions().iterator().next()));
-      Assert.assertEquals(formatVersion > 1 ? fileGroup32.snapshotId() : 0, rewriteResult.startingSnapshotId());
-      Assert.assertEquals(3, Iterables.size(rewriteResult.rewrittenDataFiles()));
-      Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));
-
-      commitRewrite(rewriteResult);
-      List<RowData> expected = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "aaa"),
-          SimpleDataUtil.createRowData(3, "aaa"),
-          SimpleDataUtil.createRowData(1, "bbb"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "bbb")
-      );
-      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(expected));
-    }
-  }
-
-  @Test
-  public void testRewriteUnpartitionedUpdatableTable() throws Exception {
-    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2.", formatVersion > 1);
-    Assume.assumeTrue("Only test for unpartitioned table.", !partitioned);
-
-    table.updateProperties()
-        .set(STREAMING_REWRITE_MAX_FILES_COUNT, "4")
-        .commit();
-
-    StructLike partition = SimpleDataUtil.createPartition(null);
-
-    long timestamp = 0;
-    long checkpointId = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      // Txn#1 Table[<1, "aaa">, <3, "ccc">]
-      DataFile dataFile11 = writeDataFile("data-txn1-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "bbb"),
-          SimpleDataUtil.createRowData(3, "ccc")
-      ));
-      DeleteFile deleteFile11 = writePosDeleteFile("pos-delete-txn1-1", partition, ImmutableList.of(
-          Pair.of(dataFile11.path(), 1L))
-      );
-      PartitionFileGroup fileGroup1 = commit(partition, ImmutableList.of(dataFile11),
-          ImmutableList.of(deleteFile11));
-
-      harness.processElement(fileGroup1, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(2);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#2 Table[<1, "aaa">, <3, "xxx">, <4, "ddd">, <5, "eee">]
-      DataFile dataFile21 = writeDataFile("data-txn2-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "xxx"),
-          SimpleDataUtil.createRowData(4, "ddd")
-      ));
-      DeleteFile deleteFile21 = writeEqDeleteFile("eq-delete-txn2-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "ccc")
-      ));
-      DataFile dataFile22 = writeDataFile("data-txn2-2", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(5, "eee")
-      ));
-      PartitionFileGroup fileGroup2 = commit(partition, ImmutableList.of(dataFile21, dataFile22),
-          ImmutableList.of(deleteFile21));
-
-      harness.processElement(fileGroup2, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(4);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#3 Table[<1, "aaa">, <3, "xxx">, <5, "eee">, <7, "ggg">]
-      DataFile dataFile31 = writeDataFile("data-txn3-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(7, "ggg")
-      ));
-      DeleteFile deleteFile31 = writeEqDeleteFile("eq-delete-txn3-1", partition, ImmutableList.of(
-          SimpleDataUtil.createRowData(4, "ddd")
-      ));
-      PartitionFileGroup fileGroup3 = commit(partition, ImmutableList.of(dataFile31),
-          ImmutableList.of(deleteFile31));
-
-      harness.processElement(fileGroup3, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
-      Assert.assertEquals(1, harness.extractOutputValues().size());
-      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
-
-      Assert.assertEquals(1, rewriteResult.partitions().size());
-      Assert.assertEquals(wrap(partition), wrap(rewriteResult.partitions().iterator().next()));
-      Assert.assertEquals(fileGroup3.snapshotId(), rewriteResult.startingSnapshotId());
-      Assert.assertEquals(4, Iterables.size(rewriteResult.rewrittenDataFiles()));
-      Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));
-
-      commitRewrite(rewriteResult);
-      List<RowData> expected = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(3, "xxx"),
           SimpleDataUtil.createRowData(5, "eee"),
+          SimpleDataUtil.createRowData(6, "fff"),
           SimpleDataUtil.createRowData(7, "ggg")
       );
       SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(expected));
     }
   }
-
-  @Test
-  public void testRewritePartitionedUpdatableTable() throws Exception {
-    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2.", formatVersion > 1);
-    Assume.assumeTrue("Only test for partitioned table.", partitioned);
-
-    table.updateProperties()
-        .set(STREAMING_REWRITE_MAX_FILES_COUNT, "3")
-        .commit();
-
-    long timestamp = 0;
-    long checkpointId = 0;
-    JobID jobID = new JobID();
-    try (OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> harness = createStreamOpr(jobID)) {
-      harness.setup();
-      harness.open();
-
-      StructLike partitionA = SimpleDataUtil.createPartition("aaa");
-      StructLike partitionB = SimpleDataUtil.createPartition("bbb");
-
-      // Txn#1: PartitionA[<1, "aaa">, <3, "aaa">] PartitionB[<4, "bbb">]
-      DataFile dataFile11 = writeDataFile("data-txn1-1", partitionA, ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(2, "aaa"),
-          SimpleDataUtil.createRowData(3, "aaa")
-      ));
-      DeleteFile deleteFile11 = writePosDeleteFile("pos-delete-txn1-1", partitionA, ImmutableList.of(
-          Pair.of(dataFile11.path(), 1L))
-      );
-      PartitionFileGroup fileGroup11 = commit(dataFile11.partition(), ImmutableList.of(dataFile11),
-          ImmutableList.of(deleteFile11));
-
-      harness.processElement(fileGroup11, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(2);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      DataFile dataFile12 = writeDataFile("data-txn1-2", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(4, "bbb")
-      ));
-      PartitionFileGroup fileGroup12 = commit(dataFile12.partition(), ImmutableList.of(dataFile12),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup12, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(3);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#2: PartitionA[<1, "aaa">] PartitionB[<3, "bbb">, <6, "bbb">]
-      DeleteFile deleteFile21 = writeEqDeleteFile("eq-delete-txn2-1", partitionA, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "aaa")
-      ));
-      PartitionFileGroup fileGroup21 = commit(deleteFile21.partition(), ImmutableList.of(),
-          ImmutableList.of(deleteFile21));
-
-      harness.processElement(fileGroup21, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(4);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      DataFile dataFile22 = writeDataFile("data-txn2-2", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(3, "bbb"),
-          SimpleDataUtil.createRowData(5, "bbb"),
-          SimpleDataUtil.createRowData(6, "bbb")
-      ));
-      DeleteFile deleteFile22 = writePosDeleteFile("pos-delete-txn2-2", partitionB, ImmutableList.of(
-          Pair.of(dataFile22.path(), 1L))
-      );
-      DeleteFile deleteFile23 = writeEqDeleteFile("eq-delete-txn2-3", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(4, "bbb")
-      ));
-      PartitionFileGroup fileGroup22 = commit(dataFile22.partition(), ImmutableList.of(dataFile22),
-          ImmutableList.of(deleteFile22, deleteFile23));
-
-      harness.processElement(fileGroup22, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(6);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      // Txn#3: PartitionA[<1, "aaa">, <5, "aaa">] PartitionB[<3, "bbb">, <7, "bbb">]
-      DataFile dataFile31 = writeDataFile("data-txn3-1", partitionA, ImmutableList.of(
-          SimpleDataUtil.createRowData(5, "aaa")
-      ));
-      PartitionFileGroup fileGroup31 = commit(dataFile31.partition(), ImmutableList.of(dataFile31),
-          ImmutableList.of());
-
-      harness.processElement(fileGroup31, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(7);
-      Assert.assertTrue(harness.extractOutputValues().isEmpty());
-
-      DataFile dataFile32 = writeDataFile("data-txn3-2", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(7, "bbb")
-      ));
-      DeleteFile deleteFile32 = writeEqDeleteFile("eq-delete-txn3-2", partitionB, ImmutableList.of(
-          SimpleDataUtil.createRowData(6, "bbb")
-      ));
-      PartitionFileGroup fileGroup32 = commit(dataFile32.partition(), ImmutableList.of(dataFile32),
-          ImmutableList.of(deleteFile32));
-
-      harness.processElement(fileGroup32, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(4);
-      Assert.assertEquals(1, harness.extractOutputValues().size());
-      RewriteResult rewriteResult = harness.extractOutputValues().get(0);
-
-      Assert.assertEquals(1, rewriteResult.partitions().size());
-      Assert.assertEquals(wrap(fileGroup32.partition()), wrap(rewriteResult.partitions().iterator().next()));
-      Assert.assertEquals(fileGroup32.snapshotId(), rewriteResult.startingSnapshotId());
-      Assert.assertEquals(3, Iterables.size(rewriteResult.rewrittenDataFiles()));
-      Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));
-
-      commitRewrite(rewriteResult);
-      List<RowData> expected = ImmutableList.of(
-          SimpleDataUtil.createRowData(1, "aaa"),
-          SimpleDataUtil.createRowData(3, "bbb"),
-          SimpleDataUtil.createRowData(5, "aaa"),
-          SimpleDataUtil.createRowData(7, "bbb")
-      );
-      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(expected));
-    }
-  }
-
   private StructLikeWrapper wrap(StructLike partition) {
     return StructLikeWrapper.forType(table.spec().partitionType()).set(partition);
   }
 
-  private PartitionFileGroup commit(StructLike partition, List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
+  private Pair<DataFile, List<DeleteFile>> combined(DataFile dataFile, DeleteFile... deleteFiles) {
+    return Pair.of(dataFile, Lists.newArrayList(deleteFiles));
+  }
+
+  @SafeVarargs
+  private final RewriteTask createRewriteTask(long snapshotId, StructLike partition,
+                                              Pair<DataFile, List<DeleteFile>>... scanFiles) {
+    String schemaStr = SchemaParser.toJson(table.schema());
+    String specStr = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
+    List<FileScanTask> fileScanTasks = Arrays.stream(scanFiles)
+        .map(p -> new MockFileScanTask(p.first(), p.second().toArray(new DeleteFile[0]), schemaStr, specStr, residuals))
+        .collect(Collectors.toList());
+
+    CombinedScanTask combinedScanTask = new BaseCombinedScanTask(fileScanTasks);
+    return new RewriteTask(snapshotId, partition, combinedScanTask);
+  }
+
+  private CommitResult commit(List<DataFile> dataFiles, List<DeleteFile> deleteFiles,
+                              List<CharSequence> referencedFiles) {
     RowDelta rowDelta = table.newRowDelta();
     dataFiles.forEach(rowDelta::addRows);
     deleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
-    CreateSnapshotEvent updateEvent = (CreateSnapshotEvent) rowDelta.updateEvent();
-    return PartitionFileGroup
-        .builder(updateEvent.sequenceNumber(), updateEvent.snapshotId(), partition)
-        .addDataFile(dataFiles)
-        .addDeleteFile(deleteFiles)
+
+    CreateSnapshotEvent event = (CreateSnapshotEvent) rowDelta.updateEvent();
+    WriteResult writeResult = WriteResult.builder()
+        .addDataFiles(dataFiles)
+        .addDeleteFiles(deleteFiles)
+        .addReferencedDataFiles(referencedFiles)
         .build();
+    return CommitResult.builder(event.sequenceNumber(), event.snapshotId()).add(writeResult).build();
   }
 
   private void commitRewrite(RewriteResult result) {
@@ -699,15 +275,7 @@ public class TestIcebergStreamRewriter {
         table.schema(), null);
   }
 
-  private void assertFlinkManifests(int expectedCount) throws IOException {
-    List<Path> manifests = Files.list(flinkManifestFolder.toPath())
-        .filter(p -> !p.toString().endsWith(".crc"))
-        .collect(Collectors.toList());
-    Assert.assertEquals(String.format("Expected %s flink manifests, but the list is: %s", expectedCount, manifests),
-        expectedCount, manifests.size());
-  }
-
-  private OneInputStreamOperatorTestHarness<PartitionFileGroup, RewriteResult> createStreamOpr(JobID jobID)
+  private OneInputStreamOperatorTestHarness<RewriteTask, RewriteResult> createStreamOpr(JobID jobID)
       throws Exception {
     TestOperatorFactory factory = TestOperatorFactory.of(tablePath);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
@@ -727,7 +295,7 @@ public class TestIcebergStreamRewriter {
   }
 
   private static class TestOperatorFactory extends AbstractStreamOperatorFactory<RewriteResult>
-      implements OneInputStreamOperatorFactory<PartitionFileGroup, RewriteResult> {
+      implements OneInputStreamOperatorFactory<RewriteTask, RewriteResult> {
     private final String tablePath;
 
     private TestOperatorFactory(String tablePath) {

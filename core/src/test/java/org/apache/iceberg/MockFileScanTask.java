@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.mockito.Mockito;
 
 public class MockFileScanTask extends BaseFileScanTask {
@@ -37,6 +38,12 @@ public class MockFileScanTask extends BaseFileScanTask {
 
   public MockFileScanTask(DataFile file, DeleteFile[] deleteFiles) {
     super(file, deleteFiles, null, null, null);
+    this.length = file.fileSizeInBytes();
+  }
+
+  public MockFileScanTask(DataFile file, DeleteFile[] deleteFiles, String schemaString, String specString,
+                          ResidualEvaluator residuals) {
+    super(file, deleteFiles, schemaString, specString, residuals);
     this.length = file.fileSizeInBytes();
   }
 

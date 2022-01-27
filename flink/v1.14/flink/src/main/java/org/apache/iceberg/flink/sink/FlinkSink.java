@@ -70,7 +70,7 @@ public class FlinkSink {
 
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
-  private static final String ICEBERG_COMMITTED_FILES_EMITTER_NAME = IcebergCommittedFilesEmitter.class.getSimpleName();
+  private static final String ICEBERG_REWRITE_TASKS_EMITTER_NAME = IcebergRewriteTaskEmitter.class.getSimpleName();
   private static final String ICEBERG_STREAM_REWRITER_NAME = IcebergStreamRewriter.class.getSimpleName();
   private static final String ICEBERG_REWRITE_FILES_COMMITTER_NAME = IcebergRewriteFilesCommitter.class.getSimpleName();
 
@@ -384,33 +384,27 @@ public class FlinkSink {
             FlinkSinkOptions.STREAMING_REWRITE_PARALLELISM_DEFAULT;
       }
 
-      IcebergCommittedFilesEmitter filesEmitter = new IcebergCommittedFilesEmitter(tableLoader);
-      SingleOutputStreamOperator<PartitionFileGroup> emitterStream = committerStream
-          .transform(operatorName(ICEBERG_COMMITTED_FILES_EMITTER_NAME),
-              TypeInformation.of(PartitionFileGroup.class), filesEmitter)
+      IcebergRewriteTaskEmitter emitter = new IcebergRewriteTaskEmitter(tableLoader);
+      SingleOutputStreamOperator<RewriteTask> emitterStream = committerStream
+          .transform(operatorName(ICEBERG_REWRITE_TASKS_EMITTER_NAME), TypeInformation.of(RewriteTask.class), emitter)
           .setParallelism(1)
           .setMaxParallelism(1);
+      if (uidPrefix != null) {
+        emitterStream = emitterStream.uid(uidPrefix + "-rewriter");
+      }
 
-      IcebergStreamRewriter fileRewriter = new IcebergStreamRewriter(tableLoader);
+      IcebergStreamRewriter rewriter = new IcebergStreamRewriter(tableLoader);
       SingleOutputStreamOperator<RewriteResult> rewriterStream = emitterStream
-          .keyBy(group -> group.partition().toString())
-          .transform(operatorName(ICEBERG_STREAM_REWRITER_NAME), TypeInformation.of(RewriteResult.class), fileRewriter);
+          .transform(operatorName(ICEBERG_STREAM_REWRITER_NAME), TypeInformation.of(RewriteResult.class), rewriter);
       if (fileRewriterParallelism != null) {
         rewriterStream = rewriterStream.setParallelism(fileRewriterParallelism);
       }
-      if (uidPrefix != null) {
-        rewriterStream = rewriterStream.uid(uidPrefix + "-rewriter");
-      }
 
-      IcebergRewriteFilesCommitter rewriteFilesCommitter = new IcebergRewriteFilesCommitter(tableLoader);
-      SingleOutputStreamOperator<Void> committedStream = rewriterStream.transform(
-          operatorName(ICEBERG_REWRITE_FILES_COMMITTER_NAME), TypeInformation.of(Void.class), rewriteFilesCommitter)
+      IcebergRewriteFilesCommitter committer = new IcebergRewriteFilesCommitter(tableLoader);
+      return rewriterStream
+          .transform(operatorName(ICEBERG_REWRITE_FILES_COMMITTER_NAME), TypeInformation.of(Void.class), committer)
           .setParallelism(1)
           .setMaxParallelism(1);
-      if (uidPrefix != null) {
-        committedStream.uid(uidPrefix + "-rewrite-committer");
-      }
-      return committedStream;
     }
 
     private SingleOutputStreamOperator<CommitResult> appendCommitter(

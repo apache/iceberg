@@ -129,7 +129,7 @@ public class TestIcebergRewriteFilesCommitter {
       long snapshot1 = commit(rewrittenFileA1, rewrittenFileA2, rewrittenFileB1, rewrittenFileB2);
 
       DataFile addedFileA1 = createDataFile("data-new-1", partitionA);
-      RewriteResult rewriteResultA1 = RewriteResult.builder(snapshot1)
+      RewriteResult rewriteResultA1 = RewriteResult.builder(snapshot1, table.spec().partitionType())
           .partition(partitionA)
           .addRewrittenDataFiles(ImmutableList.of(rewrittenFileA1, rewrittenFileA2))
           .addAddedDataFiles(ImmutableList.of(addedFileA1))
@@ -138,7 +138,7 @@ public class TestIcebergRewriteFilesCommitter {
       assertSnapshots(1);
 
       DataFile addedFileB1 = createDataFile("data-new-1", partitionB);
-      RewriteResult rewriteResultB1 = RewriteResult.builder(snapshot1)
+      RewriteResult rewriteResultB1 = RewriteResult.builder(snapshot1, table.spec().partitionType())
           .partition(partitionB)
           .addRewrittenDataFiles(ImmutableList.of(rewrittenFileB1, rewrittenFileB2))
           .addAddedDataFiles(ImmutableList.of(addedFileB1))
@@ -151,7 +151,7 @@ public class TestIcebergRewriteFilesCommitter {
 
       DataFile addedFileA2 = createDataFile("data-new-2", partitionA);
       DataFile addedFileA3 = createDataFile("data-new-3", partitionA);
-      RewriteResult rewriteResultA2 = RewriteResult.builder(snapshot2)
+      RewriteResult rewriteResultA2 = RewriteResult.builder(snapshot2, table.spec().partitionType())
           .partition(partitionA)
           .addRewrittenDataFiles(ImmutableList.of(rewrittenFileA3))
           .addAddedDataFiles(ImmutableList.of(addedFileA2, addedFileA3))
@@ -193,7 +193,7 @@ public class TestIcebergRewriteFilesCommitter {
       long snapshot2 = commit(ImmutableList.of(), ImmutableList.of(posDeleteFile, eqDeleteFile));
 
       DataFile addedFile = createDataFile("data-new-1", partition);
-      RewriteResult rewriteResult = RewriteResult.builder(snapshot1)
+      RewriteResult rewriteResult = RewriteResult.builder(snapshot1, table.spec().partitionType())
           .partition(partition)
           .addRewrittenDataFiles(ImmutableList.of(rewrittenFile))
           .addAddedDataFiles(ImmutableList.of(addedFile))

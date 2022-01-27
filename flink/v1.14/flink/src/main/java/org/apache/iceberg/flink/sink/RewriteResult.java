@@ -26,6 +26,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructLikeSet;
 
 class RewriteResult {
 
@@ -60,19 +62,19 @@ class RewriteResult {
     return rewrittenDataFiles;
   }
 
-  static Builder builder(long startingSnapshotId) {
-    return new Builder(startingSnapshotId);
+  static Builder builder(long startingSnapshotId, Types.StructType partitionType) {
+    return new Builder(startingSnapshotId, partitionType);
   }
 
   static class Builder {
     private final long startingSnapshotId;
-    private final Set<StructLike> partitions;
+    private final StructLikeSet partitions;
     private final Set<DataFile> addedFiles;
     private final Set<DataFile> rewrittenDataFiles;
 
-    private Builder(long startingSnapshotId) {
+    private Builder(long startingSnapshotId, Types.StructType partitionType) {
       this.startingSnapshotId = startingSnapshotId;
-      this.partitions = Sets.newHashSet();
+      this.partitions = StructLikeSet.create(partitionType);
       this.addedFiles = Sets.newHashSet();
       this.rewrittenDataFiles = Sets.newHashSet();
     }
@@ -98,7 +100,7 @@ class RewriteResult {
     }
 
     RewriteResult build() {
-      return new RewriteResult(startingSnapshotId, partitions, addedFiles, rewrittenDataFiles);
+      return new RewriteResult(startingSnapshotId, Sets.newHashSet(partitions), addedFiles, rewrittenDataFiles);
     }
   }
 

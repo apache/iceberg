@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
@@ -136,8 +137,8 @@ class FlinkManifestUtil {
 
   static DeltaManifests writeExistingFiles(long sequenceNumber,
                                            long snapshotId,
-                                           DataFile[] dataFiles,
-                                           DeleteFile[] deleteFiles,
+                                           Collection<DataFile> dataFiles,
+                                           Collection<DeleteFile> deleteFiles,
                                            Supplier<OutputFile> outputFileSupplier,
                                            PartitionSpec spec) throws IOException {
 
@@ -145,13 +146,13 @@ class FlinkManifestUtil {
     ManifestFile deleteManifest = null;
 
     // Write the exists data files into a newly created data manifest file.
-    if (dataFiles != null && dataFiles.length > 0) {
+    if (dataFiles != null && dataFiles.size() > 0) {
       dataManifest = referenceDataFiles(outputFileSupplier.get(), sequenceNumber, snapshotId, spec,
           Lists.newArrayList(dataFiles));
     }
 
     // Write the exists delete files into a newly created delete manifest file.
-    if (deleteFiles != null && deleteFiles.length > 0) {
+    if (deleteFiles != null && deleteFiles.size() > 0) {
       deleteManifest = referenceDeleteFiles(outputFileSupplier.get(), sequenceNumber, snapshotId, spec,
           Lists.newArrayList(deleteFiles));
     }
