@@ -345,7 +345,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         while (index < names.length) {
           DataType dataType = schema.apply(names[index]).dataType();
           int fieldIndex = schema.fieldIndex(names[index]);
-          if (!values[fieldIndex].equals(ident.get(index, dataType))) {
+          if (!String.valueOf(values[fieldIndex]).equals(String.valueOf(ident.get(index, dataType)))) {
             exits = false;
             break;
           }
@@ -413,15 +413,16 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       Object catalystValue = values[fieldIndex];
       if (field.name().endsWith("hour")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
-        catalystValue = UTF8String.fromString(hour.toHumanString((int) catalystValue));
+        catalystValue = UTF8String.fromString(hour.toHumanString(catalystValue != null ? (int) catalystValue : null));
       } else if (field.name().endsWith("day")) {
-        catalystValue = DateTimeUtil.daysFromDate(LocalDate.parse(String.valueOf(catalystValue)));
+        catalystValue = catalystValue != null ?
+                DateTimeUtil.daysFromDate(LocalDate.parse(String.valueOf(catalystValue))) : null;
       } else if (field.name().endsWith("month")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> month = Transforms.month(Types.DateType.get());
-        catalystValue = UTF8String.fromString(month.toHumanString((int) catalystValue));
+        catalystValue = UTF8String.fromString(month.toHumanString(catalystValue != null ? (int) catalystValue : null));
       } else if (field.name().endsWith("year")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> year = Transforms.year(Types.DateType.get());
-        catalystValue = UTF8String.fromString(year.toHumanString((int) catalystValue));
+        catalystValue = UTF8String.fromString(year.toHumanString(catalystValue != null ? (int) catalystValue : null));
       } else if (field.dataType() instanceof StringType) {
         catalystValue = UTF8String.fromString(String.valueOf(catalystValue));
       }
