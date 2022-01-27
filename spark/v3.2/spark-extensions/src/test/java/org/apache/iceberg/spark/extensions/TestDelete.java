@@ -30,6 +30,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -52,7 +53,10 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
+import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
@@ -151,7 +155,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -170,8 +178,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    String expectedOperation = fileFormat.equals("avro") ? "overwrite" : "delete";
-    validateSnapshot(currentSnapshot, expectedOperation, "0", null, null);
+
+    if (fileFormat.equals("orc") || fileFormat.equals("parquet")) {
+      validateDelete(currentSnapshot, "0", null);
+    } else {
+      if (mode(table) == COPY_ON_WRITE) {
+        validateCopyOnWrite(currentSnapshot, "0", null, null);
+      } else {
+        validateMergeOnRead(currentSnapshot, "0", null, null);
+      }
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -193,7 +209,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "delete", "2", "3", null);
+    validateDelete(currentSnapshot, "2", "3");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(),
@@ -215,7 +231,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "delete", "2", "2", null);
+    validateDelete(currentSnapshot, "2", "2");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "dep1")),
@@ -238,7 +254,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should be an overwrite since cannot be executed using a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", null);
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", null);
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
@@ -319,7 +339,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "delete", "1", "1", null);
+    validateDelete(currentSnapshot, "1", "1");
   }
 
   @Test
@@ -736,8 +756,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "2", "2", "2");
-
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "2", "2", "2");
+    } else {
+      validateMergeOnRead(currentSnapshot, "2", "2", null);
+    }
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(3, "hr")),
         sql("SELECT * FROM %s ORDER BY id, dep", tableName));
@@ -747,6 +770,45 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM tmp ORDER BY id, dep"));
 
     spark.sql("UNCACHE TABLE tmp");
+  }
+
+  @Test
+  public void testDeleteWithMultipleSpecs() {
+    createAndInitTable("id INT, dep STRING, category STRING");
+
+    // write an unpartitioned file
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
+
+    // write a file partitioned by dep
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+    append(tableName, "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n" +
+        "{ \"id\": 3, \"dep\": \"hr\", \"category\": \"c1\" }");
+
+    // write a file partitioned by dep and category
+    sql("ALTER TABLE %s ADD PARTITION FIELD category", tableName);
+    append(tableName, "{ \"id\": 5, \"dep\": \"hr\", \"category\": \"c1\"}");
+
+    // write another file partitioned by dep
+    sql("ALTER TABLE %s DROP PARTITION FIELD category", tableName);
+    append(tableName, "{ \"id\": 7, \"dep\": \"hr\", \"category\": \"c1\"}");
+
+    sql("DELETE FROM %s WHERE id IN (1, 3, 5, 7)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 5 snapshots", 5, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+    if (mode(table) == COPY_ON_WRITE) {
+      // copy-on-write is tested against v1 and such tables have different partition evolution behavior
+      // that's why the number of changed partitions is 4 for copy-on-write
+      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "3", "3", null);
+    }
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hr", "c1")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   // TODO: multiple stripes for ORC
@@ -770,5 +832,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     List<Employee> input = Arrays.asList(employees);
     Dataset<Row> inputDF = spark.createDataFrame(input, Employee.class);
     inputDF.coalesce(1).writeTo(tableName).append();
+  }
+
+  private RowLevelOperationMode mode(Table table) {
+    String modeName = table.properties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+    return RowLevelOperationMode.fromName(modeName);
   }
 }

@@ -121,7 +121,11 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
       }
 
       if (currentFileRows == 0L) {
-        io.deleteFile(currentFile.encryptingOutputFile());
+        try {
+          io.deleteFile(currentFile.encryptingOutputFile());
+        } catch (UncheckedIOException e) {
+          // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+        }
       } else {
         addResult(currentWriter.result());
       }

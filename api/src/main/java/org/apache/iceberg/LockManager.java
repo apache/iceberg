@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg;
 
 import java.util.Map;
 
 /**
- * An interface for locking, used to ensure Glue catalog commit isolation.
+ * An interface for locking, used to ensure commit isolation.
  */
-interface LockManager extends AutoCloseable {
+public interface LockManager extends AutoCloseable {
 
   /**
    * Try to acquire a lock
@@ -37,7 +37,7 @@ interface LockManager extends AutoCloseable {
   /**
    * Release a lock
    *
-   * @apiNote exception must not be thrown for this method.
+   * exception must not be thrown for this method.
    *
    * @param entityId ID of the entity to lock
    * @param ownerId ID of the owner if the lock

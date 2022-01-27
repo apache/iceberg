@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -86,6 +87,8 @@ public class BaseDeleteOrphanFilesSparkAction
     }
   }, DataTypes.StringType);
 
+  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
+
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
@@ -98,6 +101,8 @@ public class BaseDeleteOrphanFilesSparkAction
       table.io().deleteFile(file);
     }
   };
+
+  private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
   public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -114,6 +119,12 @@ public class BaseDeleteOrphanFilesSparkAction
 
   @Override
   protected DeleteOrphanFiles self() {
+    return this;
+  }
+
+  @Override
+  public BaseDeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
+    this.deleteExecutorService = executorService;
     return this;
   }
 
@@ -167,6 +178,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
     Tasks.foreach(orphanFiles)
         .noRetry()
+        .executeWith(deleteExecutorService)
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);

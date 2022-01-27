@@ -104,6 +104,27 @@ spark.read
 
 Time travel is not yet supported by Spark's SQL syntax.
 
+### Incremental read
+
+To read appended data incrementally, use:
+
+* `start-snapshot-id` Start snapshot ID used in incremental scans (exclusive).
+* `end-snapshot-id` End snapshot ID used in incremental scans (inclusive). This is optional. Omitting it will default to the current snapshot.
+
+```scala
+// get the data added after start-snapshot-id (10963874102873L) until end-snapshot-id (63874143573109L)
+spark.read()
+  .format("iceberg")
+  .option("start-snapshot-id", "10963874102873")
+  .option("end-snapshot-id", "63874143573109")
+  .load("path/to/table")
+```
+
+!!! Note
+    Currently gets only the data from `append` operation. Cannot support `replace`, `overwrite`, `delete` operations.
+    Incremental read works with both V1 and V2 format-version.
+    Incremental read is not supported by Spark's SQL syntax.
+
 ### Spark 2.4
 
 Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support direct SQL queries:

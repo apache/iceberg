@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -200,7 +201,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
     Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
-        "Cannot process delete snapshot: %s", snapshot.snapshotId());
+        "Cannot process delete snapshot: %s, to ignore deletes, set %s=true.",
+        snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
     Preconditions.checkState(
         op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
         "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());

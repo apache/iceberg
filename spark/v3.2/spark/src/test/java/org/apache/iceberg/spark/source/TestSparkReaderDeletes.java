@@ -110,7 +110,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   @AfterClass
-  public static void stopMetastoreAndSpark() {
+  public static void stopMetastoreAndSpark() throws Exception {
     catalog = null;
     metastore.stop();
     metastore = null;

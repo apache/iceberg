@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.spark;
 
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -31,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.TypeUtil;
@@ -38,7 +42,15 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.expressions.BoundReference;
+import org.apache.spark.sql.catalyst.expressions.EqualTo;
+import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.Literal;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.util.SerializableConfiguration;
+import org.joda.time.DateTime;
 
 public class SparkUtil {
 
@@ -178,5 +190,64 @@ public class SparkUtil {
 
   private static String hadoopConfPrefixForCatalog(String catalogName) {
     return String.format(SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR, catalogName);
+  }
+
+  /**
+   * Get a List of Spark filter Expression.
+   *
+   * @param schema table schema
+   * @param filters filters in the format of a Map, where key is one of the table column name,
+   *                and value is the specific value to be filtered on the column.
+   * @return a List of filters in the format of Spark Expression.
+   */
+  public static List<Expression> partitionMapToExpression(StructType schema,
+                                                          Map<String, String> filters) {
+    List<Expression> filterExpressions = Lists.newArrayList();
+    for (Map.Entry<String, String> entry : filters.entrySet()) {
+      try {
+        int index = schema.fieldIndex(entry.getKey());
+        DataType dataType = schema.fields()[index].dataType();
+        BoundReference ref = new BoundReference(index, dataType, true);
+        switch (dataType.typeName()) {
+          case "integer":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(Integer.parseInt(entry.getValue()), DataTypes.IntegerType)));
+            break;
+          case "string":
+            filterExpressions.add(new EqualTo(ref, Literal.create(entry.getValue(), DataTypes.StringType)));
+            break;
+          case "short":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(Short.parseShort(entry.getValue()), DataTypes.ShortType)));
+            break;
+          case "long":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(Long.parseLong(entry.getValue()), DataTypes.LongType)));
+            break;
+          case "float":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(Float.parseFloat(entry.getValue()), DataTypes.FloatType)));
+            break;
+          case "double":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(Double.parseDouble(entry.getValue()), DataTypes.DoubleType)));
+            break;
+          case "date":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(new Date(DateTime.parse(entry.getValue()).getMillis()), DataTypes.DateType)));
+            break;
+          case "timestamp":
+            filterExpressions.add(new EqualTo(ref,
+                Literal.create(new Timestamp(DateTime.parse(entry.getValue()).getMillis()), DataTypes.TimestampType)));
+            break;
+          default:
+            throw new IllegalStateException("Unexpected data type in partition filters: " + dataType);
+        }
+      } catch (IllegalArgumentException e) {
+        // ignore if filter is not on table columns
+      }
+    }
+
+    return filterExpressions;
   }
 }

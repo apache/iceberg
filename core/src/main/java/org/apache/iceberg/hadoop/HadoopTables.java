@@ -21,12 +21,14 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
@@ -45,6 +47,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,8 +58,14 @@ import org.slf4j.LoggerFactory;
  * to store metadata and manifests.
  */
 public class HadoopTables implements Tables, Configurable {
+
+  public static final String LOCK_PROPERTY_PREFIX = "iceberg.tables.hadoop.";
+
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTables.class);
   private static final String METADATA_JSON = "metadata.json";
+
+  private static LockManager lockManager;
+
   private Configuration conf;
 
   public HadoopTables() {
@@ -194,8 +204,27 @@ public class HadoopTables implements Tables, Configurable {
     if (location.contains(METADATA_JSON)) {
       return new StaticTableOperations(location, new HadoopFileIO(conf));
     } else {
-      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf);
+      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf,
+          createOrGetLockManager(this));
     }
+  }
+
+  private static synchronized LockManager createOrGetLockManager(HadoopTables table) {
+    if (lockManager == null) {
+      Map<String, String> properties = Maps.newHashMap();
+      Iterator<Map.Entry<String, String>> configEntries = table.conf.iterator();
+      while (configEntries.hasNext()) {
+        Map.Entry<String, String> entry = configEntries.next();
+        String key = entry.getKey();
+        if (key.startsWith(LOCK_PROPERTY_PREFIX)) {
+          properties.put(key.substring(LOCK_PROPERTY_PREFIX.length()), entry.getValue());
+        }
+      }
+
+      lockManager = LockManagers.from(properties);
+    }
+
+    return lockManager;
   }
 
   private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,

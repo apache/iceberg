@@ -23,10 +23,17 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -35,13 +42,16 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Tasks;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
@@ -418,5 +428,48 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<FileScanTask> tasks = Lists.newArrayList(reloaded.newScan().planFiles());
     Assert.assertEquals("Should scan 1 files", 1, tasks.size());
+  }
+
+  @Test
+  public void testConcurrentFastAppends() throws Exception {
+    assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
+    File dir = temp.newFolder();
+    dir.delete();
+    int threadsCount = 5;
+    int numberOfCommitedFilesPerThread = 10;
+    Table tableWithHighRetries = TABLES.create(SCHEMA, SPEC,
+        ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)), dir.toURI().toString());
+
+    String fileName = UUID.randomUUID().toString();
+    DataFile file = DataFiles.builder(tableWithHighRetries.spec())
+        .withPath(FileFormat.PARQUET.addExtension(fileName))
+        .withRecordCount(2)
+        .withFileSizeInBytes(0)
+        .build();
+    ExecutorService executorService = Executors.newFixedThreadPool(threadsCount);
+
+    AtomicInteger barrier = new AtomicInteger(0);
+    Tasks
+        .range(threadsCount)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(index -> {
+          for (int numCommittedFiles = 0; numCommittedFiles < numberOfCommitedFilesPerThread; numCommittedFiles++) {
+            while (barrier.get() < numCommittedFiles * threadsCount) {
+              try {
+                Thread.sleep(10);
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+            }
+            tableWithHighRetries.newFastAppend().appendFile(file).commit();
+            barrier.incrementAndGet();
+          }
+        });
+
+    tableWithHighRetries.refresh();
+    assertEquals(threadsCount * numberOfCommitedFilesPerThread,
+        Lists.newArrayList(tableWithHighRetries.snapshots()).size());
   }
 }

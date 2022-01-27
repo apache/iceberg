@@ -156,6 +156,7 @@ spark.read
 | file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
 | vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
+| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
 
 ### Write options
 

@@ -30,15 +30,15 @@ usage () {
     echo "  -v      Version number of release"
     echo "  -r      Release candidate number"
     echo "  -k      Specify signing key. Defaults to \"GPG default key\""
-    echo "  -g      Specify Git remote name. Defaults to \"origin\""
+    echo "  -g      Specify Git remote name. Defaults to \"apache\""
     echo "  -d      Turn on DEBUG output"
     exit 1
 }
 
 # Default repository remote name
-remote="apache"
+remote="origin"
 
-while getopts "v:r:k:r:d" opt; do
+while getopts "v:r:k:g:d" opt; do
   case "${opt}" in
     v)
       version="${OPTARG}"
@@ -65,6 +65,11 @@ shift $((OPTIND-1))
 
 if [ -z "$version" ] || [ -z "$rc" ]; then
   echo "You must specify the version and RC numbers using the -v and -r switches"
+  usage
+fi
+
+if ! git ls-remote --exit-code "$remote" >/dev/null 2>&1 ; then
+  echo "The target remote git repository, ${remote}, is not configured in git. Please pass a valid value for the remote git repository to target via the -g switch"
   usage
 fi
 

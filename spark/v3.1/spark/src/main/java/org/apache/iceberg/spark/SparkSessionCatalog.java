@@ -123,11 +123,10 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public void invalidateTable(Identifier ident) {
-    if (icebergCatalog.tableExists(ident)) {
-      icebergCatalog.invalidateTable(ident);
-    } else {
-      getSessionCatalog().invalidateTable(ident);
-    }
+    // We do not need to check whether the table exists and whether
+    // it is an Iceberg table to reduce remote service requests.
+    icebergCatalog.invalidateTable(ident);
+    getSessionCatalog().invalidateTable(ident);
   }
 
   @Override

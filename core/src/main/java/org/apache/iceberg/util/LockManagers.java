@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg.util;
 
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -26,17 +26,16 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class LockManagers {
+public class LockManagers {
 
   private static final LockManager LOCK_MANAGER_DEFAULT = new InMemoryLockManager(Maps.newHashMap());
 
@@ -76,7 +75,7 @@ class LockManagers {
     return lockManager;
   }
 
-  abstract static class BaseLockManager implements LockManager {
+  public abstract static class BaseLockManager implements LockManager {
 
     private static volatile ScheduledExecutorService scheduler;
 

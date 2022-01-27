@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -113,6 +114,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
       persistGlueTable(glueTable, properties, metadata);
       commitStatus = CommitStatus.SUCCESS;
+    } catch (CommitFailedException e) {
+      throw e;
     } catch (ConcurrentModificationException e) {
       throw new CommitFailedException(e, "Cannot commit %s because Glue detected concurrent update", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {

@@ -287,6 +287,16 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     }
   }
 
+  @Test
+  public void testPartitionColumnNamedPartition() {
+    sql("CREATE TABLE %s (id int, partition int) USING iceberg PARTITIONED BY (partition)", tableName);
+    sql("INSERT INTO %s VALUES (1, 1), (2, 1), (3, 2), (2, 2)", tableName);
+    List<Object[]> expected = ImmutableList.of(
+            row(1, 1), row(2, 1), row(3, 2), row(2, 2));
+    assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+    Assert.assertEquals(2, sql("SELECT * FROM %s.files", tableName).size());
+  }
+
   private void assertPartitions(List<Object[]> expectedPartitions, String expectedTypeAsString,
                                 MetadataTableType tableType) throws ParseException {
     Dataset<Row> df = loadMetadataTable(tableType);
