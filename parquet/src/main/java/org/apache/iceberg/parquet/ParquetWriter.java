@@ -31,7 +31,6 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -114,13 +113,13 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         this.writer = new ParquetFileWriter(
             ParquetIO.file(output, conf), parquetSchema, writeMode, targetRowGroupSize, 0);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet file");
+        throw new UncheckedIOException("Failed to create Parquet file", e);
       }
 
       try {
         writer.start();
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to start Parquet file writer");
+        throw new UncheckedIOException("Failed to start Parquet file writer", e);
       }
     }
   }
