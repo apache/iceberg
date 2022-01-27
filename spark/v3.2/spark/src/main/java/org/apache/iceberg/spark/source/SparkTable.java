@@ -415,7 +415,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         org.apache.iceberg.transforms.Transform<Object, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
         catalystValue = UTF8String.fromString(hour.toHumanString((int) catalystValue));
       } else if (field.name().endsWith("day")) {
-        catalystValue = DateTimeUtil.daysFromDate(LocalDate.parse(catalystValue.toString()));
+        catalystValue = DateTimeUtil.daysFromDate(LocalDate.parse(String.valueOf(catalystValue)));
       } else if (field.name().endsWith("month")) {
         org.apache.iceberg.transforms.Transform<Object, Integer> month = Transforms.month(Types.DateType.get());
         catalystValue = UTF8String.fromString(month.toHumanString((int) catalystValue));
@@ -423,7 +423,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         org.apache.iceberg.transforms.Transform<Object, Integer> year = Transforms.year(Types.DateType.get());
         catalystValue = UTF8String.fromString(year.toHumanString((int) catalystValue));
       } else if (field.dataType() instanceof StringType) {
-        catalystValue = UTF8String.fromString(catalystValue.toString());
+        catalystValue = UTF8String.fromString(String.valueOf(catalystValue));
       }
       resultValues[fieldIndex] = catalystValue;
     });
