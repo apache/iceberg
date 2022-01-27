@@ -89,7 +89,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   // tracking the min sequence number of data files on each partition
   private final Map<String, Long> minSequenceNumberByPartition = Maps.newHashMap();
 
-  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById, Types.StructType schema) {
+  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById) {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
