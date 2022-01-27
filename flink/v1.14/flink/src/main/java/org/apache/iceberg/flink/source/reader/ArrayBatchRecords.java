@@ -43,8 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  *
  * This class uses array to store a batch of records from the same file (with the same fileOffset).
  */
-@Internal
-public class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
+class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
   @Nullable
   private String splitId;
   @Nullable
@@ -69,7 +68,7 @@ public class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPositi
     this.recycler = recycler;
     this.records = records;
     this.numberOfRecords = numberOfRecords;
-    this.finishedSplits = Preconditions.checkNotNull(finishedSplits);
+    this.finishedSplits = Preconditions.checkNotNull(finishedSplits, "finishedSplits can be empty but not null");
     this.recordAndPosition = new RecordAndPosition<>();
 
     recordAndPosition.set(null, fileOffset, startingRecordOffset);
