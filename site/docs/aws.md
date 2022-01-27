@@ -401,6 +401,10 @@ If for any reason you have to use S3A, here are the instructions:
 3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
 4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
 
+### S3 Write Checksum Verification
+
+To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`. This is turned off by default.
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
