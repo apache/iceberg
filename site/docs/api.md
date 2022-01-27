@@ -172,7 +172,7 @@ MapType map = MapType.ofOptional(
     1, 2,
     Types.IntegerType.get(),
     Types.StringType.get()
-   )
+  )
 ```
 ```java
 // array<1 element: int>
