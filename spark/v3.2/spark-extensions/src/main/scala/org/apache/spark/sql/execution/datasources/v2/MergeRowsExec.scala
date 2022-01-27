@@ -49,9 +49,8 @@ case class MergeRowsExec(
     child: SparkPlan) extends UnaryExecNode {
 
   override def requiredChildOrdering: Seq[Seq[SortOrder]] = {
-    // request a local sort by the row ID attrs if shuffle hash joins are enabled
-    // this is needed to co-locate matches for the same target row after the shuffle
-    if (performCardinalityCheck && !conf.preferSortMergeJoin) {
+    // request a local sort by the row ID attrs to co-locate matches for the same target row
+    if (performCardinalityCheck) {
       Seq(rowIdAttrs.map(attr => SortOrder(attr, Ascending)))
     } else {
       Seq(Nil)
