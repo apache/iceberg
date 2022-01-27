@@ -427,7 +427,7 @@ paths:
               schema:
                 $ref: '#/components/responses/IcebergErrorResponse'
               examples:
-                TableToRenameDoesNotExist:
+                TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
@@ -471,7 +471,7 @@ paths:
               schema:
                 $ref: '#/components/responses/IcebergErrorResponse'
               examples:
-                TableToRenameDoesNotExist:
+                TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
         409:
           description:
@@ -519,7 +519,7 @@ paths:
               schema:
                 $ref: '#/components/responses/IcebergErrorResponse'
               examples:
-                TableToRenameDoesNotExist:
+                TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
