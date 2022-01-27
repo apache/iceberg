@@ -33,12 +33,8 @@ public class TestArrayBatchRecords {
 
   @Test
   public void testSubRange() {
-    String[] elements = new String[8];
-    elements[0] = "0";
-    elements[1] = "1";
-    elements[2] = "2";
-    elements[3] = "3";
-    testArray(elements, 4, 0, 0);
+    String[] elements = new String[]{"0", "1", "2", "3"};
+    testArray(elements, 2, 0, 0);
   }
 
   private void testArray(String[] elements, int numberOfRecords, int fileOffset, long startingRecordOffset) {
