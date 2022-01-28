@@ -41,6 +41,13 @@ public interface ActionsProvider {
   }
 
   /**
+   * Instantiates an action to migrate an existing table to Iceberg.
+   */
+  default MigrateTable migrateTable(String tableIdent, int parallelism) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement migrateTable");
+  }
+
+  /**
    * Instantiates an action to delete orphan files.
    */
   default DeleteOrphanFiles deleteOrphanFiles(Table table) {

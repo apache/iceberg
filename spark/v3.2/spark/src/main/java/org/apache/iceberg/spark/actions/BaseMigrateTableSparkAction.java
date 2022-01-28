@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -60,6 +61,8 @@ public class BaseMigrateTableSparkAction
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
+  // Max number of concurrent files to read per partition while indexing table
+  private final int readDatafileParallelism;
 
   public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
@@ -67,6 +70,17 @@ public class BaseMigrateTableSparkAction
     this.destTableIdent = sourceTableIdent;
     String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
     this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
+    this.readDatafileParallelism = 1;
+  }
+
+  public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
+                                     int parallelism) {
+    super(spark, sourceCatalog, sourceTableIdent);
+    this.destCatalog = checkDestinationCatalog(sourceCatalog);
+    this.destTableIdent = sourceTableIdent;
+    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
+    this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
+    this.readDatafileParallelism = parallelism;
   }
 
   @Override
@@ -125,7 +139,8 @@ public class BaseMigrateTableSparkAction
       TableIdentifier v1BackupIdent = new TableIdentifier(backupIdent.name(), backupNamespace);
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1BackupIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(spark(), v1BackupIdent, icebergTable, stagingLocation, Collections.emptyMap(),
+          false, readDatafileParallelism);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

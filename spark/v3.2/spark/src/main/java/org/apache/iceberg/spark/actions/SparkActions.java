@@ -66,6 +66,15 @@ public class SparkActions extends BaseSparkActions {
   }
 
   @Override
+  public MigrateTable migrateTable(String tableIdent, int parallesim) {
+    String ctx = "migrate target";
+    CatalogPlugin defaultCatalog = spark().sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark(), tableIdent, defaultCatalog);
+    return new BaseMigrateTableSparkAction(spark(), catalogAndIdent.catalog(), catalogAndIdent.identifier(),
+        parallesim);
+  }
+
+  @Override
   public RewriteDataFiles rewriteDataFiles(Table table) {
     return new BaseRewriteDataFilesSpark3Action(spark(), table);
   }

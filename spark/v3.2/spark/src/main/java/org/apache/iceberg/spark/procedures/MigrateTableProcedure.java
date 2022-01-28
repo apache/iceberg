@@ -37,7 +37,8 @@ import scala.runtime.BoxedUnit;
 class MigrateTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
       ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("properties", STRING_MAP)
+      ProcedureParameter.optional("properties", STRING_MAP),
+      ProcedureParameter.optional("max_concurrent_read_datafiles", DataTypes.IntegerType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -82,7 +83,15 @@ class MigrateTableProcedure extends BaseProcedure {
           });
     }
 
-    MigrateTable.Result result = SparkActions.get().migrateTable(tableName).tableProperties(properties).execute();
+    int parallelism;
+    if (!args.isNullAt(2)) {
+      parallelism = args.getInt(2);
+    } else {
+      parallelism = 1;
+    }
+
+    MigrateTable.Result result = SparkActions.get().migrateTable(tableName, parallelism).tableProperties(properties)
+        .execute();
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 
