@@ -488,13 +488,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .addField(ref("id"))
         .commit();
 
-    table.refresh();
-
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots);
-
-    table.refresh();
 
     // this should create a snapshot with type overwrite.
     table.newOverwrite()
