@@ -209,17 +209,18 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         return false;
       case DataOperations.DELETE:
         Preconditions.checkState(skipDelete,
-                "Cannot process delete snapshot: %s, to ignore deletes, set %s=true.",
+            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
             snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
         Preconditions.checkState(skipOverwrite,
-                "Cannot process overwrite snapshot: %s, to ignore deletes, set %s=true.",
+            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
             snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
         return false;
       default:
-        throw new IllegalStateException(String.format("Cannot process unknown snapshot operation: %s (snapshot id %s)",
-                op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
+        throw new IllegalStateException(String.format(
+            "Cannot process unknown snapshot operation: %s (snapshot id %s)",
+            op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
     }
   }
 
