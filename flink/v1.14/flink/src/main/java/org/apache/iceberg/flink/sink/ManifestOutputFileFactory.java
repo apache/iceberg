@@ -52,8 +52,8 @@ class ManifestOutputFileFactory {
   }
 
   private String generatePath(long checkpointId) {
-    return FileFormat.AVRO.addExtension(String.format("%s-%05d-%s-%d-%d-%05d", flinkJobId, subTaskId,
-        operatorUniqueId, attemptNumber, checkpointId, fileCount.incrementAndGet()));
+    return FileFormat.AVRO.addExtension(String.format("%s-%s-%05d-%d-%d-%05d", flinkJobId, operatorUniqueId,
+        subTaskId, attemptNumber, checkpointId, fileCount.incrementAndGet()));
   }
 
   OutputFile create(long checkpointId) {

@@ -62,10 +62,10 @@ class FlinkManifestUtil {
   }
 
   static ManifestOutputFileFactory createOutputFileFactory(Table table, String flinkJobId, int subTaskId,
-                                                           String operatorUniqueId, long attemptNumber) {
+                                                           String operatorUId, long attemptNumber) {
     TableOperations ops = ((HasTableOperations) table).operations();
     return new ManifestOutputFileFactory(ops, table.io(), table.properties(), flinkJobId, subTaskId,
-        operatorUniqueId, attemptNumber);
+        operatorUId, attemptNumber);
   }
 
   static DeltaManifests writeCompletedFiles(WriteResult result,
