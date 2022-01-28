@@ -90,7 +90,7 @@ public class TestFlinkManifest {
     String operatorId = newOperatorUniqueId();
     for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
       ManifestOutputFileFactory factory =
-          FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, operatorId, 1);
+          FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, operatorId, 1, 1);
       final long curCkpId = checkpointId;
 
       List<DataFile> dataFiles = generateDataFiles(10);
@@ -128,7 +128,7 @@ public class TestFlinkManifest {
     Map<String, String> props = ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
         ((HasTableOperations) table).operations(), table.io(), props,
-        flinkJobId, 1, operatorId, 1);
+        flinkJobId, operatorId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(5);
     DeltaManifests deltaManifests = FlinkManifestUtil.writeCompletedFiles(
@@ -159,8 +159,8 @@ public class TestFlinkManifest {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
-    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1,
-        operatorId, 1);
+    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, operatorId,
+        1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     List<DeleteFile> eqDeleteFiles = generateEqDeleteFiles(10);
@@ -191,8 +191,8 @@ public class TestFlinkManifest {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
-    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1,
-        operatorId, 1);
+    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, operatorId,
+        1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest = FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);

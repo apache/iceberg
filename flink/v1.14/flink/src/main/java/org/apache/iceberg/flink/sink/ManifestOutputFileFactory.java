@@ -35,19 +35,19 @@ class ManifestOutputFileFactory {
   private final FileIO io;
   private final Map<String, String> props;
   private final String flinkJobId;
-  private final int subTaskId;
   private final String operatorUniqueId;
+  private final int subTaskId;
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
-                            String flinkJobId, int subTaskId, String operatorUniqueId, long attemptNumber) {
+                            String flinkJobId,  String operatorUniqueId, int subTaskId, long attemptNumber) {
     this.ops = ops;
     this.io = io;
     this.props = props;
     this.flinkJobId = flinkJobId;
-    this.subTaskId = subTaskId;
     this.operatorUniqueId = operatorUniqueId;
+    this.subTaskId = subTaskId;
     this.attemptNumber = attemptNumber;
   }
 
