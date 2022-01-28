@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -238,11 +239,19 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot));
 
     Set<Long> pickedAncestorSnapshotIds = Sets.newHashSet();
+    Set<Long> truncatedAncestorSnapshotIds = Sets.newHashSet();
     for (long snapshotId : ancestorIds) {
-      String sourceSnapshotId = base.snapshot(snapshotId).summary().get(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP);
+      Map<String, String> summary = base.snapshot(snapshotId).summary();
+
+      String sourceSnapshotId = summary.get(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP);
       if (sourceSnapshotId != null) {
         // protect any snapshot that was cherry-picked into the current table state
         pickedAncestorSnapshotIds.add(Long.parseLong(sourceSnapshotId));
+      }
+
+      String truncatedSnapshotId = summary.get(SnapshotSummary.TRUNCATE_SNAPSHOT_ID_PROP);
+      if (truncatedSnapshotId != null) {
+        truncatedAncestorSnapshotIds.add(Long.parseLong(truncatedSnapshotId));
       }
     }
 
@@ -284,6 +293,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<String> manifestsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
+    Set<ManifestFile> manifestsToTruncate = Sets.newHashSet();
     Tasks.foreach(base.snapshots()).retry(3).suppressFailureWhenFinished()
         .onFailure((snapshot, exc) ->
             LOG.warn("Failed on snapshot {} while reading manifest list: {}", snapshot.snapshotId(),
@@ -320,6 +330,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                 }
 
                 // find any manifests that are no longer needed
+                boolean isFromTruncatedSnapshot = truncatedAncestorSnapshotIds.contains(snapshotId);
                 try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot)) {
                   for (ManifestFile manifest : manifests) {
                     if (!validManifests.contains(manifest.path())) {
@@ -346,6 +357,11 @@ class RemoveSnapshots implements ExpireSnapshots {
                         // ancestor ID set would not contain it and this would be unsafe.
                         manifestsToRevert.add(manifest.copy());
                       }
+
+                      if (isFromTruncatedSnapshot) {
+                        // Delete ANY files in truncated snapshot.
+                        manifestsToTruncate.add(manifest.copy());
+                      }
                     }
                   }
                 } catch (IOException e) {
@@ -359,7 +375,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                 }
               }
             });
-    deleteDataFiles(manifestsToScan, manifestsToRevert, validIds);
+    deleteDataFiles(manifestsToScan, manifestsToRevert, manifestsToTruncate, validIds);
     deleteMetadataFiles(manifestsToDelete, manifestListsToDelete);
   }
 
@@ -381,8 +397,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private void deleteDataFiles(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
-                               Set<Long> validIds) {
-    Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
+                               Set<ManifestFile> manifestsToTruncate, Set<Long> validIds) {
+    Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, manifestsToTruncate, validIds);
     Tasks.foreach(filesToDelete)
         .executeWith(deleteExecutorService)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
@@ -391,8 +407,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private Set<String> findFilesToDelete(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
-                                        Set<Long> validIds) {
+                                        Set<ManifestFile> manifestsToTruncate, Set<Long> validIds) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
+
     Tasks.foreach(manifestsToScan)
         .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
@@ -418,7 +435,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
-          // the manifest has deletes, scan it to find files to delete
+          // the manifest has added files to revert, scan it to find files to delete
           try (ManifestReader<?> reader = ManifestFiles.open(manifest, ops.io(), ops.current().specsById())) {
             for (ManifestEntry<?> entry : reader.entries()) {
               // delete any ADDED file from manifests that were reverted
@@ -426,6 +443,22 @@ class RemoveSnapshots implements ExpireSnapshots {
                 // use toString to ensure the path will not change (Utf8 is reused)
                 filesToDelete.add(entry.file().path().toString());
               }
+            }
+          } catch (IOException e) {
+            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+          }
+        });
+
+    Tasks.foreach(manifestsToTruncate)
+        .retry(3).suppressFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .onFailure((item, exc) -> LOG.warn("Failed to get files: this may cause orphaned data files", exc))
+        .run(manifest -> {
+          try (ManifestReader<?> reader = ManifestFiles.open(manifest, ops.io(), ops.current().specsById())) {
+            for (ManifestEntry<?> entry : reader.entries()) {
+              // delete ANY files in truncated snapshot's manifests
+              // use toString to ensure the path will not change (Utf8 is reused)
+              filesToDelete.add(entry.file().path().toString());
             }
           } catch (IOException e) {
             throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);

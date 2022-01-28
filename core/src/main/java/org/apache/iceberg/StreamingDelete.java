@@ -25,7 +25,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * {@link DeleteFiles Delete} implementation that avoids loading full manifests in memory.
@@ -97,8 +96,12 @@ class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements De
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    if (parentSnapshotId != null) {
+      set(SnapshotSummary.TRUNCATE_SNAPSHOT_ID_PROP, parentSnapshotId.toString());
+    }
+
     return new BaseSnapshot(ops.io(),
-            sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), ImmutableMap.of(),
+            sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(),
             base.currentSchemaId(), manifestList.location());
   }
 }

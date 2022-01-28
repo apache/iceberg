@@ -53,6 +53,7 @@ public class SnapshotSummary {
   public static final String PUBLISHED_WAP_ID_PROP = "published-wap-id";
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
+  public static final String TRUNCATE_SNAPSHOT_ID_PROP = "truncate-snapshot-id";
   public static final String EXTRA_METADATA_PREFIX = "snapshot-property.";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
