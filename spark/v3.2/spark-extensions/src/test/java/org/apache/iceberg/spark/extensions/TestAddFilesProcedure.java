@@ -355,7 +355,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Object result = scalarSql("CALL %s.system.add_files(" +
                     "table => '%s', " +
                     "source_table => '%s', " +
-                    "list_partition_parallelism => 3)",
+                    "max_concurrent_read_datafiles => 3)",
             catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(8L, result);
@@ -377,7 +377,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Object result = scalarSql("CALL %s.system.add_files(" +
                     "table => '%s', " +
                     "source_table => '%s', " +
-                    "list_partition_parallelism => 3)",
+                    "max_concurrent_read_datafiles => 3)",
             catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result);

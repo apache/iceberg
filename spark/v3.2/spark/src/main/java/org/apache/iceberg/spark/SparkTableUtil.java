@@ -380,7 +380,7 @@ public class SparkTableUtil {
    * @param stagingDir a staging directory to store temporary manifest files
    * @param partitionFilter only import partitions whose values match those in the map, can be partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param parallelism the parallelism to list the datafile of source spark table
+   * @param parallelism Controls max concurrency of file reads per partition
    */
   public static void importSparkTable(SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable,
                                       String stagingDir, Map<String, String> partitionFilter,
@@ -511,11 +511,6 @@ public class SparkTableUtil {
     }
   }
 
-  private static void importUnpartitionedSparkTable(SparkSession spark, TableIdentifier sourceTableIdent,
-                                                    Table targetTable, boolean checkDuplicateFiles) {
-    importUnpartitionedSparkTable(spark, sourceTableIdent, targetTable, checkDuplicateFiles, 1);
-  }
-
   /**
    * Import files from given partitions to an Iceberg table.
    *
@@ -525,7 +520,7 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param listPartitionParallelism the parallelism to list the datafile of source spark table
+   * @param listPartitionParallelism Max number of concurrent files to read per partition while indexing table
    */
   public static void importSparkPartitions(SparkSession spark, List<SparkPartition> partitions, Table targetTable,
                                            PartitionSpec spec, String stagingDir, boolean checkDuplicateFiles,
@@ -547,9 +542,9 @@ public class SparkTableUtil {
 
     Dataset<DataFile> filesToImport = partitionDS
         .flatMap((FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
-                        TableMigrationUtil.listPartition(sparkPartition.values, sparkPartition.uri,
-                                sparkPartition.format, spec, serializableConf.get(), metricsConfig, nameMapping,
-                                listPartitionParallelism).iterator(),
+                TableMigrationUtil.listPartition(sparkPartition.values, sparkPartition.uri,
+                        sparkPartition.format, spec, serializableConf.get(), metricsConfig, nameMapping,
+                        listPartitionParallelism).iterator(),
             Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {
