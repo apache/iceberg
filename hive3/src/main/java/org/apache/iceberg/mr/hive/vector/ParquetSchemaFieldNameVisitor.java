@@ -58,9 +58,10 @@ class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
 
     for (Types.NestedField field : expectedFields) {
       int id = field.fieldId();
-      if (id == MetadataColumns.ROW_POSITION.fieldId() || id == MetadataColumns.IS_DELETED.fieldId()) {
+      if (MetadataColumns.metadataFieldIds().contains(id)) {
         continue;
       }
+
       Type fieldInPrunedFileSchema = typesById.get(id);
       if (fieldInPrunedFileSchema == null) {
         if (!originalFileSchema.containsField(field.name())) {
@@ -76,7 +77,6 @@ class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
         types.add(fieldInPrunedFileSchema);
         appendToColNamesList(isMessageType, fieldInPrunedFileSchema.getName());
       }
-
     }
 
     if (!isMessageType) {
