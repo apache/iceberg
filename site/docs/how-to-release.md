@@ -22,6 +22,17 @@ To create a release candidate, you will need:
 * Apache LDAP credentals for Nexus and SVN
 * A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
 
+If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
+
+```shell
+svn co https://dist.apache.org/repos/dist/dev/iceberg icebergsvn
+cd icebergsvn
+echo ""  >> KEYS # append a newline
+gpg --list-sigs <YOUR KEY ID HERE> >> KEYS # append signatures
+gpg --armor --export <YOUR KEY ID HERE> >> KEYS # append public key block
+svn commit -m "add key for <YOUR NAME HERE>"
+```
+
 ### Nexus access
 
 Nexus credentials are configured in your personal `~/.gradle/gradle.properties` file using `mavenUser` and `mavenPassword`:
@@ -52,15 +63,54 @@ For more information, see the Gradle [signing documentation](https://docs.gradle
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
 
 ```bash
-dev/source-release.sh 0.8.1 0
+dev/source-release.sh -v 0.13.0 -r 0 -k <YOUR KEY ID HERE>
 ```
-```
-Preparing source for apache-iceberg-0.8.1-rc0
-...
-Success! The release candidate is available here:
-  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-0.8.1-rc0/
 
-Commit SHA1: 4b4716c76559b3cdf3487e6b60ab52950241989b
+Example console output:
+
+```text
+Preparing source for apache-iceberg-0.13.0-rc1
+Adding version.txt and tagging release...
+[master ca8bb7d0] Add version.txt for release 0.13.0
+ 1 file changed, 1 insertion(+)
+ create mode 100644 version.txt
+Pushing apache-iceberg-0.13.0-rc1 to origin...
+Enumerating objects: 5, done.
+Counting objects: 100% (5/5), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (3/3), done.
+Writing objects: 100% (4/4), 433 bytes | 433.00 KiB/s, done.
+Total 4 (delta 1), reused 0 (delta 0)
+remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+To https://github.com/apache/iceberg.git
+ * [new tag]           apache-iceberg-0.13.0-rc1 -> apache-iceberg-0.13.0-rc1
+Creating tarball  using commit ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
+Signing the tarball...
+Checking out Iceberg RC subversion repo...
+Checked out revision 52260.
+Adding tarball to the Iceberg distribution Subversion repo...
+A         tmp/apache-iceberg-0.13.0-rc1
+A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
+A  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
+A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
+Adding         tmp/apache-iceberg-0.13.0-rc1
+Adding  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
+Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
+Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
+Transmitting file data ...done
+Committing transaction...
+Committed revision 52261.
+Creating release-announcement-email.txt...
+Success! The release candidate is available here:
+  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-0.13.0-rc1
+
+Commit SHA1: ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
+
+We have generated a release announcement email for you here:
+/Users/jackye/iceberg/release-announcement-email.txt
+
+Please note that you must update the Nexus repository URL
+contained in the mail before sending it out.
 ```
 
 The source release script will create a candidate tag based on the HEAD revision in git and will prepare the release tarball, signature, and checksum files. It will also upload the source artifacts to SVN.
@@ -76,8 +126,8 @@ Convenience binaries are created using the source release tarball from in the la
 Untar the source release and go into the release directory:
 
 ```bash
-tar xzf apache-iceberg-0.8.1.tar.gz
-cd apache-iceberg-0.8.1
+tar xzf apache-iceberg-0.13.0.tar.gz
+cd apache-iceberg-0.13.0
 ```
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
@@ -94,13 +144,22 @@ Next, you need to close the staging repository:
 4. At the top, select "Close" and follow the instructions
     * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
 
+!!! Note
+   If multiple staging repositories are created after running the script, set `org.gradle.parallel=false` in `gradle.properties`
+
 ### Start a VOTE thread
 
 The last step for a candidate is to create a VOTE thread on the dev mailing list.
+The email template is already generated in `release-announcement-email.txt` with some details filled.
+
+Example title subject:
 
 ```text
-Subject: [VOTE] Release Apache Iceberg <VERSION> RC<NUM>
+[VOTE] Release Apache Iceberg <VERSION> RC<NUM>
 ```
+
+Example content:
+
 ```text
 Hi everyone,
 

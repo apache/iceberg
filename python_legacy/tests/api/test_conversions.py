@@ -37,8 +37,8 @@ from iceberg.api.types.conversions import Conversions
 class TestConversions(unittest.TestCase):
 
     def test_from_bytes(self):
-        self.assertEqual(False, Conversions.from_byte_buffer(BooleanType.get(), b'\x00\x00'))
-        self.assertEqual(True, Conversions.from_byte_buffer(BooleanType.get(), b'\x01\x00'))
+        self.assertEqual(False, Conversions.from_byte_buffer(BooleanType.get(), b'\x00'))
+        self.assertEqual(True, Conversions.from_byte_buffer(BooleanType.get(), b'\x01'))
         self.assertEqual(1234, Conversions.from_byte_buffer(IntegerType.get(),
                                                             b'\xd2\x04\x00\x00'))
         self.assertEqual(1234, Conversions.from_byte_buffer(LongType.get(),
@@ -62,8 +62,8 @@ class TestConversions(unittest.TestCase):
         self.assertEqual(b'foo', Conversions.from_byte_buffer(BinaryType.get(), b'foo'))
 
     def test_to_bytes(self):
-        self.assertEqual(b'\x00\x00', Literal.of(False).to_byte_buffer())
-        self.assertEqual(b'\x01\x00', Literal.of(True).to_byte_buffer())
+        self.assertEqual(b'\x00', Literal.of(False).to_byte_buffer())
+        self.assertEqual(b'\x01', Literal.of(True).to_byte_buffer())
         self.assertEqual(b'\xd2\x04\x00\x00', Literal.of(1234).to_byte_buffer())
         self.assertEqual(b'\xd2\x04\x00\x00\x00\x00\x00\x00', Literal.of(1234).to(LongType.get()).to_byte_buffer())
         self.assertEqual(b'\x19\x04\x9e?', Literal.of(1.2345).to_byte_buffer())

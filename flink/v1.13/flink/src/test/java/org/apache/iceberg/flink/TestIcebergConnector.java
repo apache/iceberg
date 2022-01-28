@@ -39,6 +39,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.Assert;
@@ -242,8 +243,8 @@ public class TestIcebergConnector extends FlinkTestBase {
     sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
     sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
     Assert.assertEquals("Should have expected rows",
-        Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        sql("SELECT * FROM %s", TABLE_NAME));
+        Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
+        Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
@@ -256,8 +257,8 @@ public class TestIcebergConnector extends FlinkTestBase {
     sql("DROP TABLE %s", TABLE_NAME);
     sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
     Assert.assertEquals("Should have expected rows",
-        Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        sql("SELECT * FROM %s", TABLE_NAME));
+        Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
+        Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
   }
 
   @Test

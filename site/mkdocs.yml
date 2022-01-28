@@ -28,7 +28,7 @@ use_directory_urls: true
 theme:
   name: windmill
   custom_dir: docs/theme_customization
-copyright: "Copyright 2018-2021 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
+copyright: "Copyright 2018-2022 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
 extra_css:
   - css/extra.css
 extra:
@@ -43,7 +43,7 @@ extra:
     Spark: /getting-started/
   versions:
     iceberg: 0.12.1
-    nessie: 0.17.0
+    nessie: 0.18.0
   logo: img/favicon-96x96.png
   version: 0.12.1
   article_nav_top: false
@@ -89,7 +89,7 @@ nav:
   - Hive: hive.md
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
-  - Dremio: https://docs.dremio.com/data-formats/iceberg-enabling/
+  - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
   - Integrations:
     - AWS: aws.md
     - Nessie: nessie.md

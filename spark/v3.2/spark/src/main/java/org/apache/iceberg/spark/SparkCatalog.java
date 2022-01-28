@@ -268,10 +268,8 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public void invalidateTable(Identifier ident) {
-    try {
-      load(ident).first().refresh();
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
-      // ignore if the table doesn't exist, it is not cached
+    if (!isPathIdentifier(ident)) {
+      icebergCatalog.invalidateTable(buildIdentifier(ident));
     }
   }
 
@@ -495,7 +493,7 @@ public class SparkCatalog extends BaseCatalog {
       Table table;
       try {
         table = icebergCatalog.loadTable(namespaceAsIdent);
-      } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
+      } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw the original exception
         throw e;
