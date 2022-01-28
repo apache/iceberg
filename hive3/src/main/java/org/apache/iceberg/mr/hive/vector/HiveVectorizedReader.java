@@ -159,7 +159,7 @@ public class HiveVectorizedReader {
           expectedSchema);
     }
 
-    ParquetSchemaFieldNameVisitor psv = new ParquetSchemaFieldNameVisitor();
+    ParquetSchemaFieldNameVisitor psv = new ParquetSchemaFieldNameVisitor(fileSchema);
     TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), typeWithIds, psv);
     job.set(IOConstants.COLUMNS, psv.retrieveColumnNameList());
 

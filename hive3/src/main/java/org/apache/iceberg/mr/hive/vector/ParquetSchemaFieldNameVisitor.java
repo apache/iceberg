@@ -35,15 +35,18 @@ import org.apache.parquet.schema.Type;
  * field names to what fields the visitor can match in the file schema to support column renames.
  */
 class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
+  private final MessageType originalFileSchema;
   private final Map<Integer, Type> typesById = Maps.newHashMap();
   private StringBuilder sb = new StringBuilder();
+  private static final String DUMMY_COL_NAME = "<<DUMMY_FOR_RECREATED_FIELD_IN_FILESCHEMA>>";
 
-  ParquetSchemaFieldNameVisitor() {
+  ParquetSchemaFieldNameVisitor(MessageType originalFileSchema) {
+    this.originalFileSchema = originalFileSchema;
   }
 
   @Override
-  public Type message(Types.StructType expected, MessageType message, List<Type> fields) {
-    return this.struct(expected, message.asGroupType(), fields);
+  public Type message(Types.StructType expected, MessageType prunedFileSchema, List<Type> fields) {
+    return this.struct(expected, prunedFileSchema.asGroupType(), fields);
   }
 
   @Override
@@ -55,17 +58,25 @@ class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
 
     for (Types.NestedField field : expectedFields) {
       int id = field.fieldId();
-      if (id != MetadataColumns.ROW_POSITION.fieldId() && id != MetadataColumns.IS_DELETED.fieldId()) {
-        Type fieldInFileSchema = typesById.get(id);
-        if (fieldInFileSchema == null) {
-          // New field - not in this parquet file yet, add the new field name instead of null
+      if (id == MetadataColumns.ROW_POSITION.fieldId() || id == MetadataColumns.IS_DELETED.fieldId()) {
+        continue;
+      }
+      Type fieldInPrunedFileSchema = typesById.get(id);
+      if (fieldInPrunedFileSchema == null) {
+        if (!originalFileSchema.containsField(field.name())) {
+          // Must be a new field - it isn't in this parquet file yet, so add the new field name instead of null
           appendToColNamesList(isMessageType, field.name());
         } else {
-          // Already present column in this parquet file, add the original name
-          types.add(fieldInFileSchema);
-          appendToColNamesList(isMessageType, fieldInFileSchema.getName());
+          // This field is found in the parquet file with a different ID, so it must have been recreated since.
+          // Inserting a dummy col name to force Hive Parquet reader returning null for this column.
+          appendToColNamesList(isMessageType, DUMMY_COL_NAME);
         }
+      } else {
+        // Already present column in this parquet file, add the original name
+        types.add(fieldInPrunedFileSchema);
+        appendToColNamesList(isMessageType, fieldInPrunedFileSchema.getName());
       }
+
     }
 
     if (!isMessageType) {

@@ -168,6 +168,11 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, testTableType, temp);
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, executionEngine);
     HiveConf.setBoolVar(shell.getHiveConf(), HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED, isVectorized);
+    if (isVectorized) {
+      HiveConf.setVar(shell.getHiveConf(), HiveConf.ConfVars.HIVEFETCHTASKCONVERSION, "none");
+    } else {
+      HiveConf.setVar(shell.getHiveConf(), HiveConf.ConfVars.HIVEFETCHTASKCONVERSION, "more");
+    }
   }
 
   @After
@@ -805,6 +810,52 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     List<Object[]> result = shell.executeStatement("SELECT * FROM targettab ORDER BY last_name");
 
     Assert.assertEquals(20000, result.size());
+
+  }
+
+  @Test
+  public void testRemoveAndAddBackColumnFromIcebergTable() throws IOException {
+    assumeTrue(isVectorized && FileFormat.PARQUET.equals(fileFormat));
+    // Create an Iceberg table with the columns customer_id, first_name and last_name with some initial data.
+    Table icebergTable = testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        fileFormat, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+
+    // Remove the first_name column
+    icebergTable.updateSchema().deleteColumn("first_name").commit();
+    // Add a new column with the name first_name
+    icebergTable.updateSchema().addColumn("first_name", Types.StringType.get(), "This is new first name").commit();
+
+    // Add new data to the table with the new first_name column filled.
+    icebergTable = testTables.loadTable(TableIdentifier.of("default", "customers"));
+    Schema customerSchemaWithNewFirstName = new Schema(optional(1, "customer_id", Types.LongType.get()),
+        optional(2, "last_name", Types.StringType.get(), "This is last name"),
+        optional(3, "first_name", Types.StringType.get(), "This is the newly added first name"));
+    List<Record> newCustomersWithNewFirstName =
+        TestHelper.RecordsBuilder.newInstance(customerSchemaWithNewFirstName).add(3L, "Red", "James").build();
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, null, newCustomersWithNewFirstName);
+
+    TestHelper.RecordsBuilder customersWithNewFirstNameBuilder =
+        TestHelper.RecordsBuilder.newInstance(customerSchemaWithNewFirstName).add(0L, "Brown", null)
+            .add(1L, "Green", null).add(2L, "Pink", null).add(3L, "Red", "James");
+    List<Record> customersWithNewFirstName = customersWithNewFirstNameBuilder.build();
+
+    // Run a 'select *' from Hive and check if the first_name column is returned.
+    // It should be null for the old data and should be filled in the entry added after the column addition.
+    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
+    HiveIcebergTestUtils.validateData(customersWithNewFirstName,
+        HiveIcebergTestUtils.valueForRow(customerSchemaWithNewFirstName, rows), 0);
+
+    Schema customerSchemaWithNewFirstNameOnly = new Schema(optional(1, "customer_id", Types.LongType.get()),
+        optional(3, "first_name", Types.StringType.get(), "This is the newly added first name"));
+
+    TestHelper.RecordsBuilder customersWithNewFirstNameOnlyBuilder = TestHelper.RecordsBuilder
+        .newInstance(customerSchemaWithNewFirstNameOnly).add(0L, null).add(1L, null).add(2L, null).add(3L, "James");
+    List<Record> customersWithNewFirstNameOnly = customersWithNewFirstNameOnlyBuilder.build();
+
+    // Run a 'select first_name' from Hive to check if the new first-name column can be queried.
+    rows = shell.executeStatement("SELECT customer_id, first_name FROM default.customers");
+    HiveIcebergTestUtils.validateData(customersWithNewFirstNameOnly,
+        HiveIcebergTestUtils.valueForRow(customerSchemaWithNewFirstNameOnly, rows), 0);
 
   }
 
