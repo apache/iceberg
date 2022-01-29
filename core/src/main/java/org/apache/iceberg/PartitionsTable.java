@@ -187,7 +187,7 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     void updateDeleteFile(List<DeleteFile> deleteFiles) {
-      for (DeleteFile deleteFile: deleteFiles) {
+      for (DeleteFile deleteFile : deleteFiles) {
         this.recordCount += deleteFile.recordCount();
         this.deleteFileCount += 1;
       }

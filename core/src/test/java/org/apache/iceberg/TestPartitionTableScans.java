@@ -44,129 +44,89 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestPartitionTableScans {
 
-    private static final Configuration CONF = new Configuration();
-    private static final HadoopTables TABLES = new HadoopTables(CONF);
+  private static final Configuration CONF = new Configuration();
+  private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-    private static final Schema SCHEMA = new Schema(
-        required(1, "id", Types.IntegerType.get()),
-        required(2, "data", Types.StringType.get())
-    );
+  private static final Schema SCHEMA =
+      new Schema(required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
 
-    private Table table;
-    private File tableLocation;
+  private Table table;
+  private File tableLocation;
 
-    @Rule
-    public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-    @Before
-    public void before() throws IOException {
-        tableLocation = new File(temp.newFolder(), "table");
-    }
+  @Before
+  public void before() throws IOException {
+    tableLocation = new File(temp.newFolder(), "table");
+  }
 
-    private void preparePartitionedTable() {
-        table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
-        table.newFastAppend()
-            .appendFile(FILE_B)
-            .commit();
-    }
+  private void preparePartitionedTable() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+  }
 
-    private void preparePartitionedTableWithDeleteFiles() {
-        table.newRowDelta()
-            .addRows(FILE_A)
-            .addDeletes(FILE_A_DELETES)
-            .commit();
-        table.newRowDelta()
-            .addDeletes(FILE_A2_DELETES)
-            .commit();
-        table.newRowDelta()
-            .addRows(FILE_B)
-            .addDeletes(FILE_B_DELETES)
-            .commit();
-    }
+  private void preparePartitionedTableWithDeleteFiles() {
+    table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).commit();
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    table.newRowDelta().addRows(FILE_B).addDeletes(FILE_B_DELETES).commit();
+  }
 
-    @Test
-    public void testPartitionsTableScanWithDeleteFilesInFilter() {
-        table = TABLES.create(
-            SCHEMA,
-            PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build(),
-            tableLocation.toString());
-        table.updateProperties()
-            .set(TableProperties.FORMAT_VERSION, "2")
-            .commit();
-        preparePartitionedTableWithDeleteFiles();
+  @Test
+  public void testPartitionsTableScanWithDeleteFilesInFilter() {
+    table = TABLES.create(
+        SCHEMA,
+        PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build(),
+        tableLocation.toString());
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    preparePartitionedTableWithDeleteFiles();
 
-        PartitionsTable partitionsTable = (PartitionsTable) TABLES.load(table.location() + "#partitions");
+    PartitionsTable partitionsTable = (PartitionsTable) TABLES.load(table.location() + "#partitions");
 
-        // filter bucket = 0
-        Expression set = Expressions.equal("partition.data_bucket", 0);
-        StaticTableScan staticTableScan = (StaticTableScan) partitionsTable.newScan().filter(set);
-        DataTask task = partitionsTable.task(staticTableScan);
+    // filter bucket = 0
+    Expression set = Expressions.equal("partition.data_bucket", 0);
+    StaticTableScan staticTableScan = (StaticTableScan) partitionsTable.newScan().filter(set);
+    DataTask task = partitionsTable.task(staticTableScan);
 
-        List<StructLike> rows = Lists.newArrayList(task.rows());
-        Assert.assertEquals("Should have one record", 1, rows.size());
+    List<StructLike> rows = Lists.newArrayList(task.rows());
+    Assert.assertEquals("Should have one record", 1, rows.size());
 
-        StructLike record = rows.get(0);
-        Assert.assertEquals(
-            "Should have correct bucket partition",
-            0,
-            record.get(0, StructProjection.class).get(0, Integer.class).intValue()
-        );
-        Assert.assertEquals(
-            "Should have correct records",
-            FILE_A.recordCount() + FILE_A_DELETES.recordCount() + FILE_A2_DELETES.recordCount(),
-            record.get(1, Long.class).longValue()
-        );
-        Assert.assertEquals(
-            "Should have correct file counts",
-            1,
-            record.get(2, Integer.class).intValue()
-        );
-        Assert.assertEquals(
-            "Should have correct delete file count",
-            2,
-            record.get(3, Integer.class).intValue()
-        );
-    }
+    StructLike record = rows.get(0);
+    Assert.assertEquals(
+        "Should have correct bucket partition",
+        0,
+        record.get(0, StructProjection.class).get(0, Integer.class).intValue());
+    Assert.assertEquals(
+        "Should have correct records",
+        FILE_A.recordCount() + FILE_A_DELETES.recordCount() + FILE_A2_DELETES.recordCount(),
+        record.get(1, Long.class).longValue());
+    Assert.assertEquals("Should have correct file counts", 1, record.get(2, Integer.class).intValue());
+    Assert.assertEquals("Should have correct delete file count", 2, record.get(3, Integer.class).intValue());
+  }
 
-    @Test
-    public void testPartitionsTableScanWithoutDeleteFilesInFilter() {
-        table = TABLES.create(
-            SCHEMA,
-            PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build(),
-            tableLocation.toString());
-        preparePartitionedTable();
+  @Test
+  public void testPartitionsTableScanWithoutDeleteFilesInFilter() {
+    table = TABLES.create(
+        SCHEMA,
+        PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build(),
+        tableLocation.toString());
+    preparePartitionedTable();
 
-        PartitionsTable partitionsTable = (PartitionsTable) TABLES.load(table.location() + "#partitions");
+    PartitionsTable partitionsTable = (PartitionsTable) TABLES.load(table.location() + "#partitions");
 
-        Expression set = Expressions.equal("partition.data_bucket", 0);
-        StaticTableScan staticTableScan = (StaticTableScan) partitionsTable.newScan().filter(set);
-        DataTask task = partitionsTable.task(staticTableScan);
+    Expression set = Expressions.equal("partition.data_bucket", 0);
+    StaticTableScan staticTableScan = (StaticTableScan) partitionsTable.newScan().filter(set);
+    DataTask task = partitionsTable.task(staticTableScan);
 
-        List<StructLike> rows = Lists.newArrayList(task.rows());
-        Assert.assertEquals("Should have 1 records", 1, rows.size());
+    List<StructLike> rows = Lists.newArrayList(task.rows());
+    Assert.assertEquals("Should have 1 records", 1, rows.size());
 
-        StructLike record = rows.get(0);
-        Assert.assertEquals(
-            "Should have correct bucket partition",
-            0,
-            record.get(0, StructProjection.class).get(0, Integer.class).intValue()
-        );
-        Assert.assertEquals(
-            "Should have correct records",
-            FILE_A.recordCount(),
-            record.get(1, Long.class).longValue()
-        );
-        Assert.assertEquals(
-            "Should have correct file counts",
-            1,
-            record.get(2, Integer.class).intValue()
-        );
-        Assert.assertEquals(
-            "Should have correct delete file count",
-            0,
-            record.get(3, Integer.class).intValue()
-        );
-    }
+    StructLike record = rows.get(0);
+    Assert.assertEquals(
+        "Should have correct bucket partition",
+        0,
+        record.get(0, StructProjection.class).get(0, Integer.class).intValue());
+    Assert.assertEquals("Should have correct records", FILE_A.recordCount(), record.get(1, Long.class).longValue());
+    Assert.assertEquals("Should have correct file counts", 1, record.get(2, Integer.class).intValue());
+    Assert.assertEquals("Should have correct delete file count", 0, record.get(3, Integer.class).intValue());
+  }
 }
