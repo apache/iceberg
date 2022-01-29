@@ -113,6 +113,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
 
   /v1/namespaces:
 
@@ -154,6 +156,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - Namespace provided in the `parent` query parameter is not found.
           content:
@@ -186,6 +190,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         409:
           description: Conflict - The namespace already exists
           content:
@@ -219,6 +225,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - Namespace not found
           content:
@@ -248,6 +256,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - Namespace to delete does not exist.
           content:
@@ -301,6 +311,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - Namespace not found
           content:
@@ -350,6 +362,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - The namespace specified does not exist
           content:
@@ -380,6 +394,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description: Not Found - The namespace specified does not exist
           content:
@@ -417,6 +433,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description:
             Not Found - NoSuchTableException, table to load does not exist
@@ -461,6 +479,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description:
             Not Found - NoSuchTableException, table to load does not exist
@@ -524,6 +544,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description:
             Not Found - NoSuchTableException, Table to drop does not exist
@@ -581,6 +603,8 @@ paths:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
           description:
             Not Found
@@ -1329,7 +1353,8 @@ components:
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
     UnauthorizedResponse:
-      description: Unauthorized. The client does not have permissions to call this route.
+      description:
+        Unauthorized. Authentication is required and has failed or has not yet been provided.
       content:
         application/json:
           schema:
@@ -1339,6 +1364,22 @@ components:
               "message": "Not authorized to make this request",
               "type": "NotAuthorizedException",
               "code": 401
+            }
+          }
+
+    #  Note that this is a representative example response for use as a shorthand in the spec.
+    #  The fields `message` and `type` as indicated here are not presently prescriptive.
+    ForbiddenResponse:
+      description: Forbidden. Authenticated user does not have the necessary permissions.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/responses/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": "Not authorized to make this request",
+              "type": "NotAuthorizedException",
+              "code": 403
             }
           }
 
