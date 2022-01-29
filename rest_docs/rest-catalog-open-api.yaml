@@ -392,8 +392,6 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables:
-
   /v1/namespaces/{namespace}/tables/{table}:
     parameters:
       - $ref: '#/components/parameters/namespace'
