@@ -72,7 +72,8 @@ public class PartitionsTable extends BaseMetadataTable {
     return MetadataTableType.PARTITIONS;
   }
 
-  private DataTask task(StaticTableScan scan) {
+  @VisibleForTesting
+  DataTask task(StaticTableScan scan) {
     TableOperations ops = operations();
     Iterable<Partition> partitions = partitions(scan);
     if (table().spec().fields().size() < 1) {
