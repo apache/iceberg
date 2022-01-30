@@ -20,12 +20,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -77,8 +77,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private boolean cleanExpiredFiles = true;
   private TableMetadata base;
-  private long expireOlderThan;
-  private int minNumSnapshots;
+  private Long globalExpireOlderThan;
+  private int globalMinSnapshots;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
@@ -86,13 +86,12 @@ class RemoveSnapshots implements ExpireSnapshots {
     this.ops = ops;
     this.base = ops.current();
 
-    long maxSnapshotAgeMs = PropertyUtil.propertyAsLong(
+    long globalMaxSnapshotAgeMs = PropertyUtil.propertyAsLong(
         base.properties(),
         MAX_SNAPSHOT_AGE_MS,
         MAX_SNAPSHOT_AGE_MS_DEFAULT);
-    this.expireOlderThan = System.currentTimeMillis() - maxSnapshotAgeMs;
-
-    this.minNumSnapshots = PropertyUtil.propertyAsInt(
+    this.globalExpireOlderThan = System.currentTimeMillis() - globalMaxSnapshotAgeMs;
+    this.globalMinSnapshots = PropertyUtil.propertyAsInt(
         base.properties(),
         MIN_SNAPSHOTS_TO_KEEP,
         MIN_SNAPSHOTS_TO_KEEP_DEFAULT);
@@ -118,7 +117,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
     LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);
-    this.expireOlderThan = timestampMillis;
+    this.globalExpireOlderThan = timestampMillis;
     return this;
   }
 
@@ -126,7 +125,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots retainLast(int numSnapshots) {
     Preconditions.checkArgument(1 <= numSnapshots,
             "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
-    this.minNumSnapshots = numSnapshots;
+    this.globalMinSnapshots = numSnapshots;
     return this;
   }
 
@@ -155,19 +154,88 @@ class RemoveSnapshots implements ExpireSnapshots {
     this.base = ops.refresh();
 
     Set<Long> idsToRetain = Sets.newHashSet();
-    List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
-    if (minNumSnapshots >= ancestorIds.size()) {
-      idsToRetain.addAll(ancestorIds);
-    } else {
-      idsToRetain.addAll(ancestorIds.subList(0, minNumSnapshots));
+    Map<String, SnapshotRef> references = base.refs();
+    long currentTime = System.currentTimeMillis();
+    Map<String, SnapshotRef> referencesToRetain = base.refs()
+        .entrySet()
+        .stream()
+        .filter(refEntry -> refEntry.getKey().equals(SnapshotRef.MAIN_BRANCH) ||
+            refEntry.getValue().maxRefAgeMs() == null ||
+            currentTime - refEntry.getValue().timestampMillis() < refEntry.getValue().maxRefAgeMs())
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    //All snapshots should be retained
+    if (globalMinSnapshots >= base.snapshots().size()) {
+      idsToRetain.addAll(base.snapshots().stream().map(snapshot -> snapshot.snapshotId()).collect(Collectors.toList()));
+    }
+    else {
+      List<SnapshotRef> refs = Lists.newArrayList(references.values());
+      for (SnapshotRef ref : refs) {
+        if (ref.type().equals(SnapshotRefType.BRANCH)) {
+          Snapshot startingSnapshot = base.snapshot(ref.snapshotId());
+          Set<Long> ancestorsToRetain = ancestorsToRetain(startingSnapshot.snapshotId(),
+              ref.minSnapshotsToKeep(),
+              ref.maxSnapshotAgeMs(),
+              base,
+              currentTime);
+          idsToRetain.addAll(ancestorsToRetain);
+        }
+      }
+    }
+    //At this point idsToRetain includes all snapshots that are within their branches lifecycle AND the global expiration age
+    //but it could still be insufficient for global min snapshots.
+    //We now look in the expiration set to see what are the latest snapshots that should be kept
+    //ToDo: This is most likely over-engineered.
+    //There's probably a simpler way to keep track of what are snapshots that should be retained for the global
+    Set<Snapshot> snapshotsToExpire = base.snapshots()
+        .stream()
+        .filter(snapshotId -> !idsToRetain.contains(snapshotId))
+        .collect(Collectors.toSet());
+    if (idsToRetain.size() < globalMinSnapshots) {
+      long snapshotsRequiredForGlobal = globalMinSnapshots - idsToRetain.size();
+      //Keep a heap of the "snapshotsRequiredForGlobal"-latest snapshots
+      Queue<Snapshot> heap = new PriorityQueue<>(new SnapshotTimestampComparator());
+      for (Snapshot snapshot : snapshotsToExpire) {
+        if (heap.size() < snapshotsRequiredForGlobal || snapshot.timestampMillis() > heap.peek().timestampMillis()) {
+          heap.offer(snapshot);
+        }
+        if (heap.size() > snapshotsRequiredForGlobal) {
+          heap.poll();
+        }
+      }
+      //At this point the heap should have the elements we want to retain.
+      snapshotsToExpire.removeAll(heap);
     }
 
-    TableMetadata updateMeta = base.removeSnapshotsIf(snapshot ->
-        idsToRemove.contains(snapshot.snapshotId()) ||
-        (snapshot.timestampMillis() < expireOlderThan && !idsToRetain.contains(snapshot.snapshotId())));
-    List<Snapshot> updateSnapshots = updateMeta.snapshots();
+    TableMetadata updatedMetadata = base.removeSnapshotsIf(snapshot -> snapshotsToExpire.contains(snapshot.snapshotId()));
+    updatedMetadata = updatedMetadata.replaceRefs(referencesToRetain);
+    List<Snapshot> updateSnapshots = updatedMetadata.snapshots();
     List<Snapshot> baseSnapshots = base.snapshots();
-    return updateSnapshots.size() != baseSnapshots.size() ? updateMeta : base;
+    return updateSnapshots.size() != baseSnapshots.size() ? updatedMetadata : base;
+  }
+
+
+  private Set<Long> ancestorsToRetain(long startingSnapshotId,
+                                      Integer minSnapshotsToKeep,
+                                      Long maxSnapshotAge,
+                                      TableMetadata tableMetadata,
+                                      long currentTime) {
+    Snapshot startingSnapshot = tableMetadata.snapshot(startingSnapshotId);
+    List<Long> ancestors = SnapshotUtil.ancestorIds(startingSnapshot, base::snapshot);
+    int ancestorIdx = 0;
+    Set<Long> ancestorsToRetain = Sets.newHashSet();
+    while (ancestorIdx < ancestors.size()) {
+      Snapshot ancestor = tableMetadata.snapshot(ancestors.get(ancestorIdx));
+      long comparisonAge = maxSnapshotAge == null ? globalExpireOlderThan : Math.max(maxSnapshotAge, globalExpireOlderThan);
+      if (currentTime - ancestor.timestampMillis() >= comparisonAge) {
+        if (minSnapshotsToKeep != null && ancestorIdx >= minSnapshotsToKeep) {
+          return ancestorsToRetain;
+        }
+      }
+      ancestorsToRetain.add(ancestor.snapshotId());
+      ancestorIdx++;
+    }
+    return ancestorsToRetain;
   }
 
   @Override
@@ -449,6 +517,28 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     } else {
       return CloseableIterable.withNoopClose(snapshot.allManifests());
+    }
+  }
+
+  private class SnapshotTimestampComparator implements Comparator<Snapshot> {
+
+    @Override
+    public int compare(Snapshot o1, Snapshot o2) {
+      if (o1.timestampMillis() < o2.timestampMillis()) {
+        return -1;
+      }
+      else if (o1.timestampMillis() > o2.timestampMillis()) {
+        return 1;
+      }
+      else {
+        if (o1.snapshotId() > o2.snapshotId()) {
+          return -1;
+        }
+        else if (o1.snapshotId() < o2.snapshotId()) {
+          return 1;
+        }
+        return 0;
+      }
     }
   }
 }

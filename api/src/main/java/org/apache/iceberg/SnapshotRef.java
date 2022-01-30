@@ -33,18 +33,21 @@ public class SnapshotRef implements Serializable {
   private final Integer minSnapshotsToKeep;
   private final Long maxSnapshotAgeMs;
   private final Long maxRefAgeMs;
+  private final long timestampMillis;
 
   private SnapshotRef(
       long snapshotId,
       SnapshotRefType type,
       Integer minSnapshotsToKeep,
       Long maxSnapshotAgeMs,
-      Long maxRefAgeMs) {
+      Long maxRefAgeMs,
+      long timestampMillis) {
     this.snapshotId = snapshotId;
     this.type = type;
     this.minSnapshotsToKeep = minSnapshotsToKeep;
     this.maxSnapshotAgeMs = maxSnapshotAgeMs;
     this.maxRefAgeMs = maxRefAgeMs;
+    this.timestampMillis = timestampMillis;
   }
 
   public long snapshotId() {
@@ -53,6 +56,10 @@ public class SnapshotRef implements Serializable {
 
   public SnapshotRefType type() {
     return type;
+  }
+
+  public long timestampMillis() {
+    return timestampMillis;
   }
 
   public Integer minSnapshotsToKeep() {
@@ -139,7 +146,7 @@ public class SnapshotRef implements Serializable {
     }
 
     public SnapshotRef build() {
-      return new SnapshotRef(snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
+      return new SnapshotRef(snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs, System.currentTimeMillis());
     }
   }
 
