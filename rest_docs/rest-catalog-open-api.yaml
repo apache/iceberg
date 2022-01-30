@@ -690,8 +690,8 @@ components:
         properties:
           type: object
           description: Configured string to string map of properties for the namespace
-          example: '{ "owner": "Hank Bendickson" }'
-          default: '{ }'
+          example: { "owner": "Hank Bendickson" }
+          default: { }
 
     UpdateNamespacePropertiesRequest:
       type: object
@@ -701,7 +701,7 @@ components:
           uniqueItems: true
           items:
             type: string
-          example: '[ "department", "access_group" ]'
+          example: [ "department", "access_group" ]
         updates:
           uniqueItems: true
           type: object
