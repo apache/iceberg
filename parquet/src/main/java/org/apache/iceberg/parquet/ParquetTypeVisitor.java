@@ -79,7 +79,7 @@ public class ParquetTypeVisitor<T> {
   }
 
   private static <T> T visitTwoLevelList(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
-    T elementResult = visitListElement(list, listElement, visitor);
+    T elementResult = visitListElement(listElement, visitor);
     return visitor.list(list, elementResult);
   }
 
@@ -88,25 +88,23 @@ public class ParquetTypeVisitor<T> {
 
     visitor.beforeRepeatedElement(repeatedElement);
     try {
-      T elementResult = visitListElement(list, listElement, visitor);
+      T elementResult = visitListElement(listElement, visitor);
 
       return visitor.list(list, elementResult);
+
     } finally {
       visitor.afterRepeatedElement(repeatedElement);
     }
   }
 
-  private static <T> T visitListElement(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
-    Type repeatedElement = list.getFields().get(0);
+  private static <T> T visitListElement(Type listElement, ParquetTypeVisitor<T> visitor) {
     T elementResult = null;
 
-    if (repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() > 0) {
-      visitor.beforeElementField(listElement);
-      try {
-        elementResult = visit(listElement, visitor);
-      } finally {
-        visitor.afterElementField(listElement);
-      }
+    visitor.beforeElementField(listElement);
+    try {
+      elementResult = visit(listElement, visitor);
+    } finally {
+      visitor.afterElementField(listElement);
     }
 
     return elementResult;

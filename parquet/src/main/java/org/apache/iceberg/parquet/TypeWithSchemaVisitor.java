@@ -143,21 +143,17 @@ public class TypeWithSchemaVisitor<T> {
   }
 
   private static <T> T visitTwoLevelList(Types.ListType iListType, Types.NestedField iListElement, GroupType pListType,
-      Type pListElement, TypeWithSchemaVisitor<T> visitor) {
+                                         Type pListElement, TypeWithSchemaVisitor<T> visitor) {
     T elementResult = visitField(iListElement, pListElement, visitor);
-
     return visitor.list(iListType, pListType, elementResult);
   }
 
   private static <T> T visitThreeLevelList(Types.ListType iListType, Types.NestedField iListElement,
-      GroupType pListType, Type pListElement, TypeWithSchemaVisitor<T> visitor) {
+                                           GroupType pListType, Type pListElement, TypeWithSchemaVisitor<T> visitor) {
     visitor.fieldNames.push(pListType.getFieldName(0));
 
     try {
-      T elementResult = null;
-      if (pListElement != null) {
-        elementResult = visitField(iListElement, pListElement, visitor);
-      }
+      T elementResult = visitField(iListElement, pListElement, visitor);
 
       return visitor.list(iListType, pListType, elementResult);
     } finally {
