@@ -60,6 +60,24 @@ public class ZOrderByteUtils {
   }
 
   /**
+   * Signed shorts are treated the same as the signed ints
+   */
+  public static byte[] shortToOrderBytes(short val) {
+    ByteBuffer bytes = ByteBuffer.allocate(Short.BYTES);
+    bytes.putShort((short) (val ^ (0x8000)));
+    return bytes.array();
+  }
+
+  /**
+   * Signed tiny ints are treated the same as the signed ints
+   */
+  public static byte[] tinyintToOrderedBytes(byte val) {
+    ByteBuffer bytes = ByteBuffer.allocate(Byte.BYTES);
+    bytes.put((byte) (val ^ (0x80)));
+    return bytes.array();
+  }
+
+  /**
    * IEEE 754 :
    * “If two floating-point numbers in the same format are ordered (say, x {@literal <} y),
    * they are ordered the same way when their bits are reinterpreted as sign-magnitude integers.”

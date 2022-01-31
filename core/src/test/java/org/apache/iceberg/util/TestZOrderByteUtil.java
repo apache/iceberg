@@ -174,6 +174,40 @@ public class TestZOrderByteUtil {
   }
 
   @Test
+  public void testShortOrdering() {
+    for (int i = 0; i < NUM_TESTS; i++) {
+      short aShort = (short) (random.nextInt() % (Short.MAX_VALUE + 1));
+      short bShort = (short) (random.nextInt() % (Short.MAX_VALUE + 1));
+      int longCompare = Integer.signum(Long.compare(aShort, bShort));
+      byte[] aBytes = ZOrderByteUtils.longToOrderBytes(aShort);
+      byte[] bBytes = ZOrderByteUtils.longToOrderBytes(bShort);
+      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+
+      Assert.assertEquals(String.format(
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aShort, bShort, longCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
+          longCompare, byteCompare);
+    }
+  }
+
+  @Test
+  public void testTinyOrdering() {
+    for (int i = 0; i < NUM_TESTS; i++) {
+      long aByte = (byte) (random.nextInt() % (Byte.MAX_VALUE + 1));
+      long bByte = (byte) (random.nextInt() % (Byte.MAX_VALUE + 1));
+      int longCompare = Integer.signum(Long.compare(aByte, bByte));
+      byte[] aBytes = ZOrderByteUtils.longToOrderBytes(aByte);
+      byte[] bBytes = ZOrderByteUtils.longToOrderBytes(bByte);
+      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+
+      Assert.assertEquals(String.format(
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aByte, bByte, longCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
+          longCompare, byteCompare);
+    }
+  }
+
+  @Test
   public void testFloatOrdering() {
     for (int i = 0; i < NUM_TESTS; i++) {
       float aFloat = random.nextFloat();
