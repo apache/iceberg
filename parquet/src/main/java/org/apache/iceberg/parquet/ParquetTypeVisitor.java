@@ -72,28 +72,21 @@ public class ParquetTypeVisitor<T> {
 
     Type listElement = ParquetSchemaUtil.determineListElementType(list);
     if (listElement.isRepetition(Type.Repetition.REPEATED)) {
-      return visitTwoLevelList(list, listElement, visitor);
+      T elementResult = visitListElement(listElement, visitor);
+      return visitor.list(list, elementResult);
     } else {
-      return visitThreeLevelList(list, listElement, visitor);
+      T elementResult = visitThreeLevelList(repeatedElement, listElement, visitor);
+      return visitor.list(list, elementResult);
     }
   }
 
-  private static <T> T visitTwoLevelList(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
-    T elementResult = visitListElement(listElement, visitor);
-    return visitor.list(list, elementResult);
-  }
-
-  private static <T> T visitThreeLevelList(GroupType list, Type listElement, ParquetTypeVisitor<T> visitor) {
-    Type repeatedElement = list.getFields().get(0);
-
-    visitor.beforeRepeatedElement(repeatedElement);
+  private static <T> T visitThreeLevelList(Type repeated, Type listElement, ParquetTypeVisitor<T> visitor) {
+    visitor.beforeRepeatedElement(repeated);
     try {
-      T elementResult = visitListElement(listElement, visitor);
-
-      return visitor.list(list, elementResult);
+      return visitListElement(listElement, visitor);
 
     } finally {
-      visitor.afterRepeatedElement(repeatedElement);
+      visitor.afterRepeatedElement(repeated);
     }
   }
 
