@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.util;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
@@ -28,6 +29,9 @@ import java.util.Arrays;
  * that are lexicographically ordered.
  * Most of these techniques are derived from
  * https://aws.amazon.com/blogs/database/z-order-indexing-for-multifaceted-queries-in-amazon-dynamodb-part-2/
+ *
+ * Some implementation is taken from
+ * https://github.com/apache/hbase/blob/master/hbase-common/src/main/java/org/apache/hadoop/hbase/util/OrderedBytes.java
  */
 public class ZOrderByteUtils {
 
@@ -40,12 +44,19 @@ public class ZOrderByteUtils {
    * To fix this, flip the sign bit so that all negatives are ordered before positives. This essentially
    * shifts the 0 value so that we don't break our ordering when we cross the new 0 value.
    */
-  public static byte[] orderIntLikeBytes(byte[] intBytes, int size) {
-    if (intBytes == null) {
-      return new byte[size];
-    }
-    intBytes[0] = (byte) (intBytes[0] ^ (1 << 7));
-    return intBytes;
+  public static byte[] intToOrderedBytes(int val) {
+    ByteBuffer bytes = ByteBuffer.allocate(Integer.BYTES);
+    bytes.putInt(val ^ 0x80000000);
+    return bytes.array();
+  }
+
+  /**
+   * Signed longs are treated the same as the signed ints
+   */
+  public static byte[] longToOrderBytes(long val) {
+    ByteBuffer bytes = ByteBuffer.allocate(Long.BYTES);
+    bytes.putLong(val ^ 0x8000000000000000L);
+    return bytes.array();
   }
 
   /**
@@ -56,22 +67,23 @@ public class ZOrderByteUtils {
    * Which means floats can be treated as sign magnitude integers which can then be converted into lexicographically
    * comparable bytes
    */
-  public static byte[] orderFloatLikeBytes(byte[] floatBytes, int size) {
-    if (floatBytes == null) {
-      return new byte[size];
-    }
-    if ((floatBytes[0] & (1 << 7)) == 0) {
-      // The signed magnitude is positive set the first bit (reversing the sign so positives order after negatives)
-      floatBytes[0] = (byte) (floatBytes[0] | (1 << 7));
-    } else {
-      // The signed magnitude is negative so flip the first bit (reversing the sign so positives order after negatives)
-      // Then flip all remaining bits so numbers with greater negative magnitude come before those
-      // with less magnitude (reverse the order)
-      for (int i = 0; i < floatBytes.length; i++) {
-        floatBytes[i] = (byte) ~floatBytes[i];
-      }
-    }
-    return floatBytes;
+  public static byte[] floatToOrderedBytes(float val) {
+    ByteBuffer bytes = ByteBuffer.allocate(Integer.BYTES);
+    int ival = Float.floatToIntBits(val);
+    ival ^= ((ival >> (Integer.SIZE - 1)) | Integer.MIN_VALUE);
+    bytes.putInt(ival);
+    return bytes.array();
+  }
+
+  /**
+   * Doubles are treated the same as floats
+   */
+  public static byte[] doubleToOrderedBytes(double val) {
+    ByteBuffer bytes = ByteBuffer.allocate(Long.BYTES);
+    long lng = Double.doubleToLongBits(val);
+    lng ^= ((lng >> (Long.SIZE - 1)) | Long.MIN_VALUE);
+    bytes.putLong(lng);
+    return bytes.array();
   }
 
   /**
@@ -80,11 +92,13 @@ public class ZOrderByteUtils {
    * This implementation just uses a set size to for all output byte representations. Truncating longer strings
    * and right padding 0 for shorter strings.
    */
-  public static byte[] orderUTF8LikeBytes(byte[] stringBytes, int size) {
-    if (stringBytes == null) {
-      return new byte[size];
+  public static byte[] stringToOrderedBytes(String val, int length) {
+    ByteBuffer bytes = ByteBuffer.allocate(length);
+    if (val != null) {
+      int maxLength = Math.min(length, val.length());
+      bytes.put(val.getBytes(), 0, maxLength);
     }
-    return Arrays.copyOf(stringBytes, size);
+    return bytes.array();
   }
 
   /**
