@@ -39,15 +39,18 @@ public class TestCiphers {
 
   private void testEncryptDecrypt(byte[] aad) {
     SecureRandom random = new SecureRandom();
-    byte[] key = new byte[16];
-    random.nextBytes(key);
-    Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(key);
-    byte[] plaintext = new byte[100];
-    random.nextBytes(plaintext);
-    byte[] ciphertext = encryptor.encrypt(plaintext, aad);
+    int[] aesKeyLengthArray = {16, 24, 32};
+    for (int keyLength : aesKeyLengthArray) {
+      byte[] key = new byte[keyLength];
+      random.nextBytes(key);
+      Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(key);
+      byte[] plaintext = new byte[16]; // typically used to encrypt DEKs
+      random.nextBytes(plaintext);
+      byte[] ciphertext = encryptor.encrypt(plaintext, aad);
 
-    Ciphers.AesGcmDecryptor decryptor = new Ciphers.AesGcmDecryptor(key);
-    byte[] decryptedText = decryptor.decrypt(ciphertext, aad);
-    Assert.assertArrayEquals(plaintext, decryptedText);
+      Ciphers.AesGcmDecryptor decryptor = new Ciphers.AesGcmDecryptor(key);
+      byte[] decryptedText = decryptor.decrypt(ciphertext, aad);
+      Assert.assertArrayEquals("Key length " + keyLength, plaintext, decryptedText);
+    }
   }
 }

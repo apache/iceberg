@@ -100,7 +100,9 @@ public class Ciphers {
     public byte[] decrypt(byte[] ciphertext, byte[] aad)  {
       int plainTextLength = ciphertext.length - GCM_TAG_LENGTH - NONCE_LENGTH;
       if (plainTextLength < 1) {
-        throw new RuntimeException("Wrong input length " + plainTextLength);
+        throw new RuntimeException("Cannot decrypt cipher text of length " + ciphertext.length +
+            " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted" +
+            " with AES GCM cipher");
       }
 
       // Get the nonce from ciphertext
