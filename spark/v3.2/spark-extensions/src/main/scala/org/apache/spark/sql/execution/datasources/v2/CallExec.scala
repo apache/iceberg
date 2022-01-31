@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure
+import scala.collection.compat.immutable.ArraySeq
 
 case class CallExec(
     output: Seq[Attribute],
@@ -30,7 +31,7 @@ case class CallExec(
     input: InternalRow) extends LeafV2CommandExec {
 
   override protected def run(): Seq[InternalRow] = {
-    procedure.call(input)
+    ArraySeq.unsafeWrapArray(procedure.call(input))
   }
 
   override def simpleString(maxFields: Int): String = {

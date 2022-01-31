@@ -140,6 +140,16 @@ if (sparkVersions.contains("3.2")) {
   project(':iceberg-spark:spark-extensions-3.2_2.12').name = 'iceberg-spark-extensions-3.2_2.12'
   project(':iceberg-spark:spark-runtime-3.2_2.12').projectDir = file('spark/v3.2/spark-runtime')
   project(':iceberg-spark:spark-runtime-3.2_2.12').name = 'iceberg-spark-runtime-3.2_2.12'
+
+  include ':iceberg-spark:spark-3.2_2.13'
+  include ':iceberg-spark:spark-extensions-3.2_2.13'
+  include ':iceberg-spark:spark-runtime-3.2_2.13'
+  project(':iceberg-spark:spark-3.2_2.13').projectDir = file('spark/v3.2/spark')
+  project(':iceberg-spark:spark-3.2_2.13').name = 'iceberg-spark-3.2_2.13'
+  project(':iceberg-spark:spark-extensions-3.2_2.13').projectDir = file('spark/v3.2/spark-extensions')
+  project(':iceberg-spark:spark-extensions-3.2_2.13').name = 'iceberg-spark-extensions-3.2_2.13'
+  project(':iceberg-spark:spark-runtime-3.2_2.13').projectDir = file('spark/v3.2/spark-runtime')
+  project(':iceberg-spark:spark-runtime-3.2_2.13').name = 'iceberg-spark-runtime-3.2_2.13'
 }
 
 // hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
