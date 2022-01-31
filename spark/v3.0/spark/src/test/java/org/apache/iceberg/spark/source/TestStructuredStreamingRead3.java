@@ -481,6 +481,30 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 
+  @Test
+  public void testReadStreamWithSnapshotTypeDeleteAndSkipOverwriteOption() throws Exception {
+    table.updateSpec()
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+
+    // this should create a snapshot with type overwrite.
+    table.newOverwrite()
+        .overwriteByRowFilter(Expressions.greaterThan("id", 4))
+        .commit();
+
+    // check pre-condition - that the above delete operation on table resulted in Snapshot of Type OVERWRITE.
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
+    Assertions.assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
   /**
    * appends each list as a Snapshot on the iceberg table at the given location.
    * accepts a list of lists - each list representing data per snapshot.
