@@ -61,7 +61,7 @@ public class ZOrderByteUtils {
 
   /**
    * IEEE 754 :
-   * “If two floating-point numbers in the same format are ordered (say, x \< y),
+   * “If two floating-point numbers in the same format are ordered (say, x {@literal <} y),
    * they are ordered the same way when their bits are reinterpreted as sign-magnitude integers.”
    *
    * Which means floats can be treated as sign magnitude integers which can then be converted into lexicographically
