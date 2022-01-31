@@ -186,25 +186,54 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
       return ZOrderByteUtils.interleaveBits(columnsBinary);
     }
 
-    private static final UserDefinedFunction FLOAT_TO_BYTES =
-        functions.udf((Float f) -> ByteBuffer.allocate(4).putFloat(f).array(), DataTypes.BinaryType);
-
-    private static final UserDefinedFunction DOUBLE_TO_BYTES =
-        functions.udf((Double d) -> ByteBuffer.allocate(8).putDouble(d).array(), DataTypes.BinaryType);
-
-    private static UserDefinedFunction getLexicalBytesIntLike(int size) {
-      return functions.udf((byte[] binary) -> ZOrderByteUtils.orderIntLikeBytes(binary, size), DataTypes.BinaryType)
-          .withName("INT-LIKE-LEXICAL-BYTES");
+    private static UserDefinedFunction intToOrderedBytesUDF() {
+      return functions.udf((Integer value) -> {
+        if (value == null) {
+          return null;
+        }
+        return ZOrderByteUtils.intToOrderedBytes(value);
+      }, DataTypes.BinaryType)
+          .withName("INT-LEXICAL-BYTES");
     }
 
-    private static UserDefinedFunction getLexicalBytesFloatLike(int size) {
-      return functions.udf((byte[] binary) -> ZOrderByteUtils.orderFloatLikeBytes(binary, size), DataTypes.BinaryType)
-          .withName("FLOAT-LIKE-LEXICAL-BYTES");
+    private static UserDefinedFunction longToOrderedBytesUDF() {
+      return functions.udf((Long value) -> {
+            if (value == null) {
+              return null;
+            }
+            return ZOrderByteUtils.longToOrderBytes(value);
+          }, DataTypes.BinaryType)
+          .withName("LONG-LEXICAL-BYTES");
     }
 
-    private static UserDefinedFunction getLexicalBytesUTF8Like(int size) {
-      return functions.udf((byte[] binary) -> ZOrderByteUtils.orderUTF8LikeBytes(binary, size), DataTypes.BinaryType)
-          .withName("UTF8-LIKE-LEXICAL-BYTES");
+    private static UserDefinedFunction floatToOrderedBytesUDF() {
+      return functions.udf((Float value) -> {
+            if (value == null) {
+              return null;
+            }
+            return ZOrderByteUtils.floatToOrderedBytes(value);
+          }, DataTypes.BinaryType)
+          .withName("FLOAT-LEXICAL-BYTES");
+    }
+
+    private static UserDefinedFunction doubleToOrderedBytesUDF() {
+      return functions.udf((Double value) -> {
+            if (value == null) {
+              return null;
+            }
+            return ZOrderByteUtils.doubleToOrderedBytes(value);
+          }, DataTypes.BinaryType)
+          .withName("DOUBLE-LEXICAL-BYTES");
+    }
+
+    private static UserDefinedFunction stringToOrderedBytesUDF() {
+      return functions.udf((String value) -> {
+            if (value == null) {
+              return null;
+            }
+            return ZOrderByteUtils.stringToOrderedBytes(value);
+          }, DataTypes.BinaryType)
+          .withName("STRING-LEXICAL-BYTES");
     }
 
     private static final UserDefinedFunction INTERLEAVE_UDF =
