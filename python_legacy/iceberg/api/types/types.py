@@ -696,7 +696,7 @@ class MapType(NestedType):
     def value_id(self):
         return self.value_field.field_id
 
-    def asMapType(self):
+    def as_map_type(self):
         return self
 
     def is_map_type(self):

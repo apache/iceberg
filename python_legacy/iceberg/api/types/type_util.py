@@ -143,8 +143,7 @@ def visit(arg, visitor): # noqa: ignore=C901
 
             return visitor.list(list_var, element_result)
         elif type_var.type_id == TypeID.MAP:
-            # TODO: How could this be improved to avoid copy-pasting the same logic for key and value fields?
-            map_var = type_var.as_nested_type().asMapType()
+            map_var = type_var.as_nested_type().as_map_type()
             visitor.field_ids.append(map_var.key_field.field_id)
             visitor.field_names.append(map_var.key_field.name)
             try:
