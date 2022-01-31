@@ -22,8 +22,8 @@ package org.apache.iceberg.util;
 
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -210,8 +210,8 @@ public class TestZOrderByteUtil {
   @Test
   public void testStringOrdering() {
     for (int i = 0; i < NUM_TESTS; i++) {
-      String aString = RandomStringUtils.random(random.nextInt(35), true, true);
-      String bString = RandomStringUtils.random(random.nextInt(35), true, true);
+      String aString =  (String) RandomUtil.generatePrimitive(Types.StringType.get(), random);
+      String bString =  (String) RandomUtil.generatePrimitive(Types.StringType.get(), random);
       int stringCompare = Integer.signum(aString.compareTo(bString));
       byte[] aBytes = ZOrderByteUtils.stringToOrderedBytes(aString, 128);
       byte[] bBytes = ZOrderByteUtils.stringToOrderedBytes(bString, 128);

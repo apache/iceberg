@@ -120,7 +120,8 @@ public class ZOrderByteUtils {
           (byte) (interleavedBytes[interleaveByte] |
               (columnsBinary[sourceColumn][sourceByte] & 1 << sourceBit) >> sourceBit << interleaveBit);
 
-      if (--interleaveBit == -1) {
+      --interleaveBit;
+      if (interleaveBit == -1) {
         // Finished a byte in our interleave byte array start a new byte
         interleaveByte++;
         interleaveBit = 7;
@@ -128,7 +129,8 @@ public class ZOrderByteUtils {
 
       // Find next column with a byte we can use
       do {
-        if (++sourceColumn == columnsBinary.length) {
+        ++sourceColumn;
+        if (sourceColumn == columnsBinary.length) {
           sourceColumn = 0;
           if (--sourceBit == -1) {
             sourceByte++;
