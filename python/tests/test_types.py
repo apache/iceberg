@@ -155,6 +155,10 @@ def test_map_type():
         NestedField(True, 1, "optional_field", LongType()),
         NestedField(False, 2, "required_field", UUIDType()),
     )
+    assert type_var != MapType(
+        NestedField(True, 1, "optional_field", DoubleType()),
+        NestedField(False, 2, "required_field", StringType()),
+    )
 
 
 def test_nested_field():
@@ -190,22 +194,43 @@ def test_nested_field():
 
 
 @pytest.mark.parametrize(
-    "input_type,equal_object,not_equal_object",
+    "input_index,input_type",
     [
-        (BooleanType, BooleanType(), IntegerType()),
-        (IntegerType, IntegerType(), BooleanType()),
-        (LongType, LongType(), DoubleType()),
-        (FloatType, FloatType(), IntegerType()),
-        (DoubleType, DoubleType(), FloatType()),
-        (DateType, DateType(), TimeType()),
-        (TimeType, TimeType(), TimestampType()),
-        (TimestampType, TimestampType(), TimestamptzType()),
-        (TimestamptzType, TimestamptzType(), TimestampType()),
-        (StringType, StringType(), UUIDType()),
-        (UUIDType, UUIDType(), StringType()),
-        (BinaryType, BinaryType(), FixedType(6)),
+        (1, BooleanType),
+        (2, IntegerType),
+        (3, LongType),
+        (4, FloatType),
+        (5, DoubleType),
+        (6, DateType),
+        (7, TimeType),
+        (8, TimestampType),
+        (9, TimestamptzType),
+        (10, StringType),
+        (11, UUIDType),
+        (12, BinaryType),
     ],
 )
-def test_primitive_equality(input_type, equal_object, not_equal_object):
-    assert equal_object == input_type()
-    assert not_equal_object != input_type()
+@pytest.mark.parametrize(
+    "check_index,check_type",
+    [
+        (1, BooleanType),
+        (2, IntegerType),
+        (3, LongType),
+        (4, FloatType),
+        (5, DoubleType),
+        (6, DateType),
+        (7, TimeType),
+        (8, TimestampType),
+        (9, TimestamptzType),
+        (10, StringType),
+        (11, UUIDType),
+        (12, BinaryType),
+    ],
+)
+def test_non_parameterized_type_equality(
+    input_index, input_type, check_index, check_type
+):
+    if input_index == check_index:
+        assert input_type() == check_type()
+    else:
+        assert input_type() != check_type()
