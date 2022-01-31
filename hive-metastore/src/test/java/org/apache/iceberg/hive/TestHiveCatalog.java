@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -466,6 +467,86 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertNotNull(parameters.get(TableProperties.UUID));
     } finally {
       catalog.dropTable(tableIdentifier);
+    }
+  }
+
+  @Test
+  public void testTablePropsDefaultsWithoutConflict() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID")
+    );
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    ImmutableMap<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3",
+        "table-override.key4", "value4");
+    HiveCatalog hiveCatalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
+        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, catalogProps, hiveConf);
+
+    try {
+      Table table = hiveCatalog.buildTable(tableIdent, schema)
+          .withProperty("key1", "value1")
+          .withProperty("key2", "value2")
+          .create();
+
+      Assert.assertEquals("value1", table.properties().get("key1"));
+      Assert.assertEquals("value2", table.properties().get("key2"));
+      Assert.assertEquals("value3", table.properties().get("key3"));
+      Assert.assertEquals("value4", table.properties().get("key4"));
+    } finally {
+      hiveCatalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testTablePropsOverrideCatalogDefaultProps() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID")
+    );
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    ImmutableMap<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3");
+    HiveCatalog hiveCatalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
+        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, catalogProps, hiveConf);
+
+    try {
+      Table table = hiveCatalog.buildTable(tableIdent, schema)
+          .withProperty("key1", "value1")
+          .withProperty("key2", "value2")
+          .withProperty("key3", "value31")
+          .create();
+
+      Assert.assertEquals("value1", table.properties().get("key1"));
+      Assert.assertEquals("value2", table.properties().get("key2"));
+      Assert.assertEquals("value31", table.properties().get("key3"));
+    } finally {
+      hiveCatalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testEnforcedCatalogPropsOverrideTableDefaults() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID")
+    );
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    ImmutableMap<String, String> catalogProps = ImmutableMap.of(
+        "table-override.key3", "value3");
+    HiveCatalog hiveCatalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
+        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, catalogProps, hiveConf);
+
+    try {
+      Table table = hiveCatalog.buildTable(tableIdent, schema)
+          .withProperty("key1", "value1")
+          .withProperty("key2", "value2")
+          .withProperty("key3", "value31")
+          .create();
+
+      Assert.assertEquals("value1", table.properties().get("key1"));
+      Assert.assertEquals("value2", table.properties().get("key2"));
+      Assert.assertEquals("value3", table.properties().get("key3"));
+    } finally {
+      hiveCatalog.dropTable(tableIdent);
     }
   }
 }

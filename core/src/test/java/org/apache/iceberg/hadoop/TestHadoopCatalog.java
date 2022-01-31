@@ -22,6 +22,7 @@ package org.apache.iceberg.hadoop;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -546,5 +547,61 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     table.newAppend().appendFile(dataFile1).commit();
     table.newAppend().appendFile(dataFile2).commit();
+  }
+
+  @Test
+  public void testTablePropsDefaultsWithoutConflict() throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Map<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3",
+        "table-override.key4", "value4");
+
+    Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperties(null)
+        .withProperty("key1", "value1")
+        .withProperty("key2", "value2")
+        .create();
+
+    Assert.assertEquals("value1", table.properties().get("key1"));
+    Assert.assertEquals("value2", table.properties().get("key2"));
+    Assert.assertEquals("value3", table.properties().get("key3"));
+    Assert.assertEquals("value4", table.properties().get("key4"));
+  }
+
+
+  @Test
+  public void testTablePropsOverrideCatalogDefaultProps() throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Map<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3");
+
+    Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperties(null)
+        .withProperty("key1", "value1")
+        .withProperty("key2", "value2")
+        .withProperty("key3", "value31")
+        .create();
+
+    Assert.assertEquals("value1", table.properties().get("key1"));
+    Assert.assertEquals("value2", table.properties().get("key2"));
+    Assert.assertEquals("value31", table.properties().get("key3"));
+  }
+
+  @Test
+  public void testEnforcedCatalogPropsOverrideTableDefaults() throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Map<String, String> catalogProps = ImmutableMap.of("table-override.key3", "value3");
+
+    Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperties(null)
+        .withProperty("key1", "value1")
+        .withProperty("key2", "value2")
+        .withProperty("key3", "value31")
+        .create();
+
+    Assert.assertEquals("value1", table.properties().get("key1"));
+    Assert.assertEquals("value2", table.properties().get("key2"));
+    Assert.assertEquals("value3", table.properties().get("key3"));
   }
 }
