@@ -37,8 +37,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
-  @SuppressWarnings("checkstyle:VisibilityModifier")
-  protected Map<String, String> catalogProps = Collections.emptyMap();
+  private Map<String, String> catalogProps = Collections.emptyMap();
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
@@ -169,7 +168,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      Map<String, String> properties = overrideTableProperties(propertiesBuilder.build());
+      Map<String, String> properties = updateTableProperties(propertiesBuilder.build());
       TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
 
       try {
@@ -189,7 +188,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      Map<String, String> properties = overrideTableProperties(propertiesBuilder.build());
+      Map<String, String> properties = updateTableProperties(propertiesBuilder.build());
       TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
@@ -216,7 +215,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-        Map<String, String> properties = overrideTableProperties(propertiesBuilder.build());
+        Map<String, String> properties = updateTableProperties(propertiesBuilder.build());
         metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
       }
 
@@ -261,17 +260,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return buildTable(identifier, schema)
         .withPartitionSpec(spec)
         .withLocation(location)
-        .withProperties(overrideTableProperties(properties))
+        .withProperties(updateTableProperties(properties))
         .create();
-  }
-
-  /**
-   * Get catalog properties.
-   *
-   * @return catalog properties
-   */
-  Map<String, String> properties() {
-    return catalogProps;
   }
 
   /**
@@ -279,8 +269,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
    *
    * @return default table properties specified in catalog properties
    */
-  Map<String, String> tableCreateDefaultProperties() {
-    Map<String, String> props = properties() == null ? Collections.emptyMap() : properties();
+  private Map<String, String> tableDefaultProperties() {
+    Map<String, String> props = catalogProps == null ? Collections.emptyMap() : catalogProps;
 
     return props.entrySet().stream()
         .filter(e -> e.getKey().toLowerCase(Locale.ROOT).startsWith(CatalogProperties.TABLE_DEFAULT_PREFIX))
@@ -293,8 +283,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
    *
    * @return default table properties enforced through catalog properties
    */
-  Map<String, String> tableCreateEnforcedProperties() {
-    Map<String, String> props = properties() == null ? Collections.emptyMap() : properties();
+  private Map<String, String> tableOverrideProperties() {
+    Map<String, String> props = catalogProps == null ? Collections.emptyMap() : catalogProps;
 
     return props.entrySet().stream()
         .filter(e -> e.getKey().toLowerCase(Locale.ROOT).startsWith(CatalogProperties.TABLE_OVERRIDE_PREFIX))
@@ -308,14 +298,14 @@ public abstract class BaseMetastoreCatalog implements Catalog {
    *
    * @return updated table properties with defaults and enforcements set at Catalog level
    */
-  Map<String, String> overrideTableProperties(Map<String, String> tableProperties) {
+  private Map<String, String> updateTableProperties(Map<String, String> tableProperties) {
     Map<String, String> props = tableProperties == null ? Collections.emptyMap() : tableProperties;
 
     return Stream.concat(
             Stream.concat(
-                tableCreateDefaultProperties().entrySet().stream(),
+                tableDefaultProperties().entrySet().stream(),
                 props.entrySet().stream()),
-            tableCreateEnforcedProperties().entrySet().stream())
+            tableOverrideProperties().entrySet().stream())
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e2));
   }
 }
