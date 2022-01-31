@@ -75,16 +75,16 @@ public class ParquetTypeVisitor<T> {
       T elementResult = visitListElement(listElement, visitor);
       return visitor.list(list, elementResult);
     } else {
-      T elementResult = visitThreeLevelList(repeatedElement, listElement, visitor);
-      return visitor.list(list, elementResult);
+      return visitThreeLevelList(list, repeatedElement, listElement, visitor);
     }
   }
 
-  private static <T> T visitThreeLevelList(Type repeated, Type listElement, ParquetTypeVisitor<T> visitor) {
+  private static <T> T visitThreeLevelList(
+      GroupType list, Type repeated, Type listElement, ParquetTypeVisitor<T> visitor) {
     visitor.beforeRepeatedElement(repeated);
     try {
-      return visitListElement(listElement, visitor);
-
+      T elementResult = visitListElement(listElement, visitor);
+      return visitor.list(list, elementResult);
     } finally {
       visitor.afterRepeatedElement(repeated);
     }
