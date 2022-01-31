@@ -31,6 +31,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -64,6 +65,11 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public DynamoDbClient dynamo() {
     return DynamoDbClient.builder().applyMutation(this::configure).build();
+  }
+
+  @Override
+  public SnsClient sns() {
+    return SnsClient.builder().applyMutation(this::configure).build();
   }
 
   @Override

@@ -317,6 +317,7 @@ project(':iceberg-aws') {
     compileOnly 'software.amazon.awssdk:glue'
     compileOnly 'software.amazon.awssdk:sts'
     compileOnly 'software.amazon.awssdk:dynamodb'
+    compileOnly 'software.amazon.awssdk:sns'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'

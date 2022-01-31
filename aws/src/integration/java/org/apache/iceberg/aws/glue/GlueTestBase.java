@@ -21,6 +21,8 @@ package org.apache.iceberg.aws.glue;
 
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -39,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.sns.SnsClient;
 
 @SuppressWarnings({"VisibilityModifier", "HideUtilityClassConstructor"})
 public class GlueTestBase {
@@ -56,6 +59,10 @@ public class GlueTestBase {
   static final AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
   static final GlueClient glue = clientFactory.glue();
   static final S3Client s3 = clientFactory.s3();
+  static final SnsClient sns = clientFactory.sns();
+
+  static final String testARN = "arn:aws:sns:us-east-1:420609218074:IcebergKunal";
+
 
   // iceberg
   static GlueCatalog glueCatalog;
@@ -63,6 +70,12 @@ public class GlueTestBase {
 
   static Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
   static PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
+
+  static final DataFile testDataFile = DataFiles.builder(partitionSpec)
+          .withPath("/path/to/data-a.parquet")
+          .withFileSizeInBytes(10)
+          .withRecordCount(1)
+          .build();
 
   @BeforeClass
   public static void beforeClass() {
