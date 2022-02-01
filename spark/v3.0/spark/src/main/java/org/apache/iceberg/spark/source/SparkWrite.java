@@ -502,7 +502,7 @@ class SparkWrite {
 
     // Reports bytesWritten and recordsWritten to the Spark output metrics.
     // Can only be called in executor.
-    void reportsToOutputMetrics() {
+    void reportOutputMetrics() {
       long bytesWritten = 0L;
       long recordsWritten = 0L;
       for (DataFile dataFile : taskFiles) {
@@ -606,7 +606,7 @@ class SparkWrite {
 
       DataWriteResult result = delegate.result();
       TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
-      taskCommit.reportsToOutputMetrics();
+      taskCommit.reportOutputMetrics();
       return taskCommit;
     }
 
@@ -658,7 +658,7 @@ class SparkWrite {
 
       DataWriteResult result = delegate.result();
       TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
-      taskCommit.reportsToOutputMetrics();
+      taskCommit.reportOutputMetrics();
       return taskCommit;
     }
 
