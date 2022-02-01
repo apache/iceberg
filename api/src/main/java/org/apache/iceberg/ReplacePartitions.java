@@ -28,8 +28,10 @@ package org.apache.iceberg;
  * The default validation mode is idempotent, meaning the overwrite is
  * correct and should be committed out regardless of other concurrent changes to the table.
  * Alternatively, this API can be configured to validate that no new data or deletes
- * have been applied since a snapshot id associated when this operation began.
- * </p>
+ * have been applied since a snapshot ID associated when this operation began.
+ * This can be done by calling {@link #validateNoConflictingDeletes()}
+ * and {@link #validateNoConflictingData()}, and will ensure that no conflicting delta files or data files
+ * respectively have been written since the snapshot passed to {@link #validateFromSnapshot(long)}.
  * <p>
  * This API accumulates file additions and produces a new {@link Snapshot} of the table by replacing
  * all files in partitions with new data with the new additions. This operation is used to implement
@@ -56,16 +58,39 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
 
   /**
    * Set the snapshot ID used in validations for this operation.
-   * <p>
-   * All validations will check changes after this snapshot ID. If this is not called or snapshot is set to an
-   * invalid snapshot id, validation will be skipped.
+   *
+   * All validations will check changes after this snapshot ID. If this is not called, validation will occur
+   * from the current snapshot ID upon creation of this object.
    *
    * This method should be called before this operation is committed.
-   * If a concurrent operation committed a data file or row delta after the given snapshot id
+   * If a concurrent operation committed a data file or row delta after the given snapshot ID
    * that might contain rows matching a partition marked for deletion, validation will detect this and fail.
    *
    * @param snapshotId a snapshot ID, it should be set to when this operation started to read the table.
    * @return this for method chaining
    */
   ReplacePartitions validateFromSnapshot(long snapshotId);
+
+
+  /**
+   * Enables validation that deletes that happened concurrently do not conflict with this commit's operation.
+   * <p>
+   * Validating concurrent deletes is required during non-idempotent replace operations.
+   * This will check if a concurrent operation deletes data in any of the partitions being overwritten,
+   * as the replace partition must be aborted to avoid undeleting rows that were removed concurrently.
+   *
+   * @return this for method chaining
+   */
+  ReplacePartitions validateNoConflictingDeletes();
+
+  /**
+   * Enables validation that data added concurrently does not conflict with this commit's operation.
+   * <p>
+   * Validating concurrent data files is required during non-idempotent overwrite operations.
+   * This will check if a concurrent operation inserts data in any of the partitions being overwritten,
+   * as the replace partition must be aborted to avoid removing rows added concurrently.
+   *
+   * @return this for method chaining
+   */
+  ReplacePartitions validateNoConflictingData();
 }

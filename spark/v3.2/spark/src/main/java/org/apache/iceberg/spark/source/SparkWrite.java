@@ -283,6 +283,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
       if (level == SERIALIZABLE) {
         dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
+        dynamicOverwrite.validateNoConflictingDeletes();
+        dynamicOverwrite.validateNoConflictingData();
       }
 
       int numFiles = 0;

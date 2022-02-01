@@ -474,25 +474,14 @@ class DeleteFileIndex {
 
       return Iterables.transform(
           matchingManifests,
-          manifest -> deleteManifestEntries(
-              manifest, partitionSet, specsById, dataFilter, partitionFilter, io, caseSensitive));
+          manifest ->
+              ManifestFiles.readDeleteManifest(manifest, io, specsById)
+                  .filterRows(dataFilter)
+                  .filterPartitions(partitionFilter)
+                  .filterPartitions(partitionSet)
+                  .caseSensitive(caseSensitive)
+                  .liveEntries()
+      );
     }
   }
-
-  private static CloseableIterable<ManifestEntry<DeleteFile>> deleteManifestEntries(ManifestFile manifest,
-      PartitionSet partitionSet, Map<Integer, PartitionSpec> specsById, Expression dataFilter,
-      Expression partitionFilter, FileIO io, boolean caseSensitive) {
-    CloseableIterable<ManifestEntry<DeleteFile>> result = ManifestFiles.readDeleteManifest(manifest, io, specsById)
-        .filterRows(dataFilter)
-        .filterPartitions(partitionFilter)
-        .caseSensitive(caseSensitive)
-        .liveEntries();
-    if (partitionSet == null) {
-      return result;
-    } else {
-      return CloseableIterable.filter(result,
-          f -> partitionSet.contains(f.file().specId(), f.file().partition()));
-    }
-  }
-
 }

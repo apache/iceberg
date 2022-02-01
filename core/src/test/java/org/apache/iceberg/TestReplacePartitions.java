@@ -278,6 +278,7 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(baseId)
                 .addFile(FILE_A)
                 .addFile(FILE_B)
+                .validateNoConflictingData()
                 .commit());
   }
 
@@ -336,6 +337,7 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
+                .validateNoConflictingData()
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .commit());
@@ -363,6 +365,7 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             unpartitioned.newReplacePartitions()
                 .validateFromSnapshot(replaceBaseId)
+                .validateNoConflictingData()
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .commit());
@@ -391,6 +394,7 @@ public class TestReplacePartitions extends TableTestBase {
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
+                .validateNoConflictingDeletes()
                 .addFile(FILE_A)
                 .commit());
   }

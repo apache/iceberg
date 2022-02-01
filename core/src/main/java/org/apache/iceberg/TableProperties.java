@@ -244,7 +244,7 @@ public class TableProperties {
   public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
 
   public static final String DYNAMIC_OVERWRITE_ISOLATION_LEVEL = "write.dynamic.overwrite.isolation-level";
-  public static final String DYNAMIC_OVERWRITE_LEVEL_DEFAULT = "serializable";
+  public static final String DYNAMIC_OVERWRITE_LEVEL_DEFAULT = "snapshot";
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";

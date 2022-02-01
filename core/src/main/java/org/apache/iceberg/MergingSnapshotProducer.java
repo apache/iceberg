@@ -32,7 +32,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -284,16 +283,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshots = history.second();
 
     ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
-        .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
+        .filterManifestEntries(entry ->
+            newSnapshots.contains(entry.snapshotId()) &&
+                partitionSet.contains(entry.file().specId(), entry.file().partition()))
         .caseSensitive(caseSensitive)
         .specsById(base.specsById())
         .ignoreDeleted()
         .ignoreExisting();
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
-      CloseableIterable<ManifestEntry<DataFile>> filtered = CloseableIterable.filter(conflictGroup.entries(),
-          f -> partitionSet.contains(f.file().specId(), f.file().partition()));
-      if (filtered.iterator().hasNext()) {
+      if (conflicts.hasNext()) {
         throw new ValidationException("Found conflicting files that can contain records matching partitions %s: %s",
             partitionSet,
             Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));

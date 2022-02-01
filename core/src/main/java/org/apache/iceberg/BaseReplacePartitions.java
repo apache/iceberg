@@ -27,13 +27,16 @@ import org.apache.iceberg.util.PartitionSet;
 public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
 
-  private final PartitionSet deletedPartitions;
-  private Long startingSnapshotId = null;
+  private final PartitionSet replacedPartitions;
+  private Long startingSnapshotId;
+  private boolean validateNewDataFiles = false;
+  private boolean validateNewDeleteFiles = false;
 
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
-    deletedPartitions = PartitionSet.create(ops.current().specsById());
+    replacedPartitions = PartitionSet.create(ops.current().specsById());
+    this.startingSnapshotId = ops.current().currentSnapshot().snapshotId();
   }
 
   @Override
@@ -49,7 +52,7 @@ public class BaseReplacePartitions
   @Override
   public ReplacePartitions addFile(DataFile file) {
     dropPartition(file.specId(), file.partition());
-    deletedPartitions.add(file.specId(), file.partition());
+    replacedPartitions.add(file.specId(), file.partition());
     add(file);
     return this;
   }
@@ -67,14 +70,28 @@ public class BaseReplacePartitions
   }
 
   @Override
+  public ReplacePartitions validateNoConflictingDeletes() {
+    this.validateNewDeleteFiles = true;
+    return this;
+  }
+
+  @Override
+  public ReplacePartitions validateNoConflictingData() {
+    this.validateNewDataFiles = true;
+    return this;
+  }
+
+  @Override
   public void validate(TableMetadata currentMetadata) {
-    if (startingSnapshotId != null && startingSnapshotId != 0) {
+    if (validateNewDataFiles) {
       if (dataSpec().isUnpartitioned()) {
         validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
       } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, deletedPartitions);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
       }
-      validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, deletedPartitions);
+    }
+    if (validateNewDeleteFiles) {
+      validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
     }
   }
 

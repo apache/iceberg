@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionSet;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
@@ -80,6 +81,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private final Schema fileSchema;
 
   // updated by configuration methods
+  private PartitionSet partitionSet = null;
   private Expression partFilter = alwaysTrue();
   private Expression rowFilter = alwaysTrue();
   private Schema fileProjection = null;
@@ -158,6 +160,11 @@ public class ManifestReader<F extends ContentFile<F>>
     return this;
   }
 
+  public ManifestReader<F> filterPartitions(PartitionSet partitions) {
+    this.partitionSet = partitions;
+    return this;
+  }
+
   public ManifestReader<F> filterRows(Expression expr) {
     this.rowFilter = Expressions.and(rowFilter, expr);
     return this;
@@ -182,7 +189,8 @@ public class ManifestReader<F extends ContentFile<F>>
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file()));
+              metricsEvaluator.eval(entry.file()) &&
+              inPartitionSet(entry.file()));
     } else {
       return open(projection(fileSchema, fileProjection, columns, caseSensitive));
     }
@@ -273,6 +281,10 @@ public class ManifestReader<F extends ContentFile<F>>
       }
     }
     return lazyMetricsEvaluator;
+  }
+
+  private boolean inPartitionSet(F fileToCheck) {
+    return partitionSet == null || partitionSet.contains(fileToCheck.specId(), fileToCheck.partition());
   }
 
   private static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {
