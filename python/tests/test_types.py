@@ -38,25 +38,24 @@ from iceberg.types import (
     UUIDType,
 )
 
+non_parameterized_types = [
+    (1, BooleanType),
+    (2, IntegerType),
+    (3, LongType),
+    (4, FloatType),
+    (5, DoubleType),
+    (6, DateType),
+    (7, TimeType),
+    (8, TimestampType),
+    (9, TimestamptzType),
+    (10, StringType),
+    (11, UUIDType),
+    (12, BinaryType),
+]
 
-@pytest.mark.parametrize(
-    "input_type",
-    [
-        BooleanType,
-        IntegerType,
-        LongType,
-        FloatType,
-        DoubleType,
-        DateType,
-        TimeType,
-        TimestampType,
-        TimestamptzType,
-        StringType,
-        UUIDType,
-        BinaryType,
-    ],
-)
-def test_repr_primitive_types(input_type):
+
+@pytest.mark.parametrize("input_index, input_type", non_parameterized_types)
+def test_repr_primitive_types(input_index, input_type):
     assert isinstance(eval(repr(input_type())), input_type)
 
 
@@ -193,40 +192,8 @@ def test_nested_field():
     assert str(field_var) == str(eval(repr(field_var)))
 
 
-@pytest.mark.parametrize(
-    "input_index,input_type",
-    [
-        (1, BooleanType),
-        (2, IntegerType),
-        (3, LongType),
-        (4, FloatType),
-        (5, DoubleType),
-        (6, DateType),
-        (7, TimeType),
-        (8, TimestampType),
-        (9, TimestamptzType),
-        (10, StringType),
-        (11, UUIDType),
-        (12, BinaryType),
-    ],
-)
-@pytest.mark.parametrize(
-    "check_index,check_type",
-    [
-        (1, BooleanType),
-        (2, IntegerType),
-        (3, LongType),
-        (4, FloatType),
-        (5, DoubleType),
-        (6, DateType),
-        (7, TimeType),
-        (8, TimestampType),
-        (9, TimestamptzType),
-        (10, StringType),
-        (11, UUIDType),
-        (12, BinaryType),
-    ],
-)
+@pytest.mark.parametrize("input_index,input_type", non_parameterized_types)
+@pytest.mark.parametrize("check_index,check_type", non_parameterized_types)
 def test_non_parameterized_type_equality(
     input_index, input_type, check_index, check_type
 ):
