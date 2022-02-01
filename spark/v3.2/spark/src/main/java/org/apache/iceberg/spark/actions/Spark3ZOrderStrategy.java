@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -71,6 +70,7 @@ import org.apache.spark.sql.types.TimestampType;
 import scala.collection.Seq;
 
 public class Spark3ZOrderStrategy extends Spark3SortStrategy {
+
   private static final String Z_COLUMN = "ICEZVALUE";
   private static final Schema Z_SCHEMA = new Schema(NestedField.required(0, Z_COLUMN, Types.BinaryType.get()));
   private static final org.apache.iceberg.SortOrder Z_SORT_ORDER = org.apache.iceberg.SortOrder.builderFor(Z_SCHEMA)
@@ -91,7 +91,8 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
     List<String> partZOrderCols = identityPartitionColumns
         .filter(zOrderColNames::contains)
         .collect(Collectors.toList());
-    Preconditions.checkArgument(partZOrderCols.isEmpty(),
+    Preconditions.checkArgument(
+        partZOrderCols.isEmpty(),
         "Cannot ZOrder on an Identity partition column as these values are constant within a partition, " +
             "ZOrdering requested on %s",
         partZOrderCols);
@@ -143,13 +144,13 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
           .map(n -> functions.col(n))
           .toArray(Column[]::new);
 
-      List<StructField> zOrderColumns =  zOrderColNames.stream()
+      List<StructField> zOrderColumns = zOrderColNames.stream()
           .map(scanDF.schema()::apply)
           .collect(Collectors.toList());
 
       Column zvalueArray = functions.array(zOrderColumns.stream().map(colStruct ->
-            SparkZOrder.sortedLexicographically(functions.col(colStruct.name()), colStruct.dataType())
-          ).toArray(Column[]::new));
+          SparkZOrder.sortedLexicographically(functions.col(colStruct.name()), colStruct.dataType())
+      ).toArray(Column[]::new));
 
       Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, SparkZOrder.interleaveBytes(zvalueArray));
 
@@ -180,60 +181,83 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
 
   static class SparkZOrder {
 
+    private static final byte[] TINY_EMPTY = new byte[Byte.BYTES];
+    private static final byte[] SHORT_EMPTY = new byte[Short.BYTES];
+    private static final byte[] INT_EMPTY = new byte[Integer.BYTES];
+    private static final byte[] LONG_EMPTY = new byte[Long.BYTES];
+    private static final byte[] FLOAT_EMPTY = new byte[Float.BYTES];
+    private static final byte[] DOUBLE_EMPTY = new byte[Double.BYTES];
+
     static byte[] interleaveBits(Seq<byte[]> scalaBinary) {
       byte[][] columnsBinary = scala.collection.JavaConverters.seqAsJavaList(scalaBinary)
           .toArray(new byte[scalaBinary.size()][]);
       return ZOrderByteUtils.interleaveBits(columnsBinary);
     }
 
+    private static UserDefinedFunction tinyToOrderedBytesUDF() {
+      return functions.udf((Byte value) -> {
+        if (value == null) {
+          return TINY_EMPTY;
+        }
+        return ZOrderByteUtils.tinyintToOrderedBytes(value);
+      }, DataTypes.BinaryType)
+        .withName("TINY_ORDERED_BYTES");
+    }
+
+    private static UserDefinedFunction shortToOrderedBytesUDF() {
+      return functions.udf((Short value) -> {
+        if (value == null) {
+          return SHORT_EMPTY;
+        }
+        return ZOrderByteUtils.shortToOrderBytes(value);
+      }, DataTypes.BinaryType)
+        .withName("SHORT_ORDERED_BYTES");
+    }
+
     private static UserDefinedFunction intToOrderedBytesUDF() {
       return functions.udf((Integer value) -> {
         if (value == null) {
-          return null;
+          return INT_EMPTY;
         }
         return ZOrderByteUtils.intToOrderedBytes(value);
       }, DataTypes.BinaryType)
-          .withName("INT-LEXICAL-BYTES");
+        .withName("INT_ORDERED_BYTES");
     }
 
     private static UserDefinedFunction longToOrderedBytesUDF() {
       return functions.udf((Long value) -> {
-            if (value == null) {
-              return null;
-            }
-            return ZOrderByteUtils.longToOrderBytes(value);
-          }, DataTypes.BinaryType)
-          .withName("LONG-LEXICAL-BYTES");
+        if (value == null) {
+          return LONG_EMPTY;
+        }
+        return ZOrderByteUtils.longToOrderBytes(value);
+      }, DataTypes.BinaryType)
+      .withName("LONG_ORDERED_BYTES");
     }
 
     private static UserDefinedFunction floatToOrderedBytesUDF() {
       return functions.udf((Float value) -> {
-            if (value == null) {
-              return null;
-            }
-            return ZOrderByteUtils.floatToOrderedBytes(value);
-          }, DataTypes.BinaryType)
-          .withName("FLOAT-LEXICAL-BYTES");
+        if (value == null) {
+          return FLOAT_EMPTY;
+        }
+        return ZOrderByteUtils.floatToOrderedBytes(value);
+      }, DataTypes.BinaryType)
+        .withName("FLOAT_ORDERED_BYTES");
     }
 
     private static UserDefinedFunction doubleToOrderedBytesUDF() {
       return functions.udf((Double value) -> {
-            if (value == null) {
-              return null;
-            }
-            return ZOrderByteUtils.doubleToOrderedBytes(value);
-          }, DataTypes.BinaryType)
-          .withName("DOUBLE-LEXICAL-BYTES");
+        if (value == null) {
+          return DOUBLE_EMPTY;
+        }
+        return ZOrderByteUtils.doubleToOrderedBytes(value);
+      }, DataTypes.BinaryType)
+        .withName("FLOAT_ORDERED_BYTES");
     }
 
     private static UserDefinedFunction stringToOrderedBytesUDF() {
-      return functions.udf((String value) -> {
-            if (value == null) {
-              return null;
-            }
-            return ZOrderByteUtils.stringToOrderedBytes(value);
-          }, DataTypes.BinaryType)
-          .withName("STRING-LEXICAL-BYTES");
+      return functions.udf((String value) -> ZOrderByteUtils.stringToOrderedBytes(value, STRING_KEY_LENGTH),
+        DataTypes.BinaryType)
+        .withName("STRING-LEXICAL-BYTES");
     }
 
     private static final UserDefinedFunction INTERLEAVE_UDF =
@@ -247,27 +271,27 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     static Column sortedLexicographically(Column column, DataType type) {
       if (type instanceof ByteType) {
-        return column.cast(DataTypes.BinaryType);
+        return tinyToOrderedBytesUDF().apply(column);
       } else if (type instanceof ShortType) {
-        return getLexicalBytesIntLike(2).apply(column.cast(DataTypes.BinaryType));
+        return shortToOrderedBytesUDF().apply(column);
       } else if (type instanceof IntegerType) {
-        return getLexicalBytesIntLike(4).apply(column.cast(DataTypes.BinaryType));
+        return intToOrderedBytesUDF().apply(column);
       } else if (type instanceof LongType) {
-        return getLexicalBytesIntLike(8).apply(column.cast(DataTypes.BinaryType));
+        return longToOrderedBytesUDF().apply(column);
       } else if (type instanceof FloatType) {
-        return getLexicalBytesFloatLike(4).apply(FLOAT_TO_BYTES.apply(column));
+        return floatToOrderedBytesUDF().apply(column);
       } else if (type instanceof DoubleType) {
-        return getLexicalBytesFloatLike(8).apply(DOUBLE_TO_BYTES.apply(column));
+        return doubleToOrderedBytesUDF().apply(column);
       } else if (type instanceof StringType) {
-        return getLexicalBytesUTF8Like(STRING_KEY_LENGTH).apply(column.cast(DataTypes.BinaryType));
+        return stringToOrderedBytesUDF().apply(column);
       } else if (type instanceof BinaryType) {
-        return getLexicalBytesUTF8Like(STRING_KEY_LENGTH).apply(column);
+        return stringToOrderedBytesUDF().apply(column);
       } else if (type instanceof BooleanType) {
-        return getLexicalBytesUTF8Like(1).apply(column.cast(DataTypes.BinaryType));
+        return column.cast(DataTypes.BinaryType);
       } else if (type instanceof TimestampType) {
-        return getLexicalBytesIntLike(8).apply(column.cast(DataTypes.LongType).cast(DataTypes.BinaryType));
+        return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
       } else if (type instanceof DateType) {
-        return getLexicalBytesIntLike(8).apply(column.cast(DataTypes.LongType).cast(DataTypes.BinaryType));
+        return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
       } else {
         throw new IllegalArgumentException(
             String.format("Cannot use column %s of type %s in ZOrdering, the type is unsupported",
