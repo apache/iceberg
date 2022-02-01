@@ -27,7 +27,7 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public abstract class SparkCatalogTestBase extends SparkTestBaseWithCatalog {
-
+  // these parameters are broken out to avoid changes that need to modify lots of test suites
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
