@@ -382,6 +382,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     if (hiveEngineEnabled) {
       parameters.put(hive_metastoreConstants.META_TABLE_STORAGE,
           "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+      // In this case, we should also set engine.hive.enabled=true
+      // if it is not already in the properties passed in
+      parameters.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
     }
