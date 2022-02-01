@@ -24,7 +24,38 @@ its location.
 """
 
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Protocol, Union
+
+
+class InputStream(Protocol):
+    def read(self, n: int) -> bytes:
+        ...
+
+    def readable(self) -> bool:
+        ...
+
+    def close(self) -> None:
+        ...
+
+    def seek(self, offset: int, whence: int) -> None:
+        ...
+
+    def tell(self) -> int:
+        ...
+
+
+class OutputStream(Protocol):
+    def write(self, b: bytes) -> None:
+        ...
+
+    def close(self) -> None:
+        ...
+
+    def flush(self) -> None:
+        ...
+
+    def tell(self) -> int:
+        ...
 
 
 class InputFile(ABC):
@@ -48,8 +79,11 @@ class InputFile(ABC):
         """Checks whether the file exists"""
 
     @abstractmethod
-    def open(self):
-        """This method should return an instance of an seekable input stream."""
+    def open(self) -> InputStream:
+        """This method should return an object that matches the InputStream protocol
+
+        If a file does not exist at `self.location`, this should raise a FileNotFoundError.
+        """
 
 
 class OutputFile(ABC):
@@ -77,8 +111,8 @@ class OutputFile(ABC):
         """Returns an InputFile for the location of this output file"""
 
     @abstractmethod
-    def create(self, overwrite: bool = False):
-        """This method should return a file-like object.
+    def create(self, overwrite: bool = False) -> OutputStream:
+        """This method should return an object that matches the OutputStream protocol.
 
         Args:
             overwrite(bool): If the file already exists at `self.location`
@@ -87,6 +121,8 @@ class OutputFile(ABC):
 
 
 class FileIO(ABC):
+    """A base class for FileIO implementations"""
+
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
         """Get an InputFile instance to read bytes from the file at the given location"""
