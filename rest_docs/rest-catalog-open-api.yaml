@@ -192,6 +192,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
           description: Conflict - The namespace already exists
           content:
@@ -405,6 +407,15 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The table already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/IcebergErrorResponse'
+              examples:
+                NamespaceAlreadyExists:
+                  $ref: '#/components/examples/TableAlreadyExistsError'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
