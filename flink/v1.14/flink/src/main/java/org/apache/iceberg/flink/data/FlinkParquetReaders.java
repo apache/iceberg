@@ -36,6 +36,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -143,13 +144,12 @@ public class FlinkParquetReaders {
         return null;
       }
 
-      GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
-      Type elementType = repeated.getType(0);
+      Type elementType = ParquetSchemaUtil.determineListElementType(array);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
       return new ArrayReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
