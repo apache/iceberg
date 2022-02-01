@@ -40,9 +40,11 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -56,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -540,5 +543,55 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @VisibleForTesting
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new HiveCatalogTableBuilder(identifier, schema);
+  }
+
+  private class HiveCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {
+
+    private HiveCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+    }
+
+    @Override
+    protected TableMetadata createTableMetadata(String baseLocation, Map<String, String> properties) {
+      boolean isExternal = Boolean.parseBoolean(properties.getOrDefault("external", "false"));
+      boolean isGcEnabledSpecified = properties.containsKey(TableProperties.GC_ENABLED);
+      boolean isGcEnabled = Boolean.parseBoolean(
+          properties.getOrDefault(
+              TableProperties.GC_ENABLED,
+              String.valueOf(TableProperties.GC_ENABLED_DEFAULT)));
+      Map<String, String> updatedProps = properties;
+
+      if (isExternal) {
+        if (!isGcEnabledSpecified && isGcEnabled) {
+          LOG.info("Turning off GC for the external table.");
+          updatedProps = ImmutableMap.<String, String>builder()
+              .putAll(properties)
+              .put(TableProperties.GC_ENABLED, "false")
+              .build();
+        } else if (isGcEnabledSpecified && isGcEnabled) {
+          throw new RuntimeException(
+              "Creating an external table on hive catalog with gc enabled is not allowed. Either" +
+                  " don't use external table or turn off gc.enabled on the table.");
+        }
+      } else {
+        if (!isGcEnabledSpecified && !isGcEnabled) {
+          LOG.info("Turning on GC for the managed table.");
+          updatedProps = ImmutableMap.<String, String>builder()
+              .putAll(properties)
+              .put(TableProperties.GC_ENABLED, "true")
+              .build();
+        } else if (isGcEnabledSpecified && !isGcEnabled) {
+          throw new RuntimeException("Creating a managed table on hive catalog with gc disabled is not allowed." +
+              " Either use external table or turn on gc.enabled on the table.");
+        }
+      }
+
+      return super.createTableMetadata(baseLocation, updatedProps);
+    }
   }
 }

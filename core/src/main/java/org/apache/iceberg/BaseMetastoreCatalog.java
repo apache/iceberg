@@ -159,7 +159,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
+      TableMetadata metadata = createTableMetadata(baseLocation, properties);
 
       try {
         ops.commit(null, metadata);
@@ -179,7 +179,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
+      TableMetadata metadata = createTableMetadata(baseLocation, properties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
 
@@ -205,7 +205,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-        metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
+        metadata = createTableMetadata(baseLocation, propertiesBuilder.build());
       }
 
       if (orCreate) {
@@ -213,6 +213,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       } else {
         return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
       }
+    }
+
+    protected TableMetadata createTableMetadata(String baseLocation, Map<String, String> properties) {
+      return TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
     }
   }
 

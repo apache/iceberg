@@ -20,7 +20,11 @@
 package org.apache.iceberg.spark.sql;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
@@ -29,6 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -278,5 +283,89 @@ public class TestCreateTable extends SparkCatalogTestBase {
         IllegalArgumentException.class,
         "Cannot downgrade v2 table to v1",
         () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+  }
+
+  @Test
+  public void testCreateExternalTableDisablesGC() throws IOException {
+    Assume.assumeTrue("Only test hive catalog", catalogName.equals(SparkCatalogConfig.HIVE.catalogName()));
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE EXTERNAL TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    File dataLocation = new File(table.location().replace("file:", "") + "/data");
+    Assert.assertFalse("No data should be there.", dataLocation.exists());
+
+    try {
+      sql("INSERT INTO %s VALUES (123456789, \"test string\")", tableName);
+      List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+      Assert.assertEquals(1, expected.size());
+      Assert.assertEquals("Data should be there.", 2,
+          Objects.requireNonNull(dataLocation.listFiles()).length);
+
+      sql("DROP TABLE %s", tableName);
+      Assert.assertEquals("Data should not have been deleted.", 2,
+          Objects.requireNonNull(dataLocation.listFiles()).length);
+    } finally {
+      FileUtils.deleteDirectory(dataLocation.getParentFile());
+    }
+  }
+
+  @Test
+  public void testCreateExternalTableThrowsWhenGcSet() {
+    Assume.assumeTrue("Only test hive catalog", catalogName.equals(SparkCatalogConfig.HIVE.catalogName()));
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    try {
+      sql("CREATE EXTERNAL TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg tblproperties(\"gc" +
+          ".enabled\"=\"true\")", tableName);
+      Assert.fail("Runtime exception should have been thrown.");
+    } catch (RuntimeException e) {
+      // expected, do nothing
+    }
+  }
+
+  @Test
+  public void testCreateManagedTableThrowsWhenGcNotSet() {
+    Assume.assumeTrue("Only test hive catalog", catalogName.equals(SparkCatalogConfig.HIVE.catalogName()));
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    try {
+      sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg tblproperties(\"gc" +
+          ".enabled\"=\"false\")", tableName);
+      Assert.fail("Runtime exception should have been thrown.");
+    } catch (RuntimeException e) {
+      // expected, do nothing
+    }
+  }
+
+  @Test
+  public void testCreateManagedTableEnablesGC() throws IOException {
+    Assume.assumeTrue("Only test hive catalog", catalogName.equals(SparkCatalogConfig.HIVE.catalogName()));
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    File dataLocation = new File(table.location().replace("file:", "") + "/data");
+    Assert.assertFalse("No data should be there.", dataLocation.exists());
+
+    try {
+      sql("INSERT INTO %s VALUES (123456789, \"test string\")", tableName);
+      List<Object[]> expected = sql(String.format("SELECT * FROM %s", tableName));
+      Assert.assertEquals(1, expected.size());
+      Assert.assertEquals("Data should be there.", 2,
+          Objects.requireNonNull(dataLocation.listFiles()).length);
+
+      sql("DROP TABLE %s", tableName);
+      Assert.assertEquals("Data should not have been deleted.", 0,
+          Objects.requireNonNull(dataLocation.listFiles()).length);
+    } finally {
+      FileUtils.deleteDirectory(dataLocation.getParentFile());
+    }
   }
 }
