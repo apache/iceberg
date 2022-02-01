@@ -19,10 +19,17 @@
 
 package org.apache.iceberg.spark.sql;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -84,11 +91,13 @@ public class TestDropTable extends SparkCatalogTestBase {
   }
 
   @After
-  public void removeTable() {
-    if (validationCatalog.tableExists(tableIdent)) {
-      validationCatalog.dropTable(tableIdent, true);
-    }
+  public void removeTable() throws IOException {
     sql(session, "DROP TABLE IF EXISTS %s PURGE", tableName);
+
+    File baseLocation = new File(getTableBaseLocation());
+    if (baseLocation.exists()) {
+      FileUtils.deleteDirectory(baseLocation);
+    }
     session = null;
   }
 
@@ -97,8 +106,18 @@ public class TestDropTable extends SparkCatalogTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "test")), sql(session, "SELECT * FROM %s", tableName));
 
+    int fileSize = dataFiles().size();
+    Assert.assertTrue("The number of data files should be larger than zero", fileSize > 0);
+
     sql(session, "DROP TABLE %s", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
+
+    if (catalogName.equals("testhadoop")) {
+      // HadoopCatalog drop table without purge will delete the base table location.
+      Assert.assertEquals("The number of data files should be zero", 0, dataFiles().size());
+    } else {
+      Assert.assertEquals("The number of data files should not change", fileSize, dataFiles().size());
+    }
 
     Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
     if (!"spark_catalog".equals(catalogName)) {
@@ -121,8 +140,12 @@ public class TestDropTable extends SparkCatalogTestBase {
         ImmutableList.of(row(1, "test")),
         sql(session, "SELECT * FROM %s", tableName));
 
+    int fileSize = dataFiles().size();
+    Assert.assertTrue("The number of data files should be larger than zero", fileSize > 0);
+
     sql(session, "DROP TABLE %s PURGE", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
+    Assert.assertEquals("The number of data files should be zero", 0, dataFiles().size());
 
     Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
     if (!"spark_catalog".equals(catalogName)) {
@@ -146,6 +169,29 @@ public class TestDropTable extends SparkCatalogTestBase {
     }
 
     return rowsToJava(rows);
+  }
+
+  private List<String> dataFiles() {
+    String baseLocation = getTableBaseLocation();
+
+    File dataPath = new File(baseLocation, "data");
+    if (dataPath.exists()) {
+      return Arrays.stream(dataPath.listFiles()).map(File::getAbsolutePath).collect(Collectors.toList());
+    } else {
+      return Lists.newArrayList();
+    }
+  }
+
+  private String getTableBaseLocation() {
+    String baseLocation;
+    if (catalogName.equals("testhadoop")) {
+      baseLocation = Paths.get(warehouse.getAbsolutePath(), "default", "table").toAbsolutePath().toString();
+    } else {
+      String databasePath = metastore.getDefaultDatabasePath();
+      baseLocation = Paths.get(databasePath, "table").toAbsolutePath().toString();
+    }
+
+    return baseLocation;
   }
 
   public static class CustomSparkSessionCatalog extends SparkSessionCatalog {
