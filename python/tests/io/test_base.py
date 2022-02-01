@@ -50,7 +50,14 @@ class LocalInputFile(InputFile):
         return os.path.exists(self.parsed_location.path)
 
     def open(self) -> InputStream:
-        return open(self.parsed_location.path, "rb")
+        input_file = open(self.parsed_location.path, "rb")
+        if not isinstance(input_file, InputStream):
+            raise RuntimeError(
+                """
+                Object returned from LocalInputFile.open does not match the OutputStream protocol.
+            """
+            )
+        return input_file
 
 
 class LocalOutputFile(OutputFile):
@@ -81,7 +88,14 @@ class LocalOutputFile(OutputFile):
         return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        return open(self.parsed_location.path, "wb" if overwrite else "xb")
+        output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
+        if not isinstance(output_file, OutputStream):
+            raise RuntimeError(
+                """
+                Object returned from LocalOutputFile.create does not match the OutputStream protocol.
+            """
+            )
+        return output_file
 
 
 class LocalFileIO(FileIO):
