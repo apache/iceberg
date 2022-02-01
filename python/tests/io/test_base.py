@@ -22,7 +22,7 @@ from urllib.parse import ParseResult, urlparse
 
 import pytest
 
-from iceberg.io.base import FileIO, InputFile, OutputFile
+from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
 
 class LocalInputFile(InputFile):
@@ -49,7 +49,7 @@ class LocalInputFile(InputFile):
     def exists(self):
         return os.path.exists(self.parsed_location.path)
 
-    def open(self):
+    def open(self) -> InputStream:
         return open(self.parsed_location.path, "rb")
 
 
@@ -80,7 +80,7 @@ class LocalOutputFile(OutputFile):
     def to_input_file(self):
         return LocalInputFile(location=self.location)
 
-    def create(self, overwrite: bool = False) -> None:
+    def create(self, overwrite: bool = False) -> OutputStream:
         return open(self.parsed_location.path, "wb" if overwrite else "xb")
 
 

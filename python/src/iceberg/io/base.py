@@ -24,9 +24,10 @@ its location.
 """
 
 from abc import ABC, abstractmethod
-from typing import Protocol, Union
+from typing import Protocol, Union, runtime_checkable
 
 
+@runtime_checkable
 class InputStream(Protocol):
     def read(self, n: int) -> bytes:
         ...
@@ -44,6 +45,7 @@ class InputStream(Protocol):
         ...
 
 
+@runtime_checkable
 class OutputStream(Protocol):
     def write(self, b: bytes) -> None:
         ...
