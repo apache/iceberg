@@ -53,9 +53,7 @@ class LocalInputFile(InputFile):
         input_file = open(self.parsed_location.path, "rb")
         if not isinstance(input_file, InputStream):
             raise RuntimeError(
-                """
-                Object returned from LocalInputFile.open does not match the OutputStream protocol.
-            """
+                """Object returned from LocalInputFile.open does not match the OutputStream protocol."""
             )
         return input_file
 
@@ -91,9 +89,7 @@ class LocalOutputFile(OutputFile):
         output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
         if not isinstance(output_file, OutputStream):
             raise RuntimeError(
-                """
-                Object returned from LocalOutputFile.create does not match the OutputStream protocol.
-            """
+                """Object returned from LocalOutputFile.create does not match the OutputStream protocol."""
             )
         return output_file
 
