@@ -495,20 +495,21 @@ class SparkWrite {
 
   public static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] taskFiles;
-    private long bytesWritten = 0L;
-    private long recordsWritten = 0L;
 
     TaskCommit(DataFile[] taskFiles) {
       this.taskFiles = taskFiles;
-      for (DataFile dataFile : taskFiles) {
-        this.bytesWritten += dataFile.fileSizeInBytes();
-        this.recordsWritten += dataFile.recordCount();
-      }
     }
 
     // Reports bytesWritten and recordsWritten to the Spark output metrics.
     // Can only be called in executor.
     void reportsToOutputMetrics() {
+      long bytesWritten = 0L;
+      long recordsWritten = 0L;
+      for (DataFile dataFile : taskFiles) {
+        bytesWritten += dataFile.fileSizeInBytes();
+        recordsWritten += dataFile.recordCount();
+      }
+
       TaskContext taskContext = TaskContext$.MODULE$.get();
       if (taskContext != null) {
         OutputMetrics outputMetrics = taskContext.taskMetrics().outputMetrics();
