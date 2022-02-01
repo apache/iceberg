@@ -61,8 +61,11 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.TaskContext;
+import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.executor.OutputMetrics;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -492,9 +495,26 @@ class SparkWrite {
 
   public static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] taskFiles;
+    private long bytesWritten = 0L;
+    private long recordsWritten = 0L;
 
     TaskCommit(DataFile[] taskFiles) {
       this.taskFiles = taskFiles;
+      for (DataFile dataFile : taskFiles) {
+        this.bytesWritten += dataFile.fileSizeInBytes();
+        this.recordsWritten += dataFile.recordCount();
+      }
+    }
+
+    // Reports bytesWritten and recordsWritten to the Spark output metrics.
+    // Can only be called in executor.
+    void reportsToOutputMetrics() {
+      TaskContext taskContext = TaskContext$.MODULE$.get();
+      if (taskContext != null) {
+        OutputMetrics outputMetrics = taskContext.taskMetrics().outputMetrics();
+        outputMetrics.setBytesWritten(bytesWritten);
+        outputMetrics.setRecordsWritten(recordsWritten);
+      }
     }
 
     DataFile[] files() {
@@ -584,7 +604,9 @@ class SparkWrite {
       close();
 
       DataWriteResult result = delegate.result();
-      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      taskCommit.reportsToOutputMetrics();
+      return taskCommit;
     }
 
     @Override
@@ -634,7 +656,9 @@ class SparkWrite {
       close();
 
       DataWriteResult result = delegate.result();
-      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      taskCommit.reportsToOutputMetrics();
+      return taskCommit;
     }
 
     @Override
