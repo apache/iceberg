@@ -62,9 +62,7 @@ class Type:
 
 class FixedType(Type):
     def __init__(self, length: int):
-        super().__init__(
-            f"fixed[{length}]", f"FixedType(length={length})", is_primitive=True
-        )
+        super().__init__(f"fixed[{length}]", f"FixedType(length={length})", is_primitive=True)
         self._length = length
 
     @property
@@ -148,8 +146,7 @@ class NestedField:
 
     def __str__(self):
         return (
-            f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}"
-            ""
+            f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}" ""
             if self._doc is None
             else f" ({self._doc})"
         )
