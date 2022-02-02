@@ -571,7 +571,8 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {
-    Preconditions.checkArgument(namespace.length > 0);
+    Preconditions.checkArgument(namespace.length > 0,
+        "Cannot convert empty namespace to identifier");
     String[] ns = Arrays.copyOf(namespace, namespace.length - 1);
     String name = namespace[ns.length];
     return Identifier.of(ns, name);
