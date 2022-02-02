@@ -101,9 +101,7 @@ def test_struct_type():
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
-    assert type_var != StructType(
-        [NestedField(True, 1, "optional_field", IntegerType())]
-    )
+    assert type_var != StructType([NestedField(True, 1, "optional_field", IntegerType())])
 
 
 def test_list_type():
@@ -194,9 +192,7 @@ def test_nested_field():
 
 @pytest.mark.parametrize("input_index,input_type", non_parameterized_types)
 @pytest.mark.parametrize("check_index,check_type", non_parameterized_types)
-def test_non_parameterized_type_equality(
-    input_index, input_type, check_index, check_type
-):
+def test_non_parameterized_type_equality(input_index, input_type, check_index, check_type):
     if input_index == check_index:
         assert input_type() == check_type()
     else:
