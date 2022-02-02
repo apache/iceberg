@@ -56,7 +56,11 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+<<<<<<< HEAD
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+=======
+import static org.apache.iceberg.DataOperations.OVERWRITE;
+>>>>>>> Fix attempt for TestCopyOnWriteUpdate::testUpdateWithoutCondition
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
@@ -233,11 +237,17 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
+
+    Assert.assertEquals("Operation must match", OVERWRITE, currentSnapshot.operation());
     if (mode(table) == COPY_ON_WRITE) {
-      validateCopyOnWrite(currentSnapshot, "2", "3", "3");
+      Assert.assertEquals("Operation must match", OVERWRITE, currentSnapshot.operation());
+      validateProperty(currentSnapshot, CHANGED_PARTITION_COUNT_PROP, "2");
+      validateProperty(currentSnapshot, DELETED_FILES_PROP, "3");
+      validateProperty(currentSnapshot, ADDED_FILES_PROP, ImmutableSet.of("2", "3"));
     } else {
       validateMergeOnRead(currentSnapshot, "2", "2", "2");
     }
+
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(-1, "hr")),
