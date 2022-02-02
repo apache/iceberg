@@ -488,6 +488,10 @@ public class SparkCatalog extends BaseCatalog {
       return Pair.of(icebergCatalog.loadTable(buildIdentifier(ident)), null);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      if (ident.namespace().length == 0) {
+        throw e;
+      }
+
       // if the original load didn't work, the identifier may be extended and include a snapshot selector
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       Table table;
@@ -567,6 +571,8 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {
+    Preconditions.checkArgument(namespace.length > 0,
+        "Cannot convert empty namespace to identifier");
     String[] ns = Arrays.copyOf(namespace, namespace.length - 1);
     String name = namespace[ns.length];
     return Identifier.of(ns, name);
