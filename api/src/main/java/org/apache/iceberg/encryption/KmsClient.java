@@ -35,10 +35,9 @@ public interface KmsClient extends Serializable {
    *
    * @param key            a secret key being wrapped
    * @param wrappingKeyId  a key ID that represents a wrapping key stored in KMS
-   * @param context        additional authenticated data that can be used to ensure integrity
    * @return               wrapped key material
    */
-  String wrapKey(ByteBuffer key, String wrappingKeyId, Map<String, String> context);
+  String wrapKey(ByteBuffer key, String wrappingKeyId);
 
   /**
    * Some KMS systems support generation of secret keys inside the KMS server.
@@ -56,10 +55,9 @@ public interface KmsClient extends Serializable {
    * supportsKeyGeneration returns true.
    *
    * @param wrappingKeyId   a key ID that represents a wrapping key stored in KMS
-   * @param context         additional authenticated data that can be used to ensure integrity
    * @return                a pair of plaintext and wrapped key encrypted with the given wrappingKeyId
    */
-  KeyGenerationResult generateKey(String wrappingKeyId, Map<String, String> context);
+  KeyGenerationResult generateKey(String wrappingKeyId);
 
   /**
    * Unwrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.
@@ -67,36 +65,16 @@ public interface KmsClient extends Serializable {
    * @param wrappedKey      wrapped key material (encrypted key and optional KMS metadata, returned by
    *                        the wrapKey method)
    * @param wrappingKeyId   a key ID that represents a wrapping key stored in KMS
-   * @param context         additional authenticated data that can be used to ensure integrity
    * @return                plaintext key bytes
    */
-  ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId, Map<String, String> context);
+  ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId);
 
   /**
-   * Returns the algorithm used by the provider when generating keys, such as AES_256_GCM
-   */
-  KeyGenerationAlgorithm keyGenerationAlgorithm();
-
-  /**
-   * Returns the spec of the key, such as AES_128
-   */
-  KeySpec keySpec();
-
-  /**
-   * Initialize key provider from catalog and other properties
+   * Set kms client properties
    *
-   * @param properties catalog properties
+   * @param properties kms client properties
    */
   void initialize(Map<String, String> properties);
-
-  enum KeyGenerationAlgorithm {
-    AES_256_GCM
-  }
-
-  enum KeySpec {
-    AES_128,
-    AES_256
-  }
 
   class KeyGenerationResult {
     private final ByteBuffer key;

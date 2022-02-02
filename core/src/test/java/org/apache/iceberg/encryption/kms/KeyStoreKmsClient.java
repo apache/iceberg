@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.encryption;
+package org.apache.iceberg.encryption.kms;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -28,62 +28,29 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
-import java.util.Base64;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.SecretKey;
 
-public class DemoKmsClient implements KmsClient {
+/**
+ * KMS client demo class, based on the Java KeyStore API that reads keys from standard PKCS12 keystore files
+ */
+public class KeyStoreKmsClient extends MemoryMockKMS {
 
-  public static final String KEY_FILE_PATH_PROP = "demo.kms.client.keyfile.path";
-  public static final String KEY_FILE_PASSWORD_PROP = "demo.kms.client.keyfile.password";
-
-  private Map<String, byte[]> keys;
+  public static final String KEY_FILE_PATH_PROP = "keystore.kms.client.file.path";
+  public static final String KEY_FILE_PASSWORD_PROP = "keystore.kms.client.file.password";
 
   @Override
-  public String wrapKey(ByteBuffer key, String wrappingKeyId, Map<String, String> context) {
+  public String wrapKey(ByteBuffer key, String wrappingKeyId) {
     // keytool keeps key names in lower case
-    byte[] wrappingKey = keys.get(wrappingKeyId.toLowerCase());
-    if (null == wrappingKey) {
-      throw new RuntimeException("Key " + wrappingKeyId + " is not found");
-    }
-    Ciphers.AesGcmEncryptor keyEncryptor = new Ciphers.AesGcmEncryptor(wrappingKey);
-    byte[] encryptedKey = keyEncryptor.encrypt(key.array());
-    return Base64.getEncoder().encodeToString(encryptedKey);
+    return super.wrapKey(key, wrappingKeyId.toLowerCase());
   }
 
   @Override
-  public boolean supportsKeyGeneration() {
-    return false;
-  }
-
-  @Override
-  public KeyGenerationResult generateKey(String keyId, Map<String, String> context) {
-    return null;
-  }
-
-  @Override
-  public ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId, Map<String, String> context) {
-    byte[] encryptedKey = Base64.getDecoder().decode(wrappedKey);
+  public ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId) {
     // keytool keeps key names in lower case
-    byte[] wrappingKey = keys.get(wrappingKeyId.toLowerCase());
-    if (null == wrappingKey) {
-      throw new RuntimeException("Key " + wrappingKeyId + " is not found");
-    }
-    Ciphers.AesGcmDecryptor keyDecryptor = new Ciphers.AesGcmDecryptor(wrappingKey);
-    byte[] key = keyDecryptor.decrypt(encryptedKey);
-    return ByteBuffer.wrap(key);
-  }
-
-  @Override
-  public KeyGenerationAlgorithm keyGenerationAlgorithm() {
-    return null;
-  }
-
-  @Override
-  public KeySpec keySpec() {
-    return null;
+    return super.unwrapKey(wrappedKey, wrappingKeyId.toLowerCase());
   }
 
   @Override
@@ -126,7 +93,7 @@ public class DemoKmsClient implements KmsClient {
       throw new RuntimeException("Failed to get key aliases in keystore file " + keyFilePath, e);
     }
 
-    keys = new HashMap<>();
+    masterKeys = new HashMap<>();
     while (keyAliases.hasMoreElements()) {
       String keyAlias = keyAliases.nextElement();
       SecretKey secretKey;
@@ -136,10 +103,10 @@ public class DemoKmsClient implements KmsClient {
         throw new RuntimeException("Failed to get key " + keyAlias, e);
       }
 
-      keys.put(keyAlias, secretKey.getEncoded());
+      masterKeys.put(keyAlias, secretKey.getEncoded());
     }
 
-    if (keys.isEmpty()) {
+    if (masterKeys.isEmpty()) {
       throw new RuntimeException("No keys found in " + keyFilePath);
     }
   }

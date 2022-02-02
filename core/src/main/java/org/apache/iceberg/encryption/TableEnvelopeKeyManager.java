@@ -89,14 +89,14 @@ public class TableEnvelopeKeyManager implements EnvelopeKeyManager {
       String wrappedFileDEK;
       if (kmsClient.supportsKeyGeneration()) {
         // TODO is context needed?
-        KmsClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKekID, null);
+        KmsClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKekID);
         fileDek = generatedDek.key().array();
         wrappedFileDEK = generatedDek.wrappedKey();
       } else {
         fileDek = new byte[dataKeyLength];
         workerRNG.nextBytes(fileDek);
         // TODO is context needed?
-        wrappedFileDEK = kmsClient.wrapKey(ByteBuffer.wrap(fileDek), tableKekID, null);
+        wrappedFileDEK = kmsClient.wrapKey(ByteBuffer.wrap(fileDek), tableKekID);
       }
 
       // TODO skip for metadata files and lists. Use EnvelopeConfig.properties?
@@ -107,13 +107,13 @@ public class TableEnvelopeKeyManager implements EnvelopeKeyManager {
           byte[] columnDek;
           String wrappedColumnDek;
           if (kmsClient.supportsKeyGeneration()) {
-            KmsClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKekID, null);
+            KmsClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKekID);
             columnDek = generatedDek.key().array();
             wrappedColumnDek = generatedDek.wrappedKey();
           } else {
             columnDek = new byte[dataKeyLength];
             workerRNG.nextBytes(columnDek);
-            wrappedColumnDek = kmsClient.wrapKey(ByteBuffer.wrap(columnDek), tableKekID, null);
+            wrappedColumnDek = kmsClient.wrapKey(ByteBuffer.wrap(columnDek), tableKekID);
           }
           EnvelopeMetadata columnEnvelopeMetadata = new EnvelopeMetadata(null, tableKekID, null,
                   wrappedColumnDek, null, null, null, columnName, null,
@@ -142,12 +142,12 @@ public class TableEnvelopeKeyManager implements EnvelopeKeyManager {
         throw new RuntimeException("Wrong table KEK ID: " + encryptedMetadata.kekId() + " instead of " + tableKekID);
       }
       // TODO is context needed?
-      ByteBuffer fileDek = kmsClient.unwrapKey(encryptedMetadata.wrappedDek(), tableKekID, null);
+      ByteBuffer fileDek = kmsClient.unwrapKey(encryptedMetadata.wrappedDek(), tableKekID);
       encryptedMetadata.setDek(fileDek);
 
       // TODO for column-specific MEKs/KEKs, unwrap only projected columns
       for (EnvelopeMetadata column : encryptedMetadata.columnMetadata()) {
-        ByteBuffer columnDek = kmsClient.unwrapKey(column.wrappedDek(), column.kekId(), null);
+        ByteBuffer columnDek = kmsClient.unwrapKey(column.wrappedDek(), column.kekId());
         column.setDek(columnDek);
       }
     }
