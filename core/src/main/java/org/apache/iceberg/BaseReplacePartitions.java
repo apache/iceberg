@@ -36,7 +36,8 @@ public class BaseReplacePartitions
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
     replacedPartitions = PartitionSet.create(ops.current().specsById());
-    this.startingSnapshotId = ops.current().currentSnapshot().snapshotId();
+    this.startingSnapshotId = ops.current().currentSnapshot() == null ? 0 :
+        ops.current().currentSnapshot().snapshotId();
   }
 
   @Override
