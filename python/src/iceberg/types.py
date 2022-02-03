@@ -199,14 +199,6 @@ class StructType(IcebergType):
                     NestedField(True, 1, "required_field", StringType()),
                     NestedField(False, 2, "optional_field", IntegerType()),
                 ]
-    =======
-        def __str__(self):
-            return (
-                f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}" ""
-                if self._doc is None
-                else f" ({self._doc})"
-    >>>>>>> master-cp
-            )
     """
 
     _instances: Dict[Tuple[NestedField, ...], "StructType"] = {}
