@@ -38,25 +38,24 @@ from iceberg.types import (
     UUIDType,
 )
 
+non_parameterized_types = [
+    (1, BooleanType),
+    (2, IntegerType),
+    (3, LongType),
+    (4, FloatType),
+    (5, DoubleType),
+    (6, DateType),
+    (7, TimeType),
+    (8, TimestampType),
+    (9, TimestamptzType),
+    (10, StringType),
+    (11, UUIDType),
+    (12, BinaryType),
+]
 
-@pytest.mark.parametrize(
-    "input_type",
-    [
-        BooleanType,
-        IntegerType,
-        LongType,
-        FloatType,
-        DoubleType,
-        DateType,
-        TimeType,
-        TimestampType,
-        TimestamptzType,
-        StringType,
-        UUIDType,
-        BinaryType,
-    ],
-)
-def test_repr_primitive_types(input_type):
+
+@pytest.mark.parametrize("input_index, input_type", non_parameterized_types)
+def test_repr_primitive_types(input_index, input_type):
     assert isinstance(eval(repr(input_type())), input_type)
 
 
@@ -66,6 +65,8 @@ def test_fixed_type():
     assert str(type_var) == "fixed[5]"
     assert repr(type_var) == "FixedType(length=5)"
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == FixedType(5)
+    assert type_var != FixedType(6)
 
 
 def test_decimal_type():
@@ -75,6 +76,8 @@ def test_decimal_type():
     assert str(type_var) == "decimal(9, 2)"
     assert repr(type_var) == "DecimalType(precision=9, scale=2)"
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == DecimalType(9, 2)
+    assert type_var != DecimalType(9, 3)
 
 
 def test_struct_type():
@@ -97,6 +100,8 @@ def test_struct_type():
     )
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == eval(repr(type_var))
+    assert type_var != StructType([NestedField(True, 1, "optional_field", IntegerType())])
 
 
 def test_list_type():
@@ -117,6 +122,19 @@ def test_list_type():
     assert len(type_var.element.type.fields) == 2
     assert type_var.element.field_id == 1
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == eval(repr(type_var))
+    assert type_var != ListType(
+        NestedField(
+            True,
+            1,
+            "required_field",
+            StructType(
+                [
+                    NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+                ]
+            ),
+        )
+    )
 
 
 def test_map_type():
@@ -129,6 +147,15 @@ def test_map_type():
     assert isinstance(type_var.value.type, UUIDType)
     assert type_var.value.field_id == 2
     assert str(type_var) == str(eval(repr(type_var)))
+    assert type_var == eval(repr(type_var))
+    assert type_var != MapType(
+        NestedField(True, 1, "optional_field", LongType()),
+        NestedField(False, 2, "required_field", UUIDType()),
+    )
+    assert type_var != MapType(
+        NestedField(True, 1, "optional_field", DoubleType()),
+        NestedField(False, 2, "required_field", StringType()),
+    )
 
 
 def test_nested_field():
@@ -161,3 +188,12 @@ def test_nested_field():
     assert field_var.field_id == 1
     assert isinstance(field_var.type, StructType)
     assert str(field_var) == str(eval(repr(field_var)))
+
+
+@pytest.mark.parametrize("input_index,input_type", non_parameterized_types)
+@pytest.mark.parametrize("check_index,check_type", non_parameterized_types)
+def test_non_parameterized_type_equality(input_index, input_type, check_index, check_type):
+    if input_index == check_index:
+        assert input_type() == check_type()
+    else:
+        assert input_type() != check_type()

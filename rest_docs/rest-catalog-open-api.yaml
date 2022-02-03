@@ -142,16 +142,7 @@ paths:
           example: "accounting%00tax"
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/ListNamespacesResponse'
-              examples:
-                NonEmptyResponse:
-                  $ref: '#/components/examples/ListNamespacesNonEmptyExample'
-                EmptyResponse:
-                  $ref: '#/components/examples/ListNamespacesEmptyExample'
+          $ref: '#/components/responses/ListNamespacesResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -163,7 +154,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -192,12 +183,14 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
           description: Conflict - The namespace already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
@@ -216,11 +209,7 @@ paths:
       description: Return all stored metadata properties for a given namespace
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/GetNamespaceResponse'
+          $ref: '#/components/responses/GetNamespaceResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -232,7 +221,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -246,12 +235,7 @@ paths:
       operationId: dropNamespace
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/DropNamespaceResponse'
-              example: { "dropped": true }
+          $ref: '#/components/responses/DropNamespaceResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -263,7 +247,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -297,16 +281,7 @@ paths:
                 $ref: '#/components/examples/UpdateAndRemoveNamespacePropertiesRequest'
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/UpdateNamespacePropertiesResponse'
-              example: {
-                "updated": [ "owner" ],
-                "removed": [ "foo" ],
-                "missing": [ "bar" ]
-              }
+          $ref: '#/components/responses/UpdateNamespacePropertiesResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -318,7 +293,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -329,7 +304,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 UnprocessableEntityDuplicateKey:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
@@ -348,16 +323,7 @@ paths:
       operationId: listTables
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/ListTablesResponse'
-              examples:
-                NonEmptyResponse:
-                  $ref: '#/components/examples/ListTablesNonEmptyExample'
-                EmptyNamespaceResponse:
-                  $ref: '#/components/examples/ListTablesEmptyExample'
+          $ref: '#/components/responses/ListTablesResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -369,7 +335,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
@@ -401,10 +367,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - The table already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                NamespaceAlreadyExists:
+                  $ref: '#/components/examples/TableAlreadyExistsError'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -441,7 +416,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -470,11 +445,7 @@ paths:
               $ref: '#/components/schemas/CommitTableRequest'
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/CommitTableResponse'
+          $ref: '#/components/responses/CommitTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -487,7 +458,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -497,7 +468,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
         5XX:
           description:
             A server-side problem that might not be addressable from the client side.
@@ -507,7 +478,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               example: {
                 "error": {
                   "message": "Internal Server Error",
@@ -532,14 +503,7 @@ paths:
             default: false
       responses:
         200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/responses/DropTableResponse'
-              example: { "dropped": true, "purged": false }
-        202:
-          description: Accepted - for use if purgeRequested is implemented as an asynchronous action.
+          $ref: '#/components/responses/DropTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -552,7 +516,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -613,7 +577,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               examples:
                 TableToRenameDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
@@ -626,7 +590,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/IcebergErrorResponse'
+                $ref: '#/components/schemas/ErrorModel'
               example:
                 $ref: '#/components/examples/TableAlreadyExistsError'
         5XX:
@@ -666,7 +630,7 @@ components:
   ##############################
   schemas:
 
-    StandardErrorWrapper:
+    ErrorModel:
       type: object
       description: JSON error payload returned in a response with further details on the error
       required:
@@ -695,7 +659,7 @@ components:
         - defaults
         - overrides
       properties:
-        overrrides:
+        overrides:
           type: object
           description:
             Properties that should be used to override client configuration; applied after defaults and client configuration.
@@ -1341,7 +1305,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/responses/IcebergErrorResponse'
+            $ref: '#/components/schemas/ErrorModel'
           example: {
             "error": {
               "message": "Malformed request",
@@ -1358,7 +1322,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/responses/IcebergErrorResponse'
+            $ref: '#/components/schemas/ErrorModel'
           example: {
             "error": {
               "message": "Not authorized to make this request",
@@ -1374,7 +1338,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/responses/IcebergErrorResponse'
+            $ref: '#/components/schemas/ErrorModel'
           example: {
             "error": {
               "message": "Not authorized to make this request",
@@ -1390,7 +1354,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/responses/IcebergErrorResponse'
+            $ref: '#/components/schemas/ErrorModel'
           example: {
             "error": {
               "message": "The server does not support this operation",
@@ -1407,7 +1371,7 @@ components:
             type: object
             properties:
               error:
-                $ref: '#/components/schemas/StandardErrorWrapper'
+                $ref: '#/components/schemas/ErrorModel'
             additionalProperties: false
             example: {
               "error": {
@@ -1440,6 +1404,10 @@ components:
               purged:
                 type: boolean
                 description: whether the underlying data was purged or is being purged
+          example: {
+            "dropped": true,
+            "purged": false
+          }
 
     DropNamespaceResponse:
       description: A successful call to drop a namespace
@@ -1451,6 +1419,9 @@ components:
               dropped:
                 description: true if the namespace was dropped
                 type: boolean
+          example: {
+            "dropped": true
+          }
 
     GetNamespaceResponse:
       description:
@@ -1487,6 +1458,11 @@ components:
                 uniqueItems: true
                 items:
                   $ref: '#/components/schemas/TableIdentifier'
+          examples:
+            ListTablesResponseNonEmpty:
+              $ref: '#/components/examples/ListTablesNonEmptyExample'
+            ListTablesResponseEmpty:
+              $ref: '#/components/examples/ListTablesEmptyExample'
 
     ListNamespacesResponse:
       description: A list of namespaces
@@ -1500,6 +1476,11 @@ components:
                 uniqueItems: true
                 items:
                   $ref: '#/components/schemas/Namespace'
+          examples:
+            NonEmptyResponse:
+              $ref: '#/components/examples/ListNamespacesNonEmptyExample'
+            EmptyResponse:
+              $ref: '#/components/examples/ListNamespacesEmptyExample'
 
     ServerErrorResponse:
       description:
@@ -1507,7 +1488,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/responses/IcebergErrorResponse'
+            $ref: '#/components/schemas/ErrorModel'
           example: {
             "error": {
               "message": "Internal Server Error",
@@ -1546,6 +1527,11 @@ components:
                   in the namespace's properties. Represents a partial success response.
                   Server's do not need to implement this.
                 nullable: true
+          example: {
+            "updated": [ "owner" ],
+            "removed": [ "foo" ],
+            "missing": [ "bar" ]
+          }
 
     CreateTableResponse:
       description: Table metadata result after creating a table
@@ -1620,7 +1606,7 @@ components:
       summary: The requested namespace already exists
       value: {
         "error": {
-          "message": "The given namepace already exists",
+          "message": "The given namespace already exists",
           "type": "AlreadyExistsException",
           "code": 409
         }
@@ -1630,9 +1616,9 @@ components:
       summary: The requested table does not
       value: {
         "error": {
-          message: "The given table does not exist",
-          type: "NoSuchTableException",
-          code: 404
+          "message": "The given table does not exist",
+          "type": "NoSuchTableException",
+          "code": 404
         }
       }
 

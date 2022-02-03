@@ -25,11 +25,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -42,9 +40,6 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.TableScanUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -62,14 +57,13 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
+abstract class SparkScan implements Scan, SupportsReportStatistics {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
 
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
-  private final boolean localityPreferred;
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final boolean readTimestampWithoutZone;
@@ -77,8 +71,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   // lazy variables
   private StructType readSchema = null;
 
-  SparkBatchScan(SparkSession spark, Table table, SparkReadConf readConf,
-                 Schema expectedSchema, List<Expression> filters) {
+  SparkScan(SparkSession spark, Table table, SparkReadConf readConf,
+            Schema expectedSchema, List<Expression> filters) {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
@@ -88,7 +82,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
-    this.localityPreferred = readConf.localityEnabled();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
@@ -112,13 +105,12 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
-    return this;
+    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema);
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(
-        sparkContext, table, readConf, caseSensitive, expectedSchema, checkpointLocation);
+    return new SparkMicroBatchStream(sparkContext, table, readConf, expectedSchema, checkpointLocation);
   }
 
   @Override
@@ -129,81 +121,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;
-  }
-
-  @Override
-  public InputPartition[] planInputPartitions() {
-    String expectedSchemaString = SchemaParser.toJson(expectedSchema);
-
-    // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-
-    List<CombinedScanTask> scanTasks = tasks();
-    InputPartition[] readTasks = new InputPartition[scanTasks.size()];
-
-    Tasks.range(readTasks.length)
-        .stopOnFailure()
-        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-        .run(index -> readTasks[index] = new ReadTask(
-            scanTasks.get(index), tableBroadcast, expectedSchemaString,
-            caseSensitive, localityPreferred));
-
-    return readTasks;
-  }
-
-  @Override
-  public PartitionReaderFactory createReaderFactory() {
-    boolean allParquetFileScanTasks =
-        tasks().stream()
-            .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                .stream()
-                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                    FileFormat.PARQUET)));
-
-    boolean allOrcFileScanTasks =
-        tasks().stream()
-            .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                .stream()
-                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                    FileFormat.ORC)));
-
-    boolean atLeastOneColumn = expectedSchema.columns().size() > 0;
-
-    boolean onlyPrimitives = expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType());
-
-    boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
-
-    boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
-
-    boolean batchReadOrc = hasNoDeleteFiles && allOrcFileScanTasks;
-
-    boolean batchReadParquet = allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives;
-
-    boolean readUsingBatch = batchReadsEnabled && (batchReadOrc || batchReadParquet);
-
-    int batchSize = readUsingBatch ? batchSize(allParquetFileScanTasks, allOrcFileScanTasks) : 0;
-
-    return new ReaderFactory(batchSize);
-  }
-
-  private boolean batchReadsEnabled(boolean isParquetOnly, boolean isOrcOnly) {
-    if (isParquetOnly) {
-      return readConf.parquetVectorizationEnabled();
-    } else if (isOrcOnly) {
-      return readConf.orcVectorizationEnabled();
-    } else {
-      return false;
-    }
-  }
-
-  private int batchSize(boolean isParquetOnly, boolean isOrcOnly) {
-    if (isParquetOnly) {
-      return readConf.parquetBatchSize();
-    } else if (isOrcOnly) {
-      return readConf.orcBatchSize();
-    } else {
-      return 0;
-    }
   }
 
   @Override

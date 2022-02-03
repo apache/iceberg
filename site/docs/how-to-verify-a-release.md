@@ -55,7 +55,7 @@ gpg --verify apache-iceberg-{{ extra.versions.iceberg }}.tar.gz.asc
 ### Verifying Checksums
 
 ```bash
-shasum -a 512 apache-iceberg-{{ extra.versions.iceberg }}.tar.gz.sha512
+shasum -a 512 --check apache-iceberg-{{ extra.versions.iceberg }}.tar.gz.sha512
 ```
 
 ### Verifying License Documentation

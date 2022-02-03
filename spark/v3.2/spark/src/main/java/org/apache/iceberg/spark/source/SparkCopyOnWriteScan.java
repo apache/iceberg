@@ -47,7 +47,7 @@ import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.In;
 
-class SparkCopyOnWriteScan extends SparkBatchScan implements SupportsRuntimeFiltering {
+class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering {
 
   private final TableScan scan;
   private final Snapshot snapshot;

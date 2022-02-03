@@ -61,8 +61,11 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.TaskContext;
+import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.executor.OutputMetrics;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -497,6 +500,24 @@ class SparkWrite {
       this.taskFiles = taskFiles;
     }
 
+    // Reports bytesWritten and recordsWritten to the Spark output metrics.
+    // Can only be called in executor.
+    void reportOutputMetrics() {
+      long bytesWritten = 0L;
+      long recordsWritten = 0L;
+      for (DataFile dataFile : taskFiles) {
+        bytesWritten += dataFile.fileSizeInBytes();
+        recordsWritten += dataFile.recordCount();
+      }
+
+      TaskContext taskContext = TaskContext$.MODULE$.get();
+      if (taskContext != null) {
+        OutputMetrics outputMetrics = taskContext.taskMetrics().outputMetrics();
+        outputMetrics.setBytesWritten(bytesWritten);
+        outputMetrics.setRecordsWritten(recordsWritten);
+      }
+    }
+
     DataFile[] files() {
       return taskFiles;
     }
@@ -584,7 +605,9 @@ class SparkWrite {
       close();
 
       DataWriteResult result = delegate.result();
-      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      taskCommit.reportOutputMetrics();
+      return taskCommit;
     }
 
     @Override
@@ -634,7 +657,9 @@ class SparkWrite {
       close();
 
       DataWriteResult result = delegate.result();
-      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      taskCommit.reportOutputMetrics();
+      return taskCommit;
     }
 
     @Override

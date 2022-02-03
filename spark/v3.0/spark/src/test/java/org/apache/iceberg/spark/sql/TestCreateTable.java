@@ -68,6 +68,17 @@ public class TestCreateTable extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testCreateTableInRootNamespace() {
+    Assume.assumeTrue("Hadoop has no default namespace configured", "testhadoop".equals(catalogName));
+
+    try {
+      sql("CREATE TABLE %s.table (id bigint) USING iceberg", catalogName);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.table", catalogName);
+    }
+  }
+
+  @Test
   public void testCreateTableUsingParquet() {
     Assume.assumeTrue(
         "Not working with session catalog because Spark will not use v2 for a Parquet table",
