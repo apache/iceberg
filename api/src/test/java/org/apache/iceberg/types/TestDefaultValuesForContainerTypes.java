@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.types;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -46,7 +46,7 @@ public class TestDefaultValuesForContainerTypes {
 
   @Test
   public void testStructTypeDefault() {
-    Map<String, Object> structDefaultvalue = new HashMap<>();
+    Map<String, Object> structDefaultvalue = Maps.newHashMap();
     structDefaultvalue.put(intFieldType.name(), Integer.valueOf(1));
     structDefaultvalue.put(stringFieldType.name(), "two");
     NestedField structField = NestedField.optional(2, "optionalStructField", structType, structDefaultvalue, "doc");
@@ -56,7 +56,7 @@ public class TestDefaultValuesForContainerTypes {
 
   @Test (expected = IllegalArgumentException.class)
   public void testStructTypeDefaultInvalidFieldsTypes() {
-    Map<String, Object> structDefaultvalue = new HashMap<>();
+    Map<String, Object> structDefaultvalue = Maps.newHashMap();
     structDefaultvalue.put(intFieldType.name(), "one");
     structDefaultvalue.put(stringFieldType.name(), "two");
     NestedField.optional(2, "optionalStructField", structType, structDefaultvalue, "doc");
@@ -64,7 +64,7 @@ public class TestDefaultValuesForContainerTypes {
 
   @Test (expected = IllegalArgumentException.class)
   public void testStructTypeDefaultInvalidNumberFields() {
-    Map<String, Object> structDefaultvalue = new HashMap<>();
+    Map<String, Object> structDefaultvalue = Maps.newHashMap();
     structDefaultvalue.put(intFieldType.name(), Integer.valueOf(1));
     structDefaultvalue.put(stringFieldType.name(), "two");
     structDefaultvalue.put("extraFieldName", "three");
@@ -73,7 +73,7 @@ public class TestDefaultValuesForContainerTypes {
 
   @Test (expected = IllegalArgumentException.class)
   public void testStructTypeDefaultInvalidObjectType() {
-    List<Object> structDefaultvalue = new ArrayList<>();
+    List<Object> structDefaultvalue = Lists.newArrayList();
     structDefaultvalue.add(Integer.valueOf(1));
     structDefaultvalue.add("two");
     NestedField.optional(2, "optionalStructField", structType, structDefaultvalue, "doc");
