@@ -224,18 +224,18 @@ public class TestFlinkManifest {
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF,
-        tablePath, FileFormat.PARQUET.addExtension(filename), rows);
+    return SimpleDataUtil.writeDataFile(table, FileFormat.PARQUET, filename, appenderFactory, null, rows);
   }
 
   private DeleteFile writeEqDeleteFile(String filename, List<RowData> deletes) throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+    return SimpleDataUtil
+        .writeEqDeleteFile(table, FileFormat.PARQUET, filename, appenderFactory, null, deletes);
   }
 
   private DeleteFile writePosDeleteFile(String filename, List<Pair<CharSequence, Long>> positions)
       throws IOException {
     return SimpleDataUtil
-        .writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
+        .writePosDeleteFile(table, FileFormat.PARQUET, filename, appenderFactory, null, positions);
   }
 
   private List<DataFile> generateDataFiles(int fileNum) throws IOException {

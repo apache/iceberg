@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -80,6 +82,37 @@ public class TestSnapshot extends TableTestBase {
 
     Snapshot newSnapshot = fastAppend.apply();
     validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testFileChanges() {
+    Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
+
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addRows(FILE_B)
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_B_DELETES)
+        .commit();
+    Snapshot oldSnapshot = table.currentSnapshot();
+
+    validateFiles(oldSnapshot.addedFiles(), FILE_A, FILE_B);
+    validateFiles(oldSnapshot.deletedFiles());
+    validateDeleteFiles(oldSnapshot.addedDeleteFiles(), FILE_A_DELETES, FILE_B_DELETES);
+    validateDeleteFiles(oldSnapshot.deletedDeleteFiles());
+
+    table.newRewrite().rewriteFiles(
+        Sets.newHashSet(FILE_B),
+        Sets.newHashSet(FILE_A_DELETES, FILE_B_DELETES),
+        Sets.newHashSet(FILE_C),
+        Sets.newHashSet(FILE_A2_DELETES)
+    ).validateFromSnapshot(oldSnapshot.snapshotId()).commit();
+    Snapshot newSnapshot = table.currentSnapshot();
+
+    validateFiles(newSnapshot.addedFiles(), FILE_C);
+    validateFiles(newSnapshot.deletedFiles(), FILE_B);
+    validateDeleteFiles(newSnapshot.addedDeleteFiles(), FILE_A2_DELETES);
+    validateDeleteFiles(newSnapshot.deletedDeleteFiles(), FILE_A_DELETES, FILE_B_DELETES);
   }
 
 }

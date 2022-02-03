@@ -121,6 +121,26 @@ public interface Snapshot extends Serializable {
   Iterable<DataFile> deletedFiles();
 
   /**
+   * Return all delete files added to the table in this snapshot.
+   * <p>
+   * The files returned include the following columns: file_path, file_format, partition,
+   * record_count, and file_size_in_bytes. Other columns will be null.
+   *
+   * @return all delete files added to the table in this snapshot.
+   */
+  Iterable<DeleteFile> addedDeleteFiles();
+
+  /**
+   * Return all delete files deleted from the table in this snapshot.
+   * <p>
+   * The files returned include the following columns: file_path, file_format, partition,
+   * record_count, and file_size_in_bytes. Other columns will be null.
+   *
+   * @return all delete files deleted from the table in this snapshot.
+   */
+  Iterable<DeleteFile> deletedDeleteFiles();
+
+  /**
    * Return the location of this snapshot's manifest list, or null if it is not separate.
    *
    * @return the location of the manifest list for this Snapshot

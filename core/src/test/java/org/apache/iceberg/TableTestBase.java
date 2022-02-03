@@ -33,6 +33,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -359,6 +360,24 @@ public class TableTestBase {
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
 
     Assert.assertEquals("Schema ID should match", table.schema().schemaId(), (int) snap.schemaId());
+  }
+
+  void validateFiles(Iterable<DataFile> dataFiles, DataFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DataFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet(Iterables.transform(dataFiles, DataFile::path));
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+  }
+
+  void validateDeleteFiles(Iterable<DeleteFile> deleteFiles, DeleteFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DeleteFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet(Iterables.transform(deleteFiles, DeleteFile::path));
+    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
