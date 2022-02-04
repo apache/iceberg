@@ -193,12 +193,12 @@ class NestedField(IcebergType):
 class StructType(IcebergType):
     """A struct type in Iceberg
 
-        Example:
-            >>> StructType(
-                [
-                    NestedField(True, 1, "required_field", StringType()),
-                    NestedField(False, 2, "optional_field", IntegerType()),
-                ]
+    Example:
+        >>> StructType(
+            [
+                NestedField(True, 1, "required_field", StringType()),
+                NestedField(False, 2, "optional_field", IntegerType()),
+            ]
     """
 
     _instances: Dict[Tuple[NestedField, ...], "StructType"] = {}
