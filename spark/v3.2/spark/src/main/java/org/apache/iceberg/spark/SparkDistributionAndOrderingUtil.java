@@ -149,7 +149,7 @@ public class SparkDistributionAndOrderingUtil {
     if (command == DELETE || command == UPDATE) {
       return buildPositionDeleteUpdateDistribution(distributionMode);
     } else {
-      throw new IllegalArgumentException("Only position deletes are currently supported");
+      throw new IllegalArgumentException("Only position deletes and updates are currently supported");
     }
   }
 

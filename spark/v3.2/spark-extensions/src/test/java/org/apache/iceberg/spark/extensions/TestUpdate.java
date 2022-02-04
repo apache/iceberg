@@ -30,8 +30,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -837,6 +839,68 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       assertEquals("Should have expected rows",
           ImmutableList.of(row(-1, "hr"), row(-1, "hr"), row(-1, "hr")),
           sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+    });
+  }
+
+  @Test
+  public void testUpdateModifyPartitionSourceField() throws NoSuchTableException {
+    createAndInitTable("id INT, dep STRING, country STRING");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD bucket(4, id)", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    List<Integer> ids = Lists.newArrayListWithCapacity(100);
+    for (int id = 1; id <= 100; id++) {
+      ids.add(id);
+    }
+
+    Dataset<Row> df1 = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hr"))
+        .withColumn("country", lit("usa"));
+    df1.coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> df2 = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("software"))
+        .withColumn("country", lit("usa"));
+    df2.coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> df3 = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hardware"))
+        .withColumn("country", lit("usa"));
+    df3.coalesce(1).writeTo(tableName).append();
+
+    sql("UPDATE %s SET id = -1 WHERE id IN (10, 11, 12, 13, 14, 15, 16, 17, 18, 19)", tableName);
+    Assert.assertEquals(30L, scalarSql("SELECT count(*) FROM %s WHERE id = -1", tableName));
+  }
+
+  @Test
+  public void testUpdateWithStaticPredicatePushdown() {
+    createAndInitTable("id INT, dep STRING");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    // add a data file to the 'software' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
+
+    // add a data file to the 'hr' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snapshot = table.currentSnapshot();
+    String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
+    Assert.assertEquals("Must have 2 files before UPDATE", "2", dataFilesCount);
+
+    // remove the data file from the 'hr' partition to ensure it is not scanned
+    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedFiles());
+    table.io().deleteFile(dataFile.path().toString());
+
+    // disable dynamic pruning and rely only on static predicate pushdown
+    withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
+      sql("UPDATE %s SET id = -1 WHERE dep IN ('software') AND id == 1", tableName);
     });
   }
 
