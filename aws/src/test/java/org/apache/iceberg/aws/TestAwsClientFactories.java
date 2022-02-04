@@ -111,7 +111,7 @@ public class TestAwsClientFactories {
 
     @Override
     public SnsClient sns() {
-        return null;
+      return null;
     }
 
     @Override
