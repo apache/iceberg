@@ -203,9 +203,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private DistributionMode copyOnWriteDistributionMode() {
     switch (copyOnWriteCommand) {
       case DELETE:
-        return writeConf.copyOnWriteDeleteDistributionMode();
+        return writeConf.deleteDistributionMode();
       case UPDATE:
-        return writeConf.copyOnWriteUpdateDistributionMode();
+        return writeConf.updateDistributionMode();
       case MERGE:
         return writeConf.copyOnWriteMergeDistributionMode();
       default:

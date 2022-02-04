@@ -146,14 +146,14 @@ public class SparkDistributionAndOrderingUtil {
 
   public static Distribution buildPositionDeltaDistribution(Table table, Command command,
                                                             DistributionMode distributionMode) {
-    if (command == DELETE) {
-      return positionDeleteDistribution(distributionMode);
+    if (command == DELETE || command == UPDATE) {
+      return buildPositionDeleteUpdateDistribution(distributionMode);
     } else {
-      throw new IllegalArgumentException("Only position deletes are currently supported");
+      throw new IllegalArgumentException("Only position deletes and updates are currently supported");
     }
   }
 
-  private static Distribution positionDeleteDistribution(DistributionMode distributionMode) {
+  private static Distribution buildPositionDeleteUpdateDistribution(DistributionMode distributionMode) {
     switch (distributionMode) {
       case NONE:
         return Distributions.unspecified();
@@ -173,10 +173,10 @@ public class SparkDistributionAndOrderingUtil {
 
   public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command, Distribution distribution) {
     // the spec requires position delete files to be sorted by file and pos
-    if (command == DELETE) {
+    if (command == DELETE || command == UPDATE) {
       return new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
     } else {
-      throw new IllegalArgumentException("Only position deletes are currently supported");
+      throw new IllegalArgumentException("Only position deletes and updates are currently supported");
     }
   }
 
