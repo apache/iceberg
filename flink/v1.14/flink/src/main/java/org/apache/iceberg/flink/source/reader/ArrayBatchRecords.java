@@ -88,7 +88,8 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
   @Override
   public RecordAndPosition<T> nextRecordFromSplit() {
     if (position < numberOfRecords) {
-      recordAndPosition.record(records[position++]);
+      recordAndPosition.record(records[position]);
+      position++;
       return recordAndPosition;
     } else {
       return null;
