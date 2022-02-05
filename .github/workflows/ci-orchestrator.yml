@@ -1,0 +1,55 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: "CI Workflow Orchestrator"
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      # Synchronize represents any kind of push or change to head ref on an open PR.
+      - synchronize
+
+# Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time.defaults:
+# This can be used to remove the "Cancel Duplicates" CI.
+concurrency:
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  ci-orchestrator:
+    if: ${{ !github.event.pull_request.draft }}  # Don't run in a draft.
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 8  # Arbitrary - change or remove.
+      matrix:
+        # Putting each of the workflows into a matrix gives us automatic cancelling of
+        # failed workflows for free.
+        workflow: ['flink', 'hive', 'spark']
+    steps:
+      - if: ${{ matrix.workflow == 'flink' }}
+        uses: apache/iceberg/.github/workflows/flink-ci-workflow.yml@master
+      - if: ${{ matrix.workflow == 'hive' }}
+        uses: apache/iceberg/.github/workflows/hive-ci-workflow.yml@master
+      - if: ${{ matrix.workflox == 'spark' }}
+        uses: apache/iceberg/.github/workflows/spark-ci-workflow.yml@master
+      - if: ${{ matrix.workflow == '
