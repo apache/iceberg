@@ -27,8 +27,10 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
@@ -43,9 +45,6 @@ public final class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
   private static final Joiner DOT = Joiner.on('.');
-
-  // Disable metrics by default for very wide tables to prevent excessive metadata
-  private static final int MAX_COLUMNS = 100;
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(),
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
 
@@ -105,11 +104,19 @@ public final class MetricsConfig implements Serializable {
    */
   public static MetricsConfig forTable(Table table) {
     String defaultMode;
-    if (table.schema().columns().size() <= MAX_COLUMNS) {
+    // Disable metrics for very wide tables to prevent excessive metadata size
+    int maxColumns = PropertyUtil.propertyAsInt(
+        table.properties(),
+        TableProperties.METRICS_MAX_COLUMNS,
+        TableProperties.METRICS_MAX_COLUMNS_DEFAULT);
+    Preconditions.checkArgument(maxColumns >= 0,
+        TableProperties.METRICS_MAX_COLUMNS + " should have a positive value");
+    if (table.schema().columns().size() <= maxColumns) {
       defaultMode = DEFAULT_WRITE_METRICS_MODE_DEFAULT;
     } else {
       defaultMode = MetricsModes.None.get().toString();
     }
+
     return from(table.properties(), table.sortOrder(), defaultMode);
   }
 
