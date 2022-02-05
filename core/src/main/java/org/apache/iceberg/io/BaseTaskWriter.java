@@ -320,7 +320,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     void write(DataWriter<T> writer, T record) {
-      writer.add(record);
+      writer.write(record);
     }
 
     @Override

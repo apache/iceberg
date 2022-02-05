@@ -68,7 +68,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
    */
   @Deprecated
   public void add(T row) {
-    appender.add(row);
+    write(row);
   }
 
   @Override
