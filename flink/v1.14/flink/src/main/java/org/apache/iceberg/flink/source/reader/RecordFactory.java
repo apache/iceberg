@@ -34,7 +34,7 @@ interface RecordFactory<T> extends Serializable {
   T[] createBatch(int batchSize);
 
   /**
-   * Clone record
+   * Clone record into the specified position of the batch array
    */
-  void clone(T from, T to);
+  void clone(T from, T[] batch, int position);
 }

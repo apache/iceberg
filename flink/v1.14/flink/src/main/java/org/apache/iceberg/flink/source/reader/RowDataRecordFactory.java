@@ -30,7 +30,7 @@ class RowDataRecordFactory implements RecordFactory<RowData> {
   private final RowType rowType;
   private final TypeSerializer[] fieldSerializers;
 
-  RowDataRecordFactory(final RowType rowType) {
+  RowDataRecordFactory(RowType rowType) {
     this.rowType = rowType;
     this.fieldSerializers = createFieldSerializers(rowType);
   }
@@ -51,7 +51,12 @@ class RowDataRecordFactory implements RecordFactory<RowData> {
   }
 
   @Override
-  public void clone(RowData from, RowData to) {
-    RowDataUtil.clone(from, to, rowType, fieldSerializers);
+  public void clone(RowData from, RowData[] batch, int position) {
+    // Set the return value from RowDataUtil.clone back to the array.
+    // Clone method returns same clone target object (reused) if it is a GenericRowData.
+    // Clone method will allocate a new GenericRowData object
+    // if the target object is NOT a GenericRowData.
+    // So we should always set the clone return value back to the array.
+    batch[position] = RowDataUtil.clone(from, batch[position], rowType, fieldSerializers);
   }
 }
