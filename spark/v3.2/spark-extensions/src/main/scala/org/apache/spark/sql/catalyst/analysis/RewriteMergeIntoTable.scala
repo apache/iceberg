@@ -157,17 +157,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
   private def buildReplaceDataPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
+      operationTable: RowLevelOperationTable,
       source: LogicalPlan,
       cond: Expression,
       matchedActions: Seq[MergeAction],
       notMatchedActions: Seq[MergeAction]): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a scan relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, table, metadataAttrs)
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
     // project an extra column to check if a target row exists after the join
@@ -222,7 +222,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
       joinPlan)
 
     // build a plan to replace read groups in the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     ReplaceData(writeRelation, mergeRows, relation)
   }
 
