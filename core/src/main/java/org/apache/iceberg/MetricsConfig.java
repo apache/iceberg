@@ -109,9 +109,9 @@ public final class MetricsConfig implements Serializable {
         table.properties(),
         TableProperties.METRICS_MAX_COLUMNS,
         TableProperties.METRICS_MAX_COLUMNS_DEFAULT);
-    Preconditions.checkArgument(maxColumns >= 0,
-        TableProperties.METRICS_MAX_COLUMNS + " should have a positive value");
-    if (table.schema().columns().size() <= maxColumns) {
+    Preconditions.checkArgument(maxColumns >= -1,
+        TableProperties.METRICS_MAX_COLUMNS + " should be a positive value or -1 (unlimited)");
+    if (maxColumns == -1 || table.schema().columns().size() <= maxColumns) {
       defaultMode = DEFAULT_WRITE_METRICS_MODE_DEFAULT;
     } else {
       defaultMode = MetricsModes.None.get().toString();
