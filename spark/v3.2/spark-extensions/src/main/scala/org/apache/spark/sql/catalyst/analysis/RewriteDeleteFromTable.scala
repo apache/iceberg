@@ -71,14 +71,14 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
   private def buildReplaceDataPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
+      operationTable: RowLevelOperationTable,
       cond: Expression): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, table, metadataAttrs)
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
 
     // construct a plan that contains unmatched rows in matched groups that must be carried over
     // such rows do not match the condition but have to be copied over as the source can replace
@@ -87,22 +87,22 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
     val remainingRowsPlan = Filter(remainingRowsFilter, readRelation)
 
     // build a plan to replace read groups in the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     ReplaceData(writeRelation, remainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support row deltas
   private def buildWriteDeltaPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
+      operationTable: RowLevelOperationTable,
       cond: Expression): WriteDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
-    val rowIdAttrs = resolveRowIdAttrs(relation, table.operation)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, table, metadataAttrs, rowIdAttrs)
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
 
     // construct a plan that only contains records to delete
     val deletedRowsPlan = Filter(cond, readRelation)
@@ -111,7 +111,7 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
     val project = Project(operationType +: requiredWriteAttrs, deletedRowsPlan)
 
     // build a plan to write deletes to the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     val projections = buildWriteDeltaProjections(project, Nil, rowIdAttrs, metadataAttrs)
     WriteDelta(writeRelation, project, relation, projections)
   }
