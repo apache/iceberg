@@ -28,14 +28,14 @@ from typing import Protocol, Union, runtime_checkable
 
 
 @runtime_checkable
-class InputStream(Protocol):
-    def read(self, n: int) -> bytes:
-        ...
+class InputStream(Protocol):  # pragma: no cover
+    """A protocol for the file-like object returned by InputFile.open(...)
 
-    def readable(self) -> bool:
-        ...
+    This outlines the minimally required methods for a seekable input stream returned from an InputFile
+    implementation's `open(...)` method. These methods are a subset of IOBase/RawIOBase.
+    """
 
-    def close(self) -> None:
+    def read(self, size: int) -> bytes:
         ...
 
     def seek(self, offset: int, whence: int) -> None:
@@ -44,19 +44,28 @@ class InputStream(Protocol):
     def tell(self) -> int:
         ...
 
-
-@runtime_checkable
-class OutputStream(Protocol):
-    def write(self, b: bytes) -> None:
+    def closed(self) -> bool:
         ...
 
     def close(self) -> None:
         ...
 
-    def flush(self) -> None:
+
+@runtime_checkable
+class OutputStream(Protocol):  # pragma: no cover
+    """A protocol for the file-like object returned by OutputFile.create(...)
+
+    This outlines the minimally required methods for a writable output stream returned from an OutputFile
+    implementation's `create(...)` method. These methods are a subset of IOBase/RawIOBase.
+    """
+
+    def write(self, b: bytes) -> None:
         ...
 
-    def tell(self) -> int:
+    def closed(self) -> bool:
+        ...
+
+    def close(self) -> None:
         ...
 
 
