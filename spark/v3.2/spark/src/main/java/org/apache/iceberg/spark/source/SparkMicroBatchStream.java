@@ -48,8 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
-import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
+import org.apache.iceberg.spark.source.SparkScan.ReadTask;
+import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
@@ -80,10 +80,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean skipOverwrite;
   private final Long fromTimestamp;
 
-  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf, boolean caseSensitive,
+  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf,
                         Schema expectedSchema, String checkpointLocation) {
     this.table = table;
-    this.caseSensitive = caseSensitive;
+    this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
