@@ -27,6 +27,8 @@ import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Test;
 
@@ -55,7 +57,8 @@ public class TestGlueCatalogNotification extends GlueTestBase {
     table.newAppend().appendFile(testDataFile).commit();
     table.refresh();
 
-    table.newScan().planFiles();
+    Expression andExpression = Expressions.and(Expressions.equal("c1", "First"), Expressions.equal("c1", "Second"));
+    table.newScan().filter(andExpression).planFiles();
   }
 
   @Test
