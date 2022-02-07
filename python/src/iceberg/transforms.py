@@ -35,6 +35,7 @@ from iceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
+    Truncatable,
     Type,
     UUIDType,
 )
@@ -386,17 +387,15 @@ class TruncateTransform(Transform):
     """A transform for truncating a value to a specified width.
 
     Args:
-      source_type (Type): An Iceberg Type of IntegerType, LongType, StringType, or BinaryType
+      source_type (Type): An Iceberg Truncatable Type of IntegerType, LongType, StringType, BinaryType or DecimalType
       width (int): The truncate width
 
     Raises:
       ValueError: If a type is provided that is incompatible with a Truncate transform
     """
 
-    _VALID_TYPES = {IntegerType, LongType, StringType, BinaryType, DecimalType}
-
     def __init__(self, source_type: Type, width: int):
-        if type(source_type) not in TruncateTransform._VALID_TYPES:
+        if not isinstance(source_type, Truncatable):
             raise ValueError(f"Cannot truncate type: {source_type}")
 
         super().__init__(
@@ -406,13 +405,6 @@ class TruncateTransform(Transform):
         self._type = source_type
         self._width = width
 
-        if type(self._type) in {IntegerType, LongType}:
-            self._apply = lambda v, w: v - v % w
-        elif type(self._type) in {StringType, BinaryType}:
-            self._apply = lambda v, w: v[0 : min(w, len(v))]
-        else:  # decimal case
-            self._apply = transform_util.truncate_decimal
-
     @property
     def width(self):
         return self._width
@@ -420,7 +412,7 @@ class TruncateTransform(Transform):
     def apply(self, value):
         if value is None:
             return None
-        return self._apply(value, self._width)
+        return self._type.truncate(value, self._width)
 
     def can_transform(self, target: Type) -> bool:
         return self._type == target

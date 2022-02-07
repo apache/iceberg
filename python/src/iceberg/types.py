@@ -30,6 +30,9 @@ Notes:
 """
 
 from typing import Dict, Optional, Tuple
+from decimal import Decimal
+from typing import Optional
+from iceberg.utils import transform_util
 
 
 class Singleton:
@@ -39,6 +42,11 @@ class Singleton:
         if not isinstance(cls._instance, cls):
             cls._instance = super(Singleton, cls).__new__(cls)
         return cls._instance
+
+
+class Truncatable:
+    def truncate(self, value, width: int):
+        raise ValueError(f"Cannot truncate type: {self}")
 
 
 class IcebergType:
@@ -92,7 +100,7 @@ class FixedType(PrimitiveType):
         return self._length
 
 
-class DecimalType(PrimitiveType):
+class DecimalType(PrimitiveType, Truncatable):
     """A fixed data type in Iceberg.
 
     Example:
@@ -125,6 +133,10 @@ class DecimalType(PrimitiveType):
     @property
     def scale(self) -> int:
         return self._scale
+
+    def truncate(self, value: Decimal, width: int) -> Decimal:
+        """Truncate a given decimal value into a given width."""
+        return transform_util.truncate_decimal(value, width)
 
 
 class NestedField(IcebergType):
@@ -340,7 +352,7 @@ class BooleanType(PrimitiveType, Singleton):
             super().__init__("boolean", "BooleanType()")
 
 
-class IntegerType(PrimitiveType, Singleton):
+class IntegerType(PrimitiveType, Singleton, Truncatable):
     """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
     32-bit signed and can be promoted to Longs.
 
@@ -364,8 +376,12 @@ class IntegerType(PrimitiveType, Singleton):
         if not self._initialized:
             super().__init__("int", "IntegerType()")
 
+    def truncate(self, value: int, width: int) -> int:
+        """Truncate a given int value into a given width."""
+        return value - value % width
 
-class LongType(PrimitiveType, Singleton):
+
+class LongType(PrimitiveType, Singleton, Truncatable):
     """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
     64-bit signed integers.
 
@@ -388,6 +404,10 @@ class LongType(PrimitiveType, Singleton):
     def __init__(self):
         if not self._initialized:
             super().__init__("long", "LongType()")
+
+    def truncate(self, value: int, width: int) -> int:
+        """Truncate a given long value into a given width."""
+        return value - value % width
 
 
 class FloatType(PrimitiveType, Singleton):
@@ -480,7 +500,7 @@ class TimestamptzType(PrimitiveType, Singleton):
             super().__init__("timestamptz", "TimestamptzType()")
 
 
-class StringType(PrimitiveType, Singleton):
+class StringType(PrimitiveType, Singleton, Truncatable):
     """A String data type in Iceberg can be represented using an instance of this class. Strings in
     Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
 
@@ -493,6 +513,10 @@ class StringType(PrimitiveType, Singleton):
     def __init__(self):
         if not self._initialized:
             super().__init__("string", "StringType()")
+
+    def truncate(self, value: str, width: int) -> str:
+        """Truncate a given string into a given width."""
+        return value[0 : min(width, len(value))]
 
 
 class UUIDType(PrimitiveType, Singleton):
@@ -510,7 +534,7 @@ class UUIDType(PrimitiveType, Singleton):
             super().__init__("uuid", "UUIDType()")
 
 
-class BinaryType(PrimitiveType, Singleton):
+class BinaryType(PrimitiveType, Singleton, Truncatable):
     """A Binary data type in Iceberg can be represented using an instance of this class. Binarys in
     Iceberg are arbitrary-length byte arrays.
 
@@ -523,3 +547,7 @@ class BinaryType(PrimitiveType, Singleton):
     def __init__(self):
         if not self._initialized:
             super().__init__("binary", "BinaryType()")
+
+    def truncate(self, value: bytearray, width: int) -> bytearray:
+        """Truncate a given binary bytes into a given width."""
+        return value[0 : min(width, len(value))]
