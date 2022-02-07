@@ -24,7 +24,9 @@ its location.
 """
 
 from abc import ABC, abstractmethod
-from typing import Protocol, Union, runtime_checkable
+from typing import Union
+
+from typing_extensions import Protocol, runtime_checkable
 
 
 @runtime_checkable
