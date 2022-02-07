@@ -97,10 +97,16 @@ public class TestPartitionTableScans {
         record.get(0, StructProjection.class).get(0, Integer.class).intValue());
     Assert.assertEquals(
         "Should have correct records",
-        FILE_A.recordCount() + FILE_A_DELETES.recordCount() + FILE_A2_DELETES.recordCount(),
+        FILE_A.recordCount(),
         record.get(1, Long.class).longValue());
-    Assert.assertEquals("Should have correct file counts", 1, record.get(2, Integer.class).intValue());
-    Assert.assertEquals("Should have correct delete file count", 2, record.get(3, Integer.class).intValue());
+    Assert.assertEquals("Should have correct file counts", 1,
+        record.get(2, Integer.class).intValue());
+    Assert.assertEquals("Should have correct delete file count", 2,
+        record.get(3, Integer.class).intValue());
+    Assert.assertEquals("Should have correct equality delete count", FILE_A_DELETES.recordCount(),
+        record.get(4, Long.class).intValue());
+    Assert.assertEquals("Should have correct position delete count", FILE_A2_DELETES.recordCount(),
+        record.get(5, Long.class).intValue());
   }
 
   @Test
@@ -125,8 +131,15 @@ public class TestPartitionTableScans {
         "Should have correct bucket partition",
         0,
         record.get(0, StructProjection.class).get(0, Integer.class).intValue());
-    Assert.assertEquals("Should have correct records", FILE_A.recordCount(), record.get(1, Long.class).longValue());
-    Assert.assertEquals("Should have correct file counts", 1, record.get(2, Integer.class).intValue());
-    Assert.assertEquals("Should have correct delete file count", 0, record.get(3, Integer.class).intValue());
+    Assert.assertEquals("Should have correct records", FILE_A.recordCount(),
+        record.get(1, Long.class).longValue());
+    Assert.assertEquals("Should have correct file counts", 1,
+        record.get(2, Integer.class).intValue());
+    Assert.assertEquals("Should have correct delete file count", 0,
+        record.get(3, Integer.class).intValue());
+    Assert.assertEquals("Should have correct equality delete count", 0L,
+        record.get(4, Long.class).intValue());
+    Assert.assertEquals("Should have correct position delete count", 0L,
+        record.get(5, Long.class).intValue());
   }
 }

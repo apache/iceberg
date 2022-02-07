@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
@@ -50,7 +49,9 @@ public class PartitionsTable extends BaseMetadataTable {
         Types.NestedField.required(1, "partition", table.spec().partitionType()),
         Types.NestedField.required(2, "record_count", Types.LongType.get()),
         Types.NestedField.required(3, "file_count", Types.IntegerType.get()),
-        Types.NestedField.required(4, "delete_file_count", Types.IntegerType.get())
+        Types.NestedField.required(4, "delete_file_count", Types.IntegerType.get()),
+        Types.NestedField.required(5, "equality_delete_count", Types.LongType.get()),
+        Types.NestedField.required(6, "position_delete_count", Types.LongType.get())
     );
   }
 
@@ -62,7 +63,8 @@ public class PartitionsTable extends BaseMetadataTable {
   @Override
   public Schema schema() {
     if (table().spec().fields().size() < 1) {
-      return schema.select("record_count", "file_count", "delete_file_count");
+      return schema.select("record_count", "file_count", "delete_file_count", "equality_delete_count",
+          "position_delete_count");
     }
     return schema;
   }
@@ -81,7 +83,8 @@ public class PartitionsTable extends BaseMetadataTable {
       return StaticDataTask.of(
           io().newInputFile(ops.current().metadataFileLocation()),
           schema(), scan.schema(), partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount, root.deleteFileCount)
+          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount, root.deleteFileCount,
+              root.equalityDeleteCount, root.positionDeleteCount)
       );
     } else {
       return StaticDataTask.of(
@@ -93,7 +96,8 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
-    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount, partition.deleteFileCount);
+    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount, partition.deleteFileCount,
+        partition.equalityDeleteCount, partition.positionDeleteCount);
   }
 
   private static Iterable<Partition> partitions(StaticTableScan scan) {
@@ -102,8 +106,7 @@ public class PartitionsTable extends BaseMetadataTable {
     PartitionMap partitions = new PartitionMap(scan.table().spec().partitionType());
     for (FileScanTask task : tasks) {
       Partition partition = partitions.get(task.file().partition());
-      partition.update(task.file());
-      partition.updateDeleteFile(task.deletes());
+      partition.update(task);
     }
     return partitions.all();
   }
@@ -173,23 +176,28 @@ public class PartitionsTable extends BaseMetadataTable {
     private long recordCount;
     private int fileCount;
     private int deleteFileCount;
+    private long equalityDeleteCount;
+    private long positionDeleteCount;
 
     Partition(StructLike key) {
       this.key = key;
       this.recordCount = 0;
       this.fileCount = 0;
       this.deleteFileCount = 0;
+      this.equalityDeleteCount = 0L;
+      this.positionDeleteCount = 0L;
     }
 
-    void update(DataFile file) {
-      this.recordCount += file.recordCount();
+    void update(FileScanTask task) {
+      this.recordCount += task.file().recordCount();
       this.fileCount += 1;
-    }
-
-    void updateDeleteFile(List<DeleteFile> deleteFiles) {
-      for (DeleteFile deleteFile : deleteFiles) {
-        this.recordCount += deleteFile.recordCount();
-        this.deleteFileCount += 1;
+      this.deleteFileCount += task.deletes().size();
+      for (DeleteFile deleteFile : task.deletes()) {
+        if (FileContent.EQUALITY_DELETES == deleteFile.content()) {
+          this.equalityDeleteCount += deleteFile.recordCount();
+        } else if (FileContent.POSITION_DELETES == deleteFile.content()) {
+          this.positionDeleteCount += deleteFile.recordCount();
+        }
       }
     }
   }
