@@ -82,26 +82,22 @@ def test_decimal_type():
 
 def test_struct_type():
     type_var = StructType(
-        [
-            NestedField(True, 1, "optional_field", IntegerType()),
-            NestedField(False, 2, "required_field", FixedType(5)),
-            NestedField(
-                False,
-                3,
-                "required_field",
-                StructType(
-                    [
-                        NestedField(True, 4, "optional_field", DecimalType(8, 2)),
-                        NestedField(False, 5, "required_field", LongType()),
-                    ]
-                ),
+        NestedField(True, 1, "optional_field", IntegerType()),
+        NestedField(False, 2, "required_field", FixedType(5)),
+        NestedField(
+            False,
+            3,
+            "required_field",
+            StructType(
+                NestedField(True, 4, "optional_field", DecimalType(8, 2)),
+                NestedField(False, 5, "required_field", LongType()),
             ),
-        ]
+        ),
     )
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
-    assert type_var != StructType([NestedField(True, 1, "optional_field", IntegerType())])
+    assert type_var != StructType(NestedField(True, 1, "optional_field", IntegerType()))
 
 
 def test_list_type():
@@ -111,10 +107,8 @@ def test_list_type():
             1,
             "required_field",
             StructType(
-                [
-                    NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-                    NestedField(False, 3, "required_field", LongType()),
-                ]
+                NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+                NestedField(False, 3, "required_field", LongType()),
             ),
         )
     )
@@ -129,9 +123,7 @@ def test_list_type():
             1,
             "required_field",
             StructType(
-                [
-                    NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-                ]
+                NestedField(True, 2, "optional_field", DecimalType(8, 2)),
             ),
         )
     )
@@ -164,23 +156,21 @@ def test_nested_field():
         1,
         "optional_field1",
         StructType(
-            [
-                NestedField(
-                    True,
-                    2,
-                    "optional_field2",
-                    ListType(NestedField(False, 3, "required_field3", DoubleType())),
+            NestedField(
+                True,
+                2,
+                "optional_field2",
+                ListType(NestedField(False, 3, "required_field3", DoubleType())),
+            ),
+            NestedField(
+                False,
+                4,
+                "required_field4",
+                MapType(
+                    NestedField(True, 5, "optional_field5", TimeType()),
+                    NestedField(False, 6, "required_field6", UUIDType()),
                 ),
-                NestedField(
-                    False,
-                    4,
-                    "required_field4",
-                    MapType(
-                        NestedField(True, 5, "optional_field5", TimeType()),
-                        NestedField(False, 6, "required_field6", UUIDType()),
-                    ),
-                ),
-            ]
+            ),
         ),
     )
     assert field_var.is_optional

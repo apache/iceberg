@@ -20,17 +20,15 @@ describe an Iceberg table schema, these classes can be used in the construction 
 
 Example:
     >>> StructType(
-        [
             NestedField(True, 1, "required_field", StringType()),
-            NestedField(False, 2, "optional_field", IntegerType()),
-        ]
+            NestedField(False, 2, "optional_field", IntegerType())
     )
 
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 
 class Singleton:
@@ -195,28 +193,26 @@ class StructType(IcebergType):
 
     Example:
         >>> StructType(
-            [
                 NestedField(True, 1, "required_field", StringType()),
-                NestedField(False, 2, "optional_field", IntegerType()),
-            ]
+                NestedField(False, 2, "optional_field", IntegerType())
+        )
     """
 
     _instances: Dict[Tuple[NestedField, ...], "StructType"] = {}
 
-    def __new__(cls, fields: List[NestedField]):
-        key = tuple(fields)
-        cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
-        return cls._instances[key]
+    def __new__(cls, *fields: NestedField):
+        cls._instances[fields] = cls._instances.get(fields) or object.__new__(cls)
+        return cls._instances[fields]
 
-    def __init__(self, fields: List[NestedField] = []):
+    def __init__(self, *fields: NestedField):
         super().__init__(
             f"struct<{', '.join(map(str, fields))}>",
-            f"StructType(fields={repr(fields)})",
+            f"StructType{repr(fields)}",
         )
         self._fields = fields
 
     @property
-    def fields(self) -> List[NestedField]:
+    def fields(self) -> Tuple[NestedField, ...]:
         return self._fields
 
 
