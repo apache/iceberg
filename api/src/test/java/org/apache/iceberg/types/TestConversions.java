@@ -155,6 +155,39 @@ public class TestConversions {
     Assert.assertArrayEquals(
         new byte[]{1, 89},
         Literal.of(new BigDecimal("3.45")).toByteBuffer().array());
+
+    // decimal on 3-bytes to test that we use the minimum number of bytes and not a power of 2
+    // 1234567 is 00010010|11010110|10000111 in binary
+    // 00010010 -> 18, 11010110 -> -42, 10000111 -> -121
+    assertConversion(
+        new BigDecimal("123.4567"),
+        DecimalType.of(7, 4),
+        new byte[]{18, -42, -121});
+    Assert.assertArrayEquals(
+        new byte[]{18, -42, -121},
+        Literal.of(new BigDecimal("123.4567")).toByteBuffer().array());
+
+    // negative decimal to test two's complement
+    // -1234567 is 11101101|00101001|01111001 in binary
+    // 11101101 -> -19, 00101001 -> 41, 01111001 -> 121
+    assertConversion(
+        new BigDecimal("-123.4567"),
+        DecimalType.of(7, 4),
+        new byte[]{-19, 41, 121});
+    Assert.assertArrayEquals(
+        new byte[]{-19, 41, 121},
+        Literal.of(new BigDecimal("-123.4567")).toByteBuffer().array());
+
+    // test empty byte in decimal
+    // 11 is 00001011 in binary
+    // 00001011 -> 11
+    assertConversion(
+        new BigDecimal("0.011"),
+        DecimalType.of(10, 3),
+        new byte[]{11});
+    Assert.assertArrayEquals(
+        new byte[]{11},
+        Literal.of(new BigDecimal("0.011")).toByteBuffer().array());
   }
 
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {
