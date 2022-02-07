@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,6 +51,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -241,7 +241,7 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
       if (v == null) {
         throw new IllegalStateException("Namespace does not exist: " + namespace);
       } else {
-        Map<String, String> newProperties = new HashMap<>(v);
+        Map<String, String> newProperties = Maps.newHashMap(v);
         newProperties.putAll(properties);
         return newProperties;
       }
@@ -260,7 +260,7 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
       if (v == null) {
         throw new IllegalStateException("Namespace does not exist: " + namespace);
       } else {
-        Map<String, String> newProperties = new HashMap<>(v);
+        Map<String, String> newProperties = Maps.newHashMap(v);
         properties.forEach(newProperties::remove);
         return newProperties;
       }
@@ -276,7 +276,7 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    return new HashMap<>(properties);
+    return Maps.newHashMap(properties);
   }
 
   @Override
