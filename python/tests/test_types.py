@@ -76,12 +76,9 @@ def test_repr_primitive_types(input_index, input_type):
         (BinaryType(), True),
         (DecimalType(32, 3), True),
         (FixedType(8), True),
-        (ListType(element=NestedField(True, 1, "required_field", StringType())), False),
+        (ListType(1, StringType(), True), False),
         (
-            MapType(
-                NestedField(True, 1, "required_field", StringType()),
-                NestedField(False, 2, "optional_field", IntegerType()),
-            ),
+            MapType(1, StringType(), 2, IntegerType(), False),
             False,
         ),
         (
@@ -141,15 +138,12 @@ def test_struct_type():
 
 def test_list_type():
     type_var = ListType(
-        NestedField(
-            False,
-            1,
-            "required_field",
-            StructType(
-                NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-                NestedField(False, 3, "required_field", LongType()),
-            ),
-        )
+        1,
+        StructType(
+            NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+            NestedField(False, 3, "required_field", LongType()),
+        ),
+        False,
     )
     assert isinstance(type_var.element.type, StructType)
     assert len(type_var.element.type.fields) == 2
@@ -157,36 +151,24 @@ def test_list_type():
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
     assert type_var != ListType(
-        NestedField(
-            True,
-            1,
-            "required_field",
-            StructType(
-                NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-            ),
-        )
+        1,
+        StructType(
+            NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+        ),
+        True,
     )
 
 
 def test_map_type():
-    type_var = MapType(
-        NestedField(True, 1, "optional_field", DoubleType()),
-        NestedField(False, 2, "required_field", UUIDType()),
-    )
+    type_var = MapType(1, DoubleType(), 2, UUIDType(), False)
     assert isinstance(type_var.key.type, DoubleType)
     assert type_var.key.field_id == 1
     assert isinstance(type_var.value.type, UUIDType)
     assert type_var.value.field_id == 2
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
-    assert type_var != MapType(
-        NestedField(True, 1, "optional_field", LongType()),
-        NestedField(False, 2, "required_field", UUIDType()),
-    )
-    assert type_var != MapType(
-        NestedField(True, 1, "optional_field", DoubleType()),
-        NestedField(False, 2, "required_field", StringType()),
-    )
+    assert type_var != MapType(1, LongType(), 2, UUIDType(), False)
+    assert type_var != MapType(1, DoubleType(), 2, StringType(), True)
 
 
 def test_nested_field():
@@ -199,17 +181,18 @@ def test_nested_field():
                 True,
                 2,
                 "optional_field2",
-                ListType(NestedField(False, 3, "required_field3", DoubleType())),
-            ),
-            NestedField(
-                False,
-                4,
-                "required_field4",
-                MapType(
-                    NestedField(True, 5, "optional_field5", TimeType()),
-                    NestedField(False, 6, "required_field6", UUIDType()),
+                ListType(
+                    3,
+                    DoubleType(),
+                    False,
                 ),
             ),
+        ),
+        NestedField(
+            False,
+            4,
+            "required_field4",
+            MapType(5, TimeType(), 6, UUIDType(), False),
         ),
     )
     assert field_var.is_optional

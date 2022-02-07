@@ -141,7 +141,7 @@ class NestedField(IcebergType):
         field_type: IcebergType,
         doc: Optional[str] = None,
     ):
-        key = is_optional, field_id, name, field_type, doc
+        key = (is_optional, field_id, name, field_type, doc)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
@@ -221,19 +221,39 @@ class ListType(IcebergType):
     """A list type in Iceberg
 
     Example:
-        >>> ListType(element=NestedField(True, 1, "required_field", StringType()))
-        ListType(element=NestedField(is_optional=True, field_id=1, name='required_field', field_type=StringType(), doc=None))
+        >>> ListType(element_id=3, element_type=StringType(), element_is_optional=True)
+        ListType(element=NestedField(is_optional=True, field_id=3, name='element', field_type=StringType(), doc=None))
     """
 
-    _instances: Dict[NestedField, "ListType"] = {}
+    _instances: Dict[Tuple[bool, int, IcebergType], "ListType"] = {}
 
-    def __new__(cls, element: NestedField):
-        cls._instances[element] = cls._instances.get(element) or object.__new__(cls)
-        return cls._instances[element]
+    def __new__(
+        cls,
+        element_id: int,
+        element_type: IcebergType,
+        element_is_optional: bool,
+    ):
+        key = (element_is_optional, element_id, element_type)
+        cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
+        return cls._instances[key]
 
-    def __init__(self, element: NestedField):
-        super().__init__(f"list<{element.type}>", f"ListType(element={repr(element)})")
-        self._element_field = element
+    def __init__(
+        self,
+        element_id: int,
+        element_type: IcebergType,
+        element_is_optional: bool,
+    ):
+        super().__init__(
+            f"list<{element_type}>",
+            f"ListType(element_is_optional={element_is_optional}, element_id={element_id}, "
+            f"element_type={repr(element_type)})",
+        )
+        self._element_field = NestedField(
+            name="element",
+            is_optional=element_is_optional,
+            field_id=element_id,
+            field_type=element_type,
+        )
 
     @property
     def element(self) -> NestedField:
@@ -244,27 +264,43 @@ class MapType(IcebergType):
     """A map type in Iceberg
 
     Example:
-        >>> MapType(
-                NestedField(True, 1, "required_field", StringType()),
-                NestedField(False, 2, "optional_field", IntegerType()),
-            )
-        MapType(key=NestedField(is_optional=True, field_id=1, name='required_field', field_type=StringType(), doc=None), value=NestedField(is_optional=False, field_id=2, name='optional_field', field_type=IntegerType(), doc=None))
+        >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
+        MapType(key=NestedField(is_optional=False, field_id=1, name='key', field_type=StringType(), doc=None), value=NestedField(is_optional=True, field_id=2, name='value', field_type=IntegerType(), doc=None))
     """
 
-    _instances: Dict[Tuple[NestedField, NestedField], "MapType"] = {}
+    _instances: Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"] = {}
 
-    def __new__(cls, key: NestedField, value: NestedField):
-        impl_key = (key, value)
+    def __new__(
+        cls,
+        key_id: int,
+        key_type: IcebergType,
+        value_id: int,
+        value_type: IcebergType,
+        value_is_optional: bool,
+    ):
+        impl_key = (key_id, key_type, value_id, value_type, value_is_optional)
         cls._instances[impl_key] = cls._instances.get(impl_key) or object.__new__(cls)
         return cls._instances[impl_key]
 
-    def __init__(self, key: NestedField, value: NestedField):
+    def __init__(
+        self,
+        key_id: int,
+        key_type: IcebergType,
+        value_id: int,
+        value_type: IcebergType,
+        value_is_optional: bool,
+    ):
         super().__init__(
-            f"map<{key.type}, {value.type}>",
-            f"MapType(key={repr(key)}, value={repr(value)})",
+            f"map<{key_type}, {value_type}>",
+            f"MapType(key_id={key_id}, key_type={repr(key_type)}, value_id={value_id}, value_type={repr(value_type)}, value_is_optional={value_is_optional})",
         )
-        self._key_field = key
-        self._value_field = value
+        self._key_field = NestedField(name="key", field_id=key_id, field_type=key_type, is_optional=False)
+        self._value_field = NestedField(
+            name="value",
+            field_id=value_id,
+            field_type=value_type,
+            is_optional=value_is_optional,
+        )
 
     @property
     def key(self) -> NestedField:
