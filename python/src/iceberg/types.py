@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Data types used in describing Iceberg schemas
+
 This module implements the data types described in the Iceberg specification for Iceberg schemas. To
 describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
 
@@ -106,7 +107,7 @@ class DecimalType(PrimitiveType):
     _instances: Dict[Tuple[int, int], "DecimalType"] = {}
 
     def __new__(cls, precision: int, scale: int):
-        key = precision, scale
+        key = (precision, scale)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
@@ -128,7 +129,7 @@ class DecimalType(PrimitiveType):
 
 
 class NestedField(IcebergType):
-    """equivalent of `NestedField` type from Java implementation"""
+    """This represents a field of a struct, a map key, a map value, or a list element. This is where field IDs, names, docs, and nullability are tracked."""
 
     _instances: Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"] = {}
 
@@ -253,7 +254,7 @@ class MapType(IcebergType):
     _instances: Dict[Tuple[NestedField, NestedField], "MapType"] = {}
 
     def __new__(cls, key: NestedField, value: NestedField):
-        impl_key = key, value
+        impl_key = (key, value)
         cls._instances[impl_key] = cls._instances.get(impl_key) or object.__new__(cls)
         return cls._instances[impl_key]
 
