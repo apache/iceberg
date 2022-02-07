@@ -59,6 +59,27 @@ def test_repr_primitive_types(input_index, input_type):
     assert isinstance(eval(repr(input_type())), input_type)
 
 
+@pytest.mark.parametrize(
+    "input_type, result",
+    [
+        (BooleanType(), True),
+        (IntegerType(), True),
+        (LongType(), True),
+        (FloatType(), True),
+        (DoubleType(), True),
+        (DateType(), True),
+        (TimeType(), True),
+        (TimestampType(), True),
+        (TimestamptzType(), True),
+        (StringType(), True),
+        (UUIDType(), True),
+        (BinaryType(), True),
+    ],
+)
+def test_is_primitive(input_type, result):
+    assert input_type.is_primitive == result
+
+
 def test_fixed_type():
     type_var = FixedType(length=5)
     assert type_var.length == 5
