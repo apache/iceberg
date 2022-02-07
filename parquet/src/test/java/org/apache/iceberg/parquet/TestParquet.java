@@ -71,8 +71,7 @@ public class TestParquet {
     // PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT configs.
     // Even though row group size is 16 bytes, we still have to write 101 records
     // as default PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT is 100.
-    File parquetFile = generateFileWithTwoRowGroups(null, 101, props)
-        .first();
+    File parquetFile = generateFileWithTwoRowGroups(null, 101, props).first();
 
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       Assert.assertEquals(2, reader.getRowGroups().size());

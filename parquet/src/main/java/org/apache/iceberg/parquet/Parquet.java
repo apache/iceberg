@@ -319,18 +319,15 @@ public class Parquet {
       static Context dataContext(Map<String, String> config) {
         int rowGroupSize = PropertyUtil.propertyAsInt(config,
             PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
-        Preconditions.checkArgument(rowGroupSize > 0,
-            "Row group size must be > 0");
+        Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
         int pageSize = PropertyUtil.propertyAsInt(config,
             PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT);
-        Preconditions.checkArgument(pageSize > 0,
-            "Page size must be > 0");
+        Preconditions.checkArgument(pageSize > 0, "Page size must be > 0");
 
         int dictionaryPageSize = PropertyUtil.propertyAsInt(config,
             PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT);
-        Preconditions.checkArgument(dictionaryPageSize > 0,
-            "Dictionary page size must be > 0");
+        Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
 
         String codecAsString = config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
         CompressionCodecName codec = toCodec(codecAsString);
@@ -359,18 +356,15 @@ public class Parquet {
 
         int rowGroupSize = PropertyUtil.propertyAsInt(config,
             DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
-        Preconditions.checkArgument(rowGroupSize > 0,
-            "Row group size must be > 0");
+        Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
         int pageSize = PropertyUtil.propertyAsInt(config,
             DELETE_PARQUET_PAGE_SIZE_BYTES, dataContext.pageSize());
-        Preconditions.checkArgument(pageSize > 0,
-            "Page size must be > 0");
+        Preconditions.checkArgument(pageSize > 0, "Page size must be > 0");
 
         int dictionaryPageSize = PropertyUtil.propertyAsInt(config,
             DELETE_PARQUET_DICT_SIZE_BYTES, dataContext.dictionaryPageSize());
-        Preconditions.checkArgument(dictionaryPageSize > 0,
-            "Dictionary page size must be > 0");
+        Preconditions.checkArgument(dictionaryPageSize > 0, "Dictionary page size must be > 0");
 
         String codecAsString = config.get(DELETE_PARQUET_COMPRESSION);
         CompressionCodecName codec = codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
