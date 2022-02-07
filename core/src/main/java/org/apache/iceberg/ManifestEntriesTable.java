@@ -70,7 +70,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     return MetadataTableType.ENTRIES;
   }
 
-  private static class EntriesTableScan extends BaseTableScan {
+  private static class EntriesTableScan extends BaseMetadataTableScan {
 
     EntriesTableScan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema);
@@ -96,12 +96,6 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
       return new EntriesTableScan(ops, table, schema, context);
-    }
-
-    @Override
-    public long targetSplitSize() {
-      return tableOps().current().propertyAsLong(
-          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override

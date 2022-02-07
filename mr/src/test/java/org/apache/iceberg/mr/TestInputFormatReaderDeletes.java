@@ -32,6 +32,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.data.DeleteReadTests;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -104,6 +105,7 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
         .filter(recordFactory -> recordFactory.name().equals(inputFormat))
         .map(recordFactory -> recordFactory.create(builder.project(projected).conf()).getRecords())
         .flatMap(List::stream)
+        .map(record -> new InternalRecordWrapper(projected.asStruct()).wrap(record))
         .collect(Collectors.toList())
     );
 

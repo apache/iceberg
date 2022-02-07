@@ -39,7 +39,7 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   }
 
   JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
-    super(poolSize, SQLNonTransientConnectionException.class);
+    super(poolSize, SQLNonTransientConnectionException.class, true);
     properties = props;
     this.dbUrl = dbUrl;
   }
@@ -47,8 +47,7 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   @Override
   protected Connection newClient() {
     try {
-      Properties dbProps = new Properties();
-      properties.forEach((key, value) -> dbProps.put(key.replace(JdbcCatalog.PROPERTY_PREFIX, ""), value));
+      Properties dbProps = JdbcUtil.filterAndRemovePrefix(properties, JdbcCatalog.PROPERTY_PREFIX);
       return DriverManager.getConnection(dbUrl, dbProps);
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to connect: %s", dbUrl);

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -26,6 +27,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
@@ -1002,5 +1004,323 @@ public class TestRowDelta extends V2TableTestBase {
 
     // we should clean up 1 manifest list and 2 delete manifests
     Assert.assertEquals("Should delete 3 files", 3, deletedFiles.size());
+  }
+
+  @Test
+  public void testConcurrentConflictingRowDelta() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+
+    // mock a MERGE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addRows(FILE_B)
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .validateNoConflictingAppends(conflictDetectionFilter)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Found new conflicting delete files",
+        rowDelta::commit);
+  }
+
+  @Test
+  public void testConcurrentConflictingRowDeltaWithoutAppendValidation() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+
+    // mock a MERGE operation with snapshot isolation (i.e. no append validation)
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDeleteFiles();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Found new conflicting delete files",
+        rowDelta::commit);
+  }
+
+  @Test
+  public void testConcurrentNonConflictingRowDelta() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=a")
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    // add a data file to partition B
+    DataFile dataFile2 = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=b")
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(dataFile2)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    Expression conflictDetectionFilter = Expressions.equal("data", "a");
+
+    // add a delete file for partition A
+    DeleteFile deleteFile1 = FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath("/path/to/data-a-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=a")
+        .withRecordCount(1)
+        .build();
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // add a delete file for partition B
+    DeleteFile deleteFile2 = FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath("/path/to/data-b-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=b")
+        .withRecordCount(1)
+        .build();
+
+    table.newRowDelta()
+        .addDeletes(deleteFile2)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .commit();
+
+    rowDelta.commit();
+
+    validateTableDeleteFiles(table, deleteFile1, deleteFile2);
+  }
+
+  @Test
+  public void testConcurrentNonConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add an equality delete file
+    DeleteFile deleteFile1 = newEqualityDeleteFile(table.spec().specId(), "data=a",
+        table.schema().asStruct().fields().get(0).fieldId());
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile2 = newDataFile("data=a");
+
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    rowDelta.commit();
+    rewriteFiles.commit();
+
+    validateTableDeleteFiles(table, deleteFile1);
+    validateTableFiles(table, dataFile2);
+  }
+
+  @Test
+  public void testRowDeltaAndRewriteFilesMergeManifestsWithSequenceNumber() {
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add an equality delete file
+    DeleteFile deleteFile1 = newEqualityDeleteFile(table.spec().specId(), "data=a",
+        table.schema().asStruct().fields().get(0).fieldId());
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile2 = newDataFile("data=a");
+
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    rowDelta.commit();
+    rewriteFiles.commit();
+
+    table.refresh();
+    List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests();
+    Assert.assertEquals("should have 1 data manifest", 1, dataManifests.size());
+    ManifestFile mergedDataManifest = dataManifests.get(0);
+
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+
+    validateManifest(mergedDataManifest, seqs(1, 3),
+        ids(currentSnapshotId, currentSnapshotId), files(dataFile2, dataFile1),
+        statuses(Status.ADDED, Status.DELETED));
+  }
+
+  @Test
+  public void testConcurrentConflictingRowDeltaAndRewriteFilesWithSequenceNumber() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add an position delete file
+    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "data=a");
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile2 = newDataFile("data=a");
+
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId());
+
+    rowDelta.commit();
+
+    AssertHelpers.assertThrows("Should not allow any new position delete associated with the data file",
+        ValidationException.class,
+        "Cannot commit, found new position delete for replaced data file",
+        rewriteFiles::commit);
+  }
+
+  @Test
+  public void testRowDeltaCaseSensitivity() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_A2)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    Expression conflictDetectionFilter = Expressions.equal(Expressions.bucket("dAtA", 16), 0);
+
+    AssertHelpers.assertThrows("Should use case sensitive binding by default",
+        ValidationException.class, "Cannot find field 'dAtA'",
+        () -> table.newRowDelta()
+            .addRows(FILE_B)
+            .addDeletes(FILE_A2_DELETES)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .commit());
+
+    AssertHelpers.assertThrows("Should fail with case sensitive binding",
+        ValidationException.class, "Cannot find field 'dAtA'",
+        () -> table.newRowDelta()
+            .caseSensitive(true)
+            .addRows(FILE_B)
+            .addDeletes(FILE_A2_DELETES)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .commit());
+
+    // binding should succeed and trigger the validation
+    AssertHelpers.assertThrows("Should reject case sensitive binding",
+        ValidationException.class, "Found new conflicting delete files",
+        () -> table.newRowDelta()
+            .caseSensitive(false)
+            .addRows(FILE_B)
+            .addDeletes(FILE_A2_DELETES)
+            .validateFromSnapshot(firstSnapshot.snapshotId())
+            .conflictDetectionFilter(conflictDetectionFilter)
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .commit());
   }
 }

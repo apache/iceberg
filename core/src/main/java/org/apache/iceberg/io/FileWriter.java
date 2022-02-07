@@ -20,7 +20,6 @@
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
-import java.io.IOException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 
@@ -41,9 +40,8 @@ public interface FileWriter<T, R> extends Closeable {
    * Writes rows to a predefined spec/partition.
    *
    * @param rows data or delete records
-   * @throws IOException in case of an error during the write process
    */
-  default void write(Iterable<T> rows) throws IOException {
+  default void write(Iterable<T> rows) {
     for (T row : rows) {
       write(row);
     }
@@ -53,9 +51,8 @@ public interface FileWriter<T, R> extends Closeable {
    * Writes a row to a predefined spec/partition.
    *
    * @param row a data or delete record
-   * @throws IOException in case of an error during the write process
    */
-  void write(T row) throws IOException;
+  void write(T row);
 
   /**
    * Returns the number of bytes that were currently written by this writer.

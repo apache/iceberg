@@ -18,6 +18,8 @@
  */
 
 import groovy.transform.Memoized
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 buildscript {
   repositories {
@@ -29,7 +31,7 @@ buildscript {
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.1'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
-    classpath 'me.champeau.gradle:jmh-gradle-plugin:0.5.3'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
   }
 }
@@ -64,10 +66,6 @@ allprojects {
     mavenCentral()
     mavenLocal()
   }
-  project.ext {
-    Spark30Version = '3.0.3'
-    Spark31Version = '3.1.1'
-  }
 }
 
 subprojects {
@@ -92,12 +90,6 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
-
-      resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
-      }
     }
 
     testArtifacts
@@ -113,10 +105,6 @@ subprojects {
 
   javadoc {
     options.encoding = 'UTF-8'
-  }
-
-  ext {
-    jmhVersion = '1.21'
   }
 
   sourceCompatibility = '1.8'
@@ -227,6 +215,7 @@ project(':iceberg-core') {
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
     implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation "org.roaringbitmap:RoaringBitmap"
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -282,6 +271,39 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-aliyun') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+
+    compileOnly 'com.aliyun.oss:aliyun-sdk-oss'
+    compileOnly 'javax.xml.bind:jaxb-api'
+    compileOnly 'javax.activation:activation'
+    compileOnly 'org.glassfish.jaxb:jaxb-runtime'
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
+
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation 'org.springframework:spring-web'
+    testImplementation('org.springframework.boot:spring-boot-starter-jetty') {
+      exclude module: 'logback-classic'
+      exclude group: 'org.eclipse.jetty.websocket', module: 'javax-websocket-server-impl'
+      exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-server'
+    }
+    testImplementation('org.springframework.boot:spring-boot-starter-web') {
+      exclude module: 'logback-classic'
+      exclude module: 'spring-boot-starter-logging'
+    }
+  }
+}
+
 project(':iceberg-aws') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -332,150 +354,26 @@ project(':iceberg-aws') {
   }
 }
 
-project(':iceberg-flink') {
+project(':iceberg-gcp') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
-    api project(':iceberg-data')
-    implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
-    implementation project(':iceberg-hive-metastore')
 
-    compileOnly "org.apache.flink:flink-streaming-java_2.12"
-    compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
-    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
-    compileOnly "org.apache.flink:flink-table-planner-blink_2.12"
-    compileOnly "org.apache.flink:flink-table-planner_2.12"
-    compileOnly "org.apache.hadoop:hadoop-hdfs"
-    compileOnly "org.apache.hadoop:hadoop-common"
-    compileOnly("org.apache.hadoop:hadoop-minicluster") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
+    implementation platform('com.google.cloud:libraries-bom')
+    implementation 'com.google.cloud:google-cloud-storage'
 
-    implementation("org.apache.parquet:parquet-avro") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
+    testImplementation 'com.google.cloud:google-cloud-nio'
 
-    compileOnly "org.apache.avro:avro"
-
-    implementation("org.apache.orc:orc-core::nohive") {
-      exclude group: 'org.apache.hadoop'
-      exclude group: 'commons-lang'
-      // These artifacts are shaded and included in the orc-core fat jar
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
-      exclude group: 'org.apache.hive', module: 'hive-storage-api'
-    }
-
-    testImplementation "org.apache.flink:flink-core"
-    testImplementation "org.apache.flink:flink-runtime_2.12"
-    testImplementation "org.apache.flink:flink-table-planner-blink_2.12"
-    testImplementation ("org.apache.flink:flink-test-utils-junit") {
-      exclude group: 'junit'
-    }
-    testImplementation("org.apache.flink:flink-test-utils_2.12") {
-      exclude group: "org.apache.curator", module: 'curator-test'
-      exclude group: 'junit'
-    }
-
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
 
-    // By default, hive-exec is a fat/uber jar and it exports a guava library
-    // that's really old. We use the core classifier to be able to override our guava
-    // version. Luckily, hive-exec seems to work okay so far with this version of guava
-    // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
-    testImplementation("org.apache.hive:hive-exec::core") {
+    testImplementation("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-      exclude group: 'org.pentaho' // missing dependency
-      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
-      exclude group: 'org.apache.logging.log4j'
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
-      exclude group: 'org.apache.calcite'
-      exclude group: 'org.apache.calcite.avatica'
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
     }
-
-    testImplementation("org.apache.hive:hive-metastore") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-      exclude group: 'org.pentaho' // missing dependency
-      exclude group: 'org.apache.hbase'
-      exclude group: 'org.apache.logging.log4j'
-      exclude group: 'co.cask.tephra'
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
-      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
-      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
-      exclude group: 'com.tdunning', module: 'json'
-      exclude group: 'javax.transaction', module: 'transaction-api'
-      exclude group: 'com.zaxxer', module: 'HikariCP'
-    }
-  }
-}
-
-project(':iceberg-flink-runtime') {
-  apply plugin: 'com.github.johnrengelman.shadow'
-
-  tasks.jar.dependsOn tasks.shadowJar
-
-  configurations {
-    implementation {
-      exclude group: 'org.apache.flink'
-      // included in Flink
-      exclude group: 'org.slf4j'
-      exclude group: 'org.apache.commons'
-      exclude group: 'commons-pool'
-      exclude group: 'commons-codec'
-      exclude group: 'org.xerial.snappy'
-      exclude group: 'javax.xml.bind'
-      exclude group: 'javax.annotation'
-    }
-  }
-
-  dependencies {
-    implementation project(':iceberg-flink')
-    implementation project(':iceberg-aws')
-    implementation(project(':iceberg-nessie')) {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
-  }
-
-  shadowJar {
-    configurations = [project.configurations.runtimeClasspath]
-
-    zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
-    // Relocate dependencies to avoid conflicts
-    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
-    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
-    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
-    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
-    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
-    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
-    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
-    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-
-    classifier null
-  }
-
-  jar {
-    enabled = false
   }
 }
 
@@ -547,277 +445,6 @@ project(':iceberg-hive-metastore') {
   }
 }
 
-project(':iceberg-mr') {
-  configurations {
-    testImplementation {
-      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
-    }
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    api project(':iceberg-data')
-    implementation project(':iceberg-hive-metastore')
-    implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
-
-    compileOnly("org.apache.hadoop:hadoop-client") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    compileOnly("org.apache.hive:hive-exec::core") {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      exclude group: 'com.google.guava'
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.calcite.avatica'
-      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
-      exclude group: 'org.apache.logging.log4j'
-      exclude group: 'org.pentaho' // missing dependency
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }
-    compileOnly("org.apache.hive:hive-metastore")
-    compileOnly("org.apache.hive:hive-serde")
-
-    implementation "com.github.ben-manes.caffeine:caffeine"
-
-    testImplementation "org.apache.calcite:calcite-core"
-    testImplementation "org.apache.calcite:calcite-druid"
-
-    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-
-    testImplementation("org.apache.avro:avro:1.9.2")
-    testImplementation("org.apache.calcite:calcite-core")
-    testImplementation("com.esotericsoftware:kryo-shaded:4.0.2")
-    testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-    testImplementation("org.apache.hive:hive-service") {
-      exclude group: 'org.apache.hive', module: 'hive-exec'
-    }
-    testImplementation("org.apache.tez:tez-dag")
-    testImplementation("org.apache.tez:tez-mapreduce")
-  }
-
-  test {
-    // testJoinTables / testScanTable
-    maxHeapSize '2500m'
-  }
-}
-
-if (jdkVersion == '8') {
-  // The purpose of this module is to re-shade org.apache.orc.storage to the original org.apache.hadoop.hive package
-  // name. This is to be used by Hive3 for features including e.g. vectorization.
-  project(':iceberg-hive3-orc-bundle') {
-
-    apply plugin: 'com.github.johnrengelman.shadow'
-
-    tasks.jar.dependsOn tasks.shadowJar
-
-    configurations {
-      implementation {
-        exclude group: 'com.github.luben'
-      }
-    }
-
-    dependencies {
-      implementation project(':iceberg-data')
-      implementation project(':iceberg-orc')
-
-      testCompileOnly project(path: ':iceberg-data', configuration: 'testArtifacts')
-      testCompileOnly project(path: ':iceberg-orc', configuration: 'testArtifacts')
-    }
-
-    shadowJar {
-      configurations = [project.configurations.compileClasspath, project.configurations.runtimeClasspath]
-
-      zip64 true
-
-      // include the LICENSE and NOTICE files for the shaded Jar
-      from(projectDir) {
-        include 'LICENSE'
-        include 'NOTICE'
-      }
-
-      // Relocate dependencies to avoid conflicts
-      relocate 'org.apache.orc.storage', 'org.apache.hadoop.hive'
-
-      // We really only need Iceberg and Orc classes, but with relocated references for storage-api classes (see above)
-      // Unfortunately the include list feature of this shader plugin doesn't work as expected
-      dependencies {
-        exclude 'com/**/*'
-        exclude 'edu/**/*'
-        exclude 'io/**'
-        exclude 'javax/**'
-        exclude 'org/apache/avro/**/*'
-        exclude 'org/apache/commons/**/*'
-        exclude 'org/checkerframework/**/*'
-        exclude 'org/codehaus/**/*'
-        exclude 'org/intellij/**/*'
-        exclude 'org/jetbrains/**/*'
-        exclude 'org/slf4j/**/*'
-        exclude 'org/threeten/**/*'
-        exclude 'org/xerial/**/*'
-        exclude 'org/apache/parquet/**/*'
-        exclude 'org/apache/yetus/**/*'
-        exclude 'shaded/parquet/**/*'
-      }
-
-      classifier null
-    }
-
-    jar {
-      enabled = false
-    }
-
-  }
-
-  project(':iceberg-hive3') {
-
-    // run the tests in iceberg-mr with Hive3 dependencies
-    sourceSets {
-      test {
-        java.srcDirs = ['../mr/src/test/java', 'src/test/java']
-        resources.srcDirs = ['../mr/src/test/resources', 'src/test/resources']
-      }
-    }
-
-    // exclude these Hive2-specific tests from iceberg-mr
-    test {
-      exclude '**/TestIcebergDateObjectInspector.class'
-      exclude '**/TestIcebergTimestampObjectInspector.class'
-      exclude '**/TestIcebergTimestampWithZoneObjectInspector.class'
-    }
-
-    dependencies {
-      compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-      compileOnly project(':iceberg-api')
-      compileOnly project(':iceberg-core')
-      compileOnly project(':iceberg-common')
-      compileOnly project(':iceberg-hive-metastore')
-      compileOnly project(':iceberg-parquet')
-      compileOnly project(':iceberg-hive3-orc-bundle')
-      compileOnly project(':iceberg-mr')
-      compileOnly project(':iceberg-data')
-
-      compileOnly("org.apache.hadoop:hadoop-client:3.1.0") {
-        exclude group: 'org.apache.avro', module: 'avro'
-      }
-
-      compileOnly("org.apache.hive:hive-exec:3.1.2:core") {
-        exclude group: 'com.google.code.findbugs', module: 'jsr305'
-        exclude group: 'com.google.guava'
-        exclude group: 'com.google.protobuf', module: 'protobuf-java'
-        exclude group: 'org.apache.avro', module: 'avro'
-        exclude group: 'org.apache.calcite.avatica'
-        exclude group: 'org.apache.hive', module: 'hive-llap-tez'
-        exclude group: 'org.apache.logging.log4j'
-        exclude group: 'org.pentaho' // missing dependency
-        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-      }
-
-      compileOnly("org.apache.orc:orc-core::nohive") {
-        exclude group: 'org.apache.hadoop'
-        exclude group: 'commons-lang'
-        // These artifacts are shaded and included in the orc-core fat jar
-        exclude group: 'com.google.protobuf', module: 'protobuf-java'
-        exclude group: 'org.apache.hive', module: 'hive-storage-api'
-      }
-
-      compileOnly("org.apache.hive:hive-metastore:3.1.2") {
-        exclude group: 'org.apache.orc'
-      }
-      compileOnly("org.apache.hive:hive-serde:3.1.2") {
-        exclude group: 'org.apache.orc'
-      }
-
-      testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-
-      testImplementation("org.apache.avro:avro:1.9.2")
-      testImplementation("org.apache.calcite:calcite-core")
-      testImplementation("com.esotericsoftware:kryo-shaded:4.0.2")
-      testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-      testImplementation("org.apache.hive:hive-service:3.1.2") {
-        exclude group: 'org.apache.hive', module: 'hive-exec'
-        exclude group: 'org.apache.orc'
-      }
-      testImplementation("org.apache.tez:tez-dag:0.10.1")
-      testImplementation("org.apache.tez:tez-mapreduce:0.10.1")
-    }
-
-    test {
-      // testJoinTables / testScanTable
-      maxHeapSize '2500m'
-    }
-  }
-}
-
-project(':iceberg-hive-runtime') {
-  apply plugin: 'com.github.johnrengelman.shadow'
-
-  tasks.jar.dependsOn tasks.shadowJar
-
-  configurations {
-    implementation {
-      exclude group: 'com.github.stephenc.findbugs'
-      exclude group: 'commons-pool'
-      exclude group: 'javax.annotation'
-      exclude group: 'javax.xml.bind'
-      exclude group: 'org.apache.commons'
-      exclude group: 'org.slf4j'
-      exclude group: 'org.xerial.snappy'
-    }
-  }
-
-  dependencies {
-    implementation project(':iceberg-mr')
-    if (jdkVersion == '8') {
-      implementation project(':iceberg-hive3')
-    }
-    implementation(project(':iceberg-nessie')) {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
-    implementation project(':iceberg-aws')
-  }
-
-  shadowJar {
-    configurations = [project.configurations.runtimeClasspath]
-
-    zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
-    // Relocate dependencies to avoid conflicts
-    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
-    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
-    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
-    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
-    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
-    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
-    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
-    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-
-    classifier null
-  }
-
-  jar {
-    enabled = false
-  }
-}
-
 project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -886,7 +513,10 @@ project(':iceberg-arrow') {
     implementation("org.apache.arrow:arrow-memory-netty") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
+
+    runtimeOnly("io.netty:netty-buffer")
 
     implementation("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -902,476 +532,6 @@ project(':iceberg-arrow') {
     testImplementation("org.apache.arrow:arrow-memory-netty")
     testImplementation("org.apache.hadoop:hadoop-common")
     testImplementation("org.apache.hadoop:hadoop-mapreduce-client-core")
-  }
-}
-
-project(':iceberg-spark') {
-  configurations.all {
-    resolutionStrategy {
-      // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
-      // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
-      // introduced by Hive 1.2.1.
-      force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
-      force 'org.datanucleus:datanucleus-core:3.2.10'
-      force 'org.datanucleus:datanucleus-rdbms:3.2.9'
-    }
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    api project(':iceberg-data')
-    implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
-    implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
-
-    compileOnly "com.google.errorprone:error_prone_annotations"
-    compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.11") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    implementation("org.apache.orc:orc-core::nohive") {
-      exclude group: 'org.apache.hadoop'
-      exclude group: 'commons-lang'
-      // These artifacts are shaded and included in the orc-core fat jar
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
-      exclude group: 'org.apache.hive', module: 'hive-storage-api'
-    }
-
-    implementation("org.apache.arrow:arrow-vector") {
-      exclude group: 'io.netty', module: 'netty-buffer'
-      exclude group: 'io.netty', module: 'netty-common'
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
-
-    testImplementation("org.apache.hadoop:hadoop-minicluster") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-  }
-
-  test {
-    // For vectorized reads
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
-    systemProperty("arrow.enable_unsafe_memory_access", "true")
-    // Disable expensive null check for every get(index) call.
-    // Iceberg manages nullability checks itself instead of relying on arrow.
-    systemProperty("arrow.enable_null_check_for_get", "false")
-
-    // Vectorized reads need more memory
-    maxHeapSize '2500m'
-  }
-}
-
-if (jdkVersion == '8') {
-
-  project(':iceberg-spark2') {
-    configurations.all {
-      resolutionStrategy {
-        // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
-        // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
-        // introduced by Hive 1.2.1.
-        force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
-        force 'org.datanucleus:datanucleus-core:3.2.10'
-        force 'org.datanucleus:datanucleus-rdbms:3.2.9'
-      }
-    }
-
-    dependencies {
-      implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-      api project(':iceberg-api')
-      implementation project(':iceberg-common')
-      implementation project(':iceberg-core')
-      implementation project(':iceberg-data')
-      implementation project(':iceberg-orc')
-      implementation project(':iceberg-parquet')
-      implementation project(':iceberg-arrow')
-      implementation project(':iceberg-hive-metastore')
-      implementation project(':iceberg-spark')
-      implementation "com.github.ben-manes.caffeine:caffeine"
-
-      compileOnly "org.apache.avro:avro"
-      compileOnly("org.apache.spark:spark-hive_2.11") {
-        exclude group: 'org.apache.avro', module: 'avro'
-      }
-
-      testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
-
-      testImplementation("org.apache.hadoop:hadoop-minicluster") {
-        exclude group: 'org.apache.avro', module: 'avro'
-      }
-      testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    }
-
-    test {
-      // For vectorized reads
-      // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
-      systemProperty("arrow.enable_unsafe_memory_access", "true")
-      // Disable expensive null check for every get(index) call.
-      // Iceberg manages nullability checks itself instead of relying on arrow.
-      systemProperty("arrow.enable_null_check_for_get", "false")
-
-      // Vectorized reads need more memory
-      maxHeapSize '2500m'
-    }
-  }
-
-  // the runtime jar is a self-contained artifact for testing in a notebook
-  project(':iceberg-spark-runtime') {
-    apply plugin: 'com.github.johnrengelman.shadow'
-
-    tasks.jar.dependsOn tasks.shadowJar
-
-    configurations {
-      implementation {
-        exclude group: 'org.apache.spark'
-        // included in Spark
-        exclude group: 'org.slf4j'
-        exclude group: 'org.apache.commons'
-        exclude group: 'commons-pool'
-        exclude group: 'commons-codec'
-        exclude group: 'org.xerial.snappy'
-        exclude group: 'javax.xml.bind'
-        exclude group: 'javax.annotation'
-      }
-    }
-
-    dependencies {
-      implementation project(':iceberg-spark2')
-      implementation project(':iceberg-aws')
-      implementation(project(':iceberg-nessie')) {
-        exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      }
-    }
-
-    shadowJar {
-      configurations = [project.configurations.runtimeClasspath]
-
-      zip64 true
-
-      // include the LICENSE and NOTICE files for the shaded Jar
-      from(projectDir) {
-        include 'LICENSE'
-        include 'NOTICE'
-      }
-
-      // Relocate dependencies to avoid conflicts
-      relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
-      relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
-      relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
-      relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
-      relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-      relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
-      relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
-      relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
-      relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
-      relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
-      relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-      // relocate Arrow and related deps to shade Iceberg specific version
-      relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
-      relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
-      relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
-      relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-
-      classifier null
-    }
-
-    jar {
-      enabled = false
-    }
-  }
-}
-
-project(':iceberg-spark3') {
-  apply plugin: 'scala'
-
-  sourceSets {
-    // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
-    spark31 {
-      java.srcDir "$projectDir/src/test/java"
-      resources.srcDir "$projectDir/src/test/resources"
-      compileClasspath += sourceSets.test.output + sourceSets.main.output
-      runtimeClasspath += sourceSets.test.output
-    }
-  }
-
-  configurations {
-    spark31Implementation.extendsFrom testImplementation
-    spark31RuntimeOnly.extendsFrom testRuntimeOnly
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    implementation project(':iceberg-data')
-    implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
-    implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
-    implementation project(':iceberg-spark')
-
-    compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.arrow'
-    }
-
-    implementation("org.apache.arrow:arrow-vector") {
-      exclude group: 'io.netty', module: 'netty-buffer'
-      exclude group: 'io.netty', module: 'netty-common'
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
-
-    testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
-
-    testImplementation("org.apache.hadoop:hadoop-minicluster") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation "org.xerial:sqlite-jdbc"
-
-    spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.arrow'
-      exclude group: 'junit'
-    }
-  }
-
-  tasks.withType(Test) {
-    // For vectorized reads
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
-    systemProperty("arrow.enable_unsafe_memory_access", "true")
-    // Disable expensive null check for every get(index) call.
-    // Iceberg manages nullability checks itself instead of relying on arrow.
-    systemProperty("arrow.enable_null_check_for_get", "false")
-
-    // Vectorized reads need more memory
-    maxHeapSize '2560m'
-  }
-
-  task testSpark31(type: Test) {
-    dependsOn classes
-    group = "verification"
-    description = "Test against Spark 3.1"
-    testClassesDirs = sourceSets.spark31.output.classesDirs
-    classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
-  }
-  check.dependsOn testSpark31
-}
-
-project(":iceberg-spark3-extensions") {
-  apply plugin: 'java-library'
-  apply plugin: 'scala'
-  apply plugin: 'antlr'
-
-  sourceSets {
-    // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
-    spark31 {
-      // Main source is in scala, but test source is only in java
-      java.srcDir "$projectDir/src/test/java"
-      resources.srcDir "$projectDir/src/test/resources"
-      compileClasspath += sourceSets.test.output + sourceSets.main.output
-      runtimeClasspath += sourceSets.test.output
-    }
-  }
-
-  configurations {
-    spark31Implementation.extendsFrom testImplementation
-    spark31RuntimeOnly.extendsFrom testRuntimeOnly
-
-    /*
-     The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
-     bug https://github.com/gradle/gradle/issues/820 exists because older versions of Antlr do not have separate
-     runtime and implementation dependencies and they do not want to break backwards compatibility. So to only end up with
-     the runtime dependency on the runtime classpath we remove the dependencies added by the plugin here. Then add
-     the runtime dependency back to only the runtime configuration manually.
-    */
-    implementation {
-      extendsFrom = extendsFrom.findAll { it != configurations.antlr }
-    }
-  }
-
-  dependencies {
-    compileOnly "org.scala-lang:scala-library"
-    compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    compileOnly project(':iceberg-api')
-    compileOnly project(':iceberg-core')
-    compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark')
-    compileOnly project(':iceberg-spark3')
-    compileOnly project(':iceberg-hive-metastore')
-    compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.arrow'
-    }
-
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
-
-    spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.arrow'
-    }
-
-    // Required because we remove antlr plugin dependencies from the compile configuration, see note above
-    // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
-    runtimeOnly "org.antlr:antlr4-runtime:4.7.1"
-    antlr "org.antlr:antlr4:4.7.1"
-  }
-
-  generateGrammarSource {
-    maxHeapSize = "64m"
-    arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
-  }
-
-  task testSpark31(type: Test) {
-    dependsOn classes
-    group = "verification"
-    description = "Test against Spark 3.1"
-    testClassesDirs = sourceSets.spark31.output.classesDirs
-    classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
-  }
-  check.dependsOn testSpark31
-}
-
-project(':iceberg-spark3-runtime') {
-  apply plugin: 'com.github.johnrengelman.shadow'
-
-  tasks.jar.dependsOn tasks.shadowJar
-
-  sourceSets {
-    integration {
-      java.srcDir "$projectDir/src/integration/java"
-      resources.srcDir "$projectDir/src/integration/resources"
-    }
-    spark31 {
-      java.srcDir "$projectDir/src/integration/java"
-      resources.srcDir "$projectDir/src/integration/resources"
-      compileClasspath += sourceSets.integration.output
-      runtimeClasspath += sourceSets.integration.output
-    }
-  }
-
-  configurations {
-    implementation {
-      exclude group: 'org.apache.spark'
-      // included in Spark
-      exclude group: 'org.slf4j'
-      exclude group: 'org.apache.commons'
-      exclude group: 'commons-pool'
-      exclude group: 'commons-codec'
-      exclude group: 'org.xerial.snappy'
-      exclude group: 'javax.xml.bind'
-      exclude group: 'javax.annotation'
-      exclude group: 'com.github.luben'
-      exclude group: 'com.ibm.icu'
-      exclude group: 'org.glassfish'
-      exclude group: 'org.abego.treelayout'
-      exclude group: 'org.antlr', module: 'ST4'
-      exclude group: 'org.antlr', module: 'antlr4'
-    }
-    spark31Implementation.extendsFrom integrationImplementation
-    spark31CompileOnly.extendsFrom integrationCompileOnly
-  }
-
-  dependencies {
-    api project(':iceberg-api')
-    implementation project(':iceberg-spark3')
-    implementation project(':iceberg-spark3-extensions')
-    implementation project(':iceberg-aws')
-    implementation(project(':iceberg-nessie')) {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
-
-    integrationImplementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}"
-    integrationImplementation 'org.junit.vintage:junit-vintage-engine'
-    integrationImplementation 'org.slf4j:slf4j-simple'
-    integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark3-extensions', configuration: 'testArtifacts')
-    // Not allowed on our classpath, only the runtime jar is allowed
-    integrationCompileOnly project(':iceberg-spark3-extensions')
-    integrationCompileOnly project(':iceberg-spark3')
-    integrationCompileOnly project(':iceberg-api')
-
-    spark31Implementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}"
-  }
-
-  shadowJar {
-    configurations = [project.configurations.runtimeClasspath]
-
-    zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
-    // Relocate dependencies to avoid conflicts
-    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
-    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
-    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
-    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
-    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
-    relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
-    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
-    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
-    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
-    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
-    // relocate Arrow and related deps to shade Iceberg specific version
-    relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
-    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
-    relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
-    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-    // relocate Antlr runtime and related deps to shade Iceberg specific version
-    relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
-
-    classifier null
-  }
-
-  task integrationTest(type: Test) {
-    description = "Test Spark3 Runtime Jar against Spark 3.0"
-    group = "verification"
-    testClassesDirs = sourceSets.integration.output.classesDirs
-    classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
-    inputs.file(shadowJar.archiveFile.get().asFile.path)
-  }
-  integrationTest.dependsOn shadowJar
-
-  task spark31IntegrationTest(type: Test) {
-    dependsOn classes
-    description = "Test Spark3 Runtime Jar against Spark 3.1"
-    group = "verification"
-    testClassesDirs = sourceSets.spark31.output.classesDirs
-    classpath = sourceSets.spark31.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
-  }
-  spark31IntegrationTest.dependsOn shadowJar
-
-  check.dependsOn integrationTest, spark31IntegrationTest
-
-  jar {
-    enabled = false
   }
 }
 
@@ -1411,6 +571,7 @@ project(':iceberg-nessie') {
 
   dependencies {
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation "org.projectnessie:nessie-client"
@@ -1420,13 +581,14 @@ project(':iceberg-nessie') {
     testImplementation "jakarta.el:jakarta.el-api"
 
     compileOnly "org.apache.hadoop:hadoop-common"
+    testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 }
 
 @Memoized
-boolean isVersionFileExists() {
+boolean versionFileExists() {
   return file('version.txt').exists()
 }
 
@@ -1436,19 +598,28 @@ String getVersionFromFile() {
 }
 
 String getProjectVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
   try {
-    return gitVersion()
-  } catch (NullPointerException e) {
-    throw new Exception("Neither version.txt nor git version exists")
+    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
+    String version = gitVersion(prefix: 'release-base-')
+    Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
+    Matcher matcher = pattern.matcher(version)
+    if (matcher.matches()) {
+      // bump the MINOR version and always set the PATCH version to 0
+      return matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0-SNAPSHOT"
+    }
+    return version
+  } catch (Exception e) {
+    throw new Exception("Neither version.txt nor git version exists: " + e.getMessage(), e)
   }
 }
 
 String getJavadocVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 

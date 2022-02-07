@@ -21,9 +21,11 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -44,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +69,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private static final Set<String> VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.REPLACE);
   // delete files can be added in "overwrite" or "delete" operations
-  private static final Set<String> VALIDATE_REPLACED_DATA_FILES_OPERATIONS =
+  private static final Set<String> VALIDATE_ADDED_DELETE_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
 
   private final String tableName;
@@ -80,6 +83,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private Long newFilesSequenceNumber;
   private final Map<Integer, List<DeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -95,6 +99,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // cache new manifests for delete files
   private final List<ManifestFile> cachedNewDeleteManifests = Lists.newLinkedList();
   private boolean hasNewDeleteFiles = false;
+
+  private boolean caseSensitive = true;
 
   MergingSnapshotProducer(String tableName, TableOperations ops) {
     super(ops);
@@ -119,6 +125,17 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   public ThisT set(String property, String value) {
     summaryBuilder.set(property, value);
     return self();
+  }
+
+  public ThisT caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    filterManager.caseSensitive(isCaseSensitive);
+    deleteFilterManager.caseSensitive(isCaseSensitive);
+    return self();
+  }
+
+  protected boolean isCaseSensitive() {
+    return caseSensitive;
   }
 
   protected PartitionSpec dataSpec() {
@@ -252,10 +269,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param conflictDetectionFilter an expression used to find new conflicting data files
-   * @param caseSensitive whether expression evaluation should be case sensitive
    */
   protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId,
-                                        Expression conflictDetectionFilter, boolean caseSensitive) {
+                                        Expression conflictDetectionFilter) {
     // if there is no current table state, no files have been added
     if (base.currentSnapshot() == null) {
       return;
@@ -297,27 +313,117 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Iterable<DataFile> dataFiles) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, newFilesSequenceNumber != null);
+  }
+
+  /**
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter a data filter
+   * @param dataFiles data files to validate have no new row deletes
+   */
+  protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                  Expression dataFilter, Iterable<DataFile> dataFiles) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, dataFilter, dataFiles, false);
+  }
+
+  /**
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot, with the option to ignore equality deletes during the validation.
+   * <p>
+   * For example, in the case of rewriting data files, if the added data files have the same sequence number as the
+   * replaced data files, equality deletes added at a higher sequence number are still effective against the added
+   * data files, so there is no risk of commit conflict between RewriteFiles and RowDelta. In cases like this,
+   * validation against equality delete files can be omitted.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter a data filter
+   * @param dataFiles data files to validate have no new row deletes
+   * @param ignoreEqualityDeletes whether equality deletes should be ignored in validation
+   */
+  private void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                Expression dataFilter, Iterable<DataFile> dataFiles,
+                                                boolean ignoreEqualityDeletes) {
     // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null) {
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
       return;
     }
 
     Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_REPLACED_DATA_FILES_OPERATIONS, ManifestContent.DELETES);
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_DELETE_FILES_OPERATIONS, ManifestContent.DELETES);
     List<ManifestFile> deleteManifests = history.first();
 
-    long startingSequenceNumber = startingSnapshotId == null ? 0 : base.snapshot(startingSnapshotId).sequenceNumber();
-    DeleteFileIndex deletes = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
-        .afterSequenceNumber(startingSequenceNumber)
-        .specsById(ops.current().specsById())
-        .build();
+    long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
+    DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter);
 
     for (DataFile dataFile : dataFiles) {
       // if any delete is found that applies to files written in or before the starting snapshot, fail
-      if (deletes.forDataFile(startingSequenceNumber, dataFile).length > 0) {
-        throw new ValidationException("Cannot commit, found new delete for replaced data file: %s", dataFile);
+      DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+      if (ignoreEqualityDeletes) {
+        ValidationException.check(
+            Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
+            "Cannot commit, found new position delete for replaced data file: %s", dataFile);
+      } else {
+        ValidationException.check(deleteFiles.length == 0,
+            "Cannot commit, found new delete for replaced data file: %s", dataFile);
       }
     }
+  }
+
+  /**
+   * Validates that no delete files matching a filter have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find new conflicting delete files
+   */
+  protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId, Expression dataFilter) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_DELETE_FILES_OPERATIONS, ManifestContent.DELETES);
+    List<ManifestFile> deleteManifests = history.first();
+
+    long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
+    DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter);
+
+    ValidationException.check(deletes.isEmpty(),
+        "Found new conflicting delete files that can apply to records matching %s: %s",
+        dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+  }
+
+  protected void setNewFilesSequenceNumber(long sequenceNumber) {
+    this.newFilesSequenceNumber = sequenceNumber;
+  }
+
+  private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
+    if (staringSnapshotId != null && metadata.snapshot(staringSnapshotId) != null) {
+      Snapshot startingSnapshot = metadata.snapshot(staringSnapshotId);
+      return startingSnapshot.sequenceNumber();
+    } else {
+      return TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    }
+  }
+
+  private DeleteFileIndex buildDeleteFileIndex(List<ManifestFile> deleteManifests, long startingSequenceNumber,
+                                               Expression dataFilter) {
+    DeleteFileIndex.Builder builder = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
+        .afterSequenceNumber(startingSequenceNumber)
+        .caseSensitive(caseSensitive)
+        .specsById(ops.current().specsById());
+
+    if (dataFilter != null) {
+      builder.filterData(dataFilter);
+    }
+
+    return builder.build();
   }
 
   @SuppressWarnings("CollectionUndefinedEquality")
@@ -365,33 +471,33 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> manifests = Lists.newArrayList();
     Set<Long> newSnapshots = Sets.newHashSet();
 
-    Long currentSnapshotId = base.currentSnapshot().snapshotId();
-    while (currentSnapshotId != null && !currentSnapshotId.equals(startingSnapshotId)) {
-      Snapshot currentSnapshot = ops.current().snapshot(currentSnapshotId);
-
-      ValidationException.check(currentSnapshot != null,
-          "Cannot determine history between starting snapshot %s and current %s",
-          startingSnapshotId, currentSnapshotId);
+    Snapshot lastSnapshot = null;
+    Iterable<Snapshot> snapshots = SnapshotUtil.ancestorsBetween(
+        base.currentSnapshot().snapshotId(), startingSnapshotId, base::snapshot);
+    for (Snapshot currentSnapshot : snapshots) {
+      lastSnapshot = currentSnapshot;
 
       if (matchingOperations.contains(currentSnapshot.operation())) {
-        newSnapshots.add(currentSnapshotId);
+        newSnapshots.add(currentSnapshot.snapshotId());
         if (content == ManifestContent.DATA) {
           for (ManifestFile manifest : currentSnapshot.dataManifests()) {
-            if (manifest.snapshotId() == (long) currentSnapshotId) {
+            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
           }
         } else {
           for (ManifestFile manifest : currentSnapshot.deleteManifests()) {
-            if (manifest.snapshotId() == (long) currentSnapshotId) {
+            if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
           }
         }
       }
-
-      currentSnapshotId = currentSnapshot.parentId();
     }
+
+    ValidationException.check(lastSnapshot == null || Objects.equals(lastSnapshot.parentId(), startingSnapshotId),
+        "Cannot determine history between starting snapshot %s and the last known ancestor %s",
+        startingSnapshotId, lastSnapshot != null ? lastSnapshot.snapshotId() : null);
 
     return Pair.of(manifests, newSnapshots);
   }
@@ -445,12 +551,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     long snapshotId = snapshotId();
     Snapshot justSaved = ops.refresh().snapshot(snapshotId);
     long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
+    Map<String, String> summary;
     if (justSaved == null) {
       // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to eventual
       // consistency problems in refresh.
       LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
+      summary = summary();
     } else {
       sequenceNumber = justSaved.sequenceNumber();
+      summary = justSaved.summary();
     }
 
     return new CreateSnapshotEvent(
@@ -458,7 +567,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         operation(),
         snapshotId,
         sequenceNumber,
-        summary());
+        summary);
   }
 
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
@@ -528,7 +637,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
         try {
-          writer.addAll(newFiles);
+          if (newFilesSequenceNumber == null) {
+            writer.addAll(newFiles);
+          } else {
+            newFiles.forEach(f -> writer.add(f, newFilesSequenceNumber));
+          }
         } finally {
           writer.close();
         }

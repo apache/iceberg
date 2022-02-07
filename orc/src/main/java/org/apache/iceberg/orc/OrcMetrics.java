@@ -22,7 +22,6 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +43,6 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
@@ -135,7 +133,7 @@ public class OrcMetrics {
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap = Optional.ofNullable(fieldMetricsStream)
         .map(stream -> stream.collect(Collectors.toMap(FieldMetrics::id, Function.identity())))
-        .orElseGet(HashMap::new);
+        .orElseGet(Maps::newHashMap);
 
     for (int i = 0; i < colStats.length; i++) {
       final ColumnStatistics colStat = colStats[i];
@@ -196,11 +194,17 @@ public class OrcMetrics {
         min = Math.toIntExact((long) min);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
-      // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
-      Preconditions.checkNotNull(fieldMetrics,
-          "[BUG] Float or double type columns should have metrics being tracked by Iceberg Orc writers");
-      min = fieldMetrics.lowerBound();
+      if (fieldMetrics != null) {
+        // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
+        // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
+        min = fieldMetrics.lowerBound();
+      } else {
+        // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
+        min = replaceNaN(((DoubleColumnStatistics) columnStats).getMinimum(), Double.NEGATIVE_INFINITY);
+        if (type.typeId() == Type.TypeID.FLOAT) {
+          min = ((Double) min).floatValue();
+        }
+      }
     } else if (columnStats instanceof StringColumnStatistics) {
       min = ((StringColumnStatistics) columnStats).getMinimum();
     } else if (columnStats instanceof DecimalColumnStatistics) {
@@ -234,11 +238,17 @@ public class OrcMetrics {
         max = Math.toIntExact((long) max);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
-      // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
-      Preconditions.checkNotNull(fieldMetrics,
-          "[BUG] Float or double type columns should have metrics being tracked by Iceberg Orc writers");
-      max = fieldMetrics.upperBound();
+      if (fieldMetrics != null) {
+        // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
+        // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
+        max = fieldMetrics.upperBound();
+      } else {
+        // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
+        max = replaceNaN(((DoubleColumnStatistics) columnStats).getMaximum(), Double.POSITIVE_INFINITY);
+        if (type.typeId() == Type.TypeID.FLOAT) {
+          max = ((Double) max).floatValue();
+        }
+      }
     } else if (columnStats instanceof StringColumnStatistics) {
       max = ((StringColumnStatistics) columnStats).getMaximum();
     } else if (columnStats instanceof DecimalColumnStatistics) {
@@ -260,6 +270,10 @@ public class OrcMetrics {
       max = booleanStats.getTrueCount() > 0;
     }
     return Optional.ofNullable(Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
+  }
+
+  private static Object replaceNaN(double value, double replacement) {
+    return Double.isNaN(value) ? replacement : value;
   }
 
   private static Object truncateIfNeeded(Bound bound, Type type, Object value, MetricsMode metricsMode) {

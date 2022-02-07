@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,7 +79,6 @@ public class Tasks {
     private boolean stopAbortsOnFailure = false;
 
     // retry settings
-    @SuppressWarnings("unchecked")
     private List<Class<? extends Exception>> stopRetryExceptions = Lists.newArrayList(
         UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
@@ -145,7 +143,8 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> stopRetryOn(Class<? extends Exception>... exceptions) {
+    @SafeVarargs
+    public final Builder<I> stopRetryOn(Class<? extends Exception>... exceptions) {
       stopRetryExceptions.addAll(Arrays.asList(exceptions));
       return this;
     }
@@ -170,7 +169,8 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> onlyRetryOn(Class<? extends Exception>... exceptions) {
+    @SafeVarargs
+    public final Builder<I> onlyRetryOn(Class<? extends Exception>... exceptions) {
       this.onlyRetryExceptions = Lists.newArrayList(exceptions);
       return this;
     }
@@ -213,7 +213,6 @@ public class Tasks {
           try {
             runTaskWithRetry(task, item);
             succeeded.add(item);
-
           } catch (Exception e) {
             exceptions.add(e);
 
@@ -471,7 +470,7 @@ public class Tasks {
       }
 
       if (numFinished == futures.size()) {
-        List<Throwable> uncaught = new ArrayList<>();
+        List<Throwable> uncaught = Lists.newArrayList();
         // all of the futures are done, get any uncaught exceptions
         for (Future<?> future : futures) {
           try {
@@ -565,15 +564,15 @@ public class Tasks {
     return new Builder<>(items);
   }
 
+  @SafeVarargs
   public static <I> Builder<I> foreach(I... items) {
     return new Builder<>(Arrays.asList(items));
   }
 
   public static <I> Builder<I> foreach(Stream<I> items) {
-    return new Builder<>(() -> items.iterator());
+    return new Builder<>(items::iterator);
   }
 
-  @SuppressWarnings("unchecked")
   private static <E extends Exception> void throwOne(
       Collection<Throwable> exceptions, Class<E> allowedException) throws E {
     Iterator<Throwable> iter = exceptions.iterator();

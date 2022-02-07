@@ -24,7 +24,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -36,7 +35,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
@@ -69,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -86,16 +86,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
+  private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
+  private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
-      .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
+      .impl(IMetaStoreClient.class, "alter_table_with_environmentContext",
           String.class, String.class, Table.class, EnvironmentContext.class)
-      .impl(HiveMetaStoreClient.class, "alter_table",
+      .impl(IMetaStoreClient.class, "alter_table",
           String.class, String.class, Table.class, EnvironmentContext.class)
+      .impl(IMetaStoreClient.class, "alter_table",
+          String.class, String.class, Table.class)
       .build();
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION = ImmutableBiMap.of(
       // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
@@ -142,8 +146,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
+  private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
-  private final ClientPool<HiveMetaStoreClient, TException> metaClients;
+  private final ClientPool<IMetaStoreClient, TException> metaClients;
 
   protected HiveTableOperations(Configuration conf, ClientPool metaClients, FileIO fileIO,
                                 String catalogName, String database, String table) {
@@ -159,6 +164,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
+    this.metadataRefreshMaxRetries =
+        conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
@@ -197,14 +204,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    refreshFromMetadataLocation(metadataLocation);
+    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    String newMetadataLocation = base == null && metadata.metadataFileLocation() != null ?
+        metadata.metadataFileLocation() : writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
+    boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
     CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveTable = false;
@@ -253,7 +262,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       Map<String, String> summary = Optional.ofNullable(metadata.currentSnapshot())
           .map(Snapshot::summary)
           .orElseGet(ImmutableMap::of);
-      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
+      setHmsTableParameters(newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
+
+      if (!keepHiveStats) {
+        tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
+      }
 
       try {
         persistTable(tbl, updateHiveTable);
@@ -288,8 +301,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during commit", e);
 
     } finally {
-      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId);
-      tableLevelMutex.unlock();
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, tableLevelMutex);
     }
   }
 
@@ -331,7 +343,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         Integer.MAX_VALUE,
         null,
         Collections.emptyList(),
-        new HashMap<>(),
+        Maps.newHashMap(),
         null,
         null,
         TableType.EXTERNAL_TABLE.toString());
@@ -340,18 +352,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return newTable;
   }
 
-  private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
+  private void setHmsTableParameters(String newMetadataLocation, Table tbl, TableMetadata metadata,
                                      Set<String> obsoleteProps, boolean hiveEngineEnabled,
                                      Map<String, String> summary) {
     Map<String, String> parameters = Optional.ofNullable(tbl.getParameters())
-        .orElseGet(HashMap::new);
+        .orElseGet(Maps::newHashMap);
 
     // push all Iceberg table properties into HMS
-    icebergTableProps.forEach((key, value) -> {
+    metadata.properties().forEach((key, value) -> {
       // translate key names between Iceberg and HMS where needed
       String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
       parameters.put(hmsKey, value);
     });
+    if (metadata.uuid() != null) {
+      parameters.put(TableProperties.UUID, metadata.uuid());
+    }
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);
@@ -391,6 +406,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
     SerDeInfo serDeInfo = new SerDeInfo();
+    serDeInfo.setParameters(Maps.newHashMap());
     if (hiveEngineEnabled) {
       storageDescriptor.setInputFormat("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
       storageDescriptor.setOutputFormat("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
@@ -471,7 +487,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return lockId;
   }
 
-  private void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation, Optional<Long> lockId) {
+  private void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation, Optional<Long> lockId,
+      ReentrantLock tableLevelMutex) {
     try {
       if (commitStatus == CommitStatus.FAILURE) {
         // If we are sure the commit failed, clean up the uncommitted metadata file
@@ -482,6 +499,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw e;
     } finally {
       unlock(lockId);
+      tableLevelMutex.unlock();
     }
   }
 

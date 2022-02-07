@@ -79,7 +79,7 @@ public class HiveTableBaseTest extends HiveMetastoreTest {
     return getTableLocationPath(tableName).toString();
   }
 
-  private static String metadataLocation(String tableName) {
+  protected static String metadataLocation(String tableName) {
     return Paths.get(getTableBasePath(tableName), "metadata").toString();
   }
 

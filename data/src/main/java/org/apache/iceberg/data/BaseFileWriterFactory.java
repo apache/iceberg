@@ -77,8 +77,9 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   protected abstract void configureEqualityDelete(Parquet.DeleteWriteBuilder builder);
   protected abstract void configurePositionDelete(Parquet.DeleteWriteBuilder builder);
 
-  // TODO: provide ways to configure ORC delete writers once we support them
   protected abstract void configureDataWrite(ORC.DataWriteBuilder builder);
+  protected abstract void configureEqualityDelete(ORC.DeleteWriteBuilder builder);
+  protected abstract void configurePositionDelete(ORC.DeleteWriteBuilder builder);
 
   @Override
   public DataWriter<T> newDataWriter(EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
@@ -153,10 +154,9 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     try {
       switch (deleteFileFormat) {
         case AVRO:
-          // TODO: support metrics configs in Avro equality delete writer
-
           Avro.DeleteWriteBuilder avroBuilder = Avro.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(equalityDeleteRowSchema)
               .equalityFieldIds(equalityFieldIds)
               .withSpec(spec)
@@ -185,6 +185,22 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
           return parquetBuilder.buildEqualityWriter();
 
+        case ORC:
+          ORC.DeleteWriteBuilder orcBuilder = ORC.writeDeletes(outputFile)
+              .setAll(properties)
+              .metricsConfig(metricsConfig)
+              .rowSchema(equalityDeleteRowSchema)
+              .equalityFieldIds(equalityFieldIds)
+              .withSpec(spec)
+              .withPartition(partition)
+              .withKeyMetadata(keyMetadata)
+              .withSortOrder(equalityDeleteSortOrder)
+              .overwrite();
+
+          configureEqualityDelete(orcBuilder);
+
+          return orcBuilder.buildEqualityWriter();
+
         default:
           throw new UnsupportedOperationException("Unsupported format for equality deletes: " + deleteFileFormat);
       }
@@ -199,14 +215,14 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-
-    // TODO: build and pass a correct metrics config for position deletes
+    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
       switch (deleteFileFormat) {
         case AVRO:
           Avro.DeleteWriteBuilder avroBuilder = Avro.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(positionDeleteRowSchema)
               .withSpec(spec)
               .withPartition(partition)
@@ -220,6 +236,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder = Parquet.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(positionDeleteRowSchema)
               .withSpec(spec)
               .withPartition(partition)
@@ -229,6 +246,20 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           configurePositionDelete(parquetBuilder);
 
           return parquetBuilder.buildPositionWriter();
+
+        case ORC:
+          ORC.DeleteWriteBuilder orcBuilder = ORC.writeDeletes(outputFile)
+              .setAll(properties)
+              .metricsConfig(metricsConfig)
+              .rowSchema(positionDeleteRowSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .withKeyMetadata(keyMetadata)
+              .overwrite();
+
+          configurePositionDelete(orcBuilder);
+
+          return orcBuilder.buildPositionWriter();
 
         default:
           throw new UnsupportedOperationException("Unsupported format for position deletes: " + deleteFileFormat);

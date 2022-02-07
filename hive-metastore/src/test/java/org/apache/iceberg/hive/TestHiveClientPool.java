@@ -126,7 +126,7 @@ public class TestHiveClientPool {
 
     Mockito.doReturn(databases).when(newClient).getAllDatabases();
     // The return is OK when the reconnect method is called.
-    Assert.assertEquals(databases, clients.run(client -> client.getAllDatabases()));
+    Assert.assertEquals(databases, clients.run(client -> client.getAllDatabases(), true));
 
     // Verify that the method is called.
     Mockito.verify(clients).reconnect(hmsClient);
@@ -146,7 +146,7 @@ public class TestHiveClientPool {
             new Function("concat", "db1", "classname", "root", PrincipalType.USER, 100, FunctionType.JAVA, null));
     Mockito.doReturn(response).when(newClient).getAllFunctions();
 
-    Assert.assertEquals(response, clients.run(client -> client.getAllFunctions()));
+    Assert.assertEquals(response, clients.run(client -> client.getAllFunctions(), true));
 
     Mockito.verify(clients).reconnect(hmsClient);
     Mockito.verify(clients, Mockito.never()).reconnect(newClient);

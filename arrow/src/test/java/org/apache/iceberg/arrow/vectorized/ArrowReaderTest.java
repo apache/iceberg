@@ -30,8 +30,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,10 +71,13 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.assertj.core.api.Assertions;
@@ -300,6 +301,23 @@ public class ArrowReaderTest {
   }
 
   /**
+   * The test asserts that {@link CloseableIterator#hasNext()} returned
+   * by the {@link ArrowReader} is idempotent.
+   */
+  @Test
+  public void testHasNextIsIdempotent() throws Exception {
+    writeTableWithIncrementalRecords();
+    Table table = tables.load(tableLocation);
+    TableScan scan = table.newScan();
+    // Call hasNext() 0 extra times.
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 0, ALL_COLUMNS);
+    // Call hasNext() 1 extra time.
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 1, ALL_COLUMNS);
+    // Call hasNext() 2 extra times.
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2, ALL_COLUMNS);
+  }
+
+  /**
    * Run the following verifications:
    * <ol>
    *   <li>Read the data and verify that the returned ColumnarBatches match expected rows.</li>
@@ -353,6 +371,37 @@ public class ArrowReaderTest {
     assertEquals(expectedTotalRows, totalRows);
   }
 
+  private void readAndCheckHasNextIsIdempotent(
+      TableScan scan,
+      int numRowsPerRoot,
+      int expectedTotalRows,
+      int numExtraCallsToHasNext,
+      List<String> columns) throws IOException {
+    Set<String> columnSet = ImmutableSet.copyOf(columns);
+    int rowIndex = 0;
+    int totalRows = 0;
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
+      CloseableIterator<ColumnarBatch> iterator = itr.iterator();
+      while (iterator.hasNext()) {
+        // Call hasNext() a few extra times.
+        // This should not affect the total number of rows read.
+        for (int i = 0; i < numExtraCallsToHasNext; i++) {
+          assertTrue(iterator.hasNext());
+        }
+
+        ColumnarBatch batch = iterator.next();
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        checkAllVectorTypes(root, columnSet);
+        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
+        checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
+        rowIndex += numRowsPerRoot;
+        totalRows += root.getRowCount();
+      }
+    }
+    assertEquals(expectedTotalRows, totalRows);
+  }
+
   @SuppressWarnings("MethodLength")
   private void checkColumnarBatch(
       int expectedNumRows,
@@ -360,7 +409,7 @@ public class ArrowReaderTest {
       ColumnarBatch batch,
       List<String> columns) {
 
-    Map<String, Integer> columnNameToIndex = new HashMap<>();
+    Map<String, Integer> columnNameToIndex = Maps.newHashMap();
     for (int i = 0; i < columns.size(); i++) {
       columnNameToIndex.put(columns.get(i), i);
     }
@@ -555,7 +604,7 @@ public class ArrowReaderTest {
   }
 
   private void writeTable(boolean constantRecords) throws Exception {
-    rowsWritten = new ArrayList<>();
+    rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
     tableLocation = temp.newFolder("test").toString();
 
@@ -679,7 +728,7 @@ public class ArrowReaderTest {
   }
 
   private List<GenericRecord> createIncrementalRecordsForDate(Schema schema, LocalDateTime datetime) {
-    List<GenericRecord> records = new ArrayList<>();
+    List<GenericRecord> records = Lists.newArrayList();
     for (int i = 0; i < NUM_ROWS_PER_MONTH; i++) {
       GenericRecord rec = GenericRecord.create(schema);
       rec.setField("timestamp", datetime.plus(i, ChronoUnit.DAYS));
@@ -715,7 +764,7 @@ public class ArrowReaderTest {
   }
 
   private List<GenericRecord> createConstantRecordsForDate(Schema schema, LocalDateTime datetime) {
-    List<GenericRecord> records = new ArrayList<>();
+    List<GenericRecord> records = Lists.newArrayList();
     for (int i = 0; i < NUM_ROWS_PER_MONTH; i++) {
       GenericRecord rec = GenericRecord.create(schema);
       rec.setField("timestamp", datetime);

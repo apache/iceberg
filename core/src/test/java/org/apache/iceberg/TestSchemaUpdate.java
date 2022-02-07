@@ -93,7 +93,7 @@ public class TestSchemaUpdate {
       Schema del = new SchemaUpdate(SCHEMA, 19).deleteColumn(name).apply();
 
       Assert.assertEquals("Should match projection with '" + name + "' removed",
-          TypeUtil.select(SCHEMA, selected).asStruct(), del.asStruct());
+          TypeUtil.project(SCHEMA, selected).asStruct(), del.asStruct());
     }
   }
 

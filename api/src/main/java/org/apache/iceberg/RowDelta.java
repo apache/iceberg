@@ -94,7 +94,7 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
   RowDelta validateDeletedFiles();
 
   /**
-   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * Enables validation that data files added concurrently do not conflict with this commit's operation.
    * <p>
    * This method should be called when the table is queried to determine which files to delete/append.
    * If a concurrent operation commits a new file after the data was read and that file might
@@ -109,6 +109,54 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    *
    * @param conflictDetectionFilter an expression on rows in the table
    * @return this for method chaining
+   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #conflictDetectionFilter(Expression)} and
+   *             {@link #validateNoConflictingDataFiles()} instead.
    */
-  RowDelta validateNoConflictingAppends(Expression conflictDetectionFilter);
+  @Deprecated
+  default RowDelta validateNoConflictingAppends(Expression conflictDetectionFilter) {
+    conflictDetectionFilter(conflictDetectionFilter);
+    return validateNoConflictingDataFiles();
+  }
+
+  /**
+   * Sets a conflict detection filter used to validate concurrently added data and delete files.
+   * <p>
+   * If not called, a true literal will be used as the conflict detection filter.
+   *
+   * @param conflictDetectionFilter an expression on rows in the table
+   * @return this for method chaining
+   */
+  RowDelta conflictDetectionFilter(Expression conflictDetectionFilter);
+
+  /**
+   * Enables validation that data files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * This method should be called when the table is queried to determine which files to delete/append.
+   * If a concurrent operation commits a new file after the data was read and that file might
+   * contain rows matching the specified conflict detection filter, this operation
+   * will detect this during retries and fail.
+   * <p>
+   * Calling this method is required to maintain serializable isolation for update/delete operations.
+   * Otherwise, the isolation level will be snapshot isolation.
+   * <p>
+   * Validation uses the conflict detection filter passed to {@link #conflictDetectionFilter(Expression)} and
+   * applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @return this for method chaining
+   */
+  RowDelta validateNoConflictingDataFiles();
+
+  /**
+   * Enables validation that delete files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * This method must be called when the table is queried to produce a row delta for UPDATE and
+   * MERGE operations independently of the isolation level. Calling this method isn't required
+   * for DELETE operations as it is OK to delete a record that is also deleted concurrently.
+   * <p>
+   * Validation uses the conflict detection filter passed to {@link #conflictDetectionFilter(Expression)} and
+   * applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @return this for method chaining
+   */
+  RowDelta validateNoConflictingDeleteFiles();
 }

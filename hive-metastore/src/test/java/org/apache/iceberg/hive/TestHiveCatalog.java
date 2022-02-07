@@ -21,7 +21,6 @@ package org.apache.iceberg.hive;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
@@ -29,6 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -45,6 +46,7 @@ import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
@@ -52,7 +54,6 @@ import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
-  private static final String hiveLocalDir = "file:/tmp/hive/" + UUID.randomUUID().toString();
   private static ImmutableMap meta = ImmutableMap.of(
       "owner", "apache",
       "group", "iceberg",
@@ -116,6 +117,34 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     } finally {
       cachingCatalog.dropTable(tableIdent);
     }
+  }
+
+  @Test
+  public void testInitialize() {
+    Assertions.assertDoesNotThrow(() -> {
+      HiveCatalog catalog = new HiveCatalog();
+      catalog.initialize("hive", Maps.newHashMap());
+    });
+  }
+
+  @Test
+  public void testToStringWithoutSetConf() {
+    Assertions.assertDoesNotThrow(() -> {
+      HiveCatalog catalog = new HiveCatalog();
+      catalog.toString();
+    });
+  }
+
+  @Test
+  public void testInitializeCatalogWithProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("uri", "thrift://examplehost:9083");
+    properties.put("warehouse", "/user/hive/testwarehouse");
+    HiveCatalog catalog = new HiveCatalog();
+    catalog.initialize("hive", properties);
+
+    Assert.assertEquals(catalog.getConf().get("hive.metastore.uris"), "thrift://examplehost:9083");
+    Assert.assertEquals(catalog.getConf().get("hive.metastore.warehouse.dir"), "/user/hive/testwarehouse");
   }
 
   @Test
@@ -242,7 +271,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testCreateNamespace() throws TException {
+  public void testCreateNamespace() throws Exception {
     Namespace namespace1 = Namespace.of("noLocation");
     catalog.createNamespace(namespace1, meta);
     Database database1 = metastoreClient.getDatabase(namespace1.toString());
@@ -257,6 +286,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         AlreadyExistsException.class, "Namespace '" + namespace1 + "' already exists!", () -> {
           catalog.createNamespace(namespace1);
         });
+    String hiveLocalDir = temp.newFolder().toURI().toString();
+    // remove the trailing slash of the URI
+    hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
     ImmutableMap newMeta = ImmutableMap.<String, String>builder()
         .putAll(meta)
         .put("location", hiveLocalDir)
@@ -411,4 +443,29 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         "hive.metastore.warehouse.dir", "") +  "/" + namespace.level(0) + ".db";
   }
 
+  @Test
+  public void testUUIDinTableProperties() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    try {
+      catalog.buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .create();
+
+      String tableName = tableIdentifier.name();
+      org.apache.hadoop.hive.metastore.api.Table hmsTable =
+          metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
+
+      // check parameters are in expected state
+      Map<String, String> parameters = hmsTable.getParameters();
+      Assert.assertNotNull(parameters.get(TableProperties.UUID));
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
 }

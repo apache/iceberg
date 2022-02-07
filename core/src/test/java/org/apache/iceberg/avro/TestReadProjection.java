@@ -526,4 +526,183 @@ public abstract class TestReadProjection {
     AssertHelpers.assertEmptyAvroField(projectedP2, "y");
     Assert.assertNull("Should project null z", projectedP2.get("z"));
   }
+
+  @Test
+  public void testEmptyStructProjection() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get())
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record location = new Record(
+        AvroSchemaUtil.fromOption(record.getSchema().getField("location").schema()));
+    location.put("lat", 52.995143f);
+    location.put("long", -1.539054f);
+    record.put("location", location);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(3, "location", Types.StructType.of())
+    );
+
+    Record projected = writeAndRead("empty_proj", writeSchema, emptyStruct, record);
+    AssertHelpers.assertEmptyAvroField(projected, "id");
+    Record result = (Record) projected.get("location");
+
+    Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
+    Assert.assertNotNull("Should contain an empty record", result);
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
+  }
+
+  @Test
+  public void testEmptyStructRequiredProjection() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get())
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record location = new Record(record.getSchema().getField("location").schema());
+    location.put("lat", 52.995143f);
+    location.put("long", -1.539054f);
+    record.put("location", location);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(3, "location", Types.StructType.of())
+    );
+
+    Record projected = writeAndRead("empty_req_proj", writeSchema, emptyStruct, record);
+    AssertHelpers.assertEmptyAvroField(projected, "id");
+    Record result = (Record) projected.get("location");
+    Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
+    Assert.assertNotNull("Should contain an empty record", result);
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
+  }
+
+  @Test
+  public void testRequiredEmptyStructInRequiredStruct() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get()),
+            Types.NestedField.required(4, "empty", Types.StructType.of())
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record location = new Record(record.getSchema().getField("location").schema());
+    location.put("lat", 52.995143f);
+    location.put("long", -1.539054f);
+    record.put("location", location);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "location", Types.StructType.of(
+            Types.NestedField.required(4, "empty", Types.StructType.of())
+        ))
+    );
+
+    Record projected = writeAndRead("req_empty_req_proj", writeSchema, emptyStruct, record);
+    Assert.assertEquals("Should project id", 34L, projected.get("id"));
+    Record result = (Record) projected.get("location");
+    Assert.assertEquals("location should be in the 1st position", result, projected.get(1));
+    Assert.assertNotNull("Should contain an empty record", result);
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
+    Assert.assertNotNull("Should project empty", result.getSchema().getField("empty"));
+    Assert.assertNotNull("Empty should not be null", result.get("empty"));
+    Assert.assertEquals("Empty should be empty", 0,
+        ((Record) result.get("empty")).getSchema().getFields().size());
+  }
+
+  @Test
+  public void testEmptyNestedStructProjection() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(3, "outer", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.optional(2, "inner", Types.StructType.of(
+                Types.NestedField.required(5, "lon", Types.FloatType.get())
+                )
+            )
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record outer = new Record(
+        AvroSchemaUtil.fromOption(record.getSchema().getField("outer").schema()));
+    Record inner = new Record(AvroSchemaUtil.fromOption(outer.getSchema().getField("inner").schema()));
+    inner.put("lon", 32.14f);
+    outer.put("lat", 52.995143f);
+    outer.put("inner", inner);
+    record.put("outer", outer);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(3, "outer", Types.StructType.of(
+            Types.NestedField.required(2, "inner", Types.StructType.of())
+        )));
+
+    Record projected = writeAndRead("nested_empty_proj", writeSchema, emptyStruct, record);
+    AssertHelpers.assertEmptyAvroField(projected, "id");
+    Record outerResult = (Record) projected.get("outer");
+    Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
+    Assert.assertNotNull("Should contain the outer record", outerResult);
+    AssertHelpers.assertEmptyAvroField(outerResult, "lat");
+    Record innerResult = (Record) outerResult.get("inner");
+    Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
+    Assert.assertNotNull("Should contain the inner record", innerResult);
+    AssertHelpers.assertEmptyAvroField(innerResult, "lon");
+  }
+
+  @Test
+  public void testEmptyNestedStructRequiredProjection() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "outer", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "inner", Types.StructType.of(
+                Types.NestedField.required(5, "lon", Types.FloatType.get())
+                )
+            )
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record outer = new Record(record.getSchema().getField("outer").schema());
+    Record inner = new Record(outer.getSchema().getField("inner").schema());
+    inner.put("lon", 32.14f);
+    outer.put("lat", 52.995143f);
+    outer.put("inner", inner);
+    record.put("outer", outer);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(3, "outer", Types.StructType.of(
+            Types.NestedField.required(2, "inner", Types.StructType.of())
+        )));
+
+    Record projected = writeAndRead("nested_empty_req_proj", writeSchema, emptyStruct, record);
+    AssertHelpers.assertEmptyAvroField(projected, "id");
+    Record outerResult = (Record) projected.get("outer");
+    Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
+    Assert.assertNotNull("Should contain the outer record", outerResult);
+    AssertHelpers.assertEmptyAvroField(outerResult, "lat");
+    Record innerResult = (Record) outerResult.get("inner");
+    Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
+    Assert.assertNotNull("Should contain the inner record", innerResult);
+    AssertHelpers.assertEmptyAvroField(innerResult, "lon");
+  }
 }

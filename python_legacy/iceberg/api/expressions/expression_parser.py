@@ -30,6 +30,7 @@ from pyparsing import (
     opAssoc,
     pyparsing_common as ppc,
     quotedString,
+    removeQuotes,
     Word
 )
 
@@ -50,7 +51,7 @@ intNum = ppc.signed_integer()
 
 columnRval = (realNum
               | intNum
-              | quotedString
+              | quotedString.setParseAction(removeQuotes)
               | columnName)  # need to add support for alg expressions
 whereCondition = Group(
     (columnName + binop + columnRval)

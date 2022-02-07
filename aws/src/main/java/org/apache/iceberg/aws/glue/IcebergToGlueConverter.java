@@ -19,18 +19,26 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -47,6 +55,11 @@ class IcebergToGlueConverter {
 
   private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
   private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
+  public static final String GLUE_DB_LOCATION_KEY = "location";
+  public static final String GLUE_DB_DESCRIPTION_KEY = "comment";
+  public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
+  public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
+  public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -99,10 +112,19 @@ class IcebergToGlueConverter {
    * @return Glue DatabaseInput
    */
   static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata) {
-    return DatabaseInput.builder()
-        .name(toDatabaseName(namespace))
-        .parameters(metadata)
-        .build();
+    DatabaseInput.Builder builder = DatabaseInput.builder().name(toDatabaseName(namespace));
+    Map<String, String> parameters = Maps.newHashMap();
+    metadata.forEach((k, v) -> {
+      if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
+        builder.description(v);
+      } else if (GLUE_DB_LOCATION_KEY.equals(k)) {
+        builder.locationUri(v);
+      } else {
+        parameters.put(k, v);
+      }
+    });
+
+    return builder.parameters(parameters).build();
   }
 
   /**
@@ -160,21 +182,8 @@ class IcebergToGlueConverter {
       tableInputBuilder
           .storageDescriptor(StorageDescriptor.builder()
               .location(metadata.location())
-              .columns(metadata.schema().columns().stream()
-                  .map(f -> Column.builder()
-                      .name(f.name())
-                      .type(toTypeString(f.type()))
-                      .comment("Iceberg column: { " + f + " }")
-                      .build())
-                  .collect(Collectors.toList()))
-              .build())
-          .partitionKeys(metadata.spec().fields().stream()
-              .map(f -> Column.builder()
-                  .name(f.name())
-                  .type(toTypeString(f.transform().getResultType(metadata.schema().findField(f.sourceId()).type())))
-                  .comment("Iceberg partition field: {" + f + "}")
-                  .build())
-              .collect(Collectors.toList()));
+              .columns(toColumns(metadata))
+              .build());
     } catch (RuntimeException e) {
       LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
     }
@@ -229,6 +238,42 @@ class IcebergToGlueConverter {
         return String.format("map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
       default:
         return type.typeId().name().toLowerCase(Locale.ENGLISH);
+    }
+  }
+
+  private static List<Column> toColumns(TableMetadata metadata) {
+    List<Column> columns = Lists.newArrayList();
+    Set<String> addedNames = Sets.newHashSet();
+
+    for (NestedField field : metadata.schema().columns()) {
+      addColumnWithDedupe(columns, addedNames, field, true /* is current */);
+    }
+
+    for (Schema schema : metadata.schemas()) {
+      if (schema.schemaId() != metadata.currentSchemaId()) {
+        for (NestedField field : schema.columns()) {
+          addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+        }
+      }
+    }
+
+    return columns;
+  }
+
+  private static void addColumnWithDedupe(List<Column> columns, Set<String> dedupe,
+                                          NestedField field, boolean isCurrent) {
+    if (!dedupe.contains(field.name())) {
+      columns.add(Column.builder()
+          .name(field.name())
+          .type(toTypeString(field.type()))
+          .comment(field.doc())
+          .parameters(ImmutableMap.of(
+              ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+              ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
+              ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)
+          ))
+          .build());
+      dedupe.add(field.name());
     }
   }
 }

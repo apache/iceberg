@@ -17,7 +17,7 @@
 # under the License.
 #
 
-mkdocs-cinder
+mkdocs-windmill
 mkdocs-redirects
 pymdown-extensions
 mkdocs-markdownextradata-plugin

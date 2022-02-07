@@ -31,8 +31,8 @@ import java.util.Optional;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -85,7 +85,7 @@ public abstract class BaseParquetWriter<T> {
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
-      org.apache.parquet.schema.Type elementType = repeated.getType(0);
+      Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
       return ParquetValueWriters.collections(repeatedD, repeatedR,
@@ -102,9 +102,9 @@ public abstract class BaseParquetWriter<T> {
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
-      org.apache.parquet.schema.Type keyType = repeatedKeyValue.getType(0);
+      Type keyType = repeatedKeyValue.getType(0);
       int keyD = type.getMaxDefinitionLevel(path(keyType.getName()));
-      org.apache.parquet.schema.Type valueType = repeatedKeyValue.getType(1);
+      Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
 
       return ParquetValueWriters.maps(repeatedD, repeatedR,

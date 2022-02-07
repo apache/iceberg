@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -27,8 +28,9 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private boolean validateDeletes = false;
-  private Expression conflictDetectionFilter = null;
-  private boolean caseSensitive = true;
+  private Expression conflictDetectionFilter = Expressions.alwaysTrue();
+  private boolean validateNewDataFiles = false;
+  private boolean validateNewDeleteFiles = false;
 
   BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -63,12 +65,6 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  public RowDelta caseSensitive(boolean isCaseSensitive) {
-    this.caseSensitive = isCaseSensitive;
-    return this;
-  }
-
-  @Override
   public RowDelta validateDeletedFiles() {
     this.validateDeletes = true;
     return this;
@@ -81,9 +77,21 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter) {
+  public RowDelta conflictDetectionFilter(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateNoConflictingDataFiles() {
+    this.validateNewDataFiles = true;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateNoConflictingDeleteFiles() {
+    this.validateNewDeleteFiles = true;
     return this;
   }
 
@@ -95,9 +103,12 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             base, startingSnapshotId, referencedDataFiles, !validateDeletes, conflictDetectionFilter);
       }
 
-      // TODO: does this need to check new delete files?
-      if (conflictDetectionFilter != null) {
-        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
+      if (validateNewDataFiles) {
+        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter);
+      }
+
+      if (validateNewDeleteFiles) {
+        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter);
       }
     }
   }

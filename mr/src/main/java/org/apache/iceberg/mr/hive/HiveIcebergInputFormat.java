@@ -25,6 +25,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.SerializationUtilities;
+import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedInputFormatInterface;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedSupport;
 import org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
@@ -106,13 +107,17 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(job);
     job.setStrings(InputFormatConfig.SELECTED_COLUMNS, selectedColumns);
 
-    if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)) {
+    if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED) &&
+        Utilities.getVectorizedRowBatchCtx(job) != null) {
       Preconditions.checkArgument(MetastoreUtil.hive3PresentOnClasspath(), "Vectorization only supported for Hive 3+");
+
+      job.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.HIVE);
+      job.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
 
       IcebergSplit icebergSplit = ((IcebergSplitContainer) split).icebergSplit();
       // bogus cast for favouring code reuse over syntax
       return (RecordReader) HIVE_VECTORIZED_RECORDREADER_CTOR.newInstance(
-              new org.apache.iceberg.mr.mapreduce.IcebergInputFormat<>(),
+              new IcebergInputFormat<>(),
               icebergSplit,
               job,
               reporter);

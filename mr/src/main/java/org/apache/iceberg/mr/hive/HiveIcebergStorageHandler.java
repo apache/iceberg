@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
@@ -39,7 +38,9 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -127,11 +128,6 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
         jobConf.set(InputFormatConfig.TABLE_CATALOG_PREFIX + tableName, catalogName);
       }
     }
-
-    if (HiveConf.getBoolVar(jobConf, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)) {
-      jobConf.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.HIVE);
-      conf.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
-    }
   }
 
   @Override
@@ -165,12 +161,47 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   /**
    * Returns the Table serialized to the configuration based on the table name.
+   * If configuration is missing from the FileIO of the table, it will be populated with the input config.
+   *
    * @param config The configuration used to get the data from
    * @param name The name of the table we need as returned by TableDesc.getTableName()
    * @return The Table
    */
   public static Table table(Configuration config, String name) {
-    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+    Table table = SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+    checkAndSetIoConfig(config, table);
+    return table;
+  }
+
+  /**
+   * If enabled, it populates the FileIO's hadoop configuration with the input config object.
+   * This might be necessary when the table object was serialized without the FileIO config.
+   *
+   * @param config Configuration to set for FileIO, if enabled
+   * @param table The Iceberg table object
+   */
+  public static void checkAndSetIoConfig(Configuration config, Table table) {
+    if (table != null && config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+        InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).setConf(config);
+    }
+  }
+
+  /**
+   * If enabled, it ensures that the FileIO's hadoop configuration will not be serialized.
+   * This might be desirable for decreasing the overall size of serialized table objects.
+   *
+   * Note: Skipping FileIO config serialization in this fashion might in turn necessitate calling
+   * {@link #checkAndSetIoConfig(Configuration, Table)} on the deserializer-side to enable subsequent use of the FileIO.
+   *
+   * @param config Configuration to set for FileIO in a transient manner, if enabled
+   * @param table The Iceberg table object
+   */
+  public static void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
+    if (table != null && config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+        InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new NonSerializingConfig(config)::get);
+    }
   }
 
   /**
@@ -231,10 +262,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
 
-    if (table instanceof Serializable) {
-      map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
-          SerializationUtil.serializeToBase64(table));
-    }
+    // serialize table object into config
+    Table serializableTable = SerializableTable.copyOf(table);
+    checkAndSkipIoConfigSerialization(configuration, serializableTable);
+    map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
+        SerializationUtil.serializeToBase64(serializableTable));
 
     // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
     // the serialization utils fail to serialize this character
@@ -243,5 +275,22 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
     // this is an exception to the interface documentation, but it's a safe operation to add this property
     props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
+  }
+
+  private static class NonSerializingConfig implements Serializable {
+
+    private final transient Configuration conf;
+
+    NonSerializingConfig(Configuration conf) {
+      this.conf = conf;
+    }
+
+    public Configuration get() {
+      if (conf == null) {
+        throw new IllegalStateException("Configuration was not serialized on purpose but was not set manually either");
+      }
+
+      return conf;
+    }
   }
 }

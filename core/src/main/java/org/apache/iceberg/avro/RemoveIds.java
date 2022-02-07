@@ -82,11 +82,11 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
     return copy;
   }
 
-  static org.apache.avro.Schema removeIds(org.apache.iceberg.Schema schema) {
+  static Schema removeIds(org.apache.iceberg.Schema schema) {
     return AvroSchemaVisitor.visit(AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
   }
 
-  public static org.apache.avro.Schema removeIds(org.apache.avro.Schema schema) {
+  public static Schema removeIds(Schema schema) {
     return AvroSchemaVisitor.visit(schema, new RemoveIds());
   }
 }

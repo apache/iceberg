@@ -111,10 +111,8 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
-    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, fromSnapshotId, toSnapshotId);
     List<Snapshot> snapshots = Lists.newArrayList();
-    for (Long snapshotId : snapshotIds) {
-      Snapshot snapshot = table.snapshot(snapshotId);
+    for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(toSnapshotId, fromSnapshotId, table::snapshot)) {
       // for now, incremental scan supports only appends
       if (snapshot.operation().equals(DataOperations.APPEND)) {
         snapshots.add(snapshot);
@@ -129,7 +127,7 @@ class IncrementalDataTableScan extends DataTableScan {
 
   private void validateSnapshotIdsRefinement(long newFromSnapshotId, long newToSnapshotId) {
     Set<Long> snapshotIdsRange = Sets.newHashSet(
-        SnapshotUtil.snapshotIdsBetween(table(), context().fromSnapshotId(), context().toSnapshotId()));
+        SnapshotUtil.ancestorIdsBetween(context().toSnapshotId(), context().fromSnapshotId(), table()::snapshot));
     // since snapshotIdsBetween return ids in range (fromSnapshotId, toSnapshotId]
     snapshotIdsRange.add(context().fromSnapshotId());
     Preconditions.checkArgument(
@@ -148,7 +146,7 @@ class IncrementalDataTableScan extends DataTableScan {
         table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
     Preconditions.checkArgument(
         table.snapshot(toSnapshotId) != null, "to snapshot %s does not exist", toSnapshotId);
-    Preconditions.checkArgument(SnapshotUtil.ancestorOf(table, toSnapshotId, fromSnapshotId),
+    Preconditions.checkArgument(SnapshotUtil.isAncestorOf(table, toSnapshotId, fromSnapshotId),
         "from snapshot %s is not an ancestor of to snapshot  %s", fromSnapshotId, toSnapshotId);
   }
 }

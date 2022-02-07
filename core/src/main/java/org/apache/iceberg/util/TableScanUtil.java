@@ -23,6 +23,7 @@ import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -35,6 +36,15 @@ public class TableScanUtil {
 
   public static boolean hasDeletes(CombinedScanTask task) {
     return task.files().stream().anyMatch(TableScanUtil::hasDeletes);
+  }
+
+  /**
+   * This is temporarily introduced since we plan to support pos-delete vectorized read first, then get to the
+   * equality-delete support. We will remove this method once both are supported.
+   */
+  public static boolean hasEqDeletes(CombinedScanTask task) {
+    return task.files().stream().anyMatch(
+        t -> t.deletes().stream().anyMatch(deleteFile -> deleteFile.content().equals(FileContent.EQUALITY_DELETES)));
   }
 
   public static boolean hasDeletes(FileScanTask task) {

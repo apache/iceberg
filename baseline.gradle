@@ -36,7 +36,6 @@ subprojects {
     apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
   }
-  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'com.palantir.baseline-class-uniqueness'
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
@@ -66,6 +65,7 @@ subprojects {
           // error-prone is slow, don't run on tests and generated src
           '-XepExcludedPaths:.*/(test|generated-src)/.*',
           // specific to Palantir
+          '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
           '-Xep:FinalClass:OFF',
           '-Xep:PreferSafeLoggingPreconditions:OFF',
           '-Xep:PreferSafeLoggableExceptions:OFF',

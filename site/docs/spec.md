@@ -212,6 +212,24 @@ Columns in Iceberg data files are selected by field id. The table schema's colum
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
+Tables may also define a property `schema.name-mapping.default` with a JSON name mapping containing a list of field mapping objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
+
+* `names`: A required list of 0 or more names for a field. 
+* `field-id`: An optional Iceberg field ID used when a field's name is present in `names`
+* `fields`: An optional list of field mappings for child field of structs, maps, and lists.
+
+Field mapping fields are constrained by the following rules:
+
+* A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. 
+* Each child field should be defined with their own field mapping under `fields`. 
+* Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
+* Fields which exist only in the Iceberg schema and not in imported data files may use an empty `names` list.
+* Fields that exist in imported files but not in the Iceberg schema may omit `field-id`.
+* List types should contain a mapping in `fields` for `element`. 
+* Map types should contain mappings in `fields` for `key` and `value`. 
+* Struct types should contain mappings in `fields` for their child fields.
+
+For details on serialization, see [Appendix C](#name-mapping-serialization).
 
 #### Identifier Field IDs
 
@@ -232,6 +250,9 @@ The set of metadata columns is:
 |-----------------------------|---------------|-------------|
 | **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
 | **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
+| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
+| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
+| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
 | **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
 | **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
@@ -263,7 +284,7 @@ Partition specs capture the transform from table data to partition values. This 
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `date`      |
-| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`                                                                                        | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
@@ -545,6 +566,38 @@ Notes:
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
 
+#### Snapshot Reference
+
+Iceberg tables keep track of branches and tags using snapshot references. 
+Tags are labels for individual snapshots. Branches are mutable named references that can be updated by committing a new snapshot as the branch's referenced snapshot using the [Commit Conflict Resolution and Retry](#commit-conflict-resolution-and-retry) procedures.
+
+The snapshot reference object records all the information of a reference including snapshot ID, reference type and [Snapshot Retention Policy](#snapshot-retention-policy).
+
+| v1         | v2         | Field name                   | Type      | Description |
+| ---------- | ---------- | ---------------------------- | --------- | ----------- |
+| _required_ | _required_ | **`snapshot-id`**            | `long`    | A reference's snapshot ID. The tagged snapshot or latest snapshot of a branch. |
+| _required_ | _required_ | **`type`**                   | `string`  | Type of the reference, `tag` or `branch` |
+| _optional_ | _optional_ | **`min-snapshots-to-keep`**  | `int`     | For `branch` type only, a positive number for the minimum number of snapshots to keep in a branch while expiring snapshots. Defaults to table property `history.expire.min-snapshots-to-keep`. |
+| _optional_ | _optional_ | **`max-snapshot-age-ms`**    | `long`    | For `branch` type only, a positive number for the max age of snapshots to keep when expiring, including the latest snapshot. Defaults to table property `history.expire.max-snapshot-age-ms`. |
+| _optional_ | _optional_ | **`max-ref-age-ms`**         | `long`    | For snapshot references except the `main` branch, a positive number for the max age of the snapshot reference to keep while expiring snapshots. Defaults to table property `history.expire.max-ref-age-ms`. The `main` branch never expires. |
+
+Valid snapshot references are stored as the values of the `refs` map in table metadata. For serialization, see Appendix C.
+
+#### Snapshot Retention Policy
+
+Table snapshots expire and are removed from metadata to allow removed or replaced data files to be physically deleted.
+The snapshot expiration procedure removes snapshots from table metadata and applies the table's retention policy.
+Retention policy can be configured both globally and on snapshot reference through properties `min-snapshots-to-keep`, `max-snapshot-age-ms` and `max-ref-age-ms`.
+
+When expiring snapshots, retention policies in table and snapshot references are evaluated in the following way:
+
+1. Start with an empty set of snapshots to retain
+2. Remove any refs (other than main) where the referenced snapshot is older than `max-ref-age-ms`
+3. For each branch and tag, add the referenced snapshot to the retained set
+4. For each branch, add its ancestors to the retained set until:
+    1. The snapshot is older than `max-snapshot-age-ms`, AND
+    2. The snapshot is not one of the first `min-snapshots-to-keep` in the branch (including the branch's referenced snapshot)
+5. Expire any snapshot not in the set of snapshots to retain.
 
 ### Table Metadata
 
@@ -558,7 +611,7 @@ Table metadata consists of the following fields:
 
 | v1         | v2         | Field | Description |
 | ---------- | ---------- | ----- | ----------- |
-| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version. |
 | _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
 | _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
@@ -572,12 +625,13 @@ Table metadata consists of the following fields:
 | _optional_ | _required_ | **`default-spec-id`**| ID of the "current" spec that writers should use by default. |
 | _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
 | _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
-| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
+| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`. |
 | _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
 | _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
 | _optional_ | _optional_ | **`metadata-log`**| A list (optional) of timestamp and metadata file location pairs that encodes changes to the previous metadata files for the table. Each time a new metadata file is created, a new entry of the previous metadata file location should be added to the list. Tables can be configured to remove oldest metadata log entries and keep a fixed-size log of the most recent entries after a commit. |
 | _optional_ | _required_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. |
 | _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
+|            | _optional_ | **`refs`** | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
 
 For serialization details, see Appendix C.
 
@@ -985,6 +1039,27 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
 |**`default-sort-order-id`**|`JSON int`|`0`|
+|**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
+
+### Name Mapping Serialization
+
+Name mapping is serialized as a list of field mapping JSON Objects which are serialized as follows
+
+|Field mapping field|JSON representation|Example|
+|--- |--- |--- |
+|**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
+|**`field_id`**|`JSON int`|`1`|
+|**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
+
+Example
+```json
+[ { "field-id": 1, "names": ["id", "record_id"] },
+   { "field-id": 2, "names": ["data"] },
+   { "field-id": 3, "names": ["location"], "fields": [
+       { "field-id": 4, "names": ["latitude", "lat"] },
+       { "field-id": 5, "names": ["longitude", "long"] }
+     ] } ]
+```
 
 
 ## Appendix D: Single-value serialization

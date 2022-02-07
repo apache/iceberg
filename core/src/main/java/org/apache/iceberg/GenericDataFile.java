@@ -30,7 +30,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
-  GenericDataFile(org.apache.avro.Schema avroSchema) {
+  GenericDataFile(Schema avroSchema) {
     super(avroSchema);
   }
 

@@ -174,6 +174,9 @@ public class TestParquetDeleteWriters {
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .overwrite()
         .withSpec(PartitionSpec.unpartitioned())
+        .transformPaths(path -> {
+          throw new RuntimeException("Should not be called for performance reasons");
+        })
         .buildPositionWriter();
 
     try (PositionDeleteWriter<Void> writer = deleteWriter) {

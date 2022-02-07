@@ -100,12 +100,14 @@ public interface SupportsNamespaces {
    *
    * @param namespace a namespace. {@link Namespace}
    * @return true if the namespace was dropped, false otherwise.
-   * @throws NamespaceNotEmptyException If the namespace does not empty
+   * @throws NamespaceNotEmptyException If the namespace is not empty
    */
   boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException;
 
   /**
-   * Apply a set of metadata to a namespace in the catalog.
+   * Set a collection of properties on a namespace in the catalog.
+   * <p>
+   * Properties that are not in the given map are not modified or removed by this method.
    *
    * @param namespace a namespace. {@link Namespace}
    * @param properties a collection of metadata to apply to the namespace
@@ -115,7 +117,9 @@ public interface SupportsNamespaces {
   boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException;
 
   /**
-   * Remove a set of metadata from a namespace in the catalog.
+   * Remove a set of property keys from a namespace in the catalog.
+   * <p>
+   * Properties that are not in the given set are not modified or removed by this method.
    *
    * @param namespace a namespace. {@link Namespace}
    * @param properties a collection of metadata to apply to the namespace

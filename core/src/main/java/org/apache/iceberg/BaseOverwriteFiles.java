@@ -19,18 +19,23 @@
 
 package org.apache.iceberg;
 
+import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
+  private final Set<DataFile> deletedDataFiles = Sets.newHashSet();
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
-  private boolean caseSensitive = true;
+  private boolean validateNewDataFiles = false;
+  private boolean validateNewDeleteFiles = false;
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -60,6 +65,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
   @Override
   public OverwriteFiles deleteFile(DataFile file) {
+    deletedDataFiles.add(file);
     delete(file);
     return this;
   }
@@ -71,31 +77,28 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
-  @Deprecated
-  public OverwriteFiles validateNoConflictingAppends(Long newReadSnapshotId, Expression newConflictDetectionFilter) {
-    if (newReadSnapshotId != null) {
-      validateFromSnapshot(newReadSnapshotId);
-    }
-    validateNoConflictingAppends(newConflictDetectionFilter);
-    return this;
-  }
-
-  @Override
   public OverwriteFiles validateFromSnapshot(long snapshotId) {
     this.startingSnapshotId = snapshotId;
     return this;
   }
 
   @Override
-  public OverwriteFiles caseSensitive(boolean isCaseSensitive) {
-    this.caseSensitive = isCaseSensitive;
+  public OverwriteFiles conflictDetectionFilter(Expression newConflictDetectionFilter) {
+    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    this.conflictDetectionFilter = newConflictDetectionFilter;
     return this;
   }
 
   @Override
-  public OverwriteFiles validateNoConflictingAppends(Expression newConflictDetectionFilter) {
-    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
-    this.conflictDetectionFilter = newConflictDetectionFilter;
+  public OverwriteFiles validateNoConflictingData() {
+    this.validateNewDataFiles = true;
+    failMissingDeletePaths();
+    return this;
+  }
+
+  @Override
+  public OverwriteFiles validateNoConflictingDeletes() {
+    this.validateNewDeleteFiles = true;
     failMissingDeletePaths();
     return this;
   }
@@ -112,8 +115,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       Expression strictExpr = Projections.strict(spec).project(rowFilter);
       Evaluator strict = new Evaluator(spec.partitionType(), strictExpr);
 
-      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(
-          base.schema(), rowFilter);
+      StrictMetricsEvaluator metrics = new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
       for (DataFile file : addedFiles()) {
         // the real test is that the strict or metrics test matches the file, indicating that all
@@ -127,8 +129,30 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       }
     }
 
-    if (conflictDetectionFilter != null && base.currentSnapshot() != null) {
-      validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
+
+    if (validateNewDataFiles) {
+      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
+    }
+
+    if (validateNewDeleteFiles) {
+      if (rowFilter() != Expressions.alwaysFalse()) {
+        Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
+        validateNoNewDeleteFiles(base, startingSnapshotId, filter);
+      }
+
+      if (deletedDataFiles.size() > 0) {
+        validateNoNewDeletesForDataFiles(base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles);
+      }
+    }
+  }
+
+  private Expression dataConflictDetectionFilter() {
+    if (conflictDetectionFilter != null) {
+      return conflictDetectionFilter;
+    } else if (rowFilter() != Expressions.alwaysFalse() && deletedDataFiles.isEmpty()) {
+      return rowFilter();
+    } else {
+      return Expressions.alwaysTrue();
     }
   }
 }

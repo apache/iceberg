@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.jdbc;
 
+import java.util.Map;
+import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -86,4 +88,15 @@ final class JdbcUtil {
     return TableIdentifier.of(JdbcUtil.stringToNamespace(tableNamespace), tableName);
   }
 
+  public static Properties filterAndRemovePrefix(Map<String, String> properties,
+                                                 String prefix) {
+    Properties result = new Properties();
+    properties.forEach((key, value) -> {
+      if (key.startsWith(prefix)) {
+        result.put(key.substring(prefix.length()), value);
+      }
+    });
+
+    return result;
+  }
 }

@@ -79,7 +79,7 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   }
 
   @Override
-  public void write(PositionDelete<T> payload) throws IOException {
+  public void write(PositionDelete<T> payload) {
     delete(payload.path(), payload.pos(), payload.row());
   }
 

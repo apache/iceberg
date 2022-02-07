@@ -54,12 +54,13 @@ Both catalogs are configured using properties nested under the catalog name. Com
 
 | Property                                           | Values                        | Description                                                          |
 | -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| spark.sql.catalog._catalog-name_.type              | `hive` or `hadoop`            | The underlying Iceberg catalog implementation, `HiveCatalog` or `HadoopCatalog` |
-| spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation. When set, the value of `type` property is ignored |
+| spark.sql.catalog._catalog-name_.type              | `hive` or `hadoop`            | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog` or left unset if using a custom catalog |
+| spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation.|
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
 | spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
+| spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) ||                                                    |                               |                                                          |
 
 Additional properties can be found in common [catalog configuration](./configuration.md#catalog-properties).
 
@@ -104,8 +105,7 @@ spark.sql.catalog.hadoop_prod.hadoop.fs.s3a.endpoint = http://aws-local:9000
 
 ### Loading a custom catalog
 
-Spark supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.
-When `catalog-impl` is set, the value of `type` is ignored. Here is an example:
+Spark supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property. Here is an example:
 
 ```plain
 spark.sql.catalog.custom_prod = org.apache.iceberg.spark.SparkCatalog
@@ -156,6 +156,7 @@ spark.read
 | file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
 | vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
+| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
 
 ### Write options
 

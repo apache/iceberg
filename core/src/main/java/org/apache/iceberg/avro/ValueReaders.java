@@ -664,7 +664,7 @@ public class ValueReaders {
 
       if (decoder instanceof ResolvingDecoder) {
         // this may not set all of the fields. nulls are set by default.
-        for (org.apache.avro.Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
+        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
           Object reusedValue = get(struct, field.pos());
           set(struct, field.pos(), readers[field.pos()].read(decoder, reusedValue));
         }

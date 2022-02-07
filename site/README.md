@@ -23,7 +23,7 @@ This directory contains the source for the Iceberg site.
 
 * Site structure is maintained in mkdocs.yml
 * Pages are maintained in markdown in the `docs/` folder
-* Links use bare page names: `[link text](target-page)`
+* Links use page file names: `[link text](target-page.md)`
 
 ### Installation
 
@@ -49,12 +49,9 @@ To see changes in Javadoc, run:
 
 ### Publishing
 
-After site changes are committed, you can publish the site with this command:
+After site changes are committed, you can publish the site to the `apache` remote with this command:
 
 ```
 ./gradlew deploySite
 ```
 
-This assumes that the Apache remote is named `apache` and will push to the
-`asf-site` branch. You can specify the name of a different remote by appending
-`-Premote.name=<remote-name>` to the `./gradlew deploySite` command.

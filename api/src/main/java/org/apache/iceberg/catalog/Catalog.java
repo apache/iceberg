@@ -64,12 +64,19 @@ public interface Catalog {
    * @return a Table instance
    * @throws AlreadyExistsException if the table already exists
    */
-  Table createTable(
+  default Table createTable(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
-      Map<String, String> properties);
+      Map<String, String> properties) {
+
+    return buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties)
+        .create();
+  }
 
   /**
    * Create a table.
@@ -130,12 +137,19 @@ public interface Catalog {
    * @return a {@link Transaction} to create the table
    * @throws AlreadyExistsException if the table already exists
    */
-  Transaction newCreateTableTransaction(
+  default Transaction newCreateTableTransaction(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
-      Map<String, String> properties);
+      Map<String, String> properties) {
+
+    return buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties)
+        .createTransaction();
+  }
 
   /**
    * Start a transaction to create a table.
@@ -197,13 +211,25 @@ public interface Catalog {
    * @return a {@link Transaction} to replace the table
    * @throws NoSuchTableException if the table doesn't exist and orCreate is false
    */
-  Transaction newReplaceTableTransaction(
+  default Transaction newReplaceTableTransaction(
       TableIdentifier identifier,
       Schema schema,
       PartitionSpec spec,
       String location,
       Map<String, String> properties,
-      boolean orCreate);
+      boolean orCreate) {
+
+    TableBuilder tableBuilder = buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties);
+
+    if (orCreate) {
+      return tableBuilder.createOrReplaceTransaction();
+    } else {
+      return tableBuilder.replaceTransaction();
+    }
+  }
 
   /**
    * Start a transaction to replace a table.
@@ -314,6 +340,30 @@ public interface Catalog {
    */
   Table loadTable(TableIdentifier identifier);
 
+  /**
+   * Invalidate cached table metadata from current catalog.
+   * <p>
+   * If the table is already loaded or cached, drop cached data. If the table does not exist or is
+   * not cached, do nothing.
+   *
+   * @param identifier a table identifier
+   */
+  default void invalidateTable(TableIdentifier identifier) {
+  }
+
+  /**
+   * Register a table with the catalog if it does not exist.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists in the catalog.
+   */
+  default Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Registering tables is not supported");
+  }
+
+  /**
   /**
    * Instantiate a builder to either create a table or start a create/replace transaction.
    *

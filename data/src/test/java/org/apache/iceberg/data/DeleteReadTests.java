@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
@@ -34,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
@@ -51,18 +53,31 @@ public abstract class DeleteReadTests {
       Types.NestedField.required(2, "data", Types.StringType.get())
   );
 
+  public static final Schema DATE_SCHEMA = new Schema(
+      Types.NestedField.required(1, "dt", Types.DateType.get()),
+      Types.NestedField.required(2, "data", Types.StringType.get()),
+      Types.NestedField.required(3, "id", Types.IntegerType.get())
+  );
+
   // Partition spec used to create tables
   public static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .bucket("data", 16)
       .build();
 
+  public static final PartitionSpec DATE_SPEC = PartitionSpec.builderFor(DATE_SCHEMA)
+      .day("dt")
+      .build();
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private String tableName = null;
+  protected String tableName = null;
+  protected String dateTableName = null;
   protected Table table = null;
-  private List<Record> records = null;
-  private DataFile dataFile = null;
+  protected Table dateTable = null;
+  protected List<Record> records = null;
+  private List<Record> dateRecords = null;
+  protected DataFile dataFile = null;
 
   @Before
   public void writeTestDataFile() throws IOException {
@@ -90,6 +105,46 @@ public abstract class DeleteReadTests {
   @After
   public void cleanup() throws IOException {
     dropTable("test");
+    dropTable("test2");
+  }
+
+  private void initDateTable() throws IOException {
+    dropTable("test2");
+    this.dateTableName = "test2";
+    this.dateTable = createTable(dateTableName, DATE_SCHEMA, DATE_SPEC);
+
+    GenericRecord record = GenericRecord.create(dateTable.schema());
+
+    this.dateRecords = Lists.newArrayList(
+        record.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
+        record.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
+        record.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3),
+        record.copy("dt", LocalDate.parse("2021-09-04"), "data", "d", "id", 4),
+        record.copy("dt", LocalDate.parse("2021-09-05"), "data", "e", "id", 5));
+
+    DataFile dataFile1 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))), dateRecords.subList(0, 1));
+    DataFile dataFile2 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))), dateRecords.subList(1, 2));
+    DataFile dataFile3 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))), dateRecords.subList(2, 3));
+    DataFile dataFile4 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))), dateRecords.subList(3, 4));
+    DataFile dataFile5 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))), dateRecords.subList(4, 5));
+
+    dateTable.newAppend()
+        .appendFile(dataFile1)
+        .appendFile(dataFile2)
+        .appendFile(dataFile3)
+        .appendFile(dataFile4)
+        .appendFile(dataFile5)
+        .commit();
   }
 
   protected abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
@@ -119,8 +174,43 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testEqualityDateDeletes() throws IOException {
+    initDateTable();
+
+    Schema deleteRowSchema = dateTable.schema().select("*");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
+        dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
+        dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3)
+    );
+
+    DeleteFile eqDeletes1 = FileHelpers.writeDeleteFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))), dataDeletes.subList(0, 1), deleteRowSchema);
+    DeleteFile eqDeletes2 = FileHelpers.writeDeleteFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))), dataDeletes.subList(1, 2), deleteRowSchema);
+    DeleteFile eqDeletes3 = FileHelpers.writeDeleteFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))), dataDeletes.subList(2, 3), deleteRowSchema);
+
+    dateTable.newRowDelta()
+        .addDeletes(eqDeletes1)
+        .addDeletes(eqDeletes2)
+        .addDeletes(eqDeletes3)
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(dateTable, dateRecords, 1, 2, 3);
+
+    StructLikeSet actual = rowSet(dateTableName, dateTable, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
@@ -142,7 +232,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = selectColumns(rowSetWithoutIds(29, 89, 122), "id");
+    StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 29, 89, 122), "id");
     StructLikeSet actual = rowSet(tableName, table, "id");
 
     if (expectPruned()) {
@@ -180,7 +270,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 122, 144);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122, 144);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -202,7 +292,40 @@ public abstract class DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testMultiplePosDeleteFiles() throws IOException {
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 3L) // id = 89
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 6L) // id = 122
+    );
+
+    posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -235,7 +358,7 @@ public abstract class DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 121, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -269,7 +392,7 @@ public abstract class DeleteReadTests {
         .addDeletes(idEqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 121, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -306,7 +429,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(131);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 131);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -321,11 +444,12 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  private StructLikeSet rowSetWithoutIds(int... idsToRemove) {
+  protected static StructLikeSet rowSetWithoutIds(Table table, List<Record> recordList, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    records.stream()
+    recordList.stream()
         .filter(row -> !deletedIds.contains(row.getField("id")))
+        .map(record -> new InternalRecordWrapper(table.schema().asStruct()).wrap(record))
         .forEach(set::add);
     return set;
   }

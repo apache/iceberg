@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -109,9 +111,14 @@ public class CatalogUtil {
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
+    Tasks.foreach(Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
+        .noRetry().suppressFailureWhenFinished()
+        .onFailure((metadataFile, exc) -> LOG.warn("Delete failed for previous metadata file: {}", metadataFile, exc))
+        .run(io::deleteFile);
+
     Tasks.foreach(metadata.metadataFileLocation())
         .noRetry().suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
+        .onFailure((metadataFile, exc) -> LOG.warn("Delete failed for metadata file: {}", metadataFile, exc))
         .run(io::deleteFile);
   }
 
@@ -152,8 +159,7 @@ public class CatalogUtil {
    * Load a custom catalog implementation.
    * <p>
    * The catalog must have a no-arg constructor.
-   * If the class implements {@link Configurable},
-   * a Hadoop config will be passed using {@link Configurable#setConf(Configuration)}.
+   * If the class implements Configurable, a Hadoop config will be passed using Configurable.setConf.
    * {@link Catalog#initialize(String catalogName, Map options)} is called to complete the initialization.
    *
    * @param impl catalog implementation full class name
@@ -167,7 +173,7 @@ public class CatalogUtil {
       String impl,
       String catalogName,
       Map<String, String> properties,
-      Configuration hadoopConf) {
+      Object hadoopConf) {
     Preconditions.checkNotNull(impl, "Cannot initialize custom Catalog, impl class name is null");
     DynConstructors.Ctor<Catalog> ctor;
     try {
@@ -186,9 +192,7 @@ public class CatalogUtil {
           String.format("Cannot initialize Catalog, %s does not implement Catalog.", impl), e);
     }
 
-    if (catalog instanceof Configurable) {
-      ((Configurable) catalog).setConf(hadoopConf);
-    }
+    configureHadoopConf(catalog, hadoopConf);
 
     catalog.initialize(catalogName, properties);
     return catalog;
@@ -203,10 +207,10 @@ public class CatalogUtil {
    *
    * @param name catalog name
    * @param options catalog properties
-   * @param conf Hadoop configuration
+   * @param conf a Hadoop Configuration
    * @return initialized catalog
    */
-  public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
+  public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Object conf) {
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl == null) {
       String catalogType = PropertyUtil.propertyAsString(options, ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
@@ -220,6 +224,11 @@ public class CatalogUtil {
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
+    } else {
+      String catalogType = options.get(ICEBERG_CATALOG_TYPE);
+      Preconditions.checkArgument(catalogType == null,
+          "Cannot create catalog %s, both type and catalog-impl are set: type=%s, catalog-impl=%s",
+          name, catalogType, catalogImpl);
     }
 
     return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
@@ -229,12 +238,11 @@ public class CatalogUtil {
    * Load a custom {@link FileIO} implementation.
    * <p>
    * The implementation must have a no-arg constructor.
-   * If the class implements {@link Configurable},
-   * a Hadoop config will be passed using {@link Configurable#setConf(Configuration)}.
+   * If the class implements Configurable, a Hadoop config will be passed using Configurable.setConf.
    * {@link FileIO#initialize(Map properties)} is called to complete the initialization.
    *
    * @param impl full class name of a custom FileIO implementation
-   * @param hadoopConf hadoop configuration
+   * @param hadoopConf a hadoop Configuration
    * @return FileIO class
    * @throws IllegalArgumentException if class path not found or
    *  right constructor not found or
@@ -243,7 +251,7 @@ public class CatalogUtil {
   public static FileIO loadFileIO(
       String impl,
       Map<String, String> properties,
-      Configuration hadoopConf) {
+      Object hadoopConf) {
     LOG.info("Loading custom FileIO implementation: {}", impl);
     DynConstructors.Ctor<FileIO> ctor;
     try {
@@ -261,11 +269,76 @@ public class CatalogUtil {
           String.format("Cannot initialize FileIO, %s does not implement FileIO.", impl), e);
     }
 
-    if (fileIO instanceof Configurable) {
-      ((Configurable) fileIO).setConf(hadoopConf);
-    }
+    configureHadoopConf(fileIO, hadoopConf);
 
     fileIO.initialize(properties);
     return fileIO;
+  }
+
+  /**
+   * Dynamically detects whether an object is a Hadoop Configurable and calls setConf.
+   * @param maybeConfigurable an object that may be Configurable
+   * @param conf a Configuration
+   */
+  @SuppressWarnings("unchecked")
+  public static void configureHadoopConf(Object maybeConfigurable, Object conf) {
+    Preconditions.checkArgument(maybeConfigurable != null, "Cannot configure: null Configurable");
+    if (conf == null) {
+      return;
+    }
+
+    if (maybeConfigurable instanceof Configurable) {
+      // use the Iceberg configurable interface to pass the conf
+      ((Configurable<Object>) maybeConfigurable).setConf(conf);
+      return;
+    }
+
+    // try to use Hadoop's Configurable interface dynamically
+    // use the classloader of the object that may be configurable
+    ClassLoader maybeConfigurableLoader = maybeConfigurable.getClass().getClassLoader();
+
+    Class<?> configurableInterface;
+    try {
+      // load the Configurable interface
+      configurableInterface = DynClasses.builder()
+          .loader(maybeConfigurableLoader)
+          .impl("org.apache.hadoop.conf.Configurable")
+          .buildChecked();
+    } catch (ClassNotFoundException e) {
+      // not Configurable because it was loaded and Configurable is not present in its classloader
+      return;
+    }
+
+    if (!configurableInterface.isInstance(maybeConfigurable)) {
+      // not Configurable because the object does not implement the Configurable interface
+      return;
+    }
+
+    Class<?> configurationClass;
+    try {
+      configurationClass = DynClasses.builder()
+          .loader(maybeConfigurableLoader)
+          .impl("org.apache.hadoop.conf.Configuration")
+          .buildChecked();
+    } catch (ClassNotFoundException e) {
+      // this shouldn't happen because Configurable cannot be loaded without first loading Configuration
+      throw new UnsupportedOperationException("Failed to load Configuration after loading Configurable", e);
+    }
+
+    ValidationException.check(configurationClass.isInstance(conf),
+        "%s is not an instance of Configuration from the classloader for %s", conf, maybeConfigurable);
+
+    DynMethods.BoundMethod setConf;
+    try {
+      setConf = DynMethods.builder("setConf")
+          .impl(configurableInterface, configurationClass)
+          .buildChecked()
+          .bind(maybeConfigurable);
+    } catch (NoSuchMethodException e) {
+      // this shouldn't happen because Configurable was loaded and defines setConf
+      throw new UnsupportedOperationException("Failed to load Configuration.setConf after loading Configurable", e);
+    }
+
+    setConf.invoke(conf);
   }
 }
