@@ -1052,7 +1052,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Types.StructType expectedSchema = Types.StructType.of(
         required(2, "record_count", Types.LongType.get()),
         required(3, "file_count", Types.IntegerType.get()),
-        required(4, "delete_file_count", Types.IntegerType.get()));
+        required(4, "delete_file_count", Types.IntegerType.get()),
+        required(5, "equality_delete_count", Types.LongType.get()),
+        required(6, "position_delete_count", Types.LongType.get()));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
@@ -1065,6 +1067,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set("record_count", 1L)
         .set("file_count", 1)
         .set("delete_file_count", 0)
+        .set("delete_file_count", 0)
+        .set("equality_delete_count", 0L)
+        .set("position_delete_count", 0L)
         .build();
 
     List<Row> actual = spark.read()
@@ -1114,12 +1119,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set("record_count", 1L)
         .set("file_count", 1)
         .set("delete_file_count", 0)
+        .set("equality_delete_count", 0L)
+        .set("position_delete_count", 0L)
         .build());
     expected.add(builder
         .set("partition", partitionBuilder.set("id", 2).build())
         .set("record_count", 1L)
         .set("file_count", 1)
         .set("delete_file_count", 0)
+        .set("equality_delete_count", 0L)
+        .set("position_delete_count", 0L)
         .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
