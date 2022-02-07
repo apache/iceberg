@@ -74,6 +74,24 @@ def test_repr_primitive_types(input_index, input_type):
         (StringType(), True),
         (UUIDType(), True),
         (BinaryType(), True),
+        (DecimalType(32, 3), True),
+        (FixedType(8), True),
+        (ListType(element=NestedField(True, 1, "required_field", StringType())), False),
+        (
+            MapType(
+                NestedField(True, 1, "required_field", StringType()),
+                NestedField(False, 2, "optional_field", IntegerType()),
+            ),
+            False,
+        ),
+        (
+            StructType(
+                NestedField(True, 1, "required_field", StringType()),
+                NestedField(False, 2, "optional_field", IntegerType()),
+            ),
+            False,
+        ),
+        (NestedField(True, 1, "required_field", StringType()), False),
     ],
 )
 def test_is_primitive(input_type, result):
