@@ -61,6 +61,19 @@ public class StructProjection implements StructLike {
   /**
    * Creates a projecting wrapper for {@link StructLike} rows.
    * <p>
+   * This projection does not work with repeated types like lists and maps.
+   *
+   * @param structType type of rows wrapped by this projection
+   * @param projectedStructType result type of the projected rows
+   * @return a wrapper to project rows
+   */
+  public static StructProjection create(StructType structType, StructType projectedStructType) {
+    return new StructProjection(structType, projectedStructType);
+  }
+
+  /**
+   * Creates a projecting wrapper for {@link StructLike} rows.
+   * <p>
    * This projection allows missing fields and does not work with repeated types like lists and maps.
    *
    * @param structType type of rows wrapped by this projection
@@ -155,6 +168,12 @@ public class StructProjection implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
+    if (struct == null) {
+      // Return a null struct when projecting a nested required field from an optional struct.
+      // See more details in issue #2738.
+      return null;
+    }
+
     int structPos = positionMap[pos];
 
     if (nestedProjections[pos] != null) {

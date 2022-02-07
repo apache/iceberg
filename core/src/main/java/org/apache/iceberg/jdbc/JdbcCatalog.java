@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -37,7 +36,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -45,9 +44,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.jdbc.JdbcUtil.toIcebergExceptionIfPossible;
-
-public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, SupportsNamespaces, Closeable {
+public class JdbcCatalog extends BaseMetastoreCatalog
+    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
@@ -56,12 +54,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   private FileIO io;
   private String catalogName = "jdbc";
   private String warehouseLocation;
-  private Configuration conf;
+  private Object conf;
   private CatalogDb db;
 
   public JdbcCatalog(FileIO io, CatalogDb db) {
-    this.io = Preconditions.checkNotNull(io);
-    this.db = Preconditions.checkNotNull(db);
+    this.io = Preconditions.checkNotNull(io, "FileIO cannot be null.");
+    this.db = Preconditions.checkNotNull(db, "CatalogDb cannot be null.");
   }
 
   public JdbcCatalog() {
@@ -80,8 +78,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       this.catalogName = name;
     }
 
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.io = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String fileIOImpl = properties.getOrDefault(
+        CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+    this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     try {
       LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
@@ -89,7 +88,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       LOG.trace("Creating database tables (if missing) to store iceberg catalog");
       db.initialize();
     } catch (CatalogDbException e) {
-      throw toIcebergExceptionIfPossible(e, null, null, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(e, null, null, null);
     }
   }
 
@@ -118,7 +117,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         return false;
       }
     } catch (CatalogDbException e) {
-      throw toIcebergExceptionIfPossible(e, null, null, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(e, null, null, null);
     }
 
     if (purge && lastMetadata != null) {
@@ -132,8 +131,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     try {
-      List<TableIdentifier> tables = db.listTables(JdbcUtil.namespaceToString(namespace))
-              .stream()
+      List<TableIdentifier> tables =
+          db.listTables(JdbcUtil.namespaceToString(namespace)).stream()
               .map(tableName -> TableIdentifier.of(namespace, tableName))
               .collect(Collectors.toList());
       if (tables.isEmpty()) {
@@ -141,16 +140,20 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       }
       return tables;
     } catch (CatalogDbException e) {
-      throw toIcebergExceptionIfPossible(e, namespace, null, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(e, namespace, null, null);
     }
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     try {
-      db.renameTable(JdbcUtil.namespaceToString(from.namespace()), from.name(), JdbcUtil.namespaceToString(to.namespace()), to.name());
+      db.renameTable(
+          JdbcUtil.namespaceToString(from.namespace()),
+          from.name(),
+          JdbcUtil.namespaceToString(to.namespace()),
+          to.name());
     } catch (CatalogDbException e) {
-      throw toIcebergExceptionIfPossible(e, from.namespace(), from, to);
+      throw JdbcUtil.toIcebergExceptionIfPossible(e, from.namespace(), from, to);
     }
   }
 
@@ -160,19 +163,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   }
 
   @Override
-  public Configuration getConf() {
-    return conf;
-  }
-
-  @Override
   public void setConf(Configuration conf) {
     this.conf = conf;
   }
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    throw new UnsupportedOperationException("Cannot create namespace " + namespace +
-        ": createNamespace is not supported");
+    throw new UnsupportedOperationException(
+        "Cannot create namespace " + namespace + ": createNamespace is not supported");
   }
 
   @Override
@@ -180,23 +178,24 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     try {
       verifyNamespaceExists(namespace);
       final int subNamespaceLevelLength = namespace.levels().length + 1;
-      return db.listNamespaceByPrefix(JdbcUtil.namespaceToString(namespace))
-              .stream()
-              .map(JdbcUtil::stringToNamespace)
-              // exclude itself
-              .filter(n -> !n.equals(namespace))
-              // only get sub namespaces/children
-              .filter(n -> n.levels().length >= subNamespaceLevelLength)
-              // only get sub namespaces/children
-              .map(n -> Namespace.of(
-                      Arrays.stream(n.levels()).limit(subNamespaceLevelLength).toArray(String[]::new)
-              )
-          )
+      return db.listNamespaceByPrefix(JdbcUtil.namespaceToString(namespace)).stream()
+          .map(JdbcUtil::stringToNamespace)
+          // exclude itself
+          .filter(n -> !n.equals(namespace))
+          // only get sub namespaces/children
+          .filter(n -> n.levels().length >= subNamespaceLevelLength)
+          // only get sub namespaces/children
+          .map(
+              n ->
+                  Namespace.of(
+                      Arrays.stream(n.levels())
+                          .limit(subNamespaceLevelLength)
+                          .toArray(String[]::new)))
           // remove duplicates
           .distinct()
           .collect(Collectors.toList());
     } catch (CatalogDbException e) {
-      throw toIcebergExceptionIfPossible(e, namespace, null, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(e, namespace, null, null);
     }
   }
 
@@ -224,7 +223,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
             "Namespace %s is not empty.", namespace);
       }
     } catch (CatalogDbException e) {
-      throw toIcebergExceptionIfPossible(e, namespace, null, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(e, namespace, null, null);
     }
 
     // TODO implement drop
@@ -259,7 +258,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     try {
       return db.namespaceExists(JdbcUtil.namespaceToString(namespace));
     } catch (CatalogDbException dbException) {
-      throw toIcebergExceptionIfPossible(dbException, null, null, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(dbException, null, null, null);
     }
   }
 

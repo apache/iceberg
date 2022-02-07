@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 class PackingIterator:
     def __init__(self, items, target_weight, lookback, weight_func, largest_bin_first=False):
         self.items = iter(items)

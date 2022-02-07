@@ -35,10 +35,12 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.NaNUtil;
 
 class Literals {
@@ -599,6 +601,12 @@ class Literals {
     Object writeReplace() throws ObjectStreamException {
       return new SerializationProxies.FixedLiteralProxy(value());
     }
+
+    @Override
+    public String toString() {
+      byte[] bytes = ByteBuffers.toByteArray(value());
+      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
   }
 
   static class BinaryLiteral extends BaseLiteral<ByteBuffer> {
@@ -638,6 +646,12 @@ class Literals {
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.BINARY;
+    }
+
+    @Override
+    public String toString() {
+      byte[] bytes = ByteBuffers.toByteArray(value());
+      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
     }
   }
 }

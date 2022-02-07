@@ -60,12 +60,6 @@ public class ExpressionVisitors {
     }
   }
 
-  /**
-   * This base class is used by existing visitors that have not been updated to extend BoundExpressionVisitor.
-   *
-   * @deprecated use {@link BoundVisitor} instead
-   */
-  @Deprecated
   public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
     public <T> R isNull(BoundReference<T> ref) {
       return null;
@@ -108,21 +102,41 @@ public class ExpressionVisitors {
     }
 
     public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("In operation is not supported by the visitor");
+      throw new UnsupportedOperationException("In expression is not supported by the visitor");
     }
 
     public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
+      throw new UnsupportedOperationException("notIn expression is not supported by the visitor");
     }
 
     public <T> R startsWith(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException("startsWith expression is not supported by the visitor");
+    }
+
+    public <T> R notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException("notStartsWith expression is not supported by the visitor");
+    }
+
+    /**
+     * Handle a non-reference value in this visitor.
+     * <p>
+     * Visitors that require {@link BoundReference references} and not {@link Bound terms} can use this method to
+     * return a default value for expressions with non-references. The default implementation will throw a validation
+     * exception because the non-reference is not supported.
+     *
+     * @param term a non-reference bound expression
+     * @param <T> a Java return type
+     * @return a return value for the visitor
+     */
+    public <T> R handleNonReference(Bound<T> term) {
+      throw new ValidationException("Visitor %s does not support non-reference: %s", this, term);
     }
 
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
-      ValidationException.check(pred.term() instanceof BoundReference,
-          "Visitor %s does not support expression: %s", this, pred.term());
+      if (!(pred.term() instanceof BoundReference)) {
+        return handleNonReference(pred.term());
+      }
 
       if (pred.isLiteralPredicate()) {
         BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
@@ -141,6 +155,8 @@ public class ExpressionVisitors {
             return notEq((BoundReference<T>) pred.term(), literalPred.literal());
           case STARTS_WITH:
             return startsWith((BoundReference<T>) pred.term(),  literalPred.literal());
+          case NOT_STARTS_WITH:
+            return notStartsWith((BoundReference<T>) pred.term(),  literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
@@ -232,6 +248,10 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R notStartsWith(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -251,6 +271,8 @@ public class ExpressionVisitors {
             return notEq(pred.term(), literalPred.literal());
           case STARTS_WITH:
             return startsWith(pred.term(),  literalPred.literal());
+          case NOT_STARTS_WITH:
+            return notStartsWith(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }

@@ -38,16 +38,13 @@ github:
     - marton-bod
     - nastra
     - samarthjain
-    - mccheah
     - szehon-ho
     - findepi
     - SreeramGarlapati
+    - samredai
 
 notifications:
     commits:      commits@iceberg.apache.org
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
     jira_options: link label link label
-
-publish:
-    whoami:  asf-site

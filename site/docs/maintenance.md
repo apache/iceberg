@@ -43,8 +43,10 @@ See the [`ExpireSnapshots` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/
 There is also a Spark action that can run table expiration in parallel for large tables:
 
 ```java
-Actions.forTable(table)
-    .expireSnapshots()
+Table table = ...
+SparkActions
+    .get()
+    .expireSnapshots(table)
     .expireOlderThan(tsToExpire)
     .execute();
 ```
@@ -70,20 +72,21 @@ To automatically clean metadata files, set `write.metadata.delete-after-commit.e
 
 See [table write properties](/configuration/#write-properties) for more details.
 
-### Remove orphan files
+### Delete orphan files
 
 In Spark and other distributed processing engines, task or job failures can leave files that are not referenced by table metadata, and in some cases normal snapshot expiration may not be able to determine a file is no longer needed and delete it.
 
-To clean up these "orphan" files under a table location, use the `removeOrphanFiles` action.
+To clean up these "orphan" files under a table location, use the `deleteOrphanFiles` action.
 
 ```java
 Table table = ...
-Actions.forTable(table)
-    .removeOrphanFiles()
+SparkActions
+    .get()
+    .deleteOrphanFiles(table)
     .execute();
 ```
 
-See the [RemoveOrphanFilesAction Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RemoveOrphanFilesAction.html) to see more configuration options.
+See the [DeleteOrphanFiles Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/DeleteOrphanFiles.html) to see more configuration options.
 
 This action may take a long time to finish if you have lots of files in data and metadata directories. It is recommended to execute this periodically, but you may not need to execute this often.
 
@@ -111,15 +114,17 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 
 ```java
 Table table = ...
-Actions.forTable(table).rewriteDataFiles()
+SparkActions
+    .get()
+    .rewriteDataFiles(table)
     .filter(Expressions.equal("date", "2020-08-18"))
-    .targetSizeInBytes(500 * 1024 * 1024) // 500 MB
+    .option("target-file-size-bytes", Long.toString(500 * 1024 * 1024)) // 500 MB
     .execute();
 ```
 
-The `files` metadata table is useful for inspecting data file sizes and determining when to compact partitons.
+The `files` metadata table is useful for inspecting data file sizes and determining when to compact partitions.
 
-See the [`RewriteDataFilesAction` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteDataFilesAction.html) to see more configuration options.
+See the [`RewriteDataFiles` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteDataFiles.html) to see more configuration options.
 
 ### Rewrite manifests
 
@@ -127,16 +132,17 @@ Iceberg uses metadata in its manifest list and manifest files speed up query pla
 
 Manifests in the metadata tree are automatically compacted in the order they are added, which makes queries faster when the write pattern aligns with read filters. For example, writing hourly-partitioned data as it arrives is aligned with time range query filters.
 
-When a table's write pattern doesn't align with the query pattern, metadata and be rewritten to re-group data files into manifests using `rewriteManifests` or the `rewriteManifests` action (for parallel rewrites using Spark).
+When a table's write pattern doesn't align with the query pattern, metadata can be rewritten to re-group data files into manifests using `rewriteManifests` or the `rewriteManifests` action (for parallel rewrites using Spark).
 
 This example rewrites small manifests and groups data files by the first partition field.
 
 ```java
 Table table = ...
-table.rewriteManifests()
+SparkActions
+    .get()
+    .rewriteManifests(table)
     .rewriteIf(file -> file.length() < 10 * 1024 * 1024) // 10 MB
-    .clusterBy(file -> file.partition().get(0, Integer.class))
-    .commit();
+    .execute();
 ```
 
-See the [`RewriteManifestsAction` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more configuration options.
+See the [`RewriteManifests` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteManifests.html) to see more configuration options.

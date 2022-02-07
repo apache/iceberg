@@ -37,8 +37,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final CatalogDb db;
 
-  protected JdbcTableOperations(CatalogDb db, FileIO fileIO, String catalogName,
-                                TableIdentifier tableIdentifier) {
+  protected JdbcTableOperations(CatalogDb db, FileIO fileIO, String catalogName, TableIdentifier tableIdentifier) {
     this.db = db;
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
@@ -50,15 +49,20 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation;
 
     try {
-      newMetadataLocation = db.getTablePointer(JdbcUtil.namespaceToString(tableIdentifier.namespace()), tableIdentifier.name());
+      newMetadataLocation =
+        db.getTablePointer(
+          JdbcUtil.namespaceToString(tableIdentifier.namespace()),
+          tableIdentifier.name());
     } catch (CatalogDbException e) {
-      throw JdbcUtil.toIcebergExceptionIfPossible(e, tableIdentifier.namespace(), tableIdentifier, null);
+      throw JdbcUtil.toIcebergExceptionIfPossible(
+        e, tableIdentifier.namespace(), tableIdentifier, null);
     }
 
     if (newMetadataLocation == null) {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException("Failed to load table %s from catalog %s: dropped by another process",
-            tableIdentifier, catalogName);
+        throw new NoSuchTableException(
+          "Failed to load table %s from catalog %s: dropped by another process",
+          tableIdentifier, catalogName);
       }
       this.disableRefresh();
       return;
@@ -77,8 +81,9 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       if (tableMetadataLocation != null) {
         String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
         if (!Objects.equals(baseMetadataLocation, tableMetadataLocation)) {
-          throw new CommitFailedException("Cannot commit %s: metadata location %s has changed from %s",
-                  tableIdentifier, baseMetadataLocation, tableMetadataLocation);
+          throw new CommitFailedException(
+            "Cannot commit %s: metadata location %s has changed from %s",
+            tableIdentifier, baseMetadataLocation, tableMetadataLocation);
         }
         // Start atomic update
         LOG.debug("Committing existing table: {}", tableName());
@@ -102,5 +107,4 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   protected String tableName() {
     return tableIdentifier.toString();
   }
-
 }

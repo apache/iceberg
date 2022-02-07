@@ -34,8 +34,13 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   private final Map<String, String> properties;
 
   JdbcClientPool(String dbUrl, Map<String, String> props) {
-    this(Integer.parseInt(props.getOrDefault(CatalogProperties.CLIENT_POOL_SIZE,
-        String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))), dbUrl, props);
+    this(
+        Integer.parseInt(
+            props.getOrDefault(
+                CatalogProperties.CLIENT_POOL_SIZE,
+                String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))),
+        dbUrl,
+        props);
   }
 
   JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {

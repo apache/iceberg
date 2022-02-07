@@ -644,4 +644,12 @@ public class Avro {
     }
   }
 
+  /**
+   * Returns number of rows in specified Avro file
+   * @param file Avro file
+   * @return number of rows in file
+   */
+  public static long rowCount(InputFile file) {
+    return AvroIO.findStartingRowPos(file::newStream, Long.MAX_VALUE);
+  }
 }

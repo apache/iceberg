@@ -75,7 +75,22 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   public static final String MAX_FILE_SIZE_BYTES = "max-file-size-bytes";
   public static final double MAX_FILE_SIZE_DEFAULT_RATIO = 1.80d;
 
+  /**
+   * The minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting.
+   * If a data file has this number of deletes or more, it will be rewritten regardless of its file size determined
+   * by {@link #MIN_FILE_SIZE_BYTES} and {@link #MAX_FILE_SIZE_BYTES}.
+   * If a file group contains a file that satisfies this condition, the file group will be rewritten regardless of
+   * the number of files in the file group determined by {@link #MIN_INPUT_FILES}
+   * <p>
+   * Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
+   */
+  public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
+  public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+
+  static final long SPLIT_OVERHEAD = 1024 * 5;
+
   private int minInputFiles;
+  private int deleteFileThreshold;
   private long minFileSize;
   private long maxFileSize;
   private long targetFileSize;
@@ -90,6 +105,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   public Set<String> validOptions() {
     return ImmutableSet.of(
         MIN_INPUT_FILES,
+        DELETE_FILE_THRESHOLD,
         MIN_FILE_SIZE_BYTES,
         MAX_FILE_SIZE_BYTES
     );
@@ -120,6 +136,10 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
 
+    deleteFileThreshold = PropertyUtil.propertyAsInt(options,
+        DELETE_FILE_THRESHOLD,
+        DELETE_FILE_THRESHOLD_DEFAULT);
+
     validateOptions();
     return this;
   }
@@ -127,7 +147,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   @Override
   public Iterable<FileScanTask> selectFilesToRewrite(Iterable<FileScanTask> dataFiles) {
     return FluentIterable.from(dataFiles)
-        .filter(scanTask -> scanTask.length() < minFileSize || scanTask.length() > maxFileSize);
+        .filter(scanTask -> scanTask.length() < minFileSize || scanTask.length() > maxFileSize ||
+                taskHasTooManyDeletes(scanTask));
   }
 
   @Override
@@ -135,7 +156,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
     return potentialGroups.stream().filter(group ->
-      group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize
+      group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize ||
+              group.stream().anyMatch(this::taskHasTooManyDeletes)
     ).collect(Collectors.toList());
   }
 
@@ -179,11 +201,12 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   /**
-   * Returns the smaller of our max write file threshold, and our estimated split size based on
-   * the number of output files we want to generate.
+   * Returns the smallest of our max write file threshold, and our estimated split size based on
+   * the number of output files we want to generate. Add a overhead onto the estimated splitSize to try to avoid
+   * small errors in size creating brand-new files.
    */
   protected long splitSize(long totalSizeInBytes) {
-    long estimatedSplitSize = totalSizeInBytes / numOutputFiles(totalSizeInBytes);
+    long estimatedSplitSize = (totalSizeInBytes / numOutputFiles(totalSizeInBytes)) + SPLIT_OVERHEAD;
     return Math.min(estimatedSplitSize, writeMaxFileSize());
   }
 
@@ -218,6 +241,10 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     return group.stream().mapToLong(FileScanTask::length).sum();
   }
 
+  private boolean taskHasTooManyDeletes(FileScanTask task) {
+    return task.deletes() != null && task.deletes().size() >= deleteFileThreshold;
+  }
+
   private void validateOptions() {
     Preconditions.checkArgument(minFileSize >= 0,
         "Cannot set %s to a negative number, %d < 0",
@@ -233,10 +260,14 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
     Preconditions.checkArgument(targetFileSize < maxFileSize,
         "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %d >= %d",
-        MAX_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, maxFileSize, targetFileSize);
+        RewriteDataFiles.TARGET_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, targetFileSize, maxFileSize);
 
     Preconditions.checkArgument(minInputFiles > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_INPUT_FILES, minInputFiles);
+
+    Preconditions.checkArgument(deleteFileThreshold > 0,
+        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        DELETE_FILE_THRESHOLD, deleteFileThreshold);
   }
 }

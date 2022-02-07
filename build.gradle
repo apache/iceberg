@@ -18,6 +18,8 @@
  */
 
 import groovy.transform.Memoized
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 buildscript {
   repositories {
@@ -29,7 +31,7 @@ buildscript {
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.1'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
-    classpath 'me.champeau.gradle:jmh-gradle-plugin:0.5.3'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
   }
 }
@@ -64,10 +66,6 @@ allprojects {
     mavenCentral()
     mavenLocal()
   }
-  project.ext {
-    Spark30Version = '3.0.3'
-    Spark31Version = '3.1.1'
-  }
 }
 
 subprojects {
@@ -92,12 +90,6 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
-
-      resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
-      }
     }
 
     testArtifacts
@@ -223,6 +215,7 @@ project(':iceberg-core') {
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
     implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation "org.roaringbitmap:RoaringBitmap"
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -361,6 +354,29 @@ project(':iceberg-aws') {
   }
 }
 
+project(':iceberg-gcp') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    implementation platform('com.google.cloud:libraries-bom')
+    implementation 'com.google.cloud:google-cloud-storage'
+
+    testImplementation 'com.google.cloud:google-cloud-nio'
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    testImplementation("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
+  }
+}
+
 project(':iceberg-hive-metastore') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -427,18 +443,6 @@ project(':iceberg-hive-metastore') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
-}
-
-// add enabled Hive version modules to the build
-def hiveVersions = (System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")).split(",")
-
-// hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
-if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
-  apply from: file("$projectDir/hive2.gradle")
-}
-
-if (jdkVersion == '8' && hiveVersions.contains("3")) {
-  apply from: file("$projectDir/hive3.gradle")
 }
 
 project(':iceberg-orc') {
@@ -509,7 +513,10 @@ project(':iceberg-arrow') {
     implementation("org.apache.arrow:arrow-memory-netty") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
     }
+
+    runtimeOnly("io.netty:netty-buffer")
 
     implementation("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -564,6 +571,7 @@ project(':iceberg-nessie') {
 
   dependencies {
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation "org.projectnessie:nessie-client"
@@ -573,13 +581,14 @@ project(':iceberg-nessie') {
     testImplementation "jakarta.el:jakarta.el-api"
 
     compileOnly "org.apache.hadoop:hadoop-common"
+    testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 }
 
 @Memoized
-boolean isVersionFileExists() {
+boolean versionFileExists() {
   return file('version.txt').exists()
 }
 
@@ -589,19 +598,28 @@ String getVersionFromFile() {
 }
 
 String getProjectVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 
   try {
-    return gitVersion()
-  } catch (NullPointerException e) {
-    throw new Exception("Neither version.txt nor git version exists")
+    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
+    String version = gitVersion(prefix: 'release-base-')
+    Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
+    Matcher matcher = pattern.matcher(version)
+    if (matcher.matches()) {
+      // bump the MINOR version and always set the PATCH version to 0
+      return matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0-SNAPSHOT"
+    }
+    return version
+  } catch (Exception e) {
+    throw new Exception("Neither version.txt nor git version exists: " + e.getMessage(), e)
   }
 }
 
 String getJavadocVersion() {
-  if (isVersionFileExists()) {
+  if (versionFileExists()) {
     return getVersionFromFile()
   }
 

@@ -62,7 +62,7 @@ final class JdbcUtil {
 
     return result;
   }
-  
+
   static RuntimeException toIcebergExceptionIfPossible(
           CatalogDbException fromDb,
           Namespace expectedExistingNamespace,

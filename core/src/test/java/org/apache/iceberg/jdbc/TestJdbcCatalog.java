@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +51,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -106,7 +105,7 @@ public class TestJdbcCatalog {
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
 
@@ -121,7 +120,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testInitialize() {
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
     properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
@@ -284,7 +283,7 @@ public class TestJdbcCatalog {
     Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     // append file and commit!
     String data = temp.newFile("data.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -294,7 +293,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(1, table.history().size());
     catalog.dropTable(tableIdentifier);
     data = temp.newFile("data2.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile2 = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -313,7 +312,7 @@ public class TestJdbcCatalog {
     Table table = catalog.loadTable(testTable);
 
     String data = temp.newFile("data.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -323,7 +322,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(1, table.history().size());
 
     data = temp.newFile("data2.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -333,7 +332,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(2, table.history().size());
 
     data = temp.newFile("data3.parquet").getPath();
-    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
         .withFileSizeInBytes(10)
@@ -352,7 +351,8 @@ public class TestJdbcCatalog {
     catalog.dropTable(testTable);
     Assert.assertFalse(catalog.listTables(testTable.namespace()).contains(testTable));
     catalog.dropTable(testTable2);
-    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class, () -> catalog.listTables(testTable2.namespace()));
+    AssertHelpers.assertThrows("should throw exception",
+        NoSuchNamespaceException.class, () -> catalog.listTables(testTable2.namespace()));
 
     Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
   }
@@ -375,8 +375,8 @@ public class TestJdbcCatalog {
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows("should throw exception", RuntimeException.class, () -> catalog.renameTable(from2, to)
-    );
+    AssertHelpers.assertThrows("should throw exception",
+        RuntimeException.class, () -> catalog.renameTable(from2, to));
   }
 
   @Test
@@ -401,7 +401,9 @@ public class TestJdbcCatalog {
     Assert.assertEquals(tbls2.size(), 1);
     Assert.assertEquals("tbl3", tbls2.get(0).name());
 
-    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class, () -> catalog.listTables(Namespace.of("db", "ns1", "ns2")));
+    AssertHelpers.assertThrows(
+        "should throw exception",
+        NoSuchNamespaceException.class, () -> catalog.listTables(Namespace.of("db", "ns1", "ns2")));
   }
 
   @Test
@@ -543,9 +545,12 @@ public class TestJdbcCatalog {
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
-    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl1.namespace()));
-    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl2.namespace()));
-    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl4.namespace()));
+    AssertHelpers.assertThrows("Should fail to drop namespace has tables",
+        NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl1.namespace()));
+    AssertHelpers.assertThrows("Should fail to drop namespace has tables",
+        NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl2.namespace()));
+    AssertHelpers.assertThrows("Should fail to drop namespace has tables",
+        NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl4.namespace()));
   }
 
   @Test

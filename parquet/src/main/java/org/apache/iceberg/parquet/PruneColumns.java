@@ -108,20 +108,19 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType list, Type element) {
-    GroupType repeated = list.getType(0).asGroupType();
-    Type originalElement = repeated.getType(0);
+    Type repeated = list.getType(0);
+    Type originalElement = ParquetSchemaUtil.determineListElementType(list);
     Integer elementId = getId(originalElement);
 
     if (elementId != null && selectedIds.contains(elementId)) {
       return list;
     } else if (element != null) {
       if (!Objects.equal(element, originalElement)) {
-        Integer listId = getId(list);
-        // the element type was projected
-        Type listType = Types.list(list.getRepetition())
-            .element(element)
-            .named(list.getName());
-        return listId == null ? listType : listType.withId(listId);
+        if (originalElement.isRepetition(Type.Repetition.REPEATED)) {
+          return list.withNewFields(element);
+        } else {
+          return list.withNewFields(repeated.asGroupType().withNewFields(element));
+        }
       }
       return list;
     }
@@ -141,14 +140,8 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     if ((keyId != null && selectedIds.contains(keyId)) || (valueId != null && selectedIds.contains(valueId))) {
       return map;
     } else if (value != null) {
-      Integer mapId = getId(map);
       if (!Objects.equal(value, originalValue)) {
-        Type mapType = Types.map(map.getRepetition())
-            .key(originalKey)
-            .value(value)
-            .named(map.getName());
-
-        return mapId == null ? mapType : mapType.withId(mapId);
+        return map.withNewFields(repeated.withNewFields(originalKey, value));
       }
       return map;
     }

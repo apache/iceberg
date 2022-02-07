@@ -20,7 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +48,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializationUtil;
@@ -260,7 +260,7 @@ public class TestHiveIcebergOutputCommitter {
    */
   private List<Record> writeRecords(String name, int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
                                     JobConf conf, OutputCommitter committer) throws IOException {
-    List<Record> expected = new ArrayList<>(RECORD_NUM * taskNum);
+    List<Record> expected = Lists.newArrayListWithExpectedSize(RECORD_NUM * taskNum);
 
     Table table = HiveIcebergStorageHandler.table(conf, name);
     FileIO io = table.io();

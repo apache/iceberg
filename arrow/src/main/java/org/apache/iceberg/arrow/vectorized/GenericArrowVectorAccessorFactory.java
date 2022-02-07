@@ -43,7 +43,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.util.DecimalUtility;
-import org.apache.parquet.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.io.api.Binary;
@@ -553,7 +553,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
       return decimalFactory.ofBigDecimal(
-              DecimalUtility.getBigDecimalFromArrowBuf(vector.getDataBuffer(), rowId, scale),
+              DecimalUtility.getBigDecimalFromArrowBuf(vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
               precision, scale);
     }
   }

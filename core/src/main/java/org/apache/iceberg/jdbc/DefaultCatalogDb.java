@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0che
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.jdbc;
@@ -19,10 +24,9 @@ import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Use plain jdbc driver to connect to a database, assuming SQLite-compatible SQL semantics.
@@ -120,55 +124,61 @@ public class DefaultCatalogDb implements CatalogDb {
 
   @Override
   public List<String> listTables(String namespace) throws CatalogDbException {
-    return query(connections, "list tables within namesapce", conn -> {
-      List<String> results = new ArrayList<>();
-      try (PreparedStatement sql = conn.prepareStatement(LIST_TABLES_SQL)) {
-        sql.setString(1, catalogName);
-        sql.setString(2, namespace);
+    return query(
+        connections,
+        "list tables within namesapce",
+        conn -> {
+          List<String> results = Lists.newArrayList();
+          try (PreparedStatement sql = conn.prepareStatement(LIST_TABLES_SQL)) {
+            sql.setString(1, catalogName);
+            sql.setString(2, namespace);
 
-        try (ResultSet rs = sql.executeQuery()) {
-          while (rs.next()) {
-            results.add(rs.getString(TABLE_NAME));
+            try (ResultSet rs = sql.executeQuery()) {
+              while (rs.next()) {
+                results.add(rs.getString(TABLE_NAME));
+              }
+              return results;
+            }
           }
-          return results;
-        }
-      }
-    });
+        });
   }
 
   @Override
   public List<String> listNamespaceByPrefix(String namespacePrefix) throws CatalogDbException {
-    return query(connections, "list namespace by prefix", conn -> {
-      List<String> result = new ArrayList<>();
+    return query(
+        connections,
+        "list namespace by prefix",
+        conn -> {
+          List<String> result = Lists.newArrayList();
 
-      try (PreparedStatement sql = conn.prepareStatement(LIST_NAMESPACES_SQL)) {
-        sql.setString(1, catalogName);
-        sql.setString(2, namespacePrefix + "%");
-        try (ResultSet rs = sql.executeQuery()) {
-          while (rs.next()) {
-            result.add(rs.getString(TABLE_NAMESPACE));
+          try (PreparedStatement sql = conn.prepareStatement(LIST_NAMESPACES_SQL)) {
+            sql.setString(1, catalogName);
+            sql.setString(2, namespacePrefix + "%");
+            try (ResultSet rs = sql.executeQuery()) {
+              while (rs.next()) {
+                result.add(rs.getString(TABLE_NAMESPACE));
+              }
+            }
           }
-        }
-      }
 
-      return result;
-    });
+          return result;
+        });
   }
 
   @Override
   public boolean namespaceExists(String namespaceName) throws CatalogDbException {
-    return query(connections, "check namespace exists", conn -> {
-      try (PreparedStatement sql = conn.prepareStatement(GET_NAMESPACE_SQL)) {
-        sql.setString(1, catalogName);
-        sql.setString(2, namespaceName + "%");
-        try (ResultSet rs = sql.executeQuery()) {
-          if (rs.next()) {
-            return true;
+    return query(
+        connections,
+        "check namespace exists",
+        conn -> {
+          try (PreparedStatement sql = conn.prepareStatement(GET_NAMESPACE_SQL)) {
+            sql.setString(1, catalogName);
+            sql.setString(2, namespaceName + "%");
+            try (ResultSet rs = sql.executeQuery()) {
+              return rs.next();
+            }
           }
-          return false;
-        }
-      }
-    });
+        });
   }
 
   @Override
@@ -209,10 +219,12 @@ public class DefaultCatalogDb implements CatalogDb {
   }
 
   @Override
-  public void insertTable(String catalogName, String namespaceName, String tableName, String tablePointer) throws CatalogDbException {
+  public void insertTable(
+      String tableCatalogName, String namespaceName, String tableName, String tablePointer)
+      throws CatalogDbException {
     executeUpdateAndAssertExactOne(connections, "Insert table", conn -> {
       try (PreparedStatement sql = conn.prepareStatement(DO_COMMIT_CREATE_TABLE_SQL)) {
-        sql.setString(1, catalogName);
+        sql.setString(1, tableCatalogName);
         sql.setString(2, namespaceName);
         sql.setString(3, tableName);
         sql.setString(4, tablePointer);
@@ -235,7 +247,9 @@ public class DefaultCatalogDb implements CatalogDb {
   }
 
   @Override
-  public void renameTable(String sourceNamespace, String sourceTable, String newNamespace, String newTable) throws CatalogDbException {
+  public void renameTable(
+      String sourceNamespace, String sourceTable, String newNamespace, String newTable)
+      throws CatalogDbException {
     executeUpdateAndAssertExactOne(connections, "Rename table", conn -> {
       try (PreparedStatement sql = conn.prepareStatement(RENAME_TABLE_SQL)) {
         // SET
@@ -275,7 +289,9 @@ public class DefaultCatalogDb implements CatalogDb {
       if (updatedRow == 0) {
         throw new CatalogDbException(updateName + " failed: no entry was found.", CatalogDbException.Code.NOT_EXISTS);
       }
-      throw new CatalogDbException(updateName + " failed: " + updatedRow + " (instead of 1) was updated. ", CatalogDbException.Code.UNKNOWN);
+      throw new CatalogDbException(
+          updateName + " failed: " + updatedRow + " (instead of 1) was updated. ",
+          CatalogDbException.Code.UNKNOWN);
     } catch (SQLException e) {
       throw CatalogDbException.fromSqlException(updateName, e);
     } catch (InterruptedException e) {

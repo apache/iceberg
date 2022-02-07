@@ -57,9 +57,13 @@ public class StrictMetricsEvaluator {
   private final Expression expr;
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
+    this(schema, unbound, true);
+  }
+
+  public StrictMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
     this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), true);
+    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -95,6 +99,15 @@ public class StrictMetricsEvaluator {
       this.upperBounds = file.upperBounds();
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    @Override
+    public <T> Boolean handleNonReference(Bound<T> term) {
+      // If the term in any expression is not a direct reference, assume that rows may not match. This happens when
+      // transforms or other expressions are passed to this evaluator. For example, bucket16(x) = 0 can't be determined
+      // because this visitor operates on data metrics and not partition values. It may be possible to un-transform
+      // expressions for order preserving transforms in the future, but this is not currently supported.
+      return ROWS_MIGHT_NOT_MATCH;
     }
 
     @Override
@@ -425,6 +438,12 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds are ["a", "b"].
       return ROWS_MIGHT_NOT_MATCH;
     }
 

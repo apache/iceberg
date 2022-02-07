@@ -9,6 +9,7 @@ tmp/
 *.ipr
 *.iws
 *.iml
+out
 
 # gradle build
 .gradle
@@ -26,10 +27,14 @@ lib/
 site/site
 
 # benchmark output
-spark/v2.4/spark2/benchmark/*
-!spark/v2.4/spark2/benchmark/.gitkeep
-spark/v3.0/spark3/benchmark/*
-!spark/v3.0/spark3/benchmark/.gitkeep
+spark/v2.4/spark/benchmark/*
+!spark/v2.4/spark/benchmark/.gitkeep
+spark/v3.0/spark/benchmark/*
+!spark/v3.0/spark/benchmark/.gitkeep
+spark/v3.1/spark/benchmark/*
+!spark/v3.1/spark/benckmark/.gitkeep
+spark/v3.2/spark/benchmark/*
+!spark/v3.2/spark/benchmark/.gitkeep
 
 __pycache__/
 *.py[cod]

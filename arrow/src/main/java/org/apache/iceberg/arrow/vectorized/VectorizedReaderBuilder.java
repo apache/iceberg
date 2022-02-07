@@ -85,7 +85,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       if (idToConstant.containsKey(id)) {
         reorderedFields.add(new VectorizedArrowReader.ConstantVectorReader<>(idToConstant.get(id)));
       } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
-        reorderedFields.add(VectorizedArrowReader.positions());
+        if (setArrowValidityVector) {
+          reorderedFields.add(VectorizedArrowReader.positionsWithSetArrowValidityVector());
+        } else {
+          reorderedFields.add(VectorizedArrowReader.positions());
+        }
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
         reorderedFields.add(new VectorizedArrowReader.ConstantVectorReader<>(false));
       } else if (reader != null) {
@@ -94,6 +98,10 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         reorderedFields.add(VectorizedArrowReader.nulls());
       }
     }
+    return vectorizedReader(reorderedFields);
+  }
+
+  protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
     return readerFactory.apply(reorderedFields);
   }
 

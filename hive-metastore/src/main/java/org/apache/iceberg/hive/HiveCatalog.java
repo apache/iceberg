@@ -36,10 +36,12 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -49,47 +51,29 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
+  public static final String LIST_ALL_TABLES = "list-all-tables";
+  public static final String LIST_ALL_TABLES_DEFAULT = "false";
+
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
   private String name;
   private Configuration conf;
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
+  private boolean listAllTables = false;
 
   public HiveCatalog() {
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @param conf Hadoop Configuration
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
-   */
-  @Deprecated
-  public HiveCatalog(Configuration conf) {
-    this.name = "hive";
-    this.conf = conf;
-    this.fileIO = new HadoopFileIO(conf);
-    Map<String, String> properties = ImmutableMap.of(
-            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                    String.valueOf(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT)),
-            CatalogProperties.CLIENT_POOL_SIZE,
-            conf.get(CatalogProperties.CLIENT_POOL_SIZE,
-                    String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))
-    );
-    this.clients = new CachedClientPool(conf, properties);
   }
 
   @Override
@@ -108,6 +92,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
+    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, LIST_ALL_TABLES_DEFAULT));
+
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
@@ -122,12 +108,20 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     try {
       List<String> tableNames = clients.run(client -> client.getAllTables(database));
-      List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
-      List<TableIdentifier> tableIdentifiers = tableObjects.stream()
-          .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-                  .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
-          .map(table -> TableIdentifier.of(namespace, table.getTableName()))
-          .collect(Collectors.toList());
+      List<TableIdentifier> tableIdentifiers;
+
+      if (listAllTables) {
+        tableIdentifiers = tableNames.stream()
+            .map(t -> TableIdentifier.of(namespace, t))
+            .collect(Collectors.toList());
+      } else {
+        List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
+        tableIdentifiers = tableObjects.stream()
+            .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
+            .map(table -> TableIdentifier.of(namespace, table.getTableName()))
+            .collect(Collectors.toList());
+      }
 
       LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, tableIdentifiers);
       return tableIdentifiers;
@@ -233,6 +227,23 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to rename", e);
     }
+  }
+
+  @Override
+  public org.apache.iceberg.Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+
+    // Throw an exception if this table already exists in the catalog.
+    if (tableExists(identifier)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException("Table already exists: %s", identifier);
+    }
+
+    TableOperations ops = newTableOps(identifier);
+    InputFile metadataFile = fileIO.newInputFile(metadataFileLocation);
+    TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
+    ops.commit(null, metadata);
+
+    return new BaseTable(ops, identifier.toString());
   }
 
   @Override
@@ -524,5 +535,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @Override
   public Configuration getConf() {
     return conf;
+  }
+
+  @VisibleForTesting
+  void setListAllTables(boolean listAllTables) {
+    this.listAllTables = listAllTables;
   }
 }
