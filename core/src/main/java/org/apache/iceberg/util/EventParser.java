@@ -28,11 +28,13 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.expressions.ExpressionParser;
 
 public class EventParser {
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PROJECTION = "projection";
+  private static final String EXPRESSION = "expression";
   private static final String OPERATION = "operation";
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SUMMARY = "summary";
@@ -67,6 +69,8 @@ public class EventParser {
     generator.writeString(event.tableName());
     generator.writeFieldName(SNAPSHOT_ID);
     generator.writeNumber(event.snapshotId());
+    generator.writeFieldName(EXPRESSION);
+    ExpressionParser.toJson(event.filter(), generator);
     generator.writeFieldName(PROJECTION);
     SchemaParser.toJson(event.projection(), generator);
     generator.writeEndObject();
@@ -99,6 +103,8 @@ public class EventParser {
     generator.writeNumber(event.fromSnapshotId());
     generator.writeFieldName(TO_SNAPSHOT_ID);
     generator.writeNumber(event.toSnapshotId());
+    generator.writeFieldName(EXPRESSION);
+    ExpressionParser.toJson(event.filter(), generator);
     generator.writeFieldName(PROJECTION);
     SchemaParser.toJson(event.projection(), generator);
     generator.writeEndObject();
