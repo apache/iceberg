@@ -122,15 +122,23 @@ public class ZOrderByteUtils {
   }
 
   /**
+   * For Testing interleave all available bytes
+   */
+  static byte[] interleaveBits(byte[][] columnsBinary) {
+    return interleaveBits(columnsBinary,
+        Arrays.stream(columnsBinary).mapToInt(column -> column.length).max().getAsInt());
+  }
+
+  /**
    * Interleave bits using a naive loop. Variable length inputs are allowed but to get a consistent ordering it is
    * required that every column contribute the same number of bytes in each invocation. Bits are interleaved from all
    * columns that have a bit available at that position. Once a Column has no more bits to produce it is skipped in the
    * interleaving.
    * @param columnsBinary an array of ordered byte representations of the columns being ZOrdered
+   * @param interleavedSize the number of bytes to use in the output
    * @return the columnbytes interleaved
    */
-  public static byte[] interleaveBits(byte[][] columnsBinary) {
-    int interleavedSize = Arrays.stream(columnsBinary).mapToInt(a -> a.length).sum();
+  public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize) {
     byte[] interleavedBytes = new byte[interleavedSize];
     int sourceColumn = 0;
     int sourceByte = 0;
