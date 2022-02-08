@@ -21,13 +21,13 @@ String sparkVersion = '3.2.0'
 String sparkMajorVersion = '3.2'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
-def projects = [
+def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
 ]
 
-configure(projects) {
+configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
