@@ -1,0 +1,4 @@
+---
+title: "Terms"
+bookUrlFromBaseURL: /../../terms
+---

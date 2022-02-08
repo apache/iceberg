@@ -1,0 +1,4 @@
+---
+title: "Join"
+bookUrlFromBaseURL: /../../community
+---
