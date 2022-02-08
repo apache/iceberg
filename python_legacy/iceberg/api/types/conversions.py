@@ -70,9 +70,10 @@ class Conversions(object):
                               uuid.UUID(int=struct.unpack('>QQ', value)[0] << 64 | struct.unpack('>QQ', value)[1]),
                               TypeID.FIXED: lambda type_var, value: value,
                               TypeID.BINARY: lambda type_var, value: value,
-                              TypeID.DECIMAL: lambda type_var, value: Decimal(int.from_bytes(value, 'big', signed=True) * 10**-type_var.scale)
-                                                                       .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
-                                                                                 rounding=ROUND_HALF_UP)
+                              TypeID.DECIMAL: lambda type_var, value:
+                              Decimal(int.from_bytes(value, 'big', signed=True) * 10**-type_var.scale)
+                              .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
+                                        rounding=ROUND_HALF_UP)
                               }
 
     @staticmethod

@@ -145,9 +145,9 @@ class TestConversions(unittest.TestCase):
         self.assertConversion(400000, TimestampType.without_timezone(), bytes([128, 26, 6, 0, 0, 0, 0, 0]))
         self.assertConversion(400000, TimestampType.with_timezone(), bytes([128, 26, 6, 0, 0, 0, 0, 0]))
         self.assertEqual(bytes([128, 26, 6, 0, 0, 0, 0, 0]),
-            Literal.of(400000).to(LongType.get()).to(TimestampType.without_timezone()).to_byte_buffer())
+                         Literal.of(400000).to(LongType.get()).to(TimestampType.without_timezone()).to_byte_buffer())
         self.assertEqual(bytes([128, 26, 6, 0, 0, 0, 0, 0]),
-            Literal.of(400000).to(LongType.get()).to(TimestampType.with_timezone()).to_byte_buffer())
+                         Literal.of(400000).to(LongType.get()).to(TimestampType.with_timezone()).to_byte_buffer())
 
         # strings are stored as UTF-8 bytes (without length)
         # 'A' -> 65, 'B' -> 66, 'C' -> 67
@@ -234,7 +234,6 @@ class TestConversions(unittest.TestCase):
         self.assertEqual(
             bytes([11]),
             Literal.of(0.011).to(DecimalType.of(10, 3)).to_byte_buffer())
-
 
     def assertConversion(self, value, type, expectedBinary):
         byteBuffer = Conversions.to_byte_buffer(type.type_id, value)
