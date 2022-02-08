@@ -25,4 +25,4 @@ package-list
 sitemap.xml
 derby.log
 .python-version
-*_index.md
+.*_index.md
