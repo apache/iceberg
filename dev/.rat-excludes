@@ -25,3 +25,8 @@ package-list
 sitemap.xml
 derby.log
 .python-version
+documentation/versioned/community/*
+documentation/versioned/format/*
+documentation/versioned/project/*
+documentation/versioned/releases/*
+*_index.md
