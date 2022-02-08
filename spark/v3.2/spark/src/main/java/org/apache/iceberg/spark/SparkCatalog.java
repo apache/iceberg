@@ -244,21 +244,19 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
-    try {
-      return isPathIdentifier(ident) ?
-          tables.dropTable(((PathIdentifier) ident).location(), false) :
-          icebergCatalog.dropTable(buildIdentifier(ident), false);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      return false;
-    }
+    return dropTableInternal(ident, false);
   }
 
   @Override
   public boolean purgeTable(Identifier ident) {
+    return dropTableInternal(ident, true);
+  }
+
+  private boolean dropTableInternal(Identifier ident, boolean purge) {
     try {
       return isPathIdentifier(ident) ?
-          tables.dropTable(((PathIdentifier) ident).location(), true) :
-          icebergCatalog.dropTable(buildIdentifier(ident), true);
+          tables.dropTable(((PathIdentifier) ident).location(), purge) :
+          icebergCatalog.dropTable(buildIdentifier(ident), purge);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
