@@ -14,11 +14,36 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Data types used in describing Iceberg schemas
+
+This module implements the data types described in the Iceberg specification for Iceberg schemas. To
+describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
+
+Example:
+    >>> StructType(
+        [
+            NestedField(True, 1, "required_field", StringType()),
+            NestedField(False, 2, "optional_field", IntegerType()),
+        ]
+    )
+
+Notes:
+  - https://iceberg.apache.org/#spec/#primitive-types
+"""
 
 from typing import Optional
 
 
-class Type(object):
+class Singleton:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not isinstance(cls._instance, cls):
+            cls._instance = super(Singleton, cls).__new__(cls)
+        return cls._instance
+
+
+class Type:
     def __init__(self, type_string: str, repr_string: str, is_primitive=False):
         self._type_string = type_string
         self._repr_string = repr_string
@@ -37,14 +62,17 @@ class Type(object):
 
 class FixedType(Type):
     def __init__(self, length: int):
-        super().__init__(
-            f"fixed[{length}]", f"FixedType(length={length})", is_primitive=True
-        )
+        super().__init__(f"fixed[{length}]", f"FixedType(length={length})", is_primitive=True)
         self._length = length
 
     @property
     def length(self) -> int:
         return self._length
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.length == other.length
+        return False
 
 
 class DecimalType(Type):
@@ -65,8 +93,13 @@ class DecimalType(Type):
     def scale(self) -> int:
         return self._scale
 
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.precision == other.precision and self.scale == other.scale
+        return False
 
-class NestedField(object):
+
+class NestedField:
     def __init__(
         self,
         is_optional: bool,
@@ -98,6 +131,10 @@ class NestedField(object):
         return self._name
 
     @property
+    def doc(self) -> Optional[str]:
+        return self._doc
+
+    @property
     def type(self) -> Type:
         return self._type
 
@@ -109,11 +146,21 @@ class NestedField(object):
 
     def __str__(self):
         return (
-            f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}"
-            ""
+            f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}" ""
             if self._doc is None
             else f" ({self._doc})"
         )
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return (
+                self.is_optional == other.is_optional
+                and self.field_id == other.field_id
+                and self.name == other.name
+                and self.doc == other.doc
+                and self.type == other.type
+            )
+        return False
 
 
 class StructType(Type):
@@ -128,6 +175,11 @@ class StructType(Type):
     def fields(self) -> list:
         return self._fields
 
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.fields == other.fields
+        return False
+
 
 class ListType(Type):
     def __init__(self, element: NestedField):
@@ -137,6 +189,11 @@ class ListType(Type):
     @property
     def element(self) -> NestedField:
         return self._element_field
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.element == other.element
+        return False
 
 
 class MapType(Type):
@@ -156,16 +213,196 @@ class MapType(Type):
     def value(self) -> NestedField:
         return self._value_field
 
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.key == other.key and self.value == other.value
+        return False
 
-BooleanType = Type("boolean", "BooleanType", is_primitive=True)
-IntegerType = Type("int", "IntegerType", is_primitive=True)
-LongType = Type("long", "LongType", is_primitive=True)
-FloatType = Type("float", "FloatType", is_primitive=True)
-DoubleType = Type("double", "DoubleType", is_primitive=True)
-DateType = Type("date", "DateType", is_primitive=True)
-TimeType = Type("time", "TimeType", is_primitive=True)
-TimestampType = Type("timestamp", "TimestampType", is_primitive=True)
-TimestamptzType = Type("timestamptz", "TimestamptzType", is_primitive=True)
-StringType = Type("string", "StringType", is_primitive=True)
-UUIDType = Type("uuid", "UUIDType", is_primitive=True)
-BinaryType = Type("binary", "BinaryType", is_primitive=True)
+
+class BooleanType(Type, Singleton):
+    """A boolean data type in Iceberg can be represented using an instance of this class.
+
+    Example:
+        >>> column_foo = BooleanType()
+        >>> isinstance(column_foo, BooleanType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("boolean", "BooleanType()", is_primitive=True)
+
+
+class IntegerType(Type, Singleton):
+    """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
+    32-bit signed and can be promoted to Longs.
+
+    Example:
+        >>> column_foo = IntegerType()
+        >>> isinstance(column_foo, IntegerType)
+        True
+
+    Attributes:
+        max (int): The maximum allowed value for Integers, inherited from the canonical Iceberg implementation
+          in Java (returns `2147483647`)
+        min (int): The minimum allowed value for Integers, inherited from the canonical Iceberg implementation
+          in Java (returns `-2147483648`)
+    """
+
+    max: int = 2147483647
+
+    min: int = -2147483648
+
+    def __init__(self):
+        super().__init__("int", "IntegerType()", is_primitive=True)
+
+
+class LongType(Type, Singleton):
+    """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
+    64-bit signed integers.
+
+    Example:
+        >>> column_foo = LongType()
+        >>> isinstance(column_foo, LongType)
+        True
+
+    Attributes:
+        max (int): The maximum allowed value for Longs, inherited from the canonical Iceberg implementation
+          in Java. (returns `9223372036854775807`)
+        min (int): The minimum allowed value for Longs, inherited from the canonical Iceberg implementation
+          in Java (returns `-9223372036854775808`)
+    """
+
+    max: int = 9223372036854775807
+
+    min: int = -9223372036854775808
+
+    def __init__(self):
+        super().__init__("long", "LongType()", is_primitive=True)
+
+
+class FloatType(Type, Singleton):
+    """A Float data type in Iceberg can be represented using an instance of this class. Floats in Iceberg are
+    32-bit IEEE 754 floating points and can be promoted to Doubles.
+
+    Example:
+        >>> column_foo = FloatType()
+        >>> isinstance(column_foo, FloatType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("float", "FloatType()", is_primitive=True)
+
+
+class DoubleType(Type, Singleton):
+    """A Double data type in Iceberg can be represented using an instance of this class. Doubles in Iceberg are
+    64-bit IEEE 754 floating points.
+
+    Example:
+        >>> column_foo = DoubleType()
+        >>> isinstance(column_foo, DoubleType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("double", "DoubleType()", is_primitive=True)
+
+
+class DateType(Type, Singleton):
+    """A Date data type in Iceberg can be represented using an instance of this class. Dates in Iceberg are
+    calendar dates without a timezone or time.
+
+    Example:
+        >>> column_foo = DateType()
+        >>> isinstance(column_foo, DateType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("date", "DateType()", is_primitive=True)
+
+
+class TimeType(Type, Singleton):
+    """A Time data type in Iceberg can be represented using an instance of this class. Times in Iceberg
+    have microsecond precision and are a time of day without a date or timezone.
+
+    Example:
+        >>> column_foo = TimeType()
+        >>> isinstance(column_foo, TimeType)
+        True
+
+    """
+
+    def __init__(self):
+        super().__init__("time", "TimeType()", is_primitive=True)
+
+
+class TimestampType(Type, Singleton):
+    """A Timestamp data type in Iceberg can be represented using an instance of this class. Timestamps in
+    Iceberg have microsecond precision and include a date and a time of day without a timezone.
+
+    Example:
+        >>> column_foo = TimestampType()
+        >>> isinstance(column_foo, TimestampType)
+        True
+
+    """
+
+    def __init__(self):
+        super().__init__("timestamp", "TimestampType()", is_primitive=True)
+
+
+class TimestamptzType(Type, Singleton):
+    """A Timestamptz data type in Iceberg can be represented using an instance of this class. Timestamptzs in
+    Iceberg are stored as UTC and include a date and a time of day with a timezone.
+
+    Example:
+        >>> column_foo = TimestamptzType()
+        >>> isinstance(column_foo, TimestamptzType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("timestamptz", "TimestamptzType()", is_primitive=True)
+
+
+class StringType(Type, Singleton):
+    """A String data type in Iceberg can be represented using an instance of this class. Strings in
+    Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
+
+    Example:
+        >>> column_foo = StringType()
+        >>> isinstance(column_foo, StringType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("string", "StringType()", is_primitive=True)
+
+
+class UUIDType(Type, Singleton):
+    """A UUID data type in Iceberg can be represented using an instance of this class. UUIDs in
+    Iceberg are universally unique identifiers.
+
+    Example:
+        >>> column_foo = UUIDType()
+        >>> isinstance(column_foo, UUIDType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("uuid", "UUIDType()", is_primitive=True)
+
+
+class BinaryType(Type, Singleton):
+    """A Binary data type in Iceberg can be represented using an instance of this class. Binarys in
+    Iceberg are arbitrary-length byte arrays.
+
+    Example:
+        >>> column_foo = BinaryType()
+        >>> isinstance(column_foo, BinaryType)
+        True
+    """
+
+    def __init__(self):
+        super().__init__("binary", "BinaryType()", is_primitive=True)

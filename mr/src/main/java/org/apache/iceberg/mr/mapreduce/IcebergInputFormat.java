@@ -37,6 +37,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
@@ -151,7 +152,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     // if enabled, do not serialize FileIO hadoop config to decrease split size
-    HiveIcebergStorageHandler.checkAndSkipIoConfigSerialization(conf, table);
+    // However, do not skip serialization for metatable queries, because some metadata tasks cache the IO object and we
+    // wouldn't be able to inject the config into these tasks on the deserializer-side, unlike for standard queries
+    if (scan instanceof DataTableScan) {
+      HiveIcebergStorageHandler.checkAndSkipIoConfigSerialization(conf, table);
+    }
 
     return splits;
   }
@@ -352,29 +357,37 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
-          .project(readSchema)
-          .filter(task.residual())
-          .caseSensitive(caseSensitive)
-          .split(task.start(), task.length());
-      if (reuseContainers) {
-        parquetReadBuilder.reuseContainers();
-      }
-      if (nameMapping != null) {
-        parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-      }
+      Map<Integer, ?> idToConstant = constantsMap(task, IdentityPartitionConverters::convertConstant);
+      CloseableIterable<T> parquetIterator = null;
 
       switch (inMemoryDataModel) {
         case PIG:
+          throw new UnsupportedOperationException("Parquet support not yet supported for Pig");
         case HIVE:
-          // TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("Parquet support not yet supported for Pig and Hive");
+          if (MetastoreUtil.hive3PresentOnClasspath()) {
+            parquetIterator = HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
+          } else {
+            throw new UnsupportedOperationException("Vectorized read is unsupported for Hive 2 integration.");
+          }
+          break;
         case GENERIC:
+          Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
+              .project(readSchema)
+              .filter(task.residual())
+              .caseSensitive(caseSensitive)
+              .split(task.start(), task.length());
+          if (reuseContainers) {
+            parquetReadBuilder.reuseContainers();
+          }
+          if (nameMapping != null) {
+            parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+          }
           parquetReadBuilder.createReaderFunc(
               fileSchema -> GenericParquetReaders.buildReader(
                   readSchema, fileSchema, constantsMap(task, IdentityPartitionConverters::convertConstant)));
+          parquetIterator = parquetReadBuilder.build();
       }
-      return applyResidualFiltering(parquetReadBuilder.build(), task.residual(), readSchema);
+      return applyResidualFiltering(parquetIterator, task.residual(), readSchema);
     }
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {

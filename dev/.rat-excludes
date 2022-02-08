@@ -24,3 +24,4 @@ gradle/*
 package-list
 sitemap.xml
 derby.log
+.python-version

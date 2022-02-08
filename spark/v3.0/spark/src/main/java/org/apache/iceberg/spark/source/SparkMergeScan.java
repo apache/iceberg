@@ -93,13 +93,15 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   @Override
-  public void filterFiles(Set<String> locations) {
+  public SupportsFileFilter.FileFilterMetric filterFiles(Set<String> locations) {
     // invalidate cached tasks to trigger split planning again
     tasks = null;
     filteredLocations = locations;
-    files = files().stream()
+    List<FileScanTask> originalFile = files();
+    files = originalFile.stream()
         .filter(file -> filteredLocations.contains(file.file().path().toString()))
         .collect(Collectors.toList());
+    return new SupportsFileFilter.FileFilterMetric(originalFile.size(), files.size());
   }
 
   // should be accessible to the write

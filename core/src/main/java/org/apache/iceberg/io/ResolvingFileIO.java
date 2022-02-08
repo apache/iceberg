@@ -40,16 +40,25 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final String DEFAULT_SCHEME = "fs";
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
+  private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO = ImmutableMap.of(
       DEFAULT_SCHEME, FALLBACK_IMPL,
-      "s3", "org.apache.iceberg.aws.s3.S3FileIO",
-      "s3a", "org.apache.iceberg.aws.s3.S3FileIO",
-      "s3n", "org.apache.iceberg.aws.s3.S3FileIO"
+      "s3", S3_FILE_IO_IMPL,
+      "s3a", S3_FILE_IO_IMPL,
+      "s3n", S3_FILE_IO_IMPL
   );
 
   private final Map<String, FileIO> ioInstances = Maps.newHashMap();
   private Map<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
+
+  /**
+   * No-arg constructor to load the FileIO dynamically.
+   * <p>
+   * All fields are initialized by calling {@link ResolvingFileIO#initialize(Map)} later.
+   */
+  public ResolvingFileIO() {
+  }
 
   @Override
   public InputFile newInputFile(String location) {

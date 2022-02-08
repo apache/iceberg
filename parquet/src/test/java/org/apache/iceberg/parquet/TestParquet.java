@@ -21,17 +21,27 @@ package org.apache.iceberg.parquet;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -96,6 +106,46 @@ public class TestParquet {
     long expectedSize = ParquetIO.file(localInput(file)).getLength();
     Assert.assertEquals(expectedSize, actualSize);
   }
+
+  @Test
+  public void testTwoLevelList() throws IOException {
+    Schema schema = new Schema(
+        optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+        optional(2, "topbytes", Types.BinaryType.get())
+    );
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    File testFile = temp.newFile();
+    Assert.assertTrue(testFile.delete());
+
+    ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+        .withDataModel(GenericData.get())
+        .withSchema(avroSchema)
+        .config("parquet.avro.add-list-element-records", "true")
+        .config("parquet.avro.write-old-list-structure", "true")
+        .build();
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    List<ByteBuffer> expectedByteList = new ArrayList();
+    byte[] expectedByte = {0x00, 0x01};
+    ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
+    expectedByteList.add(expectedBinary);
+    recordBuilder.set("arraybytes", expectedByteList);
+    recordBuilder.set("topbytes", expectedBinary);
+    GenericData.Record expectedRecord = recordBuilder.build();
+
+    writer.write(expectedRecord);
+    writer.close();
+
+    GenericData.Record recordRead = Iterables.getOnlyElement(Parquet.read(Files.localInput(testFile))
+        .project(schema)
+        .callInit()
+        .build());
+
+    Assert.assertEquals(expectedByteList, recordRead.get("arraybytes"));
+    Assert.assertEquals(expectedBinary, recordRead.get("topbytes"));
+  }
+
 
   private Pair<File, Long> generateFileWithTwoRowGroups(Function<MessageType, ParquetValueWriter<?>> createWriterFunc)
       throws IOException {
