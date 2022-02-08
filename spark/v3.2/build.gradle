@@ -22,9 +22,9 @@ String sparkMajorVersion = '3.2'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 def projects = [
-        project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
-        project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
-        project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
+    project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
+    project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
+    project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
 ]
 
 configure(projects) {
@@ -118,12 +118,12 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
   configurations {
     /*
-    The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
-    bug https://github.com/gradle/gradle/issues/820 exists because older versions of Antlr do not have separate
-    runtime and implementation dependencies and they do not want to break backwards compatibility. So to only end up with
-    the runtime dependency on the runtime classpath we remove the dependencies added by the plugin here. Then add
-    the runtime dependency back to only the runtime configuration manually.
-   */
+     The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
+     bug https://github.com/gradle/gradle/issues/820 exists because older versions of Antlr do not have separate
+     runtime and implementation dependencies and they do not want to break backwards compatibility. So to only end up with
+     the runtime dependency on the runtime classpath we remove the dependencies added by the plugin here. Then add
+     the runtime dependency back to only the runtime configuration manually.
+    */
     implementation {
       extendsFrom = extendsFrom.findAll { it != configurations.antlr }
     }
