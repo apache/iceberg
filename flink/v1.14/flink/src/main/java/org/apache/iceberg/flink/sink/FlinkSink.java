@@ -132,7 +132,7 @@ public class FlinkSink {
     private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
-    private Map<String, String> customSnapshotMetadata = null;
+    private final Map<String, String> snapshotProperties = Maps.newHashMap();
 
     private Builder() {
     }
@@ -269,19 +269,13 @@ public class FlinkSink {
       return this;
     }
 
-    public Builder customSnapshotMetadata(Map<String, String> metadata) {
-      if (this.customSnapshotMetadata == null) {
-        this.customSnapshotMetadata = Maps.newHashMap();
-      }
-      this.customSnapshotMetadata.putAll(metadata);
+    public Builder setSnapshotProperties(Map<String, String> properties) {
+      snapshotProperties.putAll(properties);
       return this;
     }
 
-    public Builder customSnapshotMetadata(String key, String value) {
-      if (this.customSnapshotMetadata == null) {
-        this.customSnapshotMetadata = Maps.newHashMap();
-      }
-      this.customSnapshotMetadata.put(key, value);
+    public Builder setSnapshotProperty(String property, String value) {
+      snapshotProperties.put(property, value);
       return this;
     }
 
@@ -357,7 +351,7 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite, customSnapshotMetadata);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite, snapshotProperties);
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)

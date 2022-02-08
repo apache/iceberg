@@ -826,7 +826,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
       IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false,
-          Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName())); // custom metadata
+          Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()));
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

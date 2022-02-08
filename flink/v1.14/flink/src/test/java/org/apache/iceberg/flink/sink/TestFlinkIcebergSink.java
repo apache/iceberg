@@ -308,8 +308,8 @@ public class TestFlinkIcebergSink {
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidPrefix("rightIcebergSink")
-        .customSnapshotMetadata("flink.test", TestFlinkIcebergSink.class.getName())
-        .customSnapshotMetadata(Collections.singletonMap("direction", "rightTable"))
+        .setSnapshotProperty("flink.test", TestFlinkIcebergSink.class.getName())
+        .setSnapshotProperties(Collections.singletonMap("direction", "rightTable"))
         .append();
 
     // Execute the program.
