@@ -52,6 +52,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -131,6 +132,7 @@ public class FlinkSink {
     private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
+    private Map<String, String> customSnapshotMetadata = null;
 
     private Builder() {
     }
@@ -267,6 +269,22 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder customSnapshotMetadata(Map<String, String> metadata) {
+      if (this.customSnapshotMetadata == null) {
+        this.customSnapshotMetadata = Maps.newHashMap();
+      }
+      this.customSnapshotMetadata.putAll(metadata);
+      return this;
+    }
+
+    public Builder customSnapshotMetadata(String key, String value) {
+      if (this.customSnapshotMetadata == null) {
+        this.customSnapshotMetadata = Maps.newHashMap();
+      }
+      this.customSnapshotMetadata.put(key, value);
+      return this;
+    }
+
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -339,7 +357,7 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite, customSnapshotMetadata);
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)

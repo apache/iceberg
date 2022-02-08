@@ -78,6 +78,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
+  private final Map<String, String> customSnapshotMetadata;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -109,9 +110,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
+  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions,
+                        Map<String, String> customSnapshotMetadata) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
+    this.customSnapshotMetadata = customSnapshotMetadata;
   }
 
   @Override
@@ -307,6 +310,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                String newFlinkJobId, long checkpointId) {
     LOG.info("Committing {} with {} data files and {} delete files to table {}", description, numDataFiles,
         numDeleteFiles, table);
+    if (customSnapshotMetadata != null) {
+      customSnapshotMetadata.forEach(operation::set);
+    } // custom snapshot metadata properties will be overridden if they conflict with reversed ones.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
 

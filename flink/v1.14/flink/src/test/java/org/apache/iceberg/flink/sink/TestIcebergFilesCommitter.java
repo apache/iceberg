@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -204,6 +205,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows));
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(jobID, i);
+        Assert.assertEquals(TestIcebergFilesCommitter.class.getName(),
+            table.currentSnapshot().summary().get("flink.test"));
       }
     }
   }
@@ -574,6 +577,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       SimpleDataUtil.assertTableRows(table, tableRows);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, Long.MAX_VALUE);
+      Assert.assertEquals(TestIcebergFilesCommitter.class.getName(),
+          table.currentSnapshot().summary().get("flink.test"));
     }
   }
 
@@ -820,7 +825,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
+      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false,
+          Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName())); // custom metadata
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }
