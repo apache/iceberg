@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -93,7 +92,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         return new UnpartitionedWriter<>(spec, format, appenderFactory, outputFileFactory, io, targetFileSizeBytes);
       } else {
         return new RowDataPartitionedFanoutWriter(spec, format, appenderFactory, outputFileFactory,
-            io, targetFileSizeBytes, schema, flinkSchema, table.properties());
+            io, targetFileSizeBytes, schema, flinkSchema);
       }
     } else {
       // Initialize a task writer to write both INSERT and equality DELETE.
@@ -102,7 +101,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
       } else {
         return new PartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert, table.properties());
+            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
       }
     }
   }
@@ -114,8 +113,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                   RowType flinkSchema, Map<String, String> properties) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, properties);
+                                   RowType flinkSchema) {
+      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }

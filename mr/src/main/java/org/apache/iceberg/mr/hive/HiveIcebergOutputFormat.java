@@ -87,6 +87,6 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
 
     return new HiveIcebergRecordWriter(schema, spec, fileFormat,
         new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize,
-        taskAttemptID, tableName, table.properties());
+        taskAttemptID, tableName);
   }
 }

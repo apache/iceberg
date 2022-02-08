@@ -60,19 +60,19 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds,
         upsert);
     this.partitionKey = new PartitionKey(spec, schema);
-    int writersCacheSize = PropertyUtil.propertyAsInt(
-        properties,
-        TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_SIZE,
-        TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_SIZE_DEFAULT);
-    long evictionTimeout = PropertyUtil.propertyAsLong(
-        properties,
-        TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_EVICT_MS,
-        TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_EVICT_MS_DEFAULT);
-    initWritersCache(writersCacheSize, evictionTimeout);
+    initWritersCache(properties);
   }
 
-  private synchronized void initWritersCache(int writersCacheSize, long evictionTimeout) {
+  private void initWritersCache(Map<String, String> properties) {
     if (writers == null) {
+      int writersCacheSize = PropertyUtil.propertyAsInt(
+          properties,
+          TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_SIZE,
+          TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_SIZE_DEFAULT);
+      long evictionTimeout = PropertyUtil.propertyAsLong(
+          properties,
+          TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_EVICT_MS,
+          TableProperties.PARTITIONED_DELTA_WRITERS_CACHE_EVICT_MS_DEFAULT);
       writers = Caffeine.newBuilder()
           .maximumSize(writersCacheSize)
           .expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS)
@@ -105,7 +105,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   public void close() {
     ConcurrentMap<PartitionKey, RowDataDeltaWriter> writersMap = writers.asMap();
-    if (writersMap.size() > 0) {
+    if (!writersMap.isEmpty()) {
       try {
         Tasks.foreach(writersMap.values())
             .throwFailureWhenFinished()

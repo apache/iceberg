@@ -275,7 +275,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
     TaskWriter<InternalRow> writer = new SparkPartitionedFanoutWriter(
         partitionedSpec, fileFormat(), appenders,
         fileFactory, io, TARGET_FILE_SIZE_IN_BYTES,
-        writeSchema, sparkWriteType, table().properties());
+        writeSchema, sparkWriteType);
 
     try (TaskWriter<InternalRow> closableWriter = writer) {
       for (InternalRow row : rows) {

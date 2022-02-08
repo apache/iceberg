@@ -251,7 +251,7 @@ class Writer implements DataSourceWriter {
         return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       } else if (partitionedFanoutEnabled) {
         return new PartitionedFanout24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize,
-            writeSchema, dsSchema, table.properties());
+            writeSchema, dsSchema);
       } else {
         return new Partitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize,
             writeSchema, dsSchema);
@@ -296,9 +296,9 @@ class Writer implements DataSourceWriter {
     PartitionedFanout24Writer(PartitionSpec spec, FileFormat format,
                               SparkAppenderFactory appenderFactory,
                               OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
-                              Schema schema, StructType sparkSchema, Map<String, String> properties) {
+                              Schema schema, StructType sparkSchema) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema,
-          sparkSchema, properties);
+          sparkSchema);
     }
 
     @Override

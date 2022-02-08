@@ -40,8 +40,6 @@ project(':iceberg-flink:iceberg-flink-1.12') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
-    implementation "com.github.ben-manes.caffeine:caffeine"
-
     compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}:tests"
     compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12:${flinkVersion}"

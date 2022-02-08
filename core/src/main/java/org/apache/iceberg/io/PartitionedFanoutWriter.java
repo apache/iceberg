@@ -30,6 +30,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 
@@ -37,22 +38,28 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   private Cache<PartitionKey, RollingFileWriter> writers;
 
   protected PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                          OutputFileFactory fileFactory, FileIO io,
-                          long targetFileSize, Map<String, String> properties) {
+                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    int writersCacheSize = PropertyUtil.propertyAsInt(
-        properties,
-        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_SIZE,
-        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_SIZE_DEFAULT);
-    long evictionTimeout = PropertyUtil.propertyAsLong(
-        properties,
-        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS,
-        TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS_DEFAULT);
-    initWritersCache(writersCacheSize, evictionTimeout);
+    initWritersCache(ImmutableMap.of());
   }
 
-  private synchronized void initWritersCache(int writersCacheSize, long evictionTimeout) {
+  protected PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+                                    OutputFileFactory fileFactory, FileIO io,
+                                    long targetFileSize, Map<String, String> properties) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    initWritersCache(properties);
+  }
+
+  private void initWritersCache(Map<String, String> properties) {
     if (writers == null) {
+      int writersCacheSize = PropertyUtil.propertyAsInt(
+          properties,
+          TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_SIZE,
+          TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_SIZE_DEFAULT);
+      long evictionTimeout = PropertyUtil.propertyAsLong(
+          properties,
+          TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS,
+          TableProperties.PARTITIONED_FANOUT_WRITERS_CACHE_EVICT_MS_DEFAULT);
       writers = Caffeine.newBuilder()
           .maximumSize(writersCacheSize)
           .expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS)
@@ -94,7 +101,7 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   @Override
   public void close() throws IOException {
     ConcurrentMap<PartitionKey, RollingFileWriter> writersMap = writers.asMap();
-    if (writersMap.size() > 0) {
+    if (!writersMap.isEmpty()) {
       // close all remaining rolling file writers
       try {
         Tasks.foreach(writersMap.values())
