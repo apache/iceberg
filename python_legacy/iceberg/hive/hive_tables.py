@@ -75,7 +75,8 @@ class HiveTables(BaseMetastoreTables):
             metastore_uri = urlparse(self.conf[HiveTables.THRIFT_URIS])
             client = hmsclient.HMSClient(iprot=iprot, oprot=oprot, host=metastore_uri.hostname, port=metastore_uri.port)
         else:
-            assert iprot is not None, "Error when creating hmsclient, either pass in {} or {}".format(HiveTables.THRIFT_URIS, HiveTables.IPROT)
+            if iprot is None:
+                raise Exception("Error when creating hmsclient, either pass in {} or {}".format(HiveTables.THRIFT_URIS, HiveTables.IPROT))
             client = hmsclient.HMSClient(iprot=iprot, oprot=oprot, host=None, port=None)
         return client
 
