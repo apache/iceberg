@@ -1384,7 +1384,7 @@ components:
       description:
         Represents a successful call to create a namespace.
         Returns the namespace created, as well as any properties that were stored for the namespace,
-        including those the server might have added. Implemenations are not required to support namespace
+        including those the server might have added. Implementations are not required to support namespace
         properties.
       content:
         application/json:
@@ -1401,11 +1401,8 @@ components:
                   type: string
                 description:
                   Properties stored on the namespace, if supported by the server.
-                  If the server does not support namespace properties, it should return null for this field.
-                  If namespace properties are supported, but none are set, it should return an empty object.
                 example: { "owner": "Ralph", "created_at": "1452120468" }
                 default: { }
-                nullable: true
           example: {
             "namespace": ["accounting", "tax"],
             "properties": { "owner": "Ralph", "created_at": "1452120468" }
