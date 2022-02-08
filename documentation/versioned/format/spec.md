@@ -1,4 +1,0 @@
----
-title: "Spec"
-bookUrlFromBaseURL: /../../spec
----

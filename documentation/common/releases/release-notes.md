@@ -97,7 +97,6 @@ Apache Iceberg 0.13.0 was released on February 4th, 2022.
   * Table listing in Hive catalog can now skip non-Iceberg tables by disabling flag `list-all-tables` [[\#3908](https://github.com/apache/iceberg/pull/3908)]
   * Hive tables imported to Iceberg can now be read by `IcebergInputFormat` [[\#3312](https://github.com/apache/iceberg/pull/3312)]
 * **File Formats**
-  * Reading legacy Parquet file (e.g. produced by `ParquetHiveSerDe` or Spark `spark.sql.parquet.writeLegacyFormat=true`) is now fully supported  to facilitate Hive to Iceberg table migration [[\#3723](https://github.com/apache/iceberg/pull/3723)]
   * ORC now supports writing delete file [[\#3248](https://github.com/apache/iceberg/pull/3248)] [[\#3250](https://github.com/apache/iceberg/pull/3250)] [[\#3366](https://github.com/apache/iceberg/pull/3366)]
 
 **Important bug fixes:**

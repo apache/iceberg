@@ -1,4 +1,0 @@
----
-title: "Join"
-bookUrlFromBaseURL: /../../community
----

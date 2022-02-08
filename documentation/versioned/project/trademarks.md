@@ -1,4 +1,0 @@
----
-title: "Trademarks"
-bookUrlFromBaseURL: /../../trademarks
----

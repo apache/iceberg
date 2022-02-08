@@ -1,4 +1,0 @@
----
-title: "Blogs"
-bookUrlFromBaseURL: /../../blogs
----
