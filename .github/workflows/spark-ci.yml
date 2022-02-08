@@ -35,7 +35,7 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'documentation/**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -51,7 +51,7 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'documentation/**'
 
 jobs:
   spark2-tests:
