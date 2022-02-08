@@ -62,12 +62,6 @@ class IcebergType:
 class PrimitiveType(IcebergType):
     """Base class for all Iceberg Primitive Types"""
 
-    _instances = {}  # type: ignore
-
-    def __new__(cls):
-        cls._instances[cls] = cls._instances.get(cls) or object.__new__(cls)
-        return cls._instances[cls]
-
 
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
@@ -131,7 +125,9 @@ class DecimalType(PrimitiveType):
 class NestedField(IcebergType):
     """This represents a field of a struct, a map key, a map value, or a list element. This is where field IDs, names, docs, and nullability are tracked."""
 
-    _instances: Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"] = {}
+    _instances: Dict[
+        Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"
+    ] = {}
 
     def __new__(
         cls,
@@ -154,7 +150,12 @@ class NestedField(IcebergType):
         doc: Optional[str] = None,
     ):
         super().__init__(
-            (f"{field_id}: {name}: {'optional' if is_optional else 'required'} {field_type}" "" if doc is None else f" ({doc})"),
+            (
+                f"{field_id}: {name}: {'optional' if is_optional else 'required'} {field_type}"
+                ""
+                if doc is None
+                else f" ({doc})"
+            ),
             f"NestedField(is_optional={is_optional}, field_id={field_id}, "
             f"name={repr(name)}, field_type={repr(field_type)}, doc={repr(doc)})",
         )
@@ -207,8 +208,7 @@ class StructType(IcebergType):
 
     def __init__(self, *fields: NestedField):
         super().__init__(
-            f"struct<{', '.join(map(str, fields))}>",
-            f"StructType{repr(fields)}",
+            f"struct<{', '.join(map(str, fields))}>", f"StructType{repr(fields)}",
         )
         self._fields = fields
 
@@ -228,20 +228,14 @@ class ListType(IcebergType):
     _instances: Dict[Tuple[bool, int, IcebergType], "ListType"] = {}
 
     def __new__(
-        cls,
-        element_id: int,
-        element_type: IcebergType,
-        element_is_optional: bool,
+        cls, element_id: int, element_type: IcebergType, element_is_optional: bool,
     ):
         key = (element_is_optional, element_id, element_type)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
     def __init__(
-        self,
-        element_id: int,
-        element_type: IcebergType,
-        element_is_optional: bool,
+        self, element_id: int, element_type: IcebergType, element_is_optional: bool,
     ):
         super().__init__(
             f"list<{element_type}>",
@@ -294,7 +288,9 @@ class MapType(IcebergType):
             f"map<{key_type}, {value_type}>",
             f"MapType(key_id={key_id}, key_type={repr(key_type)}, value_id={value_id}, value_type={repr(value_type)}, value_is_optional={value_is_optional})",
         )
-        self._key_field = NestedField(name="key", field_id=key_id, field_type=key_type, is_optional=False)
+        self._key_field = NestedField(
+            name="key", field_id=key_id, field_type=key_type, is_optional=False
+        )
         self._value_field = NestedField(
             name="value",
             field_id=value_id,
