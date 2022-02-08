@@ -100,7 +100,7 @@ Avoid boolean arguments to methods that are not `private` to avoid confusing inv
 ```java
   // prefer exposing suppressFailure in method names
   public void sendMessageIgnoreFailure() {
-    doSomethingInternal(true);
+    sendMessageInternal(true);
   }
 
   public void sendMessage() {

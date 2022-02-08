@@ -22,10 +22,12 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.spark.SparkException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.BasePredicate
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate
 import org.apache.spark.sql.catalyst.util.truncatedString
@@ -45,6 +47,15 @@ case class MergeRowsExec(
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
     child: SparkPlan) extends UnaryExecNode {
+
+  override def requiredChildOrdering: Seq[Seq[SortOrder]] = {
+    if (performCardinalityCheck) {
+      // request a local sort by the row ID attrs to co-locate matches for the same target row
+      Seq(rowIdAttrs.map(attr => SortOrder(attr, Ascending)))
+    } else {
+      Seq(Nil)
+    }
+  }
 
   @transient override lazy val producedAttributes: AttributeSet = {
     AttributeSet(output.filterNot(attr => inputSet.contains(attr)))

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -62,7 +61,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private final List<String> metaColumns = Lists.newArrayList();
 
   private Schema schema = null;
-  private StructType requestedProjection;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
@@ -85,11 +83,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
       return filterExpressions.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
     }
     return Expressions.alwaysTrue();
-  }
-
-  public SparkScanBuilder withMetadataColumns(String... metadataColumns) {
-    Collections.addAll(metaColumns, metadataColumns);
-    return this;
   }
 
   public SparkScanBuilder caseSensitive(boolean isCaseSensitive) {
@@ -130,7 +123,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   @Override
   public void pruneColumns(StructType requestedSchema) {
-    this.requestedProjection = new StructType(Stream.of(requestedSchema.fields())
+    StructType requestedProjection = new StructType(Stream.of(requestedSchema.fields())
         .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
         .toArray(StructField[]::new));
 

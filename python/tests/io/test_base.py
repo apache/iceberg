@@ -31,14 +31,10 @@ class LocalInputFile(InputFile):
     def __init__(self, location: str):
 
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if (
-            parsed_location.scheme != "file"
-        ):  # Validate that a uri is provided with a scheme of `file`
+        if parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalInputFile location must have a scheme of `file`")
         elif parsed_location.netloc:
-            raise ValueError(
-                f"Network location is not allowed for LocalInputFile: {parsed_location.netloc}"
-            )
+            raise ValueError(f"Network location is not allowed for LocalInputFile: {parsed_location.netloc}")
 
         super().__init__(location=location)
         self._parsed_location = parsed_location
@@ -63,14 +59,10 @@ class LocalOutputFile(OutputFile):
     def __init__(self, location: str):
 
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if (
-            parsed_location.scheme != "file"
-        ):  # Validate that a uri is provided with a scheme of `file`
+        if parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
         elif parsed_location.netloc:
-            raise ValueError(
-                f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}"
-            )
+            raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
 
         super().__init__(location=location)
         self._parsed_location = parsed_location
@@ -102,11 +94,7 @@ class LocalFileIO(FileIO):
         return LocalOutputFile(location=location)
 
     def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
-        parsed_location = (
-            location.parsed_location
-            if isinstance(location, (InputFile, OutputFile))
-            else urlparse(location)
-        )
+        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
         os.remove(parsed_location.path)
 
 
@@ -262,9 +250,7 @@ def test_deleting_local_file_using_file_io(CustomFileIO):
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize(
-    "CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile)]
-)
+@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile)])
 def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -289,9 +275,7 @@ def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFi
         assert not os.path.exists(file_location)
 
 
-@pytest.mark.parametrize(
-    "CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile)]
-)
+@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile)])
 def test_deleting_local_file_using_file_io_OutputFile(CustomFileIO, CustomOutputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:

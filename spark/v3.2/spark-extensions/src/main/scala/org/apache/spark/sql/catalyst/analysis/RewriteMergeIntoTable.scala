@@ -45,6 +45,7 @@ import org.apache.spark.sql.catalyst.plans.logical.MergeAction
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.MergeRows
 import org.apache.spark.sql.catalyst.plans.logical.NO_BROADCAST_HASH
+import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
@@ -156,17 +157,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
   private def buildReplaceDataPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
+      operationTable: RowLevelOperationTable,
       source: LogicalPlan,
       cond: Expression,
       matchedActions: Seq[MergeAction],
       notMatchedActions: Seq[MergeAction]): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a scan relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, table, metadataAttrs)
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
     // project an extra column to check if a target row exists after the join
@@ -186,7 +187,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     // disable broadcasts for the target table to perform the cardinality check
     val joinType = if (notMatchedActions.isEmpty) LeftOuter else FullOuter
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
-    val joinPlan = Join(targetTableProj, sourceTableProj, joinType, Some(cond), joinHint)
+    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
 
     // add an extra matched action to output the original row if none of the actual actions matched
     // this is needed to keep target rows that should be copied over
@@ -221,7 +222,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
       joinPlan)
 
     // build a plan to replace read groups in the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     ReplaceData(writeRelation, mergeRows, relation)
   }
 
