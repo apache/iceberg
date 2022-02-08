@@ -20,6 +20,8 @@
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -45,37 +47,37 @@ public class ZOrderByteUtils {
    * To fix this, flip the sign bit so that all negatives are ordered before positives. This essentially
    * shifts the 0 value so that we don't break our ordering when we cross the new 0 value.
    */
-  public static byte[] intToOrderedBytes(int val, ByteBuffer reuse) {
+  public static ByteBuffer intToOrderedBytes(int val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, Integer.BYTES);
     bytes.putInt(val ^ 0x80000000);
-    return bytes.array();
+    return bytes;
   }
 
   /**
    * Signed longs are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
-  public static byte[] longToOrderedBytes(long val, ByteBuffer reuse) {
+  public static ByteBuffer longToOrderedBytes(long val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, Long.BYTES);
     bytes.putLong(val ^ 0x8000000000000000L);
-    return bytes.array();
+    return bytes;
   }
 
   /**
    * Signed shorts are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
-  public static byte[] shortToOrderedBytes(short val, ByteBuffer reuse) {
+  public static ByteBuffer shortToOrderedBytes(short val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, Short.BYTES);
     bytes.putShort((short) (val ^ (0x8000)));
-    return bytes.array();
+    return bytes;
   }
 
   /**
    * Signed tiny ints are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
-  public static byte[] tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
+  public static ByteBuffer tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, Byte.BYTES);
     bytes.put((byte) (val ^ (0x80)));
-    return bytes.array();
+    return bytes;
   }
 
   /**
@@ -86,23 +88,23 @@ public class ZOrderByteUtils {
    * Which means floats can be treated as sign magnitude integers which can then be converted into lexicographically
    * comparable bytes
    */
-  public static byte[] floatToOrderedBytes(float val, ByteBuffer reuse) {
+  public static ByteBuffer floatToOrderedBytes(float val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, Float.BYTES);
     int ival = Float.floatToIntBits(val);
     ival ^= ((ival >> (Integer.SIZE - 1)) | Integer.MIN_VALUE);
     bytes.putInt(ival);
-    return bytes.array();
+    return bytes;
   }
 
   /**
    * Doubles are treated the same as floats in {@link #floatToOrderedBytes(float, ByteBuffer)}
    */
-  public static byte[] doubleToOrderedBytes(double val, ByteBuffer reuse) {
+  public static ByteBuffer doubleToOrderedBytes(double val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, Double.BYTES);
     long lng = Double.doubleToLongBits(val);
     lng ^= ((lng >> (Long.SIZE - 1)) | Long.MIN_VALUE);
     bytes.putLong(lng);
-    return bytes.array();
+    return bytes;
   }
 
   /**
@@ -111,15 +113,15 @@ public class ZOrderByteUtils {
    * This implementation just uses a set size to for all output byte representations. Truncating longer strings
    * and right padding 0 for shorter strings.
    */
-  public static byte[] stringToOrderedBytes(String val, int length, ByteBuffer reuse) {
+  public static ByteBuffer stringToOrderedBytes(String val, int length, ByteBuffer reuse, CharsetEncoder encoder) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
     Arrays.fill(bytes.array(), 0, length, (byte) 0x00);
     if (val != null) {
       int maxLength = Math.min(length, val.length());
       // We may truncate mid-character
-      bytes.put(val.getBytes(StandardCharsets.UTF_8), 0, maxLength);
+      encoder.encode(CharBuffer.wrap(val), bytes, true);
     }
-    return bytes.array();
+    return bytes;
   }
 
   /**
