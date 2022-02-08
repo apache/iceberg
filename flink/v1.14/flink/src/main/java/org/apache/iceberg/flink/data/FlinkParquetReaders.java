@@ -22,10 +22,12 @@ package org.apache.iceberg.flink.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericRowData;
@@ -63,9 +65,10 @@ public class FlinkParquetReaders {
   }
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<RowData> buildReader(Schema expectedSchema,
-                                                        MessageType fileSchema,
-                                                        Map<Integer, ?> idToConstant) {
+  public static ParquetValueReader<RowData> buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant) {
     return (ParquetValueReader<RowData>) TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
         new ReadBuilder(fileSchema, idToConstant)
     );
@@ -81,14 +84,16 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<RowData> message(Types.StructType expected, MessageType message,
-                                               List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<RowData> message(
+        Types.StructType expected, MessageType message,
+        List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<RowData> struct(Types.StructType expected, GroupType struct,
-                                              List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<RowData> struct(
+        Types.StructType expected, GroupType struct,
+        List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
@@ -138,8 +143,9 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
-                                      ParquetValueReader<?> elementReader) {
+    public ParquetValueReader<?> list(
+        Types.ListType expectedList, GroupType array,
+        ParquetValueReader<?> elementReader) {
       if (expectedList == null) {
         return null;
       }
@@ -156,9 +162,10 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
-                                     ParquetValueReader<?> keyReader,
-                                     ParquetValueReader<?> valueReader) {
+    public ParquetValueReader<?> map(
+        Types.MapType expectedMap, GroupType map,
+        ParquetValueReader<?> keyReader,
+        ParquetValueReader<?> valueReader) {
       if (expectedMap == null) {
         return null;
       }
@@ -181,8 +188,9 @@ public class FlinkParquetReaders {
 
     @Override
     @SuppressWarnings("CyclomaticComplexity")
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
-                                           PrimitiveType primitive) {
+    public ParquetValueReader<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType expected,
+        PrimitiveType primitive) {
       if (expected == null) {
         return null;
       }
@@ -264,6 +272,10 @@ public class FlinkParquetReaders {
         case INT64:
         case DOUBLE:
           return new ParquetValueReaders.UnboxedReader<>(desc);
+        case INT96:
+          // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
+          // compatibility we try to read INT96 as timestamps.
+          return new TimestampInt96Reader(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -321,6 +333,29 @@ public class FlinkParquetReaders {
     }
   }
 
+  private static class TimestampInt96Reader extends ParquetValueReaders.UnboxedReader<Long> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
+          TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+    }
+  }
+
   private static class MicrosToTimestampTzReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
     MicrosToTimestampTzReader(ColumnDescriptor desc) {
       super(desc);
@@ -329,8 +364,9 @@ public class FlinkParquetReaders {
     @Override
     public TimestampData read(TimestampData ignored) {
       long value = readLong();
-      return TimestampData.fromLocalDateTime(Instant.ofEpochSecond(Math.floorDiv(value, 1000_000),
-          Math.floorMod(value, 1000_000) * 1000)
+      return TimestampData.fromLocalDateTime(Instant.ofEpochSecond(
+              Math.floorDiv(value, 1000_000),
+              Math.floorMod(value, 1000_000) * 1000)
           .atOffset(ZoneOffset.UTC)
           .toLocalDateTime());
     }
@@ -349,7 +385,8 @@ public class FlinkParquetReaders {
     @Override
     public TimestampData read(TimestampData ignored) {
       long value = readLong();
-      return TimestampData.fromInstant(Instant.ofEpochSecond(Math.floorDiv(value, 1000_000),
+      return TimestampData.fromInstant(Instant.ofEpochSecond(
+          Math.floorDiv(value, 1000_000),
           Math.floorMod(value, 1000_000) * 1000));
     }
 
@@ -495,8 +532,9 @@ public class FlinkParquetReaders {
     private final ParquetValueReaders.ReusableEntry<K, V> entry = new ParquetValueReaders.ReusableEntry<>();
     private final ParquetValueReaders.ReusableEntry<K, V> nullEntry = new ParquetValueReaders.ReusableEntry<>();
 
-    MapReader(int definitionLevel, int repetitionLevel,
-              ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
+    MapReader(
+        int definitionLevel, int repetitionLevel,
+        ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
       super(definitionLevel, repetitionLevel, keyReader, valueReader);
     }
 
