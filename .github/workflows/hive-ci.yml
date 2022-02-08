@@ -33,7 +33,7 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'documentation/**'
+    - 'docs/**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -47,7 +47,7 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'documentation/**'
+    - 'docs/**'
 
 jobs:
   hive2-tests:

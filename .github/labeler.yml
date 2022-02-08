@@ -32,7 +32,7 @@ BUILD:
   - "**/*gradle*"
   - versions.props
 DOCS:
-  - documentation/**/*
+  - docs/**/*
   - "**/*CHANGELOG.md"
   - "**/*README.md"
 EXAMPLES:
