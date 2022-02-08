@@ -47,7 +47,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
 

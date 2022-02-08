@@ -800,7 +800,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     CatalogTable table = loadSessionTable(tableName);
     Seq<String> partitionColumns = table.partitionColumnNames();
     String format = table.provider().get();
-    spark.table(baseTableName).write().mode(SaveMode.Append).format(format).partitionBy(partitionColumns)
+    spark.table(baseTableName).write().mode(SaveMode.Append).format(format).partitionBy(partitionColumns.toSeq())
         .saveAsTable(tableName);
   }
 
