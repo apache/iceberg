@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -108,7 +109,7 @@ public class ZOrderByteUtils {
    * Strings are lexicographically sortable BUT if different byte array lengths will
    * ruin the Z-Ordering. (ZOrder requires that a given column contribute the same number of bytes every time).
    * This implementation just uses a set size to for all output byte representations. Truncating longer strings
-   * and right padding 0 for shorter strings. Requires UTF8 (or ASCII) encoding for ordering guarantees to hold.
+   * and right padding 0 for shorter strings.
    */
   public static byte[] stringToOrderedBytes(String val, int length, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
@@ -116,7 +117,7 @@ public class ZOrderByteUtils {
     if (val != null) {
       int maxLength = Math.min(length, val.length());
       // We may truncate mid-character
-      bytes.put(val.getBytes(), 0, maxLength);
+      bytes.put(val.getBytes(StandardCharsets.UTF_8), 0, maxLength);
     }
     return bytes.array();
   }
@@ -126,7 +127,7 @@ public class ZOrderByteUtils {
    */
   static byte[] interleaveBits(byte[][] columnsBinary) {
     return interleaveBits(columnsBinary,
-        Arrays.stream(columnsBinary).mapToInt(column -> column.length).max().getAsInt());
+        Arrays.stream(columnsBinary).mapToInt(column -> column.length).sum());
   }
 
   /**
