@@ -21,9 +21,11 @@ package org.apache.iceberg.aws.sns;
 
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.util.EventParser;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.NotFoundException;
 import software.amazon.awssdk.services.sns.model.PublishRequest;
 import software.amazon.awssdk.services.sns.model.SnsException;
 
@@ -31,12 +33,15 @@ public class SNSListener<T> implements Listener<T> {
   private static final Logger LOG = LoggerFactory.getLogger(SNSListener.class);
 
   private final String topicArn;
-  // private AwsClientFactory awsClientFactory; // to be used later
   private final SnsClient sns;
+  private final int retry;
+  private final long retryIntervalMs;
 
-  public SNSListener(String topicArn, SnsClient sns) {
+  public SNSListener(String topicArn, SnsClient sns, int retry, long retryIntervalMs) {
     this.sns = sns;
     this.topicArn = topicArn;
+    this.retry = retry;
+    this.retryIntervalMs = retryIntervalMs;
   }
 
   @Override
@@ -47,7 +52,11 @@ public class SNSListener<T> implements Listener<T> {
               .message(msg)
               .topicArn(topicArn)
               .build();
-      sns.publish(request);
+      Tasks.foreach(request)
+          .exponentialBackoff(retryIntervalMs, retryIntervalMs, retryIntervalMs, 1 /* scale factor */)
+          .retry(retry)
+          .onlyRetryOn(NotFoundException.class)
+          .run(sns::publish);
     } catch (SnsException e) {
       LOG.error("Failed to send notification event to SNS topic", e);
     } catch (RuntimeException e) {

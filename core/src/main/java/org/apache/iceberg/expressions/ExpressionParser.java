@@ -39,7 +39,6 @@ public class ExpressionParser {
   private static final String LEFT_OPERAND = "left-operand";
   private static final String RIGHT_OPERAND = "right-operand";
   private static final String OPERAND = "operand";
-
   private static final String AND = "and";
   private static final String OR = "or";
   private static final String NOT = "not";
@@ -49,10 +48,8 @@ public class ExpressionParser {
   private static final String BOUNDED_LITERAL_PREDICATE = "bounded-literal-predicate";
   private static final String BOUNDED_SET_PREDICATE = "bounded-set-predicate";
   private static final String BOUNDED_UNARY_PREDICATE = "bounded-unary-predicate";
-
   private static final String NAMED_REFERENCE = "named-reference";
   private static final String BOUND_REFERENCE = "bound-reference";
-
   private static final String ABOVE_MAX = "above-max";
   private static final String BELOW_MIN = "below-min";
 
@@ -78,7 +75,7 @@ public class ExpressionParser {
       return writer.toString();
 
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to write json"), e);
+      throw new UncheckedIOException("Failed to write json", e);
     }
   }
 
