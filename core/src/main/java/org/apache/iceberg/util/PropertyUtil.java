@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.util;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PropertyUtil {
 
@@ -69,5 +71,17 @@ public class PropertyUtil {
       return value;
     }
     return defaultValue;
+  }
+
+  public static Map<String, String> propertiesWithPrefix(Map<String, String> properties,
+                                                         String prefix) {
+    if (properties == null || properties.isEmpty()) {
+      return Collections.emptyMap();
+    }
+
+    return properties.entrySet().stream()
+        .filter(e -> e.getKey().startsWith(prefix))
+        .collect(Collectors.toMap(
+            e -> e.getKey().replace(prefix, ""), Map.Entry::getValue));
   }
 }

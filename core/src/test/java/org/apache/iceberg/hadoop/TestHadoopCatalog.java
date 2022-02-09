@@ -588,7 +588,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testEnforcedCatalogPropsOverrideTableDefaults() throws IOException {
+  public void testCatalogOverridePropsOverrideTableDefaults() throws IOException {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Map<String, String> catalogProps = ImmutableMap.of("table-override.key3", "value3");
 

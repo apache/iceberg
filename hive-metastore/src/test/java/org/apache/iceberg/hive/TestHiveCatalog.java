@@ -524,7 +524,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testEnforcedCatalogPropsOverrideTableDefaults() {
+  public void testCatalogOverridePropsOverrideTableDefaults() {
     Schema schema = new Schema(
         required(1, "id", Types.IntegerType.get(), "unique ID")
     );
