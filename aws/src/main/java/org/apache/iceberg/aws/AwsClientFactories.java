@@ -36,6 +36,7 @@ import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sqs.SqsClient;
 
 public class AwsClientFactories {
 
@@ -112,6 +113,11 @@ public class AwsClientFactories {
     @Override
     public SnsClient sns() {
       return SnsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+    }
+
+    @Override
+    public SqsClient sqs() {
+      return SqsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
     }
 
     @Override

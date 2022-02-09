@@ -17,41 +17,41 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws.sns;
+package org.apache.iceberg.aws.sqs;
 
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.util.EventParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.sns.SnsClient;
-import software.amazon.awssdk.services.sns.model.PublishRequest;
-import software.amazon.awssdk.services.sns.model.SnsException;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
+import software.amazon.awssdk.services.sqs.model.SqsException;
 
-public class SNSListener<T> implements Listener<T> {
-  private static final Logger LOG = LoggerFactory.getLogger(SNSListener.class);
+public class SQSListener<T> implements Listener<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(SQSListener.class);
 
-  private final String topicArn;
+  private final String queueURL;
   // private AwsClientFactory awsClientFactory; // to be used later
-  private final SnsClient sns;
+  private final SqsClient sqs;
 
-  public SNSListener(String topicArn, SnsClient sns) {
-    this.sns = sns;
-    this.topicArn = topicArn;
+  public SQSListener(String queueURL, SqsClient sqs) {
+    this.sqs = sqs;
+    this.queueURL = queueURL;
   }
 
   @Override
   public void notify(Object event) {
     try {
       String msg = EventParser.toJson(event);
-      PublishRequest request = PublishRequest.builder()
-              .message(msg)
-              .topicArn(topicArn)
+      SendMessageRequest request = SendMessageRequest.builder()
+              .queueUrl(queueURL)
+              .messageBody(msg)
               .build();
-      sns.publish(request);
-    } catch (SnsException e) {
-      LOG.error("Failed to send notification event to SNS topic", e);
+      sqs.sendMessage(request);
+    } catch (SqsException e) {
+      LOG.error("Failed to send notification event to SQS", e);
     } catch (RuntimeException e) {
-      LOG.error("Failed to notify subscriber", e);
+      LOG.error("Failed to add to queue", e);
     }
   }
 }
