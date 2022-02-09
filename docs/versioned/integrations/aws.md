@@ -44,12 +44,12 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.0 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
 
 ```sh
 # add Iceberg dependency
 ICEBERG_VERSION={{% icebergVersion %}}
-DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:$ICEBERG_VERSION"
+DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:$ICEBERG_VERSION"
 
 # add AWS dependnecy
 AWS_SDK_VERSION=2.15.40
@@ -436,7 +436,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.15.40 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.15.40 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -480,7 +480,7 @@ AWS_PACKAGES=(
 )
 
 ICEBERG_PACKAGES=(
-  "iceberg-spark-runtime-3.2_2.12"
+  "iceberg-spark3-runtime"
   "iceberg-flink-runtime"
 )
 
