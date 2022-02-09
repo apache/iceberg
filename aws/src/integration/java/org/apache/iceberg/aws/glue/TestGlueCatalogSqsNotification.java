@@ -22,14 +22,19 @@ package org.apache.iceberg.aws.glue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.sqs.SQSListener;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expression;
@@ -37,24 +42,52 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.JsonUtil;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
 import software.amazon.awssdk.services.sqs.model.DeleteQueueRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 
-public class TestGlueCatalogNotification extends GlueTestBase {
+public class TestGlueCatalogSqsNotification extends GlueTestBase {
+
+  private static final SqsClient sqs = clientFactory.sqs();
+  private static final DataFile testDataFile = DataFiles.builder(partitionSpec)
+      .withPath("/path/to/data-a.parquet")
+      .withFileSizeInBytes(10)
+      .withRecordCount(1)
+      .build();
+  private static final int RETRY = 3;
+  private static final long RETRY_INTERVAL_MS = 1000;
+
+  private String queueUrl;
+
+  @Before
+  public void before() {
+    String queueName = getRandomName();
+    sqs.createQueue(CreateQueueRequest.builder()
+        .queueName(queueName)
+        .build());
+    this.queueUrl = sqs.getQueueUrl(GetQueueUrlRequest.builder()
+        .queueName(queueName)
+        .build())
+        .queueUrl();
+  }
+
+  @After
+  public void after() {
+    DeleteQueueRequest deleteRequest = DeleteQueueRequest.builder().queueUrl(queueUrl).build();
+    sqs.deleteQueue(deleteRequest);
+  }
+
   @Test
   public void testNotifyOnCreateSnapshotEvent() throws IOException {
-    String queueUrl = createSqsQueue("CreateSnapshotEvent");
-
-    List<Message> messages = getMessages(queueUrl);
-    messages = getMessages(queueUrl);
-    Assert.assertEquals(0, messages.size());
-
-    Listeners.register(new SQSListener(queueUrl, sqs), CreateSnapshotEvent.class);
+    Listeners.register(listener(), CreateSnapshotEvent.class);
 
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -63,7 +96,7 @@ public class TestGlueCatalogNotification extends GlueTestBase {
 
     table.newAppend().appendFile(testDataFile).commit();
 
-    messages = getMessages(queueUrl);
+    List<Message> messages = receiveAllMessages(queueUrl);
     Assert.assertEquals(1, messages.size());
 
     ObjectMapper objectMapper = new ObjectMapper();
@@ -79,19 +112,11 @@ public class TestGlueCatalogNotification extends GlueTestBase {
             "\"total-equality-deletes\":\"0\"}}";
 
     Assert.assertEquals(expectedMessage, bodyNode.toString());
-
-    destroySqsQueue(queueUrl);
   }
 
   @Test
   public void testNotifyOnScanEvent() throws IOException {
-    String queueUrl = createSqsQueue("ScanEvent");
-
-    List<Message> messages = getMessages(queueUrl);
-    messages = getMessages(queueUrl);
-    Assert.assertEquals(0, messages.size());
-
-    Listeners.register(new SQSListener(queueUrl, sqs), ScanEvent.class);
+    Listeners.register(listener(), ScanEvent.class);
 
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -104,7 +129,7 @@ public class TestGlueCatalogNotification extends GlueTestBase {
     Expression andExpression = Expressions.and(Expressions.equal("c1", "First"), Expressions.equal("c1", "Second"));
     table.newScan().filter(andExpression).planFiles();
 
-    messages = getMessages(queueUrl);
+    List<Message> messages = receiveAllMessages(queueUrl);
     Assert.assertEquals(1, messages.size());
 
     ObjectMapper objectMapper = new ObjectMapper();
@@ -123,19 +148,11 @@ public class TestGlueCatalogNotification extends GlueTestBase {
             "\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}";
 
     Assert.assertEquals(expectedMessage, bodyNode.toString());
-
-    destroySqsQueue(queueUrl);
   }
 
   @Test
   public void testNotifyOnIncrementalScan() throws IOException {
-    String queueUrl = createSqsQueue("IncrementalScan");
-
-    List<Message> messages = getMessages(queueUrl);
-    messages = getMessages(queueUrl);
-    Assert.assertEquals(0, messages.size());
-
-    Listeners.register(new SQSListener(queueUrl, sqs), IncrementalScanEvent.class);
+    Listeners.register(listener(), IncrementalScanEvent.class);
 
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -152,7 +169,7 @@ public class TestGlueCatalogNotification extends GlueTestBase {
             Iterables.get(snapshots, 1).snapshotId())
             .planFiles();
 
-    messages = getMessages(queueUrl);
+    List<Message> messages = receiveAllMessages(queueUrl);
     Assert.assertEquals(1, messages.size());
 
     ObjectMapper objectMapper = new ObjectMapper();
@@ -167,25 +184,13 @@ public class TestGlueCatalogNotification extends GlueTestBase {
             "\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}";
 
     Assert.assertEquals(expectedMessage, bodyNode.toString());
-
-    destroySqsQueue(queueUrl);
   }
 
   @Test
-  public void testNotifyOnAllEvents() throws IOException {
-    String queueUrl = createSqsQueue("AllEvents");
-
-    List<Message> messages = getMessages(queueUrl);
-
-    messages = getMessages(queueUrl);
-    Assert.assertEquals(0, messages.size());
-
-    SQSListener createSnapshotListener = new SQSListener(queueUrl, sqs);
-    SQSListener scanListener = new SQSListener(queueUrl, sqs);
-    SQSListener incrementalScanListener = new SQSListener(queueUrl, sqs);
-    Listeners.register(createSnapshotListener, CreateSnapshotEvent.class);
-    Listeners.register(scanListener, ScanEvent.class);
-    Listeners.register(incrementalScanListener, IncrementalScanEvent.class);
+  public void testNotifyOnAllEvents() {
+    Listeners.register(listener(), CreateSnapshotEvent.class);
+    Listeners.register(listener(), ScanEvent.class);
+    Listeners.register(listener(), IncrementalScanEvent.class);
 
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -204,53 +209,49 @@ public class TestGlueCatalogNotification extends GlueTestBase {
             Iterables.get(snapshots, 1).snapshotId())
             .planFiles();
 
-    messages = getMessages(queueUrl);
+    List<Message> messages = receiveAllMessages(queueUrl);
     Assert.assertEquals(4, messages.size());
 
-    ObjectMapper objectMapper = new ObjectMapper();
-    List<String> actualBodyNodesMessages = Lists.newArrayList();
+    Set<String> actualBodyNodesMessages = messages.stream()
+        .map(m -> {
+          try {
+            return JsonUtil.mapper().readTree(m.body()).toString();
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        })
+        .collect(Collectors.toSet());
 
-    for (int i = 0; i < 4; i++) {
-      actualBodyNodesMessages.add(objectMapper.readTree(messages.get(i).body()).toString());
-
-    }
-
-    Set<String> expectedBodyNodesMessages = Sets.newHashSet();
-    expectedBodyNodesMessages.add("{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
+    Set<String> expectedBodyNodesMessages = Sets.newHashSet(
+        "{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
             "\"snapshot-id\":" + Iterables.get(snapshots, 0).snapshotId() + "," +
             "\"expression\":{\"type\":\"true\"},\"projection\":{\"type\":\"struct\"," +
             "\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\"," +
-            "\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}");
-    expectedBodyNodesMessages.add("{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
+            "\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}",
+        "{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
             "\"operation\":\"append\",\"snapshot-id\":" + Iterables.get(snapshots, 1).snapshotId() + "," +
             "\"sequence-number\":0,\"summary\":{\"added-data-files\":\"1\",\"added-records\":\"1\"," +
             "\"added-files-size\":\"10\",\"changed-partition-count\":\"1\",\"total-records\":\"2\"," +
             "\"total-files-size\":\"20\",\"total-data-files\":\"2\",\"total-delete-files\":\"0\"," +
-            "\"total-position-deletes\":\"0\",\"total-equality-deletes\":\"0\"}}");
-    expectedBodyNodesMessages.add("{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
+            "\"total-position-deletes\":\"0\",\"total-equality-deletes\":\"0\"}}",
+        "{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
             "\"from-snapshot-id\":" + Iterables.get(snapshots, 0).snapshotId() + "," +
             "\"to-snapshot-id\":" + Iterables.get(snapshots, 1).snapshotId() + "," +
             "\"expression\":{\"type\":\"true\"},\"projection\":{\"type\":\"struct\"," +
             "\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\"," +
-            "\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}");
-    expectedBodyNodesMessages.add("{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
+            "\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}",
+        "{\"table-name\":\"" + "glue." + namespace + "." + tableName + "\"," +
             "\"operation\":\"append\",\"snapshot-id\":" + Iterables.get(snapshots, 0).snapshotId() + "," +
             "\"sequence-number\":0,\"summary\":{\"added-data-files\":\"1\",\"added-records\":\"1\"," +
             "\"added-files-size\":\"10\",\"changed-partition-count\":\"1\",\"total-records\":\"1\"," +
             "\"total-files-size\":\"10\",\"total-data-files\":\"1\",\"total-delete-files\":\"0\"," +
-            "\"total-position-deletes\":\"0\",\"total-equality-deletes\":\"0\"}}");
+            "\"total-position-deletes\":\"0\",\"total-equality-deletes\":\"0\"}}"
+    );
 
-    Assert.assertEquals(4, expectedBodyNodesMessages.size());
-    for (String message : actualBodyNodesMessages) {
-      expectedBodyNodesMessages.remove(message);
-    }
-
-    Assert.assertEquals(0, expectedBodyNodesMessages.size());
-
-    destroySqsQueue(queueUrl);
+    Assert.assertEquals(expectedBodyNodesMessages, actualBodyNodesMessages);
   }
 
-  public static List<Message> getMessages(String sqsUrl) {
+  public static List<Message> receiveAllMessages(String sqsUrl) {
     ReceiveMessageRequest receiveMessageRequest = ReceiveMessageRequest.builder()
             .queueUrl(sqsUrl)
             .visibilityTimeout(100)
@@ -269,16 +270,7 @@ public class TestGlueCatalogNotification extends GlueTestBase {
     return messages;
   }
 
-  public static String createSqsQueue(String queueName) {
-    CreateQueueRequest createRequest = CreateQueueRequest.builder().queueName(queueName).build();
-    sqs.createQueue(createRequest);
-    GetQueueUrlRequest urlRequest = GetQueueUrlRequest.builder().queueName(queueName).build();
-    return sqs.getQueueUrl(urlRequest).queueUrl();
+  private <T> Listener<T> listener() {
+    return new SQSListener<>(queueUrl, sqs, RETRY, RETRY_INTERVAL_MS);
   }
-
-  public static void destroySqsQueue(String queueUrl) {
-    DeleteQueueRequest deleteRequest = DeleteQueueRequest.builder().queueUrl(queueUrl).build();
-    sqs.deleteQueue(deleteRequest);
-  }
-
 }

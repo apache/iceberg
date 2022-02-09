@@ -22,8 +22,6 @@ package org.apache.iceberg.aws.glue;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -44,8 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.sns.SnsClient;
-import software.amazon.awssdk.services.sqs.SqsClient;
 
 @SuppressWarnings({"VisibilityModifier", "HideUtilityClassConstructor"})
 public class GlueTestBase {
@@ -63,8 +59,6 @@ public class GlueTestBase {
   static final AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
   static final GlueClient glue = clientFactory.glue();
   static final S3Client s3 = clientFactory.s3();
-  static final SnsClient sns = clientFactory.sns();
-  static final SqsClient sqs = clientFactory.sqs();
 
   // iceberg
   static GlueCatalog glueCatalog;
@@ -79,13 +73,7 @@ public class GlueTestBase {
       TableProperties.WRITE_METADATA_LOCATION, "s3://" + testBucketName + "/writeMetaDataLoc",
       TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "s3://" + testBucketName + "/writeFolderStorageLoc");
 
-  static final DataFile testDataFile = DataFiles.builder(partitionSpec)
-          .withPath("/path/to/data-a.parquet")
-          .withFileSizeInBytes(10)
-          .withRecordCount(1)
-          .build();
-
-  @BeforeClass
+@BeforeClass
   public static void beforeClass() {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);

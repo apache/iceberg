@@ -21,22 +21,27 @@ package org.apache.iceberg.aws.sqs;
 
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.util.EventParser;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.QueueDoesNotExistException;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SqsException;
 
 public class SQSListener<T> implements Listener<T> {
   private static final Logger LOG = LoggerFactory.getLogger(SQSListener.class);
 
-  private final String queueURL;
-  // private AwsClientFactory awsClientFactory; // to be used later
+  private final String queueUrl;
   private final SqsClient sqs;
+  private final int retry;
+  private final long retryIntervalMs;
 
-  public SQSListener(String queueURL, SqsClient sqs) {
+  public SQSListener(String queueUrl, SqsClient sqs, int retry, long retryIntervalMs) {
     this.sqs = sqs;
-    this.queueURL = queueURL;
+    this.queueUrl = queueUrl;
+    this.retry = retry;
+    this.retryIntervalMs = retryIntervalMs;
   }
 
   @Override
@@ -44,10 +49,14 @@ public class SQSListener<T> implements Listener<T> {
     try {
       String msg = EventParser.toJson(event);
       SendMessageRequest request = SendMessageRequest.builder()
-              .queueUrl(queueURL)
+              .queueUrl(queueUrl)
               .messageBody(msg)
               .build();
-      sqs.sendMessage(request);
+      Tasks.foreach(request)
+          .exponentialBackoff(retryIntervalMs, retryIntervalMs, retryIntervalMs, 1 /* scale factor */)
+          .retry(retry)
+          .onlyRetryOn(QueueDoesNotExistException.class)
+          .run(sqs::sendMessage);
     } catch (SqsException e) {
       LOG.error("Failed to send notification event to SQS", e);
     } catch (RuntimeException e) {
