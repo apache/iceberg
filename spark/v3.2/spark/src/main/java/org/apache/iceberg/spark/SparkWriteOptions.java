@@ -75,4 +75,7 @@ public class SparkWriteOptions {
 
   // Identifies snapshot from which to start validating conflicting changes
   public static final String VALIDATE_FROM_SNAPSHOT_ID = "validate-from-snapshot";
+
+  public static final String DYNAMIC_OVERWRITE_ISOLATION_LEVEL = "write.dynamic.overwrite.isolation-level";
+  public static final String DYNAMIC_OVERWRITE_LEVEL_DEFAULT = "snapshot";
 }

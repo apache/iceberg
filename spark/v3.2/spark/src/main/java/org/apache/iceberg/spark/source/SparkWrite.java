@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -94,8 +93,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.DYNAMIC_OVERWRITE_ISOLATION_LEVEL;
-import static org.apache.iceberg.TableProperties.DYNAMIC_OVERWRITE_LEVEL_DEFAULT;
 
 abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
@@ -115,6 +112,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
   private final long validateFromSnapshotId;
+  private final IsolationLevel dynamicOverwriteIsolationLevel;
 
   SparkWrite(SparkSession spark, Table table, SparkWriteConf writeConf,
              LogicalWriteInfo writeInfo, String applicationId,
@@ -133,6 +131,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.validateFromSnapshotId = writeConf.validateFromSnapshotId();
+    this.dynamicOverwriteIsolationLevel = writeConf.dynamicOverwriteIsolationLevel();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
   }
@@ -278,10 +277,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
 
-      String isolationLevelAsString = table.properties().getOrDefault(DYNAMIC_OVERWRITE_ISOLATION_LEVEL,
-          DYNAMIC_OVERWRITE_LEVEL_DEFAULT);
-      IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
-      if (level == SERIALIZABLE) {
+      if (dynamicOverwriteIsolationLevel == SERIALIZABLE) {
         dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
         dynamicOverwrite.validateNoConflictingDeletes();
         dynamicOverwrite.validateNoConflictingData();

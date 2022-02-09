@@ -30,7 +30,7 @@ package org.apache.iceberg;
  * Alternatively, this API can be configured to validate that no new data or deletes
  * have been applied since a snapshot ID associated when this operation began.
  * This can be done by calling {@link #validateNoConflictingDeletes()}
- * and {@link #validateNoConflictingData()}, and will ensure that no conflicting delta files or data files
+ * and {@link #validateNoConflictingData()}, and will ensure that no conflicting delete files or data files
  * respectively have been written since the snapshot passed to {@link #validateFromSnapshot(long)}.
  * <p>
  * This API accumulates file additions and produces a new {@link Snapshot} of the table by replacing
@@ -70,7 +70,6 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
    * @return this for method chaining
    */
   ReplacePartitions validateFromSnapshot(long snapshotId);
-
 
   /**
    * Enables validation that deletes that happened concurrently do not conflict with this commit's operation.

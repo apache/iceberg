@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -269,29 +270,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param partitionSet a set of partitions to check against
+   * @param partitionSet a set of partitions to filter new conflicting data files
    */
   protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
-    // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null) {
-      return;
-    }
+    CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
+        addedDataFiles(base, startingSnapshotId, null, partitionSet);
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
-    List<ManifestFile> manifests = history.first();
-    Set<Long> newSnapshots = history.second();
-
-    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
-        .filterManifestEntries(entry ->
-            newSnapshots.contains(entry.snapshotId()) &&
-                partitionSet.contains(entry.file().specId(), entry.file().partition()))
-        .caseSensitive(caseSensitive)
-        .specsById(base.specsById())
-        .ignoreDeleted()
-        .ignoreExisting();
-
-    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
+    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
         throw new ValidationException("Found conflicting files that can contain records matching partitions %s: %s",
             partitionSet,
@@ -311,25 +296,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId,
                                         Expression conflictDetectionFilter) {
-    // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null) {
-      return;
-    }
+    CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
+        addedDataFiles(base, startingSnapshotId, conflictDetectionFilter, null);
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
-    List<ManifestFile> manifests = history.first();
-    Set<Long> newSnapshots = history.second();
-
-    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
-        .caseSensitive(caseSensitive)
-        .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
-        .filterData(conflictDetectionFilter)
-        .specsById(base.specsById())
-        .ignoreDeleted()
-        .ignoreExisting();
-
-    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
+    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
         throw new ValidationException("Found conflicting files that can contain records matching %s: %s",
             conflictDetectionFilter,
@@ -340,6 +310,45 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       throw new UncheckedIOException(
           String.format("Failed to validate no appends matching %s", conflictDetectionFilter), e);
     }
+  }
+
+  /**
+   * Returns an iterable of files matching a filter have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param conflictDetectionFilter an expression used to filter new conflicting data files
+   * @param partitionSet a set of partitions to filter new conflicting data files
+   */
+  private CloseableIterable<ManifestEntry<DataFile>> addedDataFiles(TableMetadata base,
+                                                                    Long startingSnapshotId,
+                                                                    Expression conflictDetectionFilter,
+                                                                    PartitionSet partitionSet) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null) {
+      return CloseableIterable.empty();
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
+    List<ManifestFile> manifests = history.first();
+    Set<Long> newSnapshots = history.second();
+
+    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+        .caseSensitive(caseSensitive)
+        .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
+        .specsById(base.specsById())
+        .ignoreDeleted()
+        .ignoreExisting();
+
+    if (conflictDetectionFilter != null) {
+      conflictGroup = conflictGroup.filterData(conflictDetectionFilter);
+    }
+    if (partitionSet != null) {
+      conflictGroup = conflictGroup.filterManifestEntries(entry ->
+          partitionSet.contains(entry.file().specId(), entry.file().partition()));
+    }
+    return conflictGroup.entries();
   }
 
   /**
@@ -392,13 +401,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return;
     }
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_DELETE_FILES_OPERATIONS, ManifestContent.DELETES);
-    List<ManifestFile> deleteManifests = history.first();
+    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null);
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
-    DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter);
-
     for (DataFile dataFile : dataFiles) {
       // if any delete is found that applies to files written in or before the starting snapshot, fail
       DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
@@ -418,21 +423,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFilter an expression used to find new conflicting delete files
+   * @param dataFilter an expression used to filter new conflicting delete files
    */
   protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId, Expression dataFilter) {
-    // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
-      return;
-    }
-
-    Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_DELETE_FILES_OPERATIONS, ManifestContent.DELETES);
-    List<ManifestFile> deleteManifests = history.first();
-
-    long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
-    DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter);
-
+    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null);
     ValidationException.check(deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
@@ -443,12 +437,29 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param partitionSet partition set to match against delete files
+   * @param partitionSet a partition set used to filter new conflicting delete files
    */
-  protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
-    // if there is no current table state, no files have been added
+  protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId,
+                                          PartitionSet partitionSet) {
+    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, null, partitionSet);
+    ValidationException.check(deletes.isEmpty(),
+        "Found new conflicting delete files that can apply to records matching %s: %s",
+        partitionSet, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+  }
+
+  /**
+   * Returns matching delete files have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to filter delete files
+   * @param partitionSet a partition set used to filter delete files
+   */
+  protected DeleteFileIndex addedDeleteFiles(TableMetadata base, Long startingSnapshotId, Expression dataFilter,
+                                             PartitionSet partitionSet) {
+    // if there is no current table state, return empty delete file index
     if (base.currentSnapshot() == null || base.formatVersion() < 2) {
-      return;
+      return DeleteFileIndex.builderFor(ops.io(), Lists.newArrayList()).specsById(base.specsById()).build();
     }
 
     Pair<List<ManifestFile>, Set<Long>> history =
@@ -456,15 +467,19 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> deleteManifests = history.first();
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
-    DeleteFileIndex deletes = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
+    DeleteFileIndex.Builder deleteIndexBuilder = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
         .afterSequenceNumber(startingSequenceNumber)
         .caseSensitive(caseSensitive)
-        .specsById(ops.current().specsById())
-        .filterPartitions(partitionSet).build();
+        .specsById(ops.current().specsById());
 
-    ValidationException.check(deletes.isEmpty(),
-        "Found new conflicting delete files that can apply to records matching %s: %s",
-        partitionSet, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+    if (partitionSet != null) {
+      deleteIndexBuilder = deleteIndexBuilder.filterPartitions(partitionSet);
+    }
+    if (dataFilter != null) {
+      deleteIndexBuilder = deleteIndexBuilder.filterData(dataFilter);
+    }
+
+    return deleteIndexBuilder.build();
   }
 
   protected void setNewFilesSequenceNumber(long sequenceNumber) {
@@ -478,20 +493,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     } else {
       return TableMetadata.INITIAL_SEQUENCE_NUMBER;
     }
-  }
-
-  private DeleteFileIndex buildDeleteFileIndex(List<ManifestFile> deleteManifests, long startingSequenceNumber,
-                                               Expression dataFilter) {
-    DeleteFileIndex.Builder builder = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
-        .afterSequenceNumber(startingSequenceNumber)
-        .caseSensitive(caseSensitive)
-        .specsById(ops.current().specsById());
-
-    if (dataFilter != null) {
-      builder.filterData(dataFilter);
-    }
-
-    return builder.build();
   }
 
   @SuppressWarnings("CollectionUndefinedEquality")

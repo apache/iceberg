@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -258,5 +259,13 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID)
         .defaultValue(0)
         .parse();
+  }
+
+  public IsolationLevel dynamicOverwriteIsolationLevel() {
+    String isolationLevelName = confParser.stringConf()
+        .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL)
+        .defaultValue(SparkWriteOptions.DYNAMIC_OVERWRITE_LEVEL_DEFAULT)
+        .parse();
+    return IsolationLevel.fromName(isolationLevelName);
   }
 }

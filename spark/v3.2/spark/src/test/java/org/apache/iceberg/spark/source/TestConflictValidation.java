@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
@@ -53,10 +52,8 @@ public class TestConflictValidation extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testValidationException() throws Exception {
+  public void testDynamicValidation() throws Exception {
     Table table = validationCatalog.loadTable(tableIdent);
-    table.updateProperties().set(TableProperties.DYNAMIC_OVERWRITE_ISOLATION_LEVEL,
-        IsolationLevel.SERIALIZABLE.toString()).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
 
     List<SimpleRecord> records = Lists.newArrayList(
@@ -70,6 +67,7 @@ public class TestConflictValidation extends SparkCatalogTestBase {
     try {
       conflictingDf.writeTo(tableName)
           .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+          .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
           .overwritePartitions();
     } catch (Exception e) {
       thrown = e;
@@ -84,6 +82,40 @@ public class TestConflictValidation extends SparkCatalogTestBase {
     snapshotId = table.currentSnapshot().snapshotId();
     conflictingDf.writeTo(tableName)
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+        .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+        .overwritePartitions();
+  }
+
+  @Test
+  public void testDynamicValidationNoSnapshotId() throws Exception {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.select("id", "data").writeTo(tableName).append();
+
+    // Validating from previous snapshot finds conflicts
+    Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
+    Exception thrown = null;
+    try {
+      conflictingDf.writeTo(tableName)
+          .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+          .overwritePartitions();
+    } catch (Exception e) {
+      thrown = e;
+    }
+    Assert.assertNotNull("Expected validation exception but none thrown", thrown);
+    Assert.assertTrue("Nested validation exception", thrown.getCause() instanceof ValidationException);
+    Assert.assertTrue(thrown.getCause().getMessage().contains(
+        "Cannot determine history between starting snapshot"));
+
+    // Validating from latest snapshot should succeed
+    table.refresh();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    conflictingDf.writeTo(tableName)
+        .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+        .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
         .overwritePartitions();
   }
 }

@@ -332,9 +332,9 @@ class DeleteFileIndex {
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
     private Expression partitionFilter = Expressions.alwaysTrue();
+    private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
-    private PartitionSet partitionSet = null;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -361,6 +361,11 @@ class DeleteFileIndex {
       return this;
     }
 
+    Builder filterPartitions(PartitionSet newPartitionSet) {
+      this.partitionSet = newPartitionSet;
+      return this;
+    }
+
     Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
       return this;
@@ -368,11 +373,6 @@ class DeleteFileIndex {
 
     Builder planWith(ExecutorService newExecutorService) {
       this.executorService = newExecutorService;
-      return this;
-    }
-
-    Builder filterPartitions(PartitionSet newPartitionSet) {
-      this.partitionSet = newPartitionSet;
       return this;
     }
 

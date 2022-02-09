@@ -284,18 +284,12 @@ public class TestReplacePartitions extends TableTestBase {
 
   @Test
   public void testConcurrentReplaceConflictDefaultSnapshotId() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .commit();
-
-    ReplacePartitions replace = table.newReplacePartitions();
-
     // Concurrent Replace Partitions should fail with ValidationException
     table.newReplacePartitions()
         .addFile(FILE_A)
         .commit();
 
+    ReplacePartitions replace = table.newReplacePartitions();
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
         "Found conflicting files that can contain records matching partitions " +
