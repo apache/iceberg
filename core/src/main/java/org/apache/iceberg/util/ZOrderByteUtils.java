@@ -24,6 +24,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Within Z-Ordering the byte representations of objects being compared must be ordered,
@@ -114,12 +115,14 @@ public class ZOrderByteUtils {
    * and right padding 0 for shorter strings.
    */
   public static ByteBuffer stringToOrderedBytes(String val, int length, ByteBuffer reuse, CharsetEncoder encoder) {
+    Preconditions.checkArgument(encoder.charset().equals(StandardCharsets.UTF_8),
+        "Cannot use an encoder not using UTF_8 as it's Charset");
+
     ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
     Arrays.fill(bytes.array(), 0, length, (byte) 0x00);
     if (val != null) {
-      int maxLength = Math.min(length, val.length());
-      // We may truncate mid-character
-      encoder.encode(CharBuffer.wrap(val), bytes, true);
+      CharBuffer inputBuffer = CharBuffer.wrap(val);
+      encoder.encode(inputBuffer, bytes, true);
     }
     return bytes;
   }
