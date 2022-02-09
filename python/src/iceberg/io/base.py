@@ -76,7 +76,15 @@ class OutputStream(Protocol):  # pragma: no cover
 
 
 class InputFile(ABC):
-    """A base class for InputFile implementations"""
+    """A base class for InputFile implementations
+
+    Args:
+        location(str): The URI to the file
+
+    Attributes:
+        location(str): The URI to the file
+        exists(bool): Whether the file exists or not
+    """
 
     def __init__(self, location: str):
         self._location = location
@@ -104,7 +112,15 @@ class InputFile(ABC):
 
 
 class OutputFile(ABC):
-    """A base class for OutputFile implementations"""
+    """A base class for OutputFile implementations
+
+    Args:
+        location(str): The URI to the file
+
+    Attributes:
+        location(str): The URI to the file
+        exists(bool): Whether the file exists or not
+    """
 
     def __init__(self, location: str):
         self._location = location
@@ -133,7 +149,7 @@ class OutputFile(ABC):
 
         Args:
             overwrite(bool): If the file already exists at `self.location`
-            and `overwrite` is False a FileExistsError should be raised.
+            and `overwrite` is False a FileExistsError should be raised
         """
 
 
@@ -142,12 +158,25 @@ class FileIO(ABC):
 
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
-        """Get an InputFile instance to read bytes from the file at the given location"""
+        """Get an InputFile instance to read bytes from the file at the given location
+
+        Args:
+            location(str): The URI to the file
+        """
 
     @abstractmethod
     def new_output(self, location: str) -> OutputFile:
-        """Get an OutputFile instance to write bytes to the file at the given location"""
+        """Get an OutputFile instance to write bytes to the file at the given location
+
+        Args:
+            location(str): The URI to the file
+        """
 
     @abstractmethod
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given path"""
+        """Delete the file at the given path
+
+        Args:
+            location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an OutputFile instance
+            is provided, the location attribute for that instance is used as the URI to delete
+        """
