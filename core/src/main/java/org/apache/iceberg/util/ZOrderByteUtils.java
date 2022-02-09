@@ -30,10 +30,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Within Z-Ordering the byte representations of objects being compared must be ordered,
  * this requires several types to be transformed when converted to bytes. The goal is to
  * map object's whose byte representation are not lexicographically ordered into representations
- * that are lexicographically ordered.
+ * that are lexicographically ordered. Bytes produced should be compared lexicographically as
+ * unsigned bytes, big-endian.
+ * <p>
  * Most of these techniques are derived from
  * https://aws.amazon.com/blogs/database/z-order-indexing-for-multifaceted-queries-in-amazon-dynamodb-part-2/
- *
+ * <p>
  * Some implementation is taken from
  * https://github.com/apache/hbase/blob/master/hbase-common/src/main/java/org/apache/hadoop/hbase/util/OrderedBytes.java
  */
