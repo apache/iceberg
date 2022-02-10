@@ -38,7 +38,7 @@ def test_pyarrow_input_file():
 
         # Instantiate the input file
         absolute_file_location = os.path.abspath(file_location)
-        input_file = PyArrowInputFile(location=f"file:{absolute_file_location}")
+        input_file = PyArrowInputFile(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
         f = input_file.open()
@@ -55,7 +55,7 @@ def test_pyarrow_output_file():
 
         # Instantiate the output file
         absolute_file_location = os.path.abspath(file_location)
-        output_file = PyArrowOutputFile(location=f"file:{absolute_file_location}")
+        output_file = PyArrowOutputFile(location=f"{absolute_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -99,7 +99,7 @@ def test_pyarrow_violating_InputStream_protocol(MockedFileSystem):
     )  # Patch the FileSystem.from_uri method to return the mocked filesystem
 
     with pytest.raises(TypeError) as exc_info:
-        PyArrowInputFile("file://foo/bar.txt").open()
+        PyArrowInputFile("foo.txt").open()
 
     assert ("Object returned from PyArrowInputFile.open does not match the InputStream protocol.") in str(exc_info.value)
 
@@ -125,6 +125,6 @@ def test_pyarrow_violating_OutputStream_protocol(MockedFileSystem):
     )  # Patch the FileSystem.from_uri method to return the mocked filesystem
 
     with pytest.raises(TypeError) as exc_info:
-        PyArrowOutputFile("file://foo/bar/baz.txt").create()
+        PyArrowOutputFile("foo.txt").create()
 
     assert ("Object returned from PyArrowOutputFile.create does not match the OutputStream protocol.") in str(exc_info.value)

@@ -79,10 +79,10 @@ class InputFile(ABC):
     """A base class for InputFile implementations
 
     Args:
-        location(str): The URI to the file
+        location(str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI to the file
+        location(str): The URI or path to a local file for an InputFile instance
         exists(bool): Whether the file exists or not
     """
 
@@ -115,10 +115,10 @@ class OutputFile(ABC):
     """A base class for OutputFile implementations
 
     Args:
-        location(str): The URI to the file
+        location(str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI to the file
+        location(str): The URI or path to a local file for an OutputFile instance
         exists(bool): Whether the file exists or not
     """
 
@@ -161,7 +161,7 @@ class FileIO(ABC):
         """Get an InputFile instance to read bytes from the file at the given location
 
         Args:
-            location(str): The URI to the file
+            location(str): A URI or a path to a local file
         """
 
     @abstractmethod
@@ -169,7 +169,7 @@ class FileIO(ABC):
         """Get an OutputFile instance to write bytes to the file at the given location
 
         Args:
-            location(str): The URI to the file
+            location(str): A URI or a path to a local file
         """
 
     @abstractmethod
@@ -177,6 +177,6 @@ class FileIO(ABC):
         """Delete the file at the given path
 
         Args:
-            location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an OutputFile instance
-            is provided, the location attribute for that instance is used as the URI to delete
+            location(str, InputFile, OutputFile): A URI or a path to a local file--if an InputFile instance or
+            an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
         """

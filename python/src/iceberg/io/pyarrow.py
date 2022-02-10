@@ -35,11 +35,12 @@ class PyArrowInputFile(InputFile):
     """An InputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances for reading
 
     Args:
-        location(str): The URI to the file
+        location(str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI to the file
-        parsed_location(urllib.parse.ParseResult): The parsed location URI
+        location(str): The URI or path to a local file for a PyArrowInputFile instance
+        parsed_location(urllib.parse.ParseResult): The parsed location with attributes `scheme`, `netloc`, `path`, `params`,
+          `query`, and `fragment`
         exists(bool): Whether the file exists or not
 
     Examples:
@@ -51,7 +52,7 @@ class PyArrowInputFile(InputFile):
     def __init__(self, location: str):
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
 
-        if parsed_location.scheme not in (
+        if parsed_location.scheme and parsed_location.scheme not in (
             "file",
             "mock",
             "s3fs",
@@ -103,11 +104,12 @@ class PyArrowOutputFile(OutputFile):
     """An OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances for writing
 
     Args:
-        location(str): The URI to the file
+        location(str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI to the file
-        parsed_location(urllib.parse.ParseResult): The parsed location URI
+        location(str): The URI or path to a local file for a PyArrowOutputFile instance
+        parsed_location(urllib.parse.ParseResult): The parsed location with attributes `scheme`, `netloc`, `path`, `params`,
+          `query`, and `fragment`
         exists(bool): Whether the file exists or not
 
     Examples:
@@ -119,7 +121,7 @@ class PyArrowOutputFile(OutputFile):
     def __init__(self, location: str):
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
 
-        if parsed_location.scheme not in (
+        if parsed_location.scheme and parsed_location.scheme not in (
             "file",
             "mock",
             "s3fs",
@@ -186,7 +188,7 @@ class PyArrowFileIO(FileIO):
         """Get a PyArrowInputFile instance to read bytes from the file at the given location
 
         Args:
-            location(str): The URI to the file
+            location(str): A URI or a path to a local file
         """
         return PyArrowInputFile(location)
 
@@ -194,7 +196,7 @@ class PyArrowFileIO(FileIO):
         """Get a PyArrowOutputFile instance to write bytes to the file at the given location
 
         Args:
-            location(str): The URI to the file
+            location(str): A URI or a path to a local file
         """
         return PyArrowOutputFile(location)
 

@@ -32,7 +32,7 @@ class LocalInputFile(InputFile):
     def __init__(self, location: str):
 
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
+        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalInputFile location must have a scheme of `file`")
         elif parsed_location.netloc:
             raise ValueError(f"Network location is not allowed for LocalInputFile: {parsed_location.netloc}")
@@ -70,7 +70,7 @@ class LocalOutputFile(OutputFile):
     def __init__(self, location: str):
 
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
+        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
         elif parsed_location.netloc:
             raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
@@ -134,7 +134,7 @@ def test_custom_local_input_file(CustomInputFile):
 
         # Instantiate the input file
         absolute_file_location = os.path.abspath(file_location)
-        input_file = CustomInputFile(location=f"file:{absolute_file_location}")
+        input_file = CustomInputFile(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
         f = input_file.open()
@@ -150,7 +150,7 @@ def test_custom_local_output_file(CustomOutputFile):
 
         # Instantiate the output file
         absolute_file_location = os.path.abspath(file_location)
-        output_file = CustomOutputFile(location=f"file:{absolute_file_location}")
+        output_file = CustomOutputFile(location=f"{absolute_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -173,7 +173,7 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
             f.write(b"foo")
 
         # Instantiate an output file
-        output_file = CustomOutputFile(location=f"file://{output_file_location}")
+        output_file = CustomOutputFile(location=f"{output_file_location}")
 
         # Confirm that a FileExistsError is raised when overwrite=False
         with pytest.raises(FileExistsError):
@@ -204,8 +204,8 @@ def test_custom_file_exists(CustomFile):
         non_existent_absolute_file_location = os.path.abspath(nonexistent_file_location)
 
         # Create File instances
-        file = CustomFile(location=f"file:{absolute_file_location}")
-        non_existent_file = CustomFile(location=f"file:{non_existent_absolute_file_location}")
+        file = CustomFile(location=f"{absolute_file_location}")
+        non_existent_file = CustomFile(location=f"{non_existent_absolute_file_location}")
 
         # Test opening and reading the file
         assert file.exists
@@ -218,7 +218,7 @@ def test_output_file_to_input_file(CustomOutputFile):
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Create an output file instance
-        output_file = CustomOutputFile(location=f"file://{output_file_location}")
+        output_file = CustomOutputFile(location=f"{output_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -233,8 +233,10 @@ def test_output_file_to_input_file(CustomOutputFile):
 @pytest.mark.parametrize(
     "CustomFileIO,string_uri,scheme,netloc,path",
     [
+        (LocalFileIO, "foo/bar.parquet", "", "", "foo/bar.parquet"),
         (LocalFileIO, "file:///foo/bar.parquet", "file", "", "/foo/bar.parquet"),
         (LocalFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
+        (PyArrowFileIO, "foo/bar/baz.parquet", "", "", "foo/bar/baz.parquet"),
         (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
         (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
     ],
@@ -337,7 +339,7 @@ def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFi
         assert os.path.exists(file_location)
 
         # Instantiate the custom InputFile
-        input_file = CustomInputFile(location=f"file://{file_location}")
+        input_file = CustomInputFile(location=f"{file_location}")
 
         # Delete the file using the file-io implementations delete method
         file_io.delete(input_file)
@@ -362,7 +364,7 @@ def test_deleting_local_file_using_file_io_OutputFile(CustomFileIO, CustomOutput
         assert os.path.exists(file_location)
 
         # Instantiate the custom OutputFile
-        output_file = CustomOutputFile(location=f"file://{file_location}")
+        output_file = CustomOutputFile(location=f"{file_location}")
 
         # Delete the file using the file-io implementations delete method
         file_io.delete(output_file)
