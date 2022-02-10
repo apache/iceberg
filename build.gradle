@@ -221,6 +221,12 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    implementation("org.apache.httpcomponents.client5:httpclient5") {
+      exclude group: 'org.slf4j'
+    }
+
+//    testImplementation 'org.mock-server:mockserver-netty'
+//    testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
