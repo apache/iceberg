@@ -23,6 +23,7 @@ with the pyarrow library.
 """
 
 from typing import Union
+from urllib.parse import ParseResult, urlparse
 
 from pyarrow import NativeFile
 from pyarrow.fs import FileSystem, FileType
@@ -47,7 +48,19 @@ class PyArrowInputFile(InputFile):
     """
 
     def __init__(self, location: str):
-        self._location = location
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+
+        if parsed_location.scheme not in (
+            "file",
+            "mock",
+            "s3fs",
+            "hdfs",
+            "viewfs",
+        ):  # Validate that a uri is provided with a scheme of `file`
+            raise ValueError("PyArrowInputFile location must have a scheme of `file`, `mock`, `s3fs`, `hdfs`, or `viewfs`")
+
+        super().__init__(location=location)
+        self._parsed_location = parsed_location
 
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
@@ -56,16 +69,21 @@ class PyArrowInputFile(InputFile):
         return file.size()
 
     @property
-    def location(self) -> str:
-        """The fully-qualified location of the input file"""
-        return self._location
+    def parsed_location(self) -> ParseResult:
+        """The parsed location
+
+        Returns:
+            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
+            `params`, `query`, and `fragments`.
+        """
+        return self._parsed_location
 
     @property
     def exists(self) -> bool:
         """Checks whether the file exists"""
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
         file_info = filesytem.get_file_info(path)
-        return False if file_info.type() == FileType.NotFound else True
+        return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> NativeFile:
         """This method should return an instance of a seekable input stream"""
@@ -91,7 +109,19 @@ class PyArrowOutputFile(OutputFile):
     """
 
     def __init__(self, location: str):
-        self._location = location
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+
+        if parsed_location.scheme not in (
+            "file",
+            "mock",
+            "s3fs",
+            "hdfs",
+            "viewfs",
+        ):  # Validate that a uri is provided with a scheme of `file`
+            raise ValueError("PyArrowOutputFile location must have a scheme of `file`, `mock`, `s3fs`, `hdfs`, or `viewfs`")
+
+        super().__init__(location=location)
+        self._parsed_location = parsed_location
 
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
@@ -100,9 +130,14 @@ class PyArrowOutputFile(OutputFile):
         return file.size()
 
     @property
-    def location(self) -> str:
-        """The fully-qualified location of the output file"""
-        return self._location
+    def parsed_location(self) -> ParseResult:
+        """The parsed location
+
+        Returns:
+            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
+            `params`, `query`, and `fragments`.
+        """
+        return self._parsed_location
 
     @property
     def exists(self) -> bool:

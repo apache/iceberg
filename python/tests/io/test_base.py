@@ -23,6 +23,7 @@ from urllib.parse import ParseResult, urlparse
 import pytest
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
+from iceberg.io.pyarrow import PyArrowFileIO, PyArrowInputFile, PyArrowOutputFile
 
 
 class LocalInputFile(InputFile):
@@ -41,11 +42,18 @@ class LocalInputFile(InputFile):
 
     @property
     def parsed_location(self) -> ParseResult:
+        """The parsed location
+
+        Returns:
+            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
+            `params`, `query`, and `fragments`.
+        """
         return self._parsed_location
 
     def __len__(self):
         return os.path.getsize(self.parsed_location.path)
 
+    @property
     def exists(self):
         return os.path.exists(self.parsed_location.path)
 
@@ -72,11 +80,18 @@ class LocalOutputFile(OutputFile):
 
     @property
     def parsed_location(self) -> ParseResult:
+        """The parsed location
+
+        Returns:
+            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
+            `params`, `query`, and `fragments`.
+        """
         return self._parsed_location
 
     def __len__(self):
         return os.path.getsize(self.parsed_location.path)
 
+    @property
     def exists(self):
         return os.path.exists(self.parsed_location.path)
 
@@ -101,10 +116,13 @@ class LocalFileIO(FileIO):
 
     def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
         parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
-        os.remove(parsed_location.path)
+        try:
+            os.remove(parsed_location.path)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File could not be deleted because it does not exist: {parsed_location.path}")
 
 
-@pytest.mark.parametrize("CustomInputFile", [LocalInputFile])
+@pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowInputFile])
 def test_custom_local_input_file(CustomInputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -125,7 +143,7 @@ def test_custom_local_input_file(CustomInputFile):
         assert len(input_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowOutputFile])
 def test_custom_local_output_file(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -145,7 +163,7 @@ def test_custom_local_output_file(CustomOutputFile):
         assert len(output_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowOutputFile])
 def test_custom_local_output_file_with_overwrite(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -169,7 +187,32 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
             assert f.read() == b"bar"
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile])
+@pytest.mark.parametrize("CustomFile", [LocalInputFile, LocalOutputFile, PyArrowInputFile, PyArrowOutputFile])
+def test_custom_file_exists(CustomFile):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        with open(file_location, "wb") as f:
+            f.write(b"foo")
+
+        nonexistent_file_location = os.path.join(tmpdirname, "bar.txt")
+
+        # Confirm that the file initially exists
+        assert os.path.exists(file_location)
+
+        # Get an absolute path for an existing file and a nonexistent file
+        absolute_file_location = os.path.abspath(file_location)
+        non_existent_absolute_file_location = os.path.abspath(nonexistent_file_location)
+
+        # Create File instances
+        file = CustomFile(location=f"file:{absolute_file_location}")
+        non_existent_file = CustomFile(location=f"file:{non_existent_absolute_file_location}")
+
+        # Test opening and reading the file
+        assert file.exists
+        assert not non_existent_file.exists
+
+
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowOutputFile])
 def test_output_file_to_input_file(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -192,6 +235,8 @@ def test_output_file_to_input_file(CustomOutputFile):
     [
         (LocalFileIO, "file:///foo/bar.parquet", "file", "", "/foo/bar.parquet"),
         (LocalFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
+        (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
+        (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
     ],
 )
 def test_custom_file_io_locations(CustomFileIO, string_uri, scheme, netloc, path):
@@ -234,7 +279,7 @@ def test_raise_on_network_location_in_OutputFile(string_uri_w_netloc):
     assert ("Network location is not allowed for LocalInputFile") in str(exc_info.value)
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO])
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
 def test_deleting_local_file_using_file_io(CustomFileIO):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -256,7 +301,27 @@ def test_deleting_local_file_using_file_io(CustomFileIO):
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile)])
+@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
+def test_raise_FileNotFoundError_for_fileio_delete(CustomFileIO):
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Write to the temporary file
+        output_file_location = os.path.join(tmpdirname, "foo.txt")
+
+        # Instantiate the file-io
+        file_io = CustomFileIO()
+
+        # Delete the non-existent file using the file-io implementations delete method
+        with pytest.raises(FileNotFoundError) as exc_info:
+            file_io.delete(output_file_location)
+
+        assert (f"File could not be deleted because it does not exist:") in str(exc_info.value)
+
+        # Confirm that the file no longer exists
+        assert not os.path.exists(output_file_location)
+
+
+@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowInputFile)])
 def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -281,7 +346,7 @@ def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFi
         assert not os.path.exists(file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile)])
+@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowOutputFile)])
 def test_deleting_local_file_using_file_io_OutputFile(CustomFileIO, CustomOutputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
