@@ -197,7 +197,6 @@ public class TableProperties {
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
 
   // Beyond this number of columns, metrics are disabled by default unless in special cases (ex, sort-order columns)
-  // A value of -1 indicates no limit
   public static final String METRICS_MAX_COLUMNS = "write.metadata.metrics.max.columns";
   public static final int METRICS_MAX_COLUMNS_DEFAULT = 100;
 

@@ -289,48 +289,6 @@ public abstract class TestWriterMetrics<T> {
   }
 
   @Test
-  public void testUnlimitedColumns() throws IOException {
-    File tableDir = temp.newFolder();
-    tableDir.delete(); // created by table create
-
-    int numColumns = 101;
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
-    for (int i = 0; i < numColumns; i++) {
-      fields.add(required(i, "col" + i, Types.IntegerType.get()));
-    }
-    Schema maxColSchema = new Schema(fields);
-
-    Table maxColumnTable = TestTables.create(
-        tableDir,
-        "max_col_table",
-        maxColSchema,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        FORMAT_V2);
-    maxColumnTable.updateProperties().set(TableProperties.METRICS_MAX_COLUMNS, "-1").commit();
-    OutputFileFactory maxColFactory = OutputFileFactory.builderFor(maxColumnTable, 1, 1)
-        .format(fileFormat).build();
-
-    T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter = newWriterFactory(maxColumnTable).newDataWriter(
-        maxColFactory.newOutputFile(),
-        PartitionSpec.unpartitioned(),
-        null
-    );
-    dataWriter.add(row);
-    dataWriter.close();
-    DataFile dataFile = dataWriter.toDataFile();
-
-    // Field should have metrics because the max columns is set at -1
-    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
-    Map<Integer, ByteBuffer> lowerBounds = dataFile.upperBounds();
-    for (int i = 0; i < numColumns; i++) {
-      Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
-      Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
-    }
-  }
-
-  @Test
   public void testBelowMaxColumnsSetting() throws IOException {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
