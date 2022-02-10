@@ -44,8 +44,8 @@ public final class MetricsConfig implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
   private static final Joiner DOT = Joiner.on('.');
 
-  // Disable metrics by default for very wide tables to prevent excessive metadata
-  private static final int MAX_COLUMNS = 100;
+  // Disable metrics by default for wide tables to prevent excessive metadata
+  private static final int MAX_COLUMNS = 32;
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(),
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
 

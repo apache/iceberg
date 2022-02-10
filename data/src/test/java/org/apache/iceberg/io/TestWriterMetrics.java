@@ -210,8 +210,8 @@ public abstract class TestWriterMetrics<T> {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
-    int numColumns = 101;
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(101);
+    int numColumns = 33;
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
     }
@@ -250,8 +250,8 @@ public abstract class TestWriterMetrics<T> {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
-    int numColumns = 101;
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(101);
+    int numColumns = 33;
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
     }
