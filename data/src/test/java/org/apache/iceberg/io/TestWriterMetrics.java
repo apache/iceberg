@@ -211,7 +211,7 @@ public abstract class TestWriterMetrics<T> {
     tableDir.delete(); // created by table create
 
     int numColumns = 101;
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(101);
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
     }
@@ -251,7 +251,7 @@ public abstract class TestWriterMetrics<T> {
     tableDir.delete(); // created by table create
 
     int numColumns = 101;
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(101);
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
     }
@@ -286,92 +286,5 @@ public abstract class TestWriterMetrics<T> {
       Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
       Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
     }
-  }
-
-  @Test
-  public void testBelowMaxColumnsSetting() throws IOException {
-    File tableDir = temp.newFolder();
-    tableDir.delete(); // created by table create
-
-    int numColumns = 50;
-
-    // Table with number of columns below the config should have metrics
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
-    for (int i = 0; i < numColumns; i++) {
-      fields.add(required(i, "col" + i, Types.IntegerType.get()));
-    }
-    Schema maxColSchema = new Schema(fields);
-
-    Table belowColumnCountTable = TestTables.create(
-        tableDir,
-        "below_col_count_table",
-        maxColSchema,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        FORMAT_V2);
-    OutputFileFactory maxColFactory = OutputFileFactory.builderFor(belowColumnCountTable, 1, 1)
-        .format(fileFormat).build();
-
-    T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter = newWriterFactory(belowColumnCountTable).newDataWriter(
-        maxColFactory.newOutputFile(),
-        PartitionSpec.unpartitioned(),
-        null
-    );
-    dataWriter.add(row);
-    dataWriter.close();
-    DataFile dataFile = dataWriter.toDataFile();
-
-    // Field should have metrics because the column count is less than the max column setting
-    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
-    Map<Integer, ByteBuffer> lowerBounds = dataFile.upperBounds();
-    for (int i = 0; i < numColumns; i++) {
-      Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
-      Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
-    }
-  }
-
-  @Test
-  public void testAboveMaxColumnsSetting() throws IOException {
-    File tableDir = temp.newFolder();
-    tableDir.delete(); // created by table create
-
-    int numColumns = 50;
-
-    // Table with number of columns below the config should have metrics
-    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
-    for (int i = 0; i < numColumns; i++) {
-      fields.add(required(i, "col" + i, Types.IntegerType.get()));
-    }
-    Schema maxColSchema = new Schema(fields);
-
-    Table aboveColumnCountTable = TestTables.create(
-        tableDir,
-        "above_col_count_table",
-        maxColSchema,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        FORMAT_V2);
-    aboveColumnCountTable.updateProperties().set(
-        TableProperties.METRICS_MAX_COLUMNS, String.valueOf(numColumns - 1)).commit();
-    OutputFileFactory maxColFactory = OutputFileFactory.builderFor(aboveColumnCountTable, 1, 1)
-        .format(fileFormat).build();
-
-    T row = toGenericRow(1, numColumns);
-    DataWriter dataWriter = newWriterFactory(aboveColumnCountTable).newDataWriter(
-        maxColFactory.newOutputFile(),
-        PartitionSpec.unpartitioned(),
-        null
-    );
-    dataWriter.add(row);
-    dataWriter.close();
-    DataFile dataFile = dataWriter.toDataFile();
-
-    // Fields should not have metrics because the column count is above than the max column setting
-    Assert.assertTrue("Should not have any lower bound metrics", dataFile.lowerBounds().isEmpty());
-    Assert.assertTrue("Should not have any upper bound metrics", dataFile.upperBounds().isEmpty());
-    Assert.assertTrue("Should not have any nan value metrics", dataFile.nanValueCounts().isEmpty());
-    Assert.assertTrue("Should not have any null value metrics", dataFile.nullValueCounts().isEmpty());
-    Assert.assertTrue("Should not have any value metrics", dataFile.valueCounts().isEmpty());
   }
 }
