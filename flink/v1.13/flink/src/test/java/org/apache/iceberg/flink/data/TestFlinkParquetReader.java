@@ -121,7 +121,7 @@ public class TestFlinkParquetReader extends DataTest {
             });
 
     final Random random = new Random(0L);
-    List<InternalRow> rows = new ArrayList<>();
+    List<InternalRow> rows = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
       rows.add(new GenericInternalRow(new Object[] {
           RandomUtil.generatePrimitive(schema.asStruct().fieldType("ts").asPrimitiveType(), random)}));
