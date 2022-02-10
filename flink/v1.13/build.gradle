@@ -68,6 +68,7 @@ project(':iceberg-flink:iceberg-flink-1.13') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
+    testImplementation "org.apache.spark:spark-sql_2.12:3.2.0"
     testImplementation "org.apache.flink:flink-core:${flinkVersion}"
     testImplementation "org.apache.flink:flink-runtime_2.12:${flinkVersion}"
     testImplementation "org.apache.flink:flink-table-planner-blink_2.12:${flinkVersion}"
