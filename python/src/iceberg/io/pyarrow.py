@@ -86,7 +86,11 @@ class PyArrowInputFile(InputFile):
         return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> NativeFile:
-        """This method should return an instance of a seekable input stream"""
+        """Opens the location using a PyArrow FileSystem inferred from the scheme
+        
+        Returns:
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
+        """
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
         input_file = filesytem.open_input_file(path)
         if not isinstance(input_file, InputStream):
@@ -157,6 +161,9 @@ class PyArrowOutputFile(OutputFile):
 
         Args:
             overwrite(bool): Whether to overwrite the file if it already exists
+
+        Returns:
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
 
         Raises:
             FileExistsError: If the file already exists at `self.location` and `overwrite` is False
