@@ -22,7 +22,7 @@ from urllib.parse import ParseResult, urlparse
 
 import pytest
 
-from iceberg.io.base import FileIO, InputFile, OutputFile
+from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
 
 class LocalInputFile(InputFile):
@@ -49,8 +49,11 @@ class LocalInputFile(InputFile):
     def exists(self):
         return os.path.exists(self.parsed_location.path)
 
-    def open(self):
-        return open(self.parsed_location.path, "rb")
+    def open(self) -> InputStream:
+        input_file = open(self.parsed_location.path, "rb")
+        if not isinstance(input_file, InputStream):
+            raise TypeError("""Object returned from LocalInputFile.open does not match the OutputStream protocol.""")
+        return input_file
 
 
 class LocalOutputFile(OutputFile):
@@ -80,8 +83,11 @@ class LocalOutputFile(OutputFile):
     def to_input_file(self):
         return LocalInputFile(location=self.location)
 
-    def create(self, overwrite: bool = False) -> None:
-        return open(self.parsed_location.path, "wb" if overwrite else "xb")
+    def create(self, overwrite: bool = False) -> OutputStream:
+        output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
+        if not isinstance(output_file, OutputStream):
+            raise TypeError("""Object returned from LocalOutputFile.create does not match the OutputStream protocol.""")
+        return output_file
 
 
 class LocalFileIO(FileIO):
