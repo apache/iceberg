@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -51,11 +52,13 @@ import org.apache.iceberg.parquet.ParquetWriteAdapter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -167,7 +170,13 @@ public class TestFlinkParquetReader extends DataTest {
             new StructField[] {
                 new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
             });
-    List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
+
+    final Random random = new Random(0L);
+    List<InternalRow> rows = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      rows.add(new GenericInternalRow(new Object[] {
+              RandomUtil.generatePrimitive(schema.asStruct().fieldType("ts").asPrimitiveType(), random)}));
+    }
 
     try (FileAppender<InternalRow> writer =
         new ParquetWriteAdapter<>(
