@@ -938,7 +938,7 @@ public class TableMetadata implements Serializable {
 
     public Builder setCurrentSnapshot(Snapshot snapshot) {
       addSnapshot(snapshot);
-      setCurrentSnapshot(snapshot, null);
+      setCurrentSnapshot(snapshot, System.currentTimeMillis());
       return this;
     }
 
