@@ -236,6 +236,7 @@ public class Parquet {
             break;
           case ZSTD:
             config.put("io.compression.codec.zstd.level", compressionLevel);
+            config.put("parquet.compression.codec.zstd.level", compressionLevel);
             break;
           default:
             // compression level is not supported; ignore it
