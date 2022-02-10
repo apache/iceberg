@@ -28,7 +28,7 @@ from urllib.parse import ParseResult, urlparse
 from pyarrow import NativeFile
 from pyarrow.fs import FileSystem, FileType
 
-from iceberg.io.base import FileIO, InputFile, OutputFile
+from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
 
 class PyArrowInputFile(InputFile):
@@ -88,8 +88,10 @@ class PyArrowInputFile(InputFile):
     def open(self) -> NativeFile:
         """This method should return an instance of a seekable input stream"""
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        file = filesytem.open_input_file(path)
-        return file
+        input_file = filesytem.open_input_file(path)
+        if not isinstance(input_file, InputStream):
+            raise TypeError("""Object returned from PyArrowInputFile.open does not match the InputStream protocol.""")
+        return input_file
 
 
 class PyArrowOutputFile(OutputFile):
@@ -164,8 +166,10 @@ class PyArrowOutputFile(OutputFile):
                 f"A file already exists at this location. If you would like to overwrite it, set `overwrite=True`: {self.location}"
             )
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        file = filesytem.open_output_stream(path)
-        return file
+        output_file = filesytem.open_output_stream(path)
+        if not isinstance(output_file, OutputStream):
+            raise TypeError("Object returned from PyArrowOutputFile.create does not match the OutputStream protocol.")
+        return output_file
 
 
 class PyArrowFileIO(FileIO):
