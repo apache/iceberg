@@ -40,6 +40,7 @@ import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
+// thanks for the PR https://github.com/apache/iceberg/pull/1184 by @gustavoatt
 public class RandomData {
 
   // Default percentage of number of values that are null for optional fields
