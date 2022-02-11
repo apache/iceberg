@@ -57,6 +57,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
+import static org.apache.iceberg.metrics.MetricsContext.nullMetrics;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -115,7 +116,7 @@ public class TestS3OutputStream {
   public void testAbortAfterFailedPartUpload() {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties)) {
+    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -126,7 +127,7 @@ public class TestS3OutputStream {
   public void testAbortMultipart() {
     doThrow(new RuntimeException()).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties)) {
+    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -135,7 +136,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testMultipleClose() throws IOException {
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties, nullMetrics());
     stream.close();
     stream.close();
   }
@@ -144,7 +145,7 @@ public class TestS3OutputStream {
   public void testStagingDirectoryCreation() throws IOException {
     AwsProperties newStagingDirectoryAwsProperties = new AwsProperties(ImmutableMap.of(
         AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();
   }
 
@@ -235,7 +236,7 @@ public class TestS3OutputStream {
   }
 
   private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
-    try (S3OutputStream stream = new S3OutputStream(client, uri, properties)) {
+    try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());

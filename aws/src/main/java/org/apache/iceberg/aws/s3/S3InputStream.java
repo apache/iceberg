@@ -23,6 +23,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,6 +35,9 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+
+import static org.apache.iceberg.metrics.MetricsContext.Unit.BYTES;
+import static org.apache.iceberg.metrics.MetricsContext.Unit.SCALAR;
 
 class S3InputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -46,16 +52,22 @@ class S3InputStream extends SeekableInputStream {
   private long next = 0;
   private boolean closed = false;
 
+  private final Counter<Long> readBytes;
+  private final Counter<Integer> readOperations;
+
   private int skipSize = 1024 * 1024;
 
   S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new AwsProperties());
+    this(s3, location, new AwsProperties(), MetricsContext.nullMetrics());
   }
 
-  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties) {
+  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
+
+    readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, BYTES);
+    readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, SCALAR);
 
     createStack = Thread.currentThread().getStackTrace();
   }
@@ -81,6 +93,8 @@ class S3InputStream extends SeekableInputStream {
 
     pos += 1;
     next += 1;
+    readBytes.increment();
+    readOperations.increment();
 
     return stream.read();
   }
@@ -93,6 +107,8 @@ class S3InputStream extends SeekableInputStream {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
+    readBytes.increment((long) bytesRead);
+    readOperations.increment();
 
     return bytesRead;
   }

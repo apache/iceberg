@@ -43,7 +43,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicates;
@@ -66,6 +69,8 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.BinaryUtils;
+
+import static org.apache.iceberg.metrics.MetricsContext.Unit.*;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
@@ -90,11 +95,14 @@ class S3OutputStream extends PositionOutputStream {
   private final MessageDigest completeMessageDigest;
   private MessageDigest currentPartMessageDigest;
 
+  private final Counter<Long> writeBytes;
+  private final Counter<Integer> writeOperations;
+
   private long pos = 0;
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
@@ -113,17 +121,20 @@ class S3OutputStream extends PositionOutputStream {
     this.location = location;
     this.awsProperties = awsProperties;
 
-    createStack = Thread.currentThread().getStackTrace();
+    this.createStack = Thread.currentThread().getStackTrace();
 
-    multiPartSize = awsProperties.s3FileIoMultiPartSize();
-    multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
-    stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
-    isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
+    this.multiPartSize = awsProperties.s3FileIoMultiPartSize();
+    this.multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
+    this.stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
+    this.isChecksumEnabled = awsProperties.isS3ChecksumEnabled();
     try {
-      completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+      this.completeMessageDigest = isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException("Failed to create message digest needed for s3 checksum checks", e);
     }
+
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, SCALAR);
 
     newStream();
   }
@@ -147,6 +158,8 @@ class S3OutputStream extends PositionOutputStream {
 
     stream.write(b);
     pos += 1;
+    writeBytes.increment();
+    writeOperations.increment();
 
     // switch to multipart upload
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
@@ -176,6 +189,8 @@ class S3OutputStream extends PositionOutputStream {
 
     stream.write(b, relativeOffset, remaining);
     pos += len;
+    writeBytes.increment((long) len);
+    writeOperations.increment();
 
     // switch to multipart upload
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
