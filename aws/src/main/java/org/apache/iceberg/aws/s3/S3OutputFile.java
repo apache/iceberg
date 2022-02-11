@@ -23,10 +23,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3OutputFile extends BaseS3File implements OutputFile {

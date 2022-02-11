@@ -26,9 +26,9 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -114,7 +114,7 @@ public class S3FileIO implements FileIO {
     this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided
-    if(s3 != null) {
+    if (s3 != null) {
       this.s3 = AwsClientFactories.from(properties)::s3;
     }
 
@@ -126,8 +126,7 @@ public class S3FileIO implements FileIO {
       metrics.initialize(ImmutableMap.of("fileio.scheme", "s3"));
     } catch (ClassNotFoundException e) {
       LOG.warn("Metrics class not found: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
-    } catch (NoSuchMethodException | InstantiationException
-        | IllegalAccessException | InvocationTargetException e) {
+    } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
       LOG.warn("Failed to instantiate metrics: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
     }
   }

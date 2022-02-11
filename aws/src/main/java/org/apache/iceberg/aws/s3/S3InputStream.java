@@ -24,9 +24,10 @@ import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Counter;
-import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -35,9 +36,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-
-import static org.apache.iceberg.metrics.MetricsContext.Unit.BYTES;
-import static org.apache.iceberg.metrics.MetricsContext.Unit.SCALAR;
 
 class S3InputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -66,8 +64,8 @@ class S3InputStream extends SeekableInputStream {
     this.location = location;
     this.awsProperties = awsProperties;
 
-    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, SCALAR);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.SCALAR);
 
     this.createStack = Thread.currentThread().getStackTrace();
   }

@@ -45,7 +45,7 @@ public interface MetricsContext extends Serializable {
     }
   }
 
-  default void initialize(Map<String,String> properties) {
+  default void initialize(Map<String, String> properties) {
   }
 
   interface Counter<T extends Number> {
@@ -64,13 +64,15 @@ public interface MetricsContext extends Serializable {
     /**
      * Reporting count is optional if the counter is reporting externally.
      *
-     * @return
+     * @return current count if available
      */
     default Optional<T> count() {
       return Optional.empty();
     }
 
-    default Unit unit() { return Unit.UNDEFINED; };
+    default Unit unit() {
+      return Unit.UNDEFINED;
+    }
   }
 
   /**
@@ -100,6 +102,6 @@ public interface MetricsContext extends Serializable {
    * @return a non-recording metrics context
    */
   static MetricsContext nullMetrics() {
-      return new MetricsContext() {};
-    }
+    return new MetricsContext() {};
+  }
 }

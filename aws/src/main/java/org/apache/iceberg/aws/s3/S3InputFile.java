@@ -20,9 +20,9 @@
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3InputFile extends BaseS3File implements InputFile {

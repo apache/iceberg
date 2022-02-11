@@ -47,6 +47,7 @@ import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicates;
@@ -69,8 +70,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.BinaryUtils;
-
-import static org.apache.iceberg.metrics.MetricsContext.Unit.*;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
@@ -133,8 +132,8 @@ class S3OutputStream extends PositionOutputStream {
       throw new RuntimeException("Failed to create message digest needed for s3 checksum checks", e);
     }
 
-    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, SCALAR);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.SCALAR);
 
     newStream();
   }
