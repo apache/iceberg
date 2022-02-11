@@ -26,7 +26,12 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -36,9 +41,11 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -293,6 +300,77 @@ public class TestDynamoDbCatalog {
             .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
             .build());
     Assert.assertFalse("namespace must not exist", response.hasItem());
+  }
+
+  @Test
+  public void testRegisterTable() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
+    catalog.createTable(tableIdentifier, SCHEMA);
+    Table table = catalog.loadTable(tableIdentifier);
+    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+    table.newAppend().appendFile(dataFile).commit();
+    table.refresh();
+    long v1SnapshotId = table.currentSnapshot().snapshotId();
+    String v1MetadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    table.newDelete().deleteFile(dataFile).commit();
+    table.refresh();
+
+    String registeredTableName = genRandomName();
+    Table registeredTable = catalog.registerTable(
+        TableIdentifier.of(namespace, registeredTableName), v1MetadataLocation);
+
+    Assert.assertEquals("registered table should have v1 snapshot ID",
+        v1SnapshotId, registeredTable.currentSnapshot().snapshotId());
+
+    Assert.assertNotEquals("registered table should have a different snapshot ID from the original table",
+        table.currentSnapshot().snapshotId(), registeredTable.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Registered table should have 1 data file",
+        1, Lists.newArrayList(registeredTable.newScan().planFiles()).size());
+
+    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
+        .tableName(catalogTableName)
+        .key(DynamoDbCatalog.tablePrimaryKey(TableIdentifier.of(namespace, registeredTableName)))
+        .build());
+    Assert.assertTrue("table must exist", response.hasItem());
+    Assert.assertEquals("table metadata location must be as set to the given one",
+        v1MetadataLocation, response.item().get(
+            DynamoDbCatalog.toPropertyCol(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)).s());
+  }
+
+  @Test
+  public void testRegisterTableNamespaceNotFound() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
+    catalog.createTable(tableIdentifier, SCHEMA);
+    Table table = catalog.loadTable(tableIdentifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    String newNamespace = genRandomName();
+    AssertHelpers.assertThrows("Should fail to register to an unknown namespace",
+        NoSuchNamespaceException.class,
+        "Cannot register: namespace " + newNamespace + " not found",
+        () -> catalog.registerTable(TableIdentifier.of(newNamespace, genRandomName()), metadataLocation));
+  }
+
+  @Test
+  public void testRegisterTableAlreadyExists() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
+    catalog.createTable(tableIdentifier, SCHEMA);
+    Table table = catalog.loadTable(tableIdentifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    AssertHelpers.assertThrows("Should fail to register to an existing Glue table",
+        AlreadyExistsException.class,
+        "Cannot register: table " + tableIdentifier + " already exists",
+        () -> catalog.registerTable(tableIdentifier, metadataLocation));
   }
 
   private static String genRandomName() {

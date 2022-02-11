@@ -22,6 +22,7 @@ package org.apache.iceberg.aws.dynamodb;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -29,8 +30,10 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -438,6 +441,42 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   @Override
   public void close() throws IOException {
     closeableGroup.close();
+  }
+
+  @Override
+  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(isValidIdentifier(identifier),
+        "Cannot register: invalid table identifier " + identifier);
+    Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register: empty metadata file location as a table");
+    if (!namespaceExists(identifier.namespace())) {
+      throw new NoSuchNamespaceException("Cannot register: namespace %s not found", identifier.namespace());
+    }
+
+    Map<String, AttributeValue> values = tablePrimaryKey(identifier);
+    values.put(
+        toPropertyCol(BaseMetastoreTableOperations.TABLE_TYPE_PROP),
+        AttributeValue.builder()
+            .s(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH))
+            .build());
+    values.put(
+        toPropertyCol(BaseMetastoreTableOperations.METADATA_LOCATION_PROP),
+        AttributeValue.builder()
+            .s(metadataFileLocation)
+            .build());
+    DynamoDbCatalog.setNewCatalogEntryMetadata(values);
+
+    try {
+      dynamo.putItem(PutItemRequest.builder()
+          .tableName(awsProperties.dynamoDbTableName())
+          .item(values)
+          .conditionExpression("attribute_not_exists(" + COL_VERSION + ")")
+          .build());
+    } catch (ConditionalCheckFailedException e) {
+      throw new AlreadyExistsException(e, "Cannot register: table %s already exists", identifier);
+    }
+
+    return loadTable(identifier);
   }
 
   /**
