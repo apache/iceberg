@@ -114,7 +114,7 @@ public class S3FileIO implements FileIO {
     this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided
-    if (s3 != null) {
+    if (s3 == null) {
       this.s3 = AwsClientFactories.from(properties)::s3;
     }
 

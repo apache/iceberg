@@ -66,16 +66,16 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     switch (name) {
       case READ_BYTES:
-        ValidationException.check(type != Long.class, "'%s' requires Long type", READ_BYTES);
+        ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
         return (Counter<T>) longCounter(statistics::incrementBytesRead);
       case READ_OPERATIONS:
-        ValidationException.check(type != Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
+        ValidationException.check(type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
         return (Counter<T>) integerCounter(statistics::incrementReadOps);
       case WRITE_BYTES:
-        ValidationException.check(type != Long.class, "'%s' requires Long type", WRITE_BYTES);
+        ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
         return (Counter<T>) longCounter(statistics::incrementBytesWritten);
       case WRITE_OPERATIONS:
-        ValidationException.check(type != Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
+        ValidationException.check(type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
         return (Counter<T>) integerCounter(statistics::incrementWriteOps);
       default:
         throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
