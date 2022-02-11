@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Optional;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -34,12 +35,14 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -363,5 +366,76 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .build()
     );
     Assert.assertEquals("Columns do not match", expectedColumns, actualColumns);
+  }
+
+  @Test
+  public void testRegisterTable() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    DataFile dataFile = DataFiles.builder(partitionSpec)
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+    table.newAppend().appendFile(dataFile).commit();
+    table.refresh();
+    long v1SnapshotId = table.currentSnapshot().snapshotId();
+    String v1MetadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    table.newDelete().deleteFile(dataFile).commit();
+    table.refresh();
+
+    String registeredTableName = getRandomName();
+    Table registeredTable = glueCatalog.registerTable(
+        TableIdentifier.of(namespace, registeredTableName), v1MetadataLocation);
+
+    Assert.assertEquals("registered table should have v1 snapshot ID",
+        v1SnapshotId, registeredTable.currentSnapshot().snapshotId());
+
+    Assert.assertNotEquals("registered table should have a different snapshot ID from the original table",
+        table.currentSnapshot().snapshotId(), registeredTable.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Registered table should have 1 data file",
+        1, Lists.newArrayList(registeredTable.newScan().planFiles()).size());
+
+    // check table in Glue
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+        .databaseName(namespace).name(registeredTableName).build());
+    Assert.assertEquals("Table type should be set",
+        GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE, response.table().tableType());
+    Assert.assertNull("Storage descriptor should be empty", response.table().storageDescriptor());
+    Assert.assertTrue("Partition spec should be empty", response.table().partitionKeys().isEmpty());
+    Assert.assertEquals("Iceberg table type should be set",
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
+        response.table().parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+    Assert.assertEquals("Metadata file location should be set",
+        v1MetadataLocation, response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
+  }
+
+  @Test
+  public void testRegisterTableNamespaceNotFound() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    AssertHelpers.assertThrows("Should fail to register to an unknown namespace",
+        NoSuchNamespaceException.class,
+        "not found in Glue",
+        () -> glueCatalog.registerTable(TableIdentifier.of(getRandomName(), getRandomName()), metadataLocation));
+  }
+
+  @Test
+  public void testRegisterTableAlreadyExists() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    AssertHelpers.assertThrows("Should fail to register to an existing Glue table",
+        AlreadyExistsException.class,
+        "already exists in Glue",
+        () -> glueCatalog.registerTable(TableIdentifier.of(namespace, tableName), metadataLocation));
   }
 }

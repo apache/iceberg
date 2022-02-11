@@ -22,6 +22,7 @@ package org.apache.iceberg.aws.glue;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -48,6 +49,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LockManagers;
@@ -72,6 +74,8 @@ import software.amazon.awssdk.services.glue.model.InvalidInputException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
+
+import static org.apache.iceberg.aws.glue.GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE;
 
 public class GlueCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Configuration> {
@@ -429,6 +433,33 @@ public class GlueCatalog extends BaseMetastoreCatalog
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
     return IcebergToGlueConverter.isValidNamespace(tableIdentifier.namespace()) &&
         IcebergToGlueConverter.isValidTableName(tableIdentifier.name());
+  }
+
+  @Override
+  public org.apache.iceberg.Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(isValidIdentifier(identifier), "Table identifier to register is invalid: " + identifier);
+    Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+    try {
+      glue.createTable(CreateTableRequest.builder()
+          .databaseName(IcebergToGlueConverter.getDatabaseName(identifier))
+          .tableInput(TableInput.builder()
+              .name(IcebergToGlueConverter.getTableName(identifier))
+              .tableType(GLUE_EXTERNAL_TABLE_TYPE)
+              .parameters(ImmutableMap.of(
+                  BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+                  BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
+                  BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+                  metadataFileLocation))
+              .build())
+          .build());
+    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+      throw new AlreadyExistsException(e, "Table %s already exists in Glue", identifier);
+    } catch (EntityNotFoundException e) {
+      throw new NoSuchNamespaceException(e, "Namespace %s is not found in Glue", identifier.namespace());
+    }
+
+    return loadTable(identifier);
   }
 
   @Override
