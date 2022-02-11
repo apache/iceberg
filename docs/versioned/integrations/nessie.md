@@ -39,7 +39,7 @@ org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}}`.
 
 ## Spark SQL Extensions
 
-From spark, Nessie SQL extensions can be used to manage the Nessie repo as shown below. 
+From Spark 3.0, Nessie SQL extensions can be used to manage the Nessie repo as shown below. 
 
 ```
 bin/spark-sql 

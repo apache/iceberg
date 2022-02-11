@@ -114,7 +114,8 @@ repositories {
 
 ### Verifying with Spark
 
-To verify using spark, start a `spark-shell` with a command like the following command:
+To verify using spark, start a `spark-shell` with a command like the following command (use the appropriate
+spark-runtime jar for the Spark installation):
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \

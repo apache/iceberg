@@ -44,7 +44,7 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.0 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
 
 ```sh
 # add Iceberg dependency
