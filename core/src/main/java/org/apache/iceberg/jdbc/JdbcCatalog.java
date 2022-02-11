@@ -322,7 +322,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
             sql.setString(rowIndex + 1, key);
             rowIndex += 1;
           }
-          LOG.info("Final log string {}", sql);
+          LOG.debug("Running query to update namespace properties: {}", sql);
           return sql.executeUpdate();
         }
       });
