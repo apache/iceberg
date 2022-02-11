@@ -1271,9 +1271,9 @@ public class TableMetadata implements Serializable {
           addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
         } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
           MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
-          Long snapshotId = setRef.snapshotId();
-          if (snapshotId != null && addedSnapshotIds.contains(snapshotId) &&
-              "main".equals(setRef.name()) && snapshotId != currentSnapshotId) {
+          long snapshotId = setRef.snapshotId();
+          if (addedSnapshotIds.contains(snapshotId) &&
+              SnapshotRef.MAIN_BRANCH.equals(setRef.name()) && snapshotId != currentSnapshotId) {
             intermediateSnapshotIds.add(snapshotId);
           }
         }
