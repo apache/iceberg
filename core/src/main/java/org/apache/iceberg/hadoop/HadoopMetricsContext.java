@@ -28,8 +28,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 
-import static java.lang.String.format;
-
 /**
  * FileIO Metrics implementation that delegates to Hadoop FileSystem
  * statistics implementation using the provided scheme.
@@ -80,7 +78,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
         ValidationException.check(type != Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
         return (Counter<T>) integerCounter(statistics::incrementWriteOps);
       default:
-        throw new IllegalArgumentException(format("Unsupported counter: '%s'", name));
+        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
   }
 
