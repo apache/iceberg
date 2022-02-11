@@ -42,6 +42,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -362,6 +363,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void addDataPartitionedByDateToPartitioned() {
+    createDatePartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING iceberg PARTITIONED BY (date)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, date FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void addFilteredPartitionsToPartitioned() {
     createCompositePartitionedTable("parquet");
 
@@ -384,6 +404,46 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   @Test
   public void addFilteredPartitionsToPartitioned2() {
     createCompositePartitionedTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (id, dept)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(6L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnId() {
+    createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (id, dept)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnDept() {
+    createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
 
     String createIceberg =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
@@ -646,11 +706,66 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   }
 
+  @Test
+  public void testEmptyImportDoesNotThrow() {
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+    sql(createIceberg, tableName);
+
+    // Empty path based import
+    Object pathResult = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+    Assert.assertEquals(0L, pathResult);
+    assertEquals("Iceberg table contains no added data when importing from an empty path",
+        emptyQueryResult,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    // Empty table based import
+    String createHive = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) STORED AS parquet";
+    sql(createHive, sourceTableName);
+
+    Object tableResult = scalarSql("CALL %s.system.add_files('%s', '%s')",
+        catalogName, tableName, sourceTableName);
+    Assert.assertEquals(0L, tableResult);
+    assertEquals("Iceberg table contains no added data when importing from an empty table",
+        emptyQueryResult,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testPartitionedImportFromEmptyPartitionDoesNotThrow() {
+    createPartitionedHiveTable();
+
+    final int emptyPartitionId = 999;
+    // Add an empty partition to the hive table
+    sql("ALTER TABLE %s ADD PARTITION (id = '%d') LOCATION '%d'", sourceTableName,
+        emptyPartitionId, emptyPartitionId);
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object tableResult = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', %d))",
+        catalogName, tableName, sourceTableName, emptyPartitionId);
+
+    Assert.assertEquals(0L, tableResult);
+    assertEquals("Iceberg table contains no added data when importing from an empty table",
+        emptyQueryResult,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
+
   private static final StructField[] struct = {
-      new StructField("id", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("name", DataTypes.StringType, false, Metadata.empty()),
-      new StructField("dept", DataTypes.StringType, false, Metadata.empty()),
-      new StructField("subdept", DataTypes.StringType, false, Metadata.empty())
+      new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+      new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("subdept", DataTypes.StringType, true, Metadata.empty())
   };
 
   private static final Dataset<Row> unpartitionedDF =
@@ -662,11 +777,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
               RowFactory.create(4, "Will Doe", "facilities", "all")),
           new StructType(struct)).repartition(1);
 
+  private static final Dataset<Row> singleNullRecordDF =
+      spark.createDataFrame(
+          ImmutableList.of(
+              RowFactory.create(null, null, null, null)),
+          new StructType(struct)).repartition(1);
+
   private static final Dataset<Row> partitionedDF =
       unpartitionedDF.select("name", "dept", "subdept", "id");
 
   private static final Dataset<Row> compositePartitionedDF =
       unpartitionedDF.select("name", "subdept", "id", "dept");
+
+  private static final Dataset<Row> compositePartitionedNullRecordDF =
+      singleNullRecordDF.select("name", "subdept", "id", "dept");
 
   private static final Dataset<Row> weirdColumnNamesDF =
       unpartitionedDF.select(
@@ -675,6 +799,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
           unpartitionedDF.col("dept"),
           unpartitionedDF.col("name").as("naMe"));
 
+  private static final StructField[] dateStruct = {
+      new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+      new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("ts", DataTypes.DateType, true, Metadata.empty())
+  };
+
+  private static java.sql.Date toDate(String value) {
+    return new java.sql.Date(DateTime.parse(value).getMillis());
+  }
+
+  private static final Dataset<Row> dateDF =
+      spark.createDataFrame(
+          ImmutableList.of(
+              RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01")),
+              RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-01")),
+              RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-02")),
+              RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"))),
+          new StructType(dateStruct)).repartition(2);
 
   private void  createUnpartitionedFileTable(String format) {
     String createParquet =
@@ -703,6 +846,19 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     compositePartitionedDF.write().insertInto(sourceTableName);
     compositePartitionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void createCompositePartitionedTableWithNullValueInPartitionColumn(String format) {
+    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s " +
+            "PARTITIONED BY (id, dept) LOCATION '%s'";
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    Dataset<Row> unionedDF = compositePartitionedDF.unionAll(compositePartitionedNullRecordDF)
+            .select("name", "subdept", "id", "dept")
+            .repartition(1);
+
+    unionedDF.write().insertInto(sourceTableName);
+    unionedDF.write().insertInto(sourceTableName);
   }
 
   private void createWeirdCaseTable() {
@@ -734,5 +890,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     partitionedDF.write().insertInto(sourceTableName);
     partitionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void  createDatePartitionedFileTable(String format) {
+    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING %s " +
+        "PARTITIONED BY (date) LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    dateDF.write().insertInto(sourceTableName);
   }
 }

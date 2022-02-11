@@ -20,8 +20,10 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +53,7 @@ public class JsonUtil {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing int %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber(),
-        "Cannot parse %s from non-numeric value: %s", property, pNode);
+        "Cannot parse %s to an integer value: %s", property, pNode);
     return pNode.asInt();
   }
 
@@ -61,15 +63,25 @@ public class JsonUtil {
     }
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
-        "Cannot parse %s from non-string value: %s", property, pNode);
+        "Cannot parse %s to an integer value: %s", property, pNode);
     return pNode.asInt();
+  }
+
+  public static Long getLongOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isIntegralNumber() &&
+        pNode.canConvertToLong(), "Cannot parse %s to a long value: %s", property, pNode);
+    return pNode.asLong();
   }
 
   public static long getLong(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing long %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber(),
-        "Cannot parse %s from non-numeric value: %s", property, pNode);
+        "Cannot parse %s to a long value: %s", property, pNode);
     return pNode.asLong();
   }
 
@@ -77,7 +89,7 @@ public class JsonUtil {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing boolean %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isBoolean(),
-        "Cannot parse %s from non-boolean value: %s", property, pNode);
+        "Cannot parse %s to a boolean value: %s", property, pNode);
     return pNode.asBoolean();
   }
 
@@ -85,7 +97,7 @@ public class JsonUtil {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing string %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isTextual(),
-        "Cannot parse %s from non-string value: %s", property, pNode);
+        "Cannot parse %s to a string value: %s", property, pNode);
     return pNode.asText();
   }
 
@@ -132,6 +144,20 @@ public class JsonUtil {
     return ImmutableSet.<Integer>builder()
         .addAll(new JsonIntegerArrayIterator(property, node))
         .build();
+  }
+
+  public static void writeIntegerFieldIf(boolean condition, String key, Integer value, JsonGenerator generator)
+      throws IOException {
+    if (condition) {
+      generator.writeNumberField(key, value);
+    }
+  }
+
+  public static void writeLongFieldIf(boolean condition, String key, Long value, JsonGenerator generator)
+      throws IOException {
+    if (condition) {
+      generator.writeNumberField(key, value);
+    }
   }
 
   abstract static class JsonArrayIterator<T> implements Iterator<T> {

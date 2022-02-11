@@ -477,12 +477,38 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testAddDeletedField() {
-    AssertHelpers.assertThrows("Should fail adding a duplicate field",
-        IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-            .removeField("shard")
-            .addField(bucket("id", 16))); // duplicates shard
+  public void testNoEffectAddDeletedSameFieldWithSameName() {
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField("shard")
+        .addField("shard", bucket("id", 16))
+        .apply();
+    Assert.assertEquals(PARTITIONED, updated);
+    updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField("shard")
+        .addField(bucket("id", 16))
+        .apply();
+    Assert.assertEquals(PARTITIONED, updated);
+  }
+
+  @Test
+  public void testGenerateNewSpecAddDeletedSameFieldWithDifferentName() {
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField("shard")
+        .addField("new_shard", bucket("id", 16))
+        .apply();
+    Assert.assertEquals("Should match expected field size", 3, updated.fields().size());
+    Assert.assertEquals("Should match expected field name", "category",
+        updated.fields().get(0).name());
+    Assert.assertEquals("Should match expected field name", "ts_day",
+        updated.fields().get(1).name());
+    Assert.assertEquals("Should match expected field name", "new_shard",
+        updated.fields().get(2).name());
+    Assert.assertEquals("Should match expected field transform", "identity",
+        updated.fields().get(0).transform().toString());
+    Assert.assertEquals("Should match expected field transform", "day",
+        updated.fields().get(1).transform().toString());
+    Assert.assertEquals("Should match expected field transform", "bucket[16]",
+        updated.fields().get(2).transform().toString());
   }
 
   @Test
@@ -612,6 +638,36 @@ public class TestUpdatePartitionSpec extends TableTestBase {
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
+  }
+
+  @Test
+  public void testRemoveAndUpdateWithDifferentTransformation() {
+    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+        .month("ts", "ts_transformed")
+        .build();
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, expected)
+        .removeField("ts_transformed")
+        .addField("ts_transformed", day("ts"))
+        .apply();
+
+    if (formatVersion == 1) {
+      Assert.assertEquals("Should match expected spec field size", 2, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts_transformed_1000",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(1).name());
+
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "day",
+              updated.fields().get(1).transform().toString());
+    } else {
+      Assert.assertEquals("Should match expected spec field size", 1, updated.fields().size());
+      Assert.assertEquals("Should match expected field name", "ts_transformed",
+              updated.fields().get(0).name());
+      Assert.assertEquals("Should match expected field transform", "day",
+              updated.fields().get(0).transform().toString());
+    }
   }
 
   private static int id(String name) {

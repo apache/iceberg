@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
@@ -200,31 +201,25 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
-    Map<String, String> options = context.options();
-    long splitSize;
-    if (options.containsKey(TableProperties.SPLIT_SIZE)) {
-      splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
-    } else {
-      splitSize = targetSplitSize();
-    }
-    int lookback;
-    if (options.containsKey(TableProperties.SPLIT_LOOKBACK)) {
-      lookback = Integer.parseInt(options.get(TableProperties.SPLIT_LOOKBACK));
-    } else {
-      lookback = ops.current().propertyAsInt(
-          TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    }
-    long openFileCost;
-    if (options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
-      openFileCost = Long.parseLong(options.get(TableProperties.SPLIT_OPEN_FILE_COST));
-    } else {
-      openFileCost = ops.current().propertyAsLong(
-          TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
-    }
-
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
-    return TableScanUtil.planTasks(splitFiles, splitSize, lookback, openFileCost);
+    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
+    return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
+  }
+
+  @Override
+  public int splitLookback() {
+    int tableValue = tableOps().current().propertyAsInt(
+        TableProperties.SPLIT_LOOKBACK,
+        TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    return PropertyUtil.propertyAsInt(options(), TableProperties.SPLIT_LOOKBACK, tableValue);
+  }
+
+  @Override
+  public long splitOpenFileCost() {
+    long tableValue = tableOps().current().propertyAsLong(
+        TableProperties.SPLIT_OPEN_FILE_COST,
+        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }
 
   @Override

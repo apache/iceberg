@@ -79,8 +79,9 @@ public class SparkValueConverter {
         return DateTimeUtils.fromJavaTimestamp((Timestamp) object);
       case BINARY:
         return ByteBuffer.wrap((byte[]) object);
-      case BOOLEAN:
       case INTEGER:
+        return ((Number) object).intValue();
+      case BOOLEAN:
       case LONG:
       case FLOAT:
       case DOUBLE:

@@ -21,7 +21,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.parquet.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A collection of vectorized readers per column (in the expected read schema) and Arrow Vector holders. This class owns

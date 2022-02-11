@@ -19,6 +19,9 @@
 
 package org.apache.iceberg;
 
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 /**
  * An isolation level in a table.
  * <p>
@@ -35,5 +38,10 @@ package org.apache.iceberg;
  * the serializable isolation but can still commit under the snapshot isolation.
  */
 public enum IsolationLevel {
-  SERIALIZABLE, SNAPSHOT
+  SERIALIZABLE, SNAPSHOT;
+
+  public static IsolationLevel fromName(String levelName) {
+    Preconditions.checkArgument(levelName != null, "Level name is null");
+    return IsolationLevel.valueOf(levelName.toUpperCase(Locale.ROOT));
+  }
 }

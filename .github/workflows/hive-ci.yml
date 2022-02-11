@@ -25,6 +25,7 @@ on:
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/cancel-duplicate-workflow-runs.yml'
+    - '.gitignore'
     - 'dev/**'
     - 'arrow/**'
     - 'spark/**'
@@ -32,12 +33,13 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/flink-ci.yml'
+    - '.gitignore'
     - 'dev/**'
     - 'arrow/**'
     - 'spark/**'
@@ -45,7 +47,7 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
 
 jobs:
   hive2-tests:

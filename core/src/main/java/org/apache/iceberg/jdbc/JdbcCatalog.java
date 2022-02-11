@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -47,7 +46,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -57,7 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, SupportsNamespaces, Closeable {
+public class JdbcCatalog extends BaseMetastoreCatalog
+    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
@@ -66,7 +66,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   private FileIO io;
   private String catalogName = "jdbc";
   private String warehouseLocation;
-  private Configuration conf;
+  private Object conf;
   private JdbcClientPool connections;
 
   public JdbcCatalog() {
@@ -85,8 +85,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       this.catalogName = name;
     }
 
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.io = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    String fileIOImpl = properties.getOrDefault(
+        CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+    this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     try {
       LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
@@ -253,11 +254,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   @Override
   public String name() {
     return catalogName;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return conf;
   }
 
   @Override

@@ -21,9 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +41,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
@@ -210,7 +209,7 @@ public class ParquetUtil {
    * Returns a list of offsets in ascending order determined by the starting position of the row groups.
    */
   public static List<Long> getSplitOffsets(ParquetMetadata md) {
-    List<Long> splitOffsets = new ArrayList<>(md.getBlocks().size());
+    List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
     }
@@ -287,11 +286,19 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            upperBounds.put(id, UnicodeUtil.truncateStringMax((Literal<CharSequence>) max, truncateLength));
+            Literal<CharSequence> truncatedMaxString = UnicodeUtil.truncateStringMax((Literal<CharSequence>) max,
+                truncateLength);
+            if (truncatedMaxString != null) {
+              upperBounds.put(id, truncatedMaxString);
+            }
             break;
           case FIXED:
           case BINARY:
-            upperBounds.put(id, BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max, truncateLength));
+            Literal<ByteBuffer> truncatedMaxBinary = BinaryUtil.truncateBinaryMax((Literal<ByteBuffer>) max,
+                truncateLength);
+            if (truncatedMaxBinary != null) {
+              upperBounds.put(id, truncatedMaxBinary);
+            }
             break;
           default:
             upperBounds.put(id, max);
@@ -317,7 +324,7 @@ public class ParquetUtil {
     }
 
     // without EncodingStats, fall back to testing the encoding list
-    Set<Encoding> encodings = new HashSet<>(meta.getEncodings());
+    Set<Encoding> encodings = Sets.newHashSet(meta.getEncodings());
     if (encodings.remove(Encoding.PLAIN_DICTIONARY)) {
       // if remove returned true, PLAIN_DICTIONARY was present, which means at
       // least one page was dictionary encoded and 1.0 encodings are used

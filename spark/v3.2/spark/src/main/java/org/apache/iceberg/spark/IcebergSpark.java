@@ -37,4 +37,12 @@ public class IcebergSpark {
     session.udf().register(funcName,
         value -> bucket.apply(SparkValueConverter.convert(sourceIcebergType, value)), DataTypes.IntegerType);
   }
+
+  public static void registerTruncateUDF(SparkSession session, String funcName, DataType sourceType, int width) {
+    SparkTypeToType typeConverter = new SparkTypeToType();
+    Type sourceIcebergType = typeConverter.atomic(sourceType);
+    Transform<Object, Object> truncate = Transforms.truncate(sourceIcebergType, width);
+    session.udf().register(funcName,
+        value -> truncate.apply(SparkValueConverter.convert(sourceIcebergType, value)), sourceType);
+  }
 }

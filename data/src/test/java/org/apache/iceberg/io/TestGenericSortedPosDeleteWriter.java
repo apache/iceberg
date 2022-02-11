@@ -74,6 +74,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
+  @Override
   @Before
   public void setupTable() throws IOException {
     this.tableDir = temp.newFolder();
@@ -99,7 +100,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     DataWriter<Record> writer = appenderFactory.newDataWriter(createEncryptedOutputFile(), format, null);
     try (DataWriter<Record> closeableWriter = writer) {
       for (Record record : rowSet) {
-        closeableWriter.add(record);
+        closeableWriter.write(record);
       }
     }
 

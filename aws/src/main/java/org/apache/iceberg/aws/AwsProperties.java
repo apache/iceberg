@@ -132,6 +132,40 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_ACL = "s3.acl";
 
   /**
+   * Configure an alternative endpoint of the S3 service for S3FileIO to access.
+   * <p>
+   * This could be used to use S3FileIO with any s3-compatible object storage service that has a different endpoint,
+   * or access a private S3 endpoint in a virtual private cloud.
+   */
+  public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
+
+  /**
+   * Configure the static access key ID used to access S3FileIO.
+   * <p>
+   * When set, the default client factory will use the basic or session credentials provided instead of
+   * reading the default credential chain to create S3 access credentials.
+   * If {@link #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String S3FILEIO_ACCESS_KEY_ID = "s3.access-key-id";
+
+  /**
+   * Configure the static secret access key used to access S3FileIO.
+   * <p>
+   * When set, the default client factory will use the basic or session credentials provided instead of
+   * reading the default credential chain to create S3 access credentials.
+   * If {@link #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String S3FILEIO_SECRET_ACCESS_KEY = "s3.secret-access-key";
+
+  /**
+   * Configure the static session token used to access S3FileIO.
+   * <p>
+   * When set, the default client factory will use the session credentials provided instead of
+   * reading the default credential chain to create S3 access credentials.
+   */
+  public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
+
+  /**
    * DynamoDB table name for {@link DynamoDbCatalog}
    */
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
@@ -175,6 +209,12 @@ public class AwsProperties implements Serializable {
    */
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
+  /**
+   * Enables eTag checks for S3 PUT and MULTIPART upload requests.
+   */
+  public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
+  public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -188,6 +228,8 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
 
   private String dynamoDbTableName;
+
+  private boolean isS3ChecksumEnabled;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
@@ -250,6 +292,9 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
+
+    this.isS3ChecksumEnabled = PropertyUtil.propertyAsBoolean(properties, S3_CHECKSUM_ENABLED,
+        CLIENT_ENABLE_ETAG_CHECK_DEFAULT);
   }
 
   public String s3FileIoSseType() {
@@ -338,5 +383,13 @@ public class AwsProperties implements Serializable {
 
   public void setDynamoDbTableName(String name) {
     this.dynamoDbTableName = name;
+  }
+
+  public boolean isS3ChecksumEnabled() {
+    return this.isS3ChecksumEnabled;
+  }
+
+  public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
+    this.isS3ChecksumEnabled = eTagCheckEnabled;
   }
 }

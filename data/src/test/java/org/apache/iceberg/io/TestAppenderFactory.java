@@ -83,6 +83,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     this.partitioned = partitioned;
   }
 
+  @Override
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
@@ -154,7 +155,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     DataWriter<T> writer = appenderFactory.newDataWriter(createEncryptedOutputFile(), format, partition);
     try (DataWriter<T> closeableWriter = writer) {
       for (T row : rowSet) {
-        closeableWriter.add(row);
+        closeableWriter.write(row);
       }
     }
 

@@ -21,12 +21,16 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -36,6 +40,7 @@ import org.junit.Test;
 public class TestSelect extends SparkCatalogTestBase {
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
+  private String binaryTableName = tableName("binary_table");
 
   public TestSelect(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -59,6 +64,7 @@ public class TestSelect extends SparkCatalogTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", binaryTableName);
   }
 
   @Test
@@ -119,5 +125,94 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Snapshot metadata table",
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
         sql("SELECT * FROM %s.snapshots", tableName));
+  }
+
+  @Test
+  public void testSnapshotInTableName() {
+    Assume.assumeFalse(
+        "Spark session catalog does not support extended table names",
+        "spark_catalog".equals(catalogName));
+
+    // get the snapshot ID of the last write and get the current row set as expected
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    String prefix = "snapshot_id_";
+    // read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s.%s", tableName, prefix + snapshotId);
+    assertEquals("Snapshot at specific ID, prefix " + prefix, expected, actual);
+
+    // read the table using DataFrameReader option
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
+  }
+
+  @Test
+  public void testTimestampInTableName() {
+    Assume.assumeFalse(
+        "Spark session catalog does not support extended table names",
+        "spark_catalog".equals(catalogName));
+
+    // get a timestamp just after the last write and get the current row set as expected
+    long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 2);
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    String prefix = "at_timestamp_";
+    // read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s.%s", tableName, prefix + timestamp);
+    assertEquals("Snapshot at timestamp, prefix " + prefix, expected, actual);
+
+    // read the table using DataFrameReader option
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
+  }
+
+  @Test
+  public void testSpecifySnapshotAndTimestamp() {
+    // get the snapshot ID of the last write
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    // get a timestamp just after the last write
+    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    AssertHelpers.assertThrows("Should not be able to specify both snapshot id and timestamp",
+        IllegalArgumentException.class,
+        String.format("Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)",
+          snapshotId, timestamp),
+        () -> {
+          spark.read()
+            .format("iceberg")
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+            .load(tableName)
+            .collectAsList();
+        });
+  }
+
+  @Test
+  public void testBinaryInFilter() {
+    sql("CREATE TABLE %s (id bigint, binary binary) USING iceberg", binaryTableName);
+    sql("INSERT INTO %s VALUES (1, X''), (2, X'1111'), (3, X'11')", binaryTableName);
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[]{0x11, 0x11}));
+
+    assertEquals("Should return all expected rows", expected,
+        sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));
   }
 }

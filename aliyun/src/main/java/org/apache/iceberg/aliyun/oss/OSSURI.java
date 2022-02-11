@@ -102,6 +102,13 @@ public class OSSURI {
     return key;
   }
 
+  /**
+   * Return original, unmodified OSS URI location.
+   */
+  public String location() {
+    return location;
+  }
+
   @Override
   public String toString() {
     return location;

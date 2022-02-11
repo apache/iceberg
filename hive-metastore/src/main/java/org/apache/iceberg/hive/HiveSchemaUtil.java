@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -27,6 +26,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -66,9 +66,9 @@ public final class HiveSchemaUtil {
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
-    List<String> names = new ArrayList<>(fieldSchemas.size());
-    List<TypeInfo> typeInfos = new ArrayList<>(fieldSchemas.size());
-    List<String> comments = new ArrayList<>(fieldSchemas.size());
+    List<String> names = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
+    List<TypeInfo> typeInfos = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
+    List<String> comments = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
 
     for (FieldSchema col : fieldSchemas) {
       names.add(col.getName());

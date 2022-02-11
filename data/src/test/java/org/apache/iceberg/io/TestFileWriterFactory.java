@@ -100,6 +100,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     return fileFormat;
   }
 
+  @Override
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
@@ -338,7 +339,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     try (DataWriter<T> closeableWriter = writer) {
       for (T row : rows) {
-        closeableWriter.add(row);
+        closeableWriter.write(row);
       }
     }
 

@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -41,6 +42,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -253,8 +255,42 @@ public class TableMetadataParser {
     }
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  /**
+   * Read TableMetadata from a JSON string.
+   * <p>
+   * The TableMetadata's metadata file location will be unset.
+   *
+   * @param io a FileIO used by {@link Snapshot} instances
+   * @param json a JSON string of table metadata
+   * @return a TableMetadata object
+   */
+  public static TableMetadata fromJson(FileIO io, String json) {
+    return fromJson(io, null, json);
+  }
+
+  /**
+   * Read TableMetadata from a JSON string.
+   *
+   * @param io a FileIO used by {@link Snapshot} instances
+   * @param metadataLocation metadata location for the returned {@link TableMetadata}
+   * @param json a JSON string of table metadata
+   * @return a TableMetadata object
+   */
+  public static TableMetadata fromJson(FileIO io, String metadataLocation, String json) {
+    try {
+      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      return fromJson(io, metadataLocation, node);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
+    }
+  }
+
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
+    return fromJson(io, file.location(), node);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
 
@@ -395,9 +431,10 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(file, formatVersion, uuid, location,
+    return new TableMetadata(metadataLocation, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build());
+        snapshots, entries.build(), metadataEntries.build(), ImmutableMap.of(),
+        ImmutableList.of() /* no changes from the file */);
   }
 }

@@ -33,6 +33,12 @@ public class SparkWriteOptions {
   // Overrides this table's write.target-file-size-bytes
   public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
+  // Overrides the default file format for delete files
+  public static final String DELETE_FORMAT = "delete-format";
+
+  // Overrides the default size for delete files
+  public static final String TARGET_DELETE_FILE_SIZE_BYTES = "target-delete-file-size-bytes";
+
   //  Sets the nullable check on fields(default: true)
   public static final String CHECK_NULLABILITY = "check-nullability";
 
@@ -53,4 +59,13 @@ public class SparkWriteOptions {
 
   // Controls whether to allow writing timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
+
+  public static final String OVERWRITE_MODE = "overwrite-mode";
+
+  // Overrides the default distribution mode for a write operation
+  public static final String DISTRIBUTION_MODE = "distribution-mode";
+
+  // Controls whether to take into account the table distribution and sort order during a write operation
+  public static final String USE_TABLE_DISTRIBUTION_AND_ORDERING = "use-table-distribution-and-ordering";
+  public static final boolean USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = true;
 }

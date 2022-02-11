@@ -30,8 +30,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,6 +76,8 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.assertj.core.api.Assertions;
@@ -409,7 +409,7 @@ public class ArrowReaderTest {
       ColumnarBatch batch,
       List<String> columns) {
 
-    Map<String, Integer> columnNameToIndex = new HashMap<>();
+    Map<String, Integer> columnNameToIndex = Maps.newHashMap();
     for (int i = 0; i < columns.size(); i++) {
       columnNameToIndex.put(columns.get(i), i);
     }
@@ -604,7 +604,7 @@ public class ArrowReaderTest {
   }
 
   private void writeTable(boolean constantRecords) throws Exception {
-    rowsWritten = new ArrayList<>();
+    rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
     tableLocation = temp.newFolder("test").toString();
 
@@ -728,7 +728,7 @@ public class ArrowReaderTest {
   }
 
   private List<GenericRecord> createIncrementalRecordsForDate(Schema schema, LocalDateTime datetime) {
-    List<GenericRecord> records = new ArrayList<>();
+    List<GenericRecord> records = Lists.newArrayList();
     for (int i = 0; i < NUM_ROWS_PER_MONTH; i++) {
       GenericRecord rec = GenericRecord.create(schema);
       rec.setField("timestamp", datetime.plus(i, ChronoUnit.DAYS));
@@ -764,7 +764,7 @@ public class ArrowReaderTest {
   }
 
   private List<GenericRecord> createConstantRecordsForDate(Schema schema, LocalDateTime datetime) {
-    List<GenericRecord> records = new ArrayList<>();
+    List<GenericRecord> records = Lists.newArrayList();
     for (int i = 0; i < NUM_ROWS_PER_MONTH; i++) {
       GenericRecord rec = GenericRecord.create(schema);
       rec.setField("timestamp", datetime);

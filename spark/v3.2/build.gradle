@@ -17,29 +17,30 @@
  * under the License.
  */
 
+String sparkVersion = '3.2.0'
+String sparkMajorVersion = '3.2'
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+
 def sparkProjects = [
-    project(':iceberg-spark:iceberg-spark-3.2'),
-    project(":iceberg-spark:iceberg-spark-3.2-extensions"),
-    project(':iceberg-spark:iceberg-spark-3.2-runtime')
+    project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
+    project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
+    project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
 ]
 
 configure(sparkProjects) {
-  project.ext {
-    sparkVersion = '3.2.0'
-  }
-
   configurations {
     all {
       resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.12.3'
+        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.12.3"
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.12.3'
       }
     }
   }
 }
 
-project(':iceberg-spark:iceberg-spark-3.2') {
+project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   apply plugin: 'scala'
+  apply plugin: 'com.github.alisiikh.scalastyle'
 
   sourceSets {
     main {
@@ -57,15 +58,16 @@ project(':iceberg-spark:iceberg-spark-3.2') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'org.roaringbitmap'
     }
 
     implementation("org.apache.orc:orc-core::nohive") {
@@ -87,6 +89,7 @@ project(':iceberg-spark:iceberg-spark-3.2') {
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
     }
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -107,9 +110,10 @@ project(':iceberg-spark:iceberg-spark-3.2') {
   }
 }
 
-project(":iceberg-spark:iceberg-spark-3.2-extensions") {
+project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
+  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'antlr'
 
   configurations {
@@ -126,25 +130,28 @@ project(":iceberg-spark:iceberg-spark-3.2-extensions") {
   }
 
   dependencies {
-    compileOnly "org.scala-lang:scala-library"
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
+
+    compileOnly "org.scala-lang:scala-library:${scalaVersion}"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark:iceberg-spark-3.2')
-    compileOnly project(':iceberg-hive-metastore')
-    compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
+    compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'org.roaringbitmap'
     }
 
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark:iceberg-spark-3.2', configuration: 'testArtifacts')
+    testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
     testImplementation "org.apache.avro:avro"
 
@@ -160,7 +167,7 @@ project(":iceberg-spark:iceberg-spark-3.2-extensions") {
   }
 }
 
-project(':iceberg-spark:iceberg-spark-3.2-runtime') {
+project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}") {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -194,23 +201,29 @@ project(':iceberg-spark:iceberg-spark-3.2-runtime') {
 
   dependencies {
     api project(':iceberg-api')
-    implementation project(':iceberg-spark:iceberg-spark-3.2')
-    implementation project(':iceberg-spark:iceberg-spark-3.2-extensions')
+    implementation project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
+    implementation project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    integrationImplementation "org.apache.spark:spark-hive_2.12:${sparkVersion}"
+    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}"
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.2', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.2-extensions', configuration: 'testArtifacts')
+    integrationImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
+    integrationImplementation project(path: ":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.2-extensions')
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.2')
+    integrationCompileOnly project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
+    integrationCompileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
     integrationCompileOnly project(':iceberg-api')
   }
 
@@ -244,12 +257,13 @@ project(':iceberg-spark:iceberg-spark-3.2-runtime') {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     // relocate Antlr runtime and related deps to shade Iceberg specific version
     relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
+    relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
     classifier null
   }
 
   task integrationTest(type: Test) {
-    description = "Test Spark3 Runtime Jar against Spark 3.2"
+    description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
     group = "verification"
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
@@ -261,3 +275,4 @@ project(':iceberg-spark:iceberg-spark-3.2-runtime') {
     enabled = false
   }
 }
+
