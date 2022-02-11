@@ -90,6 +90,10 @@ public class AvroSchemaUtil {
     return AvroCustomOrderSchemaVisitor.visit(schema, new HasIds());
   }
 
+  static boolean missingIds(Schema schema) {
+    return AvroCustomOrderSchemaVisitor.visit(schema, new MissingIds());
+  }
+
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
     TypeToSchema converter = new TypeToSchema(ImmutableMap.of(type, name));
     TypeUtil.visit(type, converter);
@@ -354,6 +358,26 @@ public class AvroSchemaUtil {
       copy.addAlias(field.name());
     }
 
+    return copy;
+  }
+
+  static Schema copyArray(Schema array, Schema elementSchema) {
+    Preconditions.checkArgument(array.getType() == org.apache.avro.Schema.Type.ARRAY,
+        "Cannot invoke copyArray on non array schema");
+    Schema copy = Schema.createArray(elementSchema);
+    for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
+      copy.addProp(prop.getKey(), prop.getValue());
+    }
+    return copy;
+  }
+
+  static Schema copyMap(Schema map, Schema valueSchema) {
+    Preconditions.checkArgument(map.getType() == org.apache.avro.Schema.Type.MAP,
+        "Cannot invoke copyMap on non map schema");
+    Schema copy = Schema.createMap(valueSchema);
+    for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {
+      copy.addProp(prop.getKey(), prop.getValue());
+    }
     return copy;
   }
 
