@@ -75,8 +75,6 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
-import static org.apache.iceberg.aws.glue.GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE;
-
 public class GlueCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Configuration> {
 
@@ -437,7 +435,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public org.apache.iceberg.Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
-    Preconditions.checkArgument(isValidIdentifier(identifier), "Table identifier to register is invalid: " + identifier);
+    Preconditions.checkArgument(isValidIdentifier(identifier),
+        "Table identifier to register is invalid: " + identifier);
     Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
     try {
@@ -445,7 +444,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
           .databaseName(IcebergToGlueConverter.getDatabaseName(identifier))
           .tableInput(TableInput.builder()
               .name(IcebergToGlueConverter.getTableName(identifier))
-              .tableType(GLUE_EXTERNAL_TABLE_TYPE)
+              .tableType(GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(ImmutableMap.of(
                   BaseMetastoreTableOperations.TABLE_TYPE_PROP,
                   BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
