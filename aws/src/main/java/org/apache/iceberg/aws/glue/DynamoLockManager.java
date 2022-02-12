@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.aws.glue;
 
 import java.util.List;
@@ -61,6 +62,7 @@ import software.amazon.awssdk.services.dynamodb.model.TransactionConflictExcepti
 /**
  * @deprecated will be removed in 0.15.0, please use {@link org.apache.iceberg.aws.dynamodb.DynamoDbLockManager}
  */
+@Deprecated
 class DynamoLockManager extends LockManagers.BaseLockManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoLockManager.class);
