@@ -19,11 +19,16 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -113,5 +118,48 @@ public class ReachableFileUtil {
       }
     }
     return manifestListLocations;
+  }
+
+  /**
+   * Emits a human-readable metadata graph of the current snapshot of the given table
+   * @param table Iceberg table
+   * @param out output print stream to emit to
+   */
+  public static void printCurrentSnapshot(Table table, PrintStream out) {
+    Iterator<ManifestFile> allManifests = table.currentSnapshot().allManifests().iterator();
+    out.println();
+    while (allManifests.hasNext()) {
+      ManifestFile mf = allManifests.next();
+      out.print("\\---");
+      out.print(mf);
+
+      if (mf.content().equals(ManifestContent.DATA)) {
+        ManifestReader<DataFile> dataReader = ManifestFiles.read(mf, table.io(), table.specs());
+        try (CloseableIterator<ManifestEntry<DataFile>> dataEntries = dataReader.entries().iterator()) {
+          while (dataEntries.hasNext()) {
+            out.println();
+            out.print("    +---");
+            out.print(dataEntries.next());
+          }
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+
+      } else if (mf.content().equals(ManifestContent.DELETES)) {
+        ManifestReader<DeleteFile> deleteReader = ManifestFiles.readDeleteManifest(mf, table.io(), table.specs());
+        try (CloseableIterator<ManifestEntry<DeleteFile>> deleteEntries = deleteReader.entries().iterator()) {
+          while (deleteEntries.hasNext()) {
+            out.println();
+            out.print("    +---");
+            out.print(deleteEntries.next());
+          }
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      out.println();
+      out.println();
+    }
   }
 }
