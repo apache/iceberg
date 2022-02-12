@@ -218,6 +218,7 @@ public class AwsProperties implements Serializable {
   /**
    * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
    */
+  @Deprecated
   public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
   private String s3FileIoSseType;
