@@ -23,7 +23,7 @@ from urllib.parse import ParseResult, urlparse
 import pytest
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
-from iceberg.io.pyarrow import PyArrowFileIO, PyArrowInputFile, PyArrowOutputFile
+from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 class LocalInputFile(InputFile):
@@ -122,7 +122,7 @@ class LocalFileIO(FileIO):
             raise FileNotFoundError(f"File could not be deleted because it does not exist: {parsed_location.path}")
 
 
-@pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowInputFile])
+@pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
 def test_custom_local_input_file(CustomInputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -143,7 +143,7 @@ def test_custom_local_input_file(CustomInputFile):
         assert len(input_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowOutputFile])
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
 def test_custom_local_output_file(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -163,7 +163,7 @@ def test_custom_local_output_file(CustomOutputFile):
         assert len(output_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowOutputFile])
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
 def test_custom_local_output_file_with_overwrite(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -187,7 +187,7 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
             assert f.read() == b"bar"
 
 
-@pytest.mark.parametrize("CustomFile", [LocalInputFile, LocalOutputFile, PyArrowInputFile, PyArrowOutputFile])
+@pytest.mark.parametrize("CustomFile", [LocalInputFile, LocalOutputFile, PyArrowFile, PyArrowFile])
 def test_custom_file_exists(CustomFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -212,7 +212,7 @@ def test_custom_file_exists(CustomFile):
         assert not non_existent_file.exists
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowOutputFile])
+@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
 def test_output_file_to_input_file(CustomOutputFile):
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -323,7 +323,7 @@ def test_raise_FileNotFoundError_for_fileio_delete(CustomFileIO):
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowInputFile)])
+@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowFile)])
 def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -348,7 +348,7 @@ def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFi
         assert not os.path.exists(file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowOutputFile)])
+@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowFile)])
 def test_deleting_local_file_using_file_io_OutputFile(CustomFileIO, CustomOutputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:

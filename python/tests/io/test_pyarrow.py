@@ -22,11 +22,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pyarrow.fs import FileType
 
-from iceberg.io.pyarrow import PyArrowInputFile, PyArrowOutputFile
+from iceberg.io.pyarrow import PyArrowFile
 
 
 def test_pyarrow_input_file():
-    """Test reading a file using PyArrowInputFile"""
+    """Test reading a file using PyArrowFile"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -38,7 +38,7 @@ def test_pyarrow_input_file():
 
         # Instantiate the input file
         absolute_file_location = os.path.abspath(file_location)
-        input_file = PyArrowInputFile(location=f"{absolute_file_location}")
+        input_file = PyArrowFile(location=f"{absolute_file_location}")
 
         # Test opening and reading the file
         f = input_file.open()
@@ -48,14 +48,14 @@ def test_pyarrow_input_file():
 
 
 def test_pyarrow_output_file():
-    """Test writing a file using PyArrowOutputFile"""
+    """Test writing a file using PyArrowFile"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
 
         # Instantiate the output file
         absolute_file_location = os.path.abspath(file_location)
-        output_file = PyArrowOutputFile(location=f"{absolute_file_location}")
+        output_file = PyArrowFile(location=f"{absolute_file_location}")
 
         # Create the output file and write to it
         f = output_file.create()
@@ -72,14 +72,18 @@ def test_pyarrow_invalid_scheme():
     """Test that a ValueError is raised if a location is provided with an invalid scheme"""
 
     with pytest.raises(ValueError) as exc_info:
-        PyArrowInputFile("foo://bar/baz.txt")
+        PyArrowFile("foo://bar/baz.txt")
 
-    assert ("PyArrowInputFile location must have a scheme of `file`, `mock`, `s3fs`, `hdfs`, or `viewfs`") in str(exc_info.value)
+    assert ("PyArrowFile location must have one of the following schemes: ['file', 'mock', 's3fs', 'hdfs', 'viewfs']") in str(
+        exc_info.value
+    )
 
     with pytest.raises(ValueError) as exc_info:
-        PyArrowOutputFile("foo://bar/baz.txt")
+        PyArrowFile("foo://bar/baz.txt")
 
-    assert ("PyArrowOutputFile location must have a scheme of `file`, `mock`, `s3fs`, `hdfs`, or `viewfs`") in str(exc_info.value)
+    assert ("PyArrowFile location must have one of the following schemes: ['file', 'mock', 's3fs', 'hdfs', 'viewfs']") in str(
+        exc_info.value
+    )
 
 
 @patch("iceberg.io.pyarrow.FileSystem")
@@ -99,9 +103,9 @@ def test_pyarrow_violating_InputStream_protocol(MockedFileSystem):
     )  # Patch the FileSystem.from_uri method to return the mocked filesystem
 
     with pytest.raises(TypeError) as exc_info:
-        PyArrowInputFile("foo.txt").open()
+        PyArrowFile("foo.txt").open()
 
-    assert ("Object returned from PyArrowInputFile.open does not match the InputStream protocol.") in str(exc_info.value)
+    assert ("Object returned from PyArrowFile.open does not match the InputStream protocol.") in str(exc_info.value)
 
 
 @patch("iceberg.io.pyarrow.FileSystem")
@@ -125,6 +129,6 @@ def test_pyarrow_violating_OutputStream_protocol(MockedFileSystem):
     )  # Patch the FileSystem.from_uri method to return the mocked filesystem
 
     with pytest.raises(TypeError) as exc_info:
-        PyArrowOutputFile("foo.txt").create()
+        PyArrowFile("foo.txt").create()
 
-    assert ("Object returned from PyArrowOutputFile.create does not match the OutputStream protocol.") in str(exc_info.value)
+    assert ("Object returned from PyArrowFile.create does not match the OutputStream protocol.") in str(exc_info.value)

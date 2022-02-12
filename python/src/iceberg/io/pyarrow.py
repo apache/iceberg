@@ -30,37 +30,39 @@ from pyarrow.fs import FileSystem, FileType
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
 SUPPORTED_SCHEMES = [
-            "file",
-            "mock",
-            "s3fs",
-            "hdfs",
-            "viewfs",
+    "file",
+    "mock",
+    "s3fs",
+    "hdfs",
+    "viewfs",
 ]
 
 
-class PyArrowInputFile(InputFile):
-    """An InputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances for reading
+class PyArrowFile(InputFile, OutputFile):
+    """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances
 
     Args:
         location(str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI or path to a local file for a PyArrowInputFile instance
+        location(str): The URI or path to a local file for a PyArrowFile instance
         parsed_location(urllib.parse.ParseResult): The parsed location with attributes `scheme`, `netloc`, `path`, `params`,
           `query`, and `fragment`
         exists(bool): Whether the file exists or not
 
     Examples:
-        >>> from iceberg.io.pyarrow import PyArrowInputFile
-        >>> input_file = PyArrowInputFile("s3://foo/bar.txt")
-        >>> file_content = input_file.open().read()
+        >>> from iceberg.io.pyarrow import PyArrowFile
+        >>> input_file = PyArrowFile("s3://foo/bar.txt")
+        >>> file_content = input_file.open().read()  # Read the contents of the PyArrowFile instance
+        >>> output_file = PyArrowFile("s3://baz/qux.txt")
+        >>> output_file.create().write(b'foobytes')  # Write bytes to the PyarrowFile instance
     """
 
     def __init__(self, location: str):
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
 
         if parsed_location.scheme and parsed_location.scheme not in SUPPORTED_SCHEMES:
-            raise ValueError(f"PyArrowInputFile location must have one of the following schemes: {SUPPORTED_SCHEMES}")
+            raise ValueError(f"PyArrowFile location must have one of the following schemes: {SUPPORTED_SCHEMES}")
 
         super().__init__(location=location)
         self._parsed_location = parsed_location
@@ -97,66 +99,11 @@ class PyArrowInputFile(InputFile):
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
         input_file = filesytem.open_input_file(path)
         if not isinstance(input_file, InputStream):
-            raise TypeError("""Object returned from PyArrowInputFile.open does not match the InputStream protocol.""")
+            raise TypeError("""Object returned from PyArrowFile.open does not match the InputStream protocol.""")
         return input_file
 
-
-class PyArrowOutputFile(OutputFile):
-    """An OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances for writing
-
-    Args:
-        location(str): A URI or a path to a local file
-
-    Attributes:
-        location(str): The URI or path to a local file for a PyArrowOutputFile instance
-        parsed_location(urllib.parse.ParseResult): The parsed location with attributes `scheme`, `netloc`, `path`, `params`,
-          `query`, and `fragment`
-        exists(bool): Whether the file exists or not
-
-    Examples:
-        >>> from iceberg.io.pyarrow import PyArrowOutputFile
-        >>> output_file = PyArrowOutputFile("s3://foo/bar.txt")
-        >>> output_file.create().write(b'baz')
-    """
-
-    def __init__(self, location: str):
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
-
-        if parsed_location.scheme and parsed_location.scheme not in SUPPORTED_SCHEMES:
-            raise ValueError(f"PyArrowOutputFile location must have one of the following schemes: {SUPPORTED_SCHEMES}")
-
-        super().__init__(location=location)
-        self._parsed_location = parsed_location
-
-    def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
-        filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        file = filesytem.open_input_file(path)
-        return file.size()
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
-
-    @property
-    def exists(self) -> bool:
-        """Checks whether the file exists"""
-        filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        file_info = filesytem.get_file_info(path)
-        return False if file_info.type == FileType.NotFound else True
-
-    def to_input_file(self) -> PyArrowInputFile:
-        """Returns a PyArrowInputFile for the location of this PyArrowOutputFile instance"""
-        return PyArrowInputFile(self.location)
-
     def create(self, overwrite: bool = False) -> OutputStream:
-        """Creates a writable pyarrow.lib.NativeFile for this PyArrowOutputFile's location
+        """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location
 
         Args:
             overwrite(bool): Whether to overwrite the file if it already exists
@@ -174,26 +121,35 @@ class PyArrowOutputFile(OutputFile):
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
         output_file = filesytem.open_output_stream(path)
         if not isinstance(output_file, OutputStream):
-            raise TypeError("Object returned from PyArrowOutputFile.create does not match the OutputStream protocol.")
+            raise TypeError("Object returned from PyArrowFile.create does not match the OutputStream protocol.")
         return output_file
+
+    def to_input_file(self) -> "PyArrowFile":
+        """Returns a new PyArrowFile for the location of an existing PyArrowFile instance
+
+        This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
+        PyArrowFile class (as opposed to separate InputFile and OutputFile implementations), this method effectively returns
+        a copy of the same instance.
+        """
+        return PyArrowFile(self.location)
 
 
 class PyArrowFileIO(FileIO):
-    def new_input(self, location: str) -> PyArrowInputFile:
-        """Get a PyArrowInputFile instance to read bytes from the file at the given location
+    def new_input(self, location: str) -> PyArrowFile:
+        """Get a PyArrowFile instance to read bytes from the file at the given location
 
         Args:
             location(str): A URI or a path to a local file
         """
-        return PyArrowInputFile(location)
+        return PyArrowFile(location)
 
-    def new_output(self, location: str) -> PyArrowOutputFile:
-        """Get a PyArrowOutputFile instance to write bytes to the file at the given location
+    def new_output(self, location: str) -> PyArrowFile:
+        """Get a PyArrowFile instance to write bytes to the file at the given location
 
         Args:
             location(str): A URI or a path to a local file
         """
-        return PyArrowOutputFile(location)
+        return PyArrowFile(location)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given path
