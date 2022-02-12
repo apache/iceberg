@@ -82,8 +82,9 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 Iceberg's Spark integration is compatible with Spark using the modules in the following table:
 
 | Iceberg version | Spark 2.4.x           | Spark 3.0.x            | Spark 3.1.x                    | Spark 3.2.x                    |
-| --------------- | --------------------- | ---------------------- | ------------------------------ | ------------------------------ |
+|-----------------| --------------------- | ---------------------- | ------------------------------ | ------------------------------ |
 | master branch   | iceberg-spark-runtime | iceberg-spark3-runtime | iceberg-spark-runtime-3.1_2.12 | iceberg-spark-runtime-3.2_2.12 |
+| 0.13.x          | iceberg-spark-runtime | iceberg-spark3-runtime | iceberg-spark-runtime-3.1_2.12 | iceberg-spark-runtime-3.2_2.12 |
 | 0.12.x          | iceberg-spark-runtime | iceberg-spark3-runtime | iceberg-spark-runtime-3.1_2.12 |                                |
 | 0.11.x          | iceberg-spark-runtime | iceberg-spark3-runtime |                                |                                |
 | 0.10.x          | iceberg-spark-runtime | iceberg-spark3-runtime |                                |                                |
@@ -92,9 +93,9 @@ Iceberg's Spark integration is compatible with Spark using the modules in the fo
 Iceberg's Flink integration is compatible with Flink using the modules in the following table:
 
 | Iceberg version | Flink 1.11.x          | Flink 1.12.x               | Flink 1.13.x               | Flink 1.14.x               |
-| --------------- | --------------------- | -------------------------- | -------------------------- | -------------------------- |
+|-----------------| --------------------- | -------------------------- | -------------------------- | -------------------------- |
 | master branch   |                       | iceberg-flink-runtime-1.12 | iceberg-flink-runtime-1.13 | iceberg-flink-runtime-1.14 |
+| 0.13.x          |                       | iceberg-flink-runtime-1.12 | iceberg-flink-runtime-1.13 | iceberg-flink-runtime-1.14 |
 | 0.12.x          |                       | iceberg-flink-runtime      |                            |                            |
 | 0.11.x          | iceberg-flink-runtime |                            |                            |                            |
 | 0.10.x          | iceberg-flink-runtime |                            |                            |                            |
-
