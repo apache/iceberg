@@ -439,18 +439,23 @@ public class GlueCatalog extends BaseMetastoreCatalog
         "Table identifier to register is invalid: " + identifier);
     Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
+
+    Map<String, String> tableParameters = ImmutableMap.of(
+        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
+        BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+        metadataFileLocation);
+
+    TableInput tableInput = TableInput.builder()
+        .name(IcebergToGlueConverter.getTableName(identifier))
+        .tableType(GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE)
+        .parameters(tableParameters)
+        .build();
+
     try {
       glue.createTable(CreateTableRequest.builder()
           .databaseName(IcebergToGlueConverter.getDatabaseName(identifier))
-          .tableInput(TableInput.builder()
-              .name(IcebergToGlueConverter.getTableName(identifier))
-              .tableType(GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE)
-              .parameters(ImmutableMap.of(
-                  BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-                  BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
-                  BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
-                  metadataFileLocation))
-              .build())
+          .tableInput(tableInput)
           .build());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
       throw new AlreadyExistsException(e, "Table %s already exists in Glue", identifier);
