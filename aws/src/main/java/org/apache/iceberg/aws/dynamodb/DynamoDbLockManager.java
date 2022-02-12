@@ -1,18 +1,23 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg.aws.dynamodb;
 
 import java.util.List;
 import java.util.Map;
@@ -55,11 +60,11 @@ import software.amazon.awssdk.services.dynamodb.model.TableStatus;
 import software.amazon.awssdk.services.dynamodb.model.TransactionConflictException;
 
 /**
- * @deprecated will be removed in 0.15.0, please use {@link org.apache.iceberg.aws.dynamodb.DynamoDbLockManager}
+ * DynamoDB implementation for the lock manager.
  */
-class DynamoLockManager extends LockManagers.BaseLockManager {
+public class DynamoDbLockManager extends LockManagers.BaseLockManager {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DynamoLockManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DynamoDbLockManager.class);
 
   private static final String COL_LOCK_ENTITY_ID = "entityId";
   private static final String COL_LEASE_DURATION_MS = "leaseDurationMs";
@@ -99,7 +104,7 @@ class DynamoLockManager extends LockManagers.BaseLockManager {
   /**
    * constructor for dynamic initialization, {@link #initialize(Map)} must be called later.
    */
-  DynamoLockManager() {
+  DynamoDbLockManager() {
   }
 
   /**
@@ -107,7 +112,7 @@ class DynamoLockManager extends LockManagers.BaseLockManager {
    * @param dynamo dynamo client
    * @param lockTableName lock table name
    */
-  DynamoLockManager(DynamoDbClient dynamo, String lockTableName) {
+  DynamoDbLockManager(DynamoDbClient dynamo, String lockTableName) {
     super.initialize(Maps.newHashMap());
     this.dynamo = dynamo;
     this.lockTableName = lockTableName;
