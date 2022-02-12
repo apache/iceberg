@@ -29,6 +29,14 @@ from pyarrow.fs import FileSystem, FileType
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
+SUPPORTED_SCHEMES = [
+            "file",
+            "mock",
+            "s3fs",
+            "hdfs",
+            "viewfs",
+]
+
 
 class PyArrowInputFile(InputFile):
     """An InputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances for reading
@@ -51,14 +59,8 @@ class PyArrowInputFile(InputFile):
     def __init__(self, location: str):
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
 
-        if parsed_location.scheme and parsed_location.scheme not in (
-            "file",
-            "mock",
-            "s3fs",
-            "hdfs",
-            "viewfs",
-        ):  # Validate that a uri is provided with a scheme of `file`
-            raise ValueError("PyArrowInputFile location must have a scheme of `file`, `mock`, `s3fs`, `hdfs`, or `viewfs`")
+        if parsed_location.scheme and parsed_location.scheme not in SUPPORTED_SCHEMES:
+            raise ValueError(f"PyArrowInputFile location must have one of the following schemes: {SUPPORTED_SCHEMES}")
 
         super().__init__(location=location)
         self._parsed_location = parsed_location
@@ -120,14 +122,8 @@ class PyArrowOutputFile(OutputFile):
     def __init__(self, location: str):
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
 
-        if parsed_location.scheme and parsed_location.scheme not in (
-            "file",
-            "mock",
-            "s3fs",
-            "hdfs",
-            "viewfs",
-        ):  # Validate that a scheme supported by PyArrow is provided
-            raise ValueError("PyArrowOutputFile location must have a scheme of `file`, `mock`, `s3fs`, `hdfs`, or `viewfs`")
+        if parsed_location.scheme and parsed_location.scheme not in SUPPORTED_SCHEMES:
+            raise ValueError(f"PyArrowOutputFile location must have one of the following schemes: {SUPPORTED_SCHEMES}")
 
         super().__init__(location=location)
         self._parsed_location = parsed_location
