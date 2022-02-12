@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Snapshot;
@@ -41,6 +42,10 @@ import org.junit.runners.Parameterized.Parameters;
 
 import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.DataOperations.OVERWRITE;
+import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
+import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
@@ -201,18 +206,22 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected void validateSnapshot(Snapshot snapshot, String operation, String changedPartitionCount,
                                   String deletedDataFiles, String addedDeleteFiles, String addedDataFiles) {
     Assert.assertEquals("Operation must match", operation, snapshot.operation());
-    Assert.assertEquals("Changed partitions count must match",
-        changedPartitionCount,
-        snapshot.summary().get("changed-partition-count"));
-    Assert.assertEquals("Deleted data files count must match",
-        deletedDataFiles,
-        snapshot.summary().get("deleted-data-files"));
-    Assert.assertEquals("Added delete files count must match",
-        addedDeleteFiles,
-        snapshot.summary().get("added-delete-files"));
-    Assert.assertEquals("Added data files count must match",
-        addedDataFiles,
-        snapshot.summary().get("added-data-files"));
+    validateProperty(snapshot, CHANGED_PARTITION_COUNT_PROP, changedPartitionCount);
+    validateProperty(snapshot, DELETED_FILES_PROP, deletedDataFiles);
+    validateProperty(snapshot, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
+    validateProperty(snapshot, ADDED_FILES_PROP, addedDataFiles);
+  }
+
+  protected void validateProperty(Snapshot snapshot, String property, Set<String> expectedValues) {
+    String actual = snapshot.summary().get(property);
+    Assert.assertTrue("Snapshot property " + property + " has unexpected value, actual = " +
+            actual + ", expected one of : " + String.join(",", expectedValues),
+        expectedValues.contains(actual));
+  }
+
+  protected void validateProperty(Snapshot snapshot, String property, String expectedValue) {
+    String actual = snapshot.summary().get(property);
+    Assert.assertEquals("Snapshot property " + property + " has unexpected value.", expectedValue, actual);
   }
 
   protected void sleep(long millis) {

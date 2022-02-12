@@ -75,7 +75,7 @@ public abstract class BaseTestIceberg {
   @RegisterExtension
   static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
   @TempDir
   public Path temp;
@@ -133,7 +133,7 @@ public abstract class BaseTestIceberg {
     try {
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
-      LOGGER.error("unable to do create " + tableIdentifier.toString(), t);
+      LOG.error("unable to do create " + tableIdentifier.toString(), t);
       throw t;
     }
   }

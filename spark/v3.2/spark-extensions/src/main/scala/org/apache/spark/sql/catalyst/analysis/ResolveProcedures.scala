@@ -51,7 +51,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
       validateParams(normalizedParams)
 
       val normalizedArgs = normalizeArgs(args)
-      Call(procedure, args = buildArgExprs(normalizedParams, normalizedArgs))
+      Call(procedure, args = buildArgExprs(normalizedParams, normalizedArgs).toSeq)
   }
 
   private def validateParams(params: Seq[ProcedureParameter]): Unit = {

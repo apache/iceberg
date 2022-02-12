@@ -134,7 +134,7 @@ public abstract class TestWriterMetrics<T> {
         PartitionSpec.unpartitioned(),
         null
     );
-    dataWriter.add(row);
+    dataWriter.write(row);
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 

@@ -100,7 +100,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     DataWriter<Record> writer = appenderFactory.newDataWriter(createEncryptedOutputFile(), format, null);
     try (DataWriter<Record> closeableWriter = writer) {
       for (Record record : rowSet) {
-        closeableWriter.add(record);
+        closeableWriter.write(record);
       }
     }
 

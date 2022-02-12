@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -64,6 +65,35 @@ public class SnapshotRef implements Serializable {
 
   public Long maxRefAgeMs() {
     return maxRefAgeMs;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (other == this) {
+      return true;
+    }
+
+    if (!(other instanceof SnapshotRef)) {
+      return false;
+    }
+
+    SnapshotRef ref = (SnapshotRef) other;
+    return Objects.equals(ref.snapshotId(), snapshotId) &&
+        Objects.equals(ref.type(), type) &&
+        Objects.equals(ref.maxRefAgeMs(), maxRefAgeMs) &&
+        Objects.equals(ref.minSnapshotsToKeep(), minSnapshotsToKeep) &&
+        Objects.equals(ref.maxSnapshotAgeMs(), maxSnapshotAgeMs);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        this.snapshotId,
+        this.type,
+        this.maxRefAgeMs,
+        this.maxSnapshotAgeMs,
+        this.minSnapshotsToKeep
+    );
   }
 
   public static Builder tagBuilder(long snapshotId) {
