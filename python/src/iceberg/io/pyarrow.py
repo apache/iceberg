@@ -99,7 +99,9 @@ class PyArrowFile(InputFile, OutputFile):
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
         input_file = filesytem.open_input_file(path)
         if not isinstance(input_file, InputStream):
-            raise TypeError(f"Object of type {type(input_file)} returned from PyArrowFile.open does not match the InputStream protocol.")
+            raise TypeError(
+                f"Object of type {type(input_file)} returned from PyArrowFile.open does not match the InputStream protocol."
+            )
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -121,7 +123,9 @@ class PyArrowFile(InputFile, OutputFile):
         filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
         output_file = filesytem.open_output_stream(path)
         if not isinstance(output_file, OutputStream):
-            raise TypeError(f"Object of type {type(output_file)} returned from PyArrowFile.create does not match the OutputStream protocol.")
+            raise TypeError(
+                f"Object of type {type(output_file)} returned from PyArrowFile.create does not match the OutputStream protocol."
+            )
         return output_file
 
     def to_input_file(self) -> "PyArrowFile":

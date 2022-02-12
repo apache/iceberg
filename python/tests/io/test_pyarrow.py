@@ -105,7 +105,8 @@ def test_pyarrow_violating_InputStream_protocol(MockedFileSystem):
     with pytest.raises(TypeError) as exc_info:
         PyArrowFile("foo.txt").open()
 
-    assert ("Object returned from PyArrowFile.open does not match the InputStream protocol.") in str(exc_info.value)
+    assert ("Object of type") in str(exc_info.value)
+    assert ("returned from PyArrowFile.open does not match the InputStream protocol.") in str(exc_info.value)
 
 
 @patch("iceberg.io.pyarrow.FileSystem")
@@ -131,4 +132,5 @@ def test_pyarrow_violating_OutputStream_protocol(MockedFileSystem):
     with pytest.raises(TypeError) as exc_info:
         PyArrowFile("foo.txt").create()
 
-    assert ("Object returned from PyArrowFile.create does not match the OutputStream protocol.") in str(exc_info.value)
+    assert ("Object of type") in str(exc_info.value)
+    assert ("returned from PyArrowFile.create does not match the OutputStream protocol.") in str(exc_info.value)
