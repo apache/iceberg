@@ -25,7 +25,6 @@ with the pyarrow library.
 from typing import Union
 from urllib.parse import ParseResult, urlparse
 
-from pyarrow import NativeFile
 from pyarrow.fs import FileSystem, FileType
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
@@ -87,7 +86,7 @@ class PyArrowInputFile(InputFile):
         file_info = filesytem.get_file_info(path)
         return False if file_info.type == FileType.NotFound else True
 
-    def open(self) -> NativeFile:
+    def open(self) -> InputStream:
         """Opens the location using a PyArrow FileSystem inferred from the scheme
 
         Returns:
@@ -160,7 +159,7 @@ class PyArrowOutputFile(OutputFile):
         """Returns a PyArrowInputFile for the location of this PyArrowOutputFile instance"""
         return PyArrowInputFile(self.location)
 
-    def create(self, overwrite: bool = False) -> NativeFile:
+    def create(self, overwrite: bool = False) -> OutputStream:
         """Creates a writable pyarrow.lib.NativeFile for this PyArrowOutputFile's location
 
         Args:
