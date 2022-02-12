@@ -405,7 +405,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertEquals("Table type should be set",
         GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE, response.table().tableType());
     Assert.assertNull("Storage descriptor should be empty", response.table().storageDescriptor());
-    Assert.assertTrue("Partition spec should be empty", response.table().partitionKeys().isEmpty());
+    Assert.assertFalse("Partition spec should be empty", response.table().hasPartitionKeys());
     Assert.assertEquals("Iceberg table type should be set",
         BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
         response.table().parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
