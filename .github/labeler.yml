@@ -79,3 +79,5 @@ NESSIE:
   - nessie/**/*
 ALIYUN:
   - aliyun/**/*
+GCP:
+  - gcp/**/*
