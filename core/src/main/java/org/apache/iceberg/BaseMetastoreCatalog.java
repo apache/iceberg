@@ -148,7 +148,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     @Override
     public TableBuilder withProperties(Map<String, String> properties) {
       if (properties != null) {
-        this.propertiesBuilder.putAll(properties);
+        propertiesBuilder.putAll(properties);
       }
       return this;
     }
@@ -167,7 +167,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      this.propertiesBuilder.putAll(tableOverrideProperties());
+      propertiesBuilder.putAll(tableOverrideProperties());
       TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, propertiesBuilder);
 
       try {
@@ -187,7 +187,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      this.propertiesBuilder.putAll(tableOverrideProperties());
+      propertiesBuilder.putAll(tableOverrideProperties());
       TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, propertiesBuilder);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
@@ -209,7 +209,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
 
       TableMetadata metadata;
-      this.propertiesBuilder.putAll(tableOverrideProperties());
+      propertiesBuilder.putAll(tableOverrideProperties());
       if (ops.current() != null) {
         String baseLocation = location != null ? location : ops.current().location();
         metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, propertiesBuilder);
