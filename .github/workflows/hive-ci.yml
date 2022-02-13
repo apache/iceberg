@@ -34,6 +34,9 @@ on:
     - 'python/**'
     - 'python_legacy/**'
     - 'docs/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -48,6 +51,9 @@ on:
     - 'python/**'
     - 'python_legacy/**'
     - 'docs/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
 
 jobs:
   hive2-tests:
