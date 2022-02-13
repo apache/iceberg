@@ -96,7 +96,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
           .attributeType(ScalarAttributeType.S)
           .build());
 
-  private final Map<String, DynamoHeartbeat> heartbeats = Maps.newHashMap();
+  private final Map<String, DynamoDbHeartbeat> heartbeats = Maps.newHashMap();
 
   private DynamoDbClient dynamo;
   private String lockTableName;
@@ -237,7 +237,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
       heartbeats.remove(entityId).cancel();
     }
 
-    DynamoHeartbeat heartbeat = new DynamoHeartbeat(dynamo, lockTableName,
+    DynamoDbHeartbeat heartbeat = new DynamoDbHeartbeat(dynamo, lockTableName,
         heartbeatIntervalMs(), heartbeatTimeoutMs(), entityId, ownerId);
     heartbeat.schedule(scheduler());
     heartbeats.put(entityId, heartbeat);
@@ -246,7 +246,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   @Override
   public boolean release(String entityId, String ownerId) {
     boolean succeeded = false;
-    DynamoHeartbeat heartbeat = heartbeats.get(entityId);
+    DynamoDbHeartbeat heartbeat = heartbeats.get(entityId);
     try {
       Tasks.foreach(entityId)
           .retry(RELEASE_RETRY_ATTEMPTS_MAX)
@@ -299,7 +299,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   @Override
   public void close() {
     dynamo.close();
-    heartbeats.values().forEach(DynamoHeartbeat::cancel);
+    heartbeats.values().forEach(DynamoDbHeartbeat::cancel);
     heartbeats.clear();
   }
 
@@ -319,7 +319,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
     return LOCK_TABLE_COL_DEFINITIONS;
   }
 
-  private static class DynamoHeartbeat implements Runnable {
+  private static class DynamoDbHeartbeat implements Runnable {
 
     private final DynamoDbClient dynamo;
     private final String lockTableName;
@@ -329,8 +329,8 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
     private final String ownerId;
     private ScheduledFuture<?> future;
 
-    DynamoHeartbeat(DynamoDbClient dynamo, String lockTableName, long intervalMs, long timeoutMs,
-                           String entityId, String ownerId) {
+    DynamoDbHeartbeat(DynamoDbClient dynamo, String lockTableName, long intervalMs, long timeoutMs,
+                      String entityId, String ownerId) {
       this.dynamo = dynamo;
       this.lockTableName = lockTableName;
       this.intervalMs = intervalMs;
