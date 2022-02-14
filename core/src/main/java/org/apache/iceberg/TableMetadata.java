@@ -1203,10 +1203,11 @@ public class TableMetadata implements Serializable {
     }
 
     private void setBranchSnapshot(Snapshot snapshot, String branch, Long currentTimestampMillis) {
+      long replacementSnapshotId = snapshot.snapshotId();
       SnapshotRef ref = refs.get(branch);
       if (ref != null) {
         ValidationException.check(ref.isBranch(), "Cannot update branch: %s is a tag", branch);
-        if (ref.snapshotId() == snapshot.snapshotId()) {
+        if (ref.snapshotId() == replacementSnapshotId) {
           return;
         }
       }
@@ -1218,20 +1219,19 @@ public class TableMetadata implements Serializable {
       this.lastUpdatedMillis = currentTimestampMillis != null ? currentTimestampMillis : snapshot.timestampMillis();
 
       if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
-        this.currentSnapshotId = snapshot.snapshotId();
-        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, snapshot.snapshotId()));
+        this.currentSnapshotId = replacementSnapshotId;
+        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, replacementSnapshotId));
       }
 
-      SnapshotRef.Builder refBuilder = SnapshotRef.branchBuilder(snapshot.snapshotId());
+      SnapshotRef newRef;
       if (ref != null) {
-        refBuilder.maxRefAgeMs(ref.maxRefAgeMs())
-            .maxSnapshotAgeMs(ref.maxSnapshotAgeMs())
-            .minSnapshotsToKeep(ref.minSnapshotsToKeep());
+        newRef = SnapshotRef.builderFrom(ref, replacementSnapshotId).build();
+      } else {
+        newRef = SnapshotRef.branchBuilder(replacementSnapshotId).build();
       }
 
-      refs.put(branch, refBuilder.build());
-
-      changes.add(new MetadataUpdate.SetSnapshotRef(branch, snapshot.snapshotId()));
+      refs.put(branch, newRef);
+      changes.add(new MetadataUpdate.SetSnapshotRef(branch, replacementSnapshotId));
     }
 
     private static List<MetadataLogEntry> addPreviousFile(
