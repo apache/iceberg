@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
+import org.apache.iceberg.AssertHelpers;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -43,5 +44,29 @@ public class TestNamespace {
     for (int i = 0; i < levels.length; i++) {
       Assertions.assertThat(namespace.level(i)).isEqualTo(levels[i]);
     }
+  }
+
+  @Test
+  public void testWithNullInLevel() {
+    AssertHelpers.assertThrows(
+        "An individual level of a namespace cannot be null",
+        NullPointerException.class,
+        "Cannot create a namespace with a null level",
+        () -> Namespace.of("a", null, "b"));
+  }
+
+  @Test
+  public void testDisallowsNamespaceWithNullByte() {
+    AssertHelpers.assertThrows(
+        "An individual level of a namespace cannot contain the standard null-byte character",
+        IllegalArgumentException.class,
+        "Cannot create a namespace with the null-byte character",
+        () -> Namespace.of("ac", "\u0000c", "b"));
+
+    AssertHelpers.assertThrows(
+        "An individual level of a namespace cannot contain the original ASCII null-byte character",
+        IllegalArgumentException.class,
+        "Cannot create a namespace with the null-byte character",
+        () -> Namespace.of("ac", "c\0", "b"));
   }
 }
