@@ -136,13 +136,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      *
      * @param key has the same columns with the equality fields.
      */
-    private void internalPosDelete(StructLike key) {
+    private boolean internalPosDelete(StructLike key) {
       PathOffset previous = insertedRowMap.remove(key);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
         posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        return true;
       }
+
+      return false;
     }
 
     /**
@@ -152,9 +155,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param row the given row to delete.
      */
     public void delete(T row) throws IOException {
-      internalPosDelete(structProjection.wrap(asStructLike(row)));
-
-      eqDeleteWriter.write(row);
+      if (!internalPosDelete(structProjection.wrap(asStructLike(row)))) {
+        eqDeleteWriter.write(row);
+      }
     }
 
     /**
@@ -164,9 +167,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key is the projected data whose columns are the same as the equality fields.
      */
     public void deleteKey(T key) throws IOException {
-      internalPosDelete(asStructLike(key));
-
-      eqDeleteWriter.write(key);
+      if (!internalPosDelete(asStructLike(key))) {
+        eqDeleteWriter.write(key);
+      }
     }
 
     @Override
