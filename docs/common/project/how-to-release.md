@@ -62,8 +62,8 @@ For more information, see the Gradle [signing documentation](https://docs.gradle
 
 ### Apache repository
 
-The release should be executed in the official `https://github.com/apache/iceberg.git` instead of a forked one.
-Clone the Apache Iceberg repository or set it as a different origin for release if it is not already set up.
+The release should be executed against `https://github.com/apache/iceberg.git` instead of any fork.
+Set it as remote with name `apache` for release if it is not already set up.
 
 ## Creating a release candidate
 
@@ -293,7 +293,7 @@ cp -r docs/versioned ../iceberg-docs/docs/content/docs
 cp -r docs/common ../iceberg-docs/landing-page/content/common
 ```
 
-The resulted changes in `iceberg-docs` should be approved in a separated PR.
+The resulted changes in `iceberg-docs` should be approved in a separate PR.
 
 #### Javadoc update
 
@@ -304,16 +304,16 @@ rm -rf ../iceberg-docs/javadoc
 cp site/docs/javadoc/<VERSION NUMBER> ../iceberg-docs/javadoc
 ```
 
-This resulted changes in `iceberg-docs` should be approved in a separated PR.
+This resulted changes in `iceberg-docs` should be approved in a separate PR.
 
 #### Cut a new version branch
 
-Once completed, go to the `iceberg-docs` repository (the Apache one, not a forked one) to cut a new branch using the version number as the branch name.
+Once completed, go to the `iceberg-docs` repository to cut a new branch using the version number as the branch name.
 For example, to cut a new versioned doc for release `0.13.0`:
 
 ```shell
 git checkout -b 0.13.0
-git push --set-upstream origin 0.13.0
+git push --set-upstream apache 0.13.0
 ```
 
 #### Update the latest branch
@@ -324,5 +324,5 @@ Because `main` is currently the same as the version branch, simply rebase `lates
 ```shell
 git checkout latest
 git rebase main
-git push
+git push apache latest
 ```
