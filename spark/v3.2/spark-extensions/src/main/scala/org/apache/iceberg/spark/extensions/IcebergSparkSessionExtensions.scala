@@ -21,9 +21,13 @@ package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.AlignRowLevelCommandAssignments
+import org.apache.spark.sql.catalyst.analysis.CheckMergeIntoTableConditions
+import org.apache.spark.sql.catalyst.analysis.MergeIntoIcebergTableResolutionCheck
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
+import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.RewriteDeleteFromTable
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
@@ -43,10 +47,14 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
+    extensions.injectResolutionRule { spark => ResolveMergeIntoTableReferences(spark) }
+    extensions.injectResolutionRule { _ => CheckMergeIntoTableConditions }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectResolutionRule { _ => AlignRowLevelCommandAssignments }
     extensions.injectResolutionRule { _ => RewriteDeleteFromTable }
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
+    extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
+    extensions.injectCheckRule { _ => MergeIntoIcebergTableResolutionCheck }
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ExtendedSimplifyConditionalsInPredicate }

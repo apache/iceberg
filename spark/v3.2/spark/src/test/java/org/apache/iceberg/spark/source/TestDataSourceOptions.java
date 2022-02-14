@@ -245,7 +245,7 @@ public class TestDataSourceOptions {
     AssertHelpers.assertThrows(
         "Check both start-snapshot-id and snapshot-id are configured",
         IllegalArgumentException.class,
-        "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan",
+        "Cannot set start-snapshot-id and end-snapshot-id for incremental scans",
         () -> {
           spark.read()
               .format("iceberg")
@@ -258,7 +258,7 @@ public class TestDataSourceOptions {
     AssertHelpers.assertThrows(
         "Check both start-snapshot-id and snapshot-id are configured",
         IllegalArgumentException.class,
-        "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan",
+        "Cannot set start-snapshot-id and end-snapshot-id for incremental scans",
         () -> {
           spark.read()
               .format("iceberg")
@@ -272,7 +272,7 @@ public class TestDataSourceOptions {
     AssertHelpers.assertThrows(
         "Check both start-snapshot-id and snapshot-id are configured",
         IllegalArgumentException.class,
-        "Cannot only specify option end-snapshot-id to do incremental scan",
+        "Cannot set only end-snapshot-id for incremental scans",
         () -> {
           spark.read()
               .format("iceberg")

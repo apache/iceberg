@@ -25,8 +25,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -35,7 +40,8 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.ArgumentCaptor;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -49,9 +55,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.utils.BinaryUtils;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -66,6 +74,7 @@ import static org.mockito.Mockito.verify;
 public class TestS3OutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
+  private static final int FIVE_MBS = 5 * 1024 * 1024;
 
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
@@ -85,6 +94,7 @@ public class TestS3OutputStream {
 
   @Before
   public void before() {
+    properties.setS3ChecksumEnabled(false);
     s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
   }
 
@@ -98,28 +108,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testWrite() {
-    // Run tests for both byte and array write paths
-    Stream.of(true, false).forEach(arrayWrite -> {
-      // Test small file write (less than multipart threshold)
-      writeAndVerify(s3mock, randomURI(), randomData(1024), arrayWrite);
-      verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
-      reset(s3mock);
-
-      // Test file larger than part size but less than multipart threshold
-      writeAndVerify(s3mock, randomURI(), randomData(6 * 1024 * 1024), arrayWrite);
-      verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
-      reset(s3mock);
-
-      // Test file large enough to trigger multipart upload
-      writeAndVerify(s3mock, randomURI(), randomData(10 * 1024 * 1024), arrayWrite);
-      verify(s3mock, times(2)).uploadPart((UploadPartRequest) any(), (RequestBody) any());
-      reset(s3mock);
-
-      // Test uploading many parts
-      writeAndVerify(s3mock, randomURI(), randomData(22 * 1024 * 1024), arrayWrite);
-      verify(s3mock, times(5)).uploadPart((UploadPartRequest) any(), (RequestBody) any());
-      reset(s3mock);
-    });
+    writeTest();
   }
 
   @Test
@@ -157,6 +146,92 @@ public class TestS3OutputStream {
         AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
     S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties);
     stream.close();
+  }
+
+  @Test
+  public void testWriteWithChecksumEnabled() {
+    properties.setS3ChecksumEnabled(true);
+    writeTest();
+  }
+
+  private void writeTest() {
+    // Run tests for both byte and array write paths
+    Stream.of(true, false).forEach(arrayWrite -> {
+      // Test small file write (less than multipart threshold)
+      byte[] data = randomData(1024);
+      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+      ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor =
+          ArgumentCaptor.forClass(PutObjectRequest.class);
+      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
+          (RequestBody) any());
+      checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+      reset(s3mock);
+
+      // Test file larger than part size but less than multipart threshold
+      data = randomData(6 * 1024 * 1024);
+      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+      putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
+          (RequestBody) any());
+      checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+      reset(s3mock);
+
+      // Test file large enough to trigger multipart upload
+      data = randomData(10 * 1024 * 1024);
+      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+      ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor =
+          ArgumentCaptor.forClass(UploadPartRequest.class);
+      verify(s3mock, times(2)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
+          (RequestBody) any());
+      checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
+      reset(s3mock);
+
+      // Test uploading many parts
+      data = randomData(22 * 1024 * 1024);
+      writeAndVerify(s3mock, randomURI(), data, arrayWrite);
+      uploadPartRequestArgumentCaptor =
+          ArgumentCaptor.forClass(UploadPartRequest.class);
+      verify(s3mock, times(5)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
+          (RequestBody) any());
+      checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
+      reset(s3mock);
+    });
+  }
+
+  private void checkUploadPartRequestContent(
+      byte[] data,
+      ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor) {
+    if (properties.isS3ChecksumEnabled()) {
+      List<UploadPartRequest> uploadPartRequests =
+          uploadPartRequestArgumentCaptor.getAllValues().stream()
+              .sorted(Comparator.comparingInt(UploadPartRequest::partNumber))
+              .collect(Collectors.toList());
+      for (int i = 0; i < uploadPartRequests.size(); ++i) {
+        int offset = i * FIVE_MBS;
+        int len = (i + 1) * FIVE_MBS - 1 > data.length ? data.length - offset : FIVE_MBS;
+        assertEquals(getDigest(data, offset, len), uploadPartRequests.get(i).contentMD5());
+      }
+    }
+  }
+
+  private void checkPutObjectRequestContent(
+      byte[] data,
+      ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
+    if (properties.isS3ChecksumEnabled()) {
+      List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
+      assertEquals(getDigest(data, 0, data.length), putObjectRequests.get(0).contentMD5());
+    }
+  }
+
+  private String getDigest(byte[] data, int offset, int length) {
+    try {
+      MessageDigest md5 = MessageDigest.getInstance("MD5");
+      md5.update(data, offset, length);
+      return BinaryUtils.toBase64(md5.digest());
+    } catch (NoSuchAlgorithmException e) {
+      fail(String.format("Failed to get MD5 MessageDigest. %s", e));
+    }
+    return null;
   }
 
   private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {

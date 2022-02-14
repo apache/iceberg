@@ -42,6 +42,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -359,6 +360,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedByDateToPartitioned() {
+    createDatePartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING iceberg PARTITIONED BY (date)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, date FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -779,6 +799,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
           unpartitionedDF.col("dept"),
           unpartitionedDF.col("name").as("naMe"));
 
+  private static final StructField[] dateStruct = {
+      new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+      new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+      new StructField("ts", DataTypes.DateType, true, Metadata.empty())
+  };
+
+  private static java.sql.Date toDate(String value) {
+    return new java.sql.Date(DateTime.parse(value).getMillis());
+  }
+
+  private static final Dataset<Row> dateDF =
+      spark.createDataFrame(
+          ImmutableList.of(
+              RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01")),
+              RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-01")),
+              RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-02")),
+              RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"))),
+          new StructType(dateStruct)).repartition(2);
 
   private void  createUnpartitionedFileTable(String format) {
     String createParquet =
@@ -851,5 +890,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     partitionedDF.write().insertInto(sourceTableName);
     partitionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void  createDatePartitionedFileTable(String format) {
+    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING %s " +
+        "PARTITIONED BY (date) LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    dateDF.write().insertInto(sourceTableName);
   }
 }

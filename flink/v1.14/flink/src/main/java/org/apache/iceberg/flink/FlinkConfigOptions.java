@@ -40,4 +40,10 @@ public class FlinkConfigOptions {
           .intType()
           .defaultValue(100)
           .withDescription("Sets max infer parallelism for source operator.");
+
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO =
+      ConfigOptions.key("table.exec.iceberg.expose-split-locality-info")
+          .booleanType()
+          .noDefaultValue()
+          .withDescription("Expose split host information to use Flink's locality aware split assigner.");
 }

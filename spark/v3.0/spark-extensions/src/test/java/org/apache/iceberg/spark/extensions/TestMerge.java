@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -1488,5 +1489,24 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", tableName);
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
+  }
+
+  @Test
+  public void testFileFilterMetric() throws Exception {
+    createAndInitTable("id INT, dep STRING");
+    spark.sql(String.format("INSERT INTO %s VALUES (1, 'emp-id-one')", tableName));
+    spark.sql(String.format("INSERT INTO %s VALUES (6, 'emp-id-six')", tableName));
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    Map<String, String> expectedMetrics = Maps.newHashMap();
+    expectedMetrics.put("candidate files", "2");
+    expectedMetrics.put("matching files", "1");
+
+    checkMetrics(() -> spark.sql(String.format(
+        "MERGE INTO %s AS t USING source AS s " +
+            "ON t.id == s.id " +
+            "WHEN MATCHED THEN UPDATE SET * ", tableName)), expectedMetrics);
   }
 }

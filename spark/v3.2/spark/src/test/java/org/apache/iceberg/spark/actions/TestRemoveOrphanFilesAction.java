@@ -24,6 +24,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
@@ -46,6 +51,7 @@ import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
@@ -237,6 +243,76 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     for (String fileLocation : snapshotFiles3) {
       Assert.assertTrue("All snapshot files must remain", fs.exists(new Path(fileLocation)));
     }
+  }
+
+  @Test
+  public void orphanedFileRemovedWithParallelTasks() throws InterruptedException, IOException {
+    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df1 = spark.createDataFrame(records1, ThreeColumnRecord.class).coalesce(1);
+
+    // original append
+    df1.select("c1", "c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save(tableLocation);
+
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(
+            new ThreeColumnRecord(2, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df2 = spark.createDataFrame(records2, ThreeColumnRecord.class).coalesce(1);
+
+    // dynamic partition overwrite
+    df2.select("c1", "c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("overwrite")
+            .save(tableLocation);
+
+    // second append
+    df2.select("c1", "c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save(tableLocation);
+
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data");
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA");
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/invalid/invalid");
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
+    AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
+
+    ExecutorService executorService = Executors.newFixedThreadPool(4, runnable -> {
+      Thread thread = new Thread(runnable);
+      thread.setName("remove-orphan-" + deleteThreadsIndex.getAndIncrement());
+      thread.setDaemon(true);
+      return thread;
+    });
+
+    DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
+            .executeDeleteWith(executorService)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(file -> {
+              deleteThreads.add(Thread.currentThread().getName());
+              deletedFiles.add(file);
+            })
+            .execute();
+
+    // Verifies that the delete methods ran in the threads created by the provided ExecutorService ThreadFactory
+    Assert.assertEquals(deleteThreads,
+            Sets.newHashSet("remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3"));
+
+    Assert.assertEquals("Should delete 4 files", 4, deletedFiles.size());
   }
 
   @Test

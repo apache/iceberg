@@ -35,6 +35,7 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
 
 class SparkCopyOnWriteOperation implements RowLevelOperation {
 
@@ -93,7 +94,7 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
     NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
     NamedReference pos = Expressions.column(MetadataColumns.ROW_POSITION.name());
 
-    if (command == DELETE) {
+    if (command == DELETE || command == UPDATE) {
       return new NamedReference[]{file, pos};
     } else {
       return new NamedReference[]{file};

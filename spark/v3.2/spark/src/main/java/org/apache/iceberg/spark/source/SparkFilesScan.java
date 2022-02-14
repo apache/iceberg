@@ -33,7 +33,7 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 
-class SparkFilesScan extends SparkBatchScan {
+class SparkFilesScan extends SparkScan {
   private final String taskSetID;
   private final long splitSize;
   private final int splitLookback;

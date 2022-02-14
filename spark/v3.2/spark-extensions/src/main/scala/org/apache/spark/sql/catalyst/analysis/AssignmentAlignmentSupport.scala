@@ -36,6 +36,7 @@ import org.apache.spark.sql.internal.SQLConf.StoreAssignmentPolicy
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
+import scala.collection.compat.immutable.ArraySeq
 import scala.collection.mutable
 
 trait AssignmentAlignmentSupport extends CastSupport {
@@ -104,13 +105,13 @@ trait AssignmentAlignmentSupport extends CastSupport {
               // recursively apply this method on nested fields
               val newUpdates = updates.map(u => u.copy(ref = u.ref.tail))
               val updatedFieldExprs = applyUpdates(
-                fieldExprs,
+                ArraySeq.unsafeWrapArray(fieldExprs),
                 newUpdates,
                 resolver,
                 namePrefix :+ col.name)
 
               // construct a new struct with updated field expressions
-              toNamedStruct(fields, updatedFieldExprs)
+              toNamedStruct(ArraySeq.unsafeWrapArray(fields), updatedFieldExprs)
 
             case otherType =>
               val colName = (namePrefix :+ col.name).mkString(".")

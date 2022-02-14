@@ -20,6 +20,7 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import java.util.UUID
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AppendData
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -27,9 +28,11 @@ import org.apache.spark.sql.catalyst.plans.logical.OverwriteByExpression
 import org.apache.spark.sql.catalyst.plans.logical.OverwritePartitionsDynamic
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.iceberg.write.DeltaWriteBuilder
 import org.apache.spark.sql.connector.write.ExtendedLogicalWriteInfoImpl
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite
 import org.apache.spark.sql.connector.write.SupportsOverwrite
@@ -100,6 +103,20 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       val write = writeBuilder.build()
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
+
+    case wd @ WriteDelta(r: DataSourceV2Relation, query, _, projections, None) =>
+      val rowSchema = projections.rowProjection.map(_.schema).orNull
+      val rowIdSchema = projections.rowIdProjection.schema
+      val metadataSchema = projections.metadataProjection.map(_.schema).orNull
+      val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty, rowIdSchema, metadataSchema)
+      writeBuilder match {
+        case builder: DeltaWriteBuilder =>
+          val deltaWrite = builder.build()
+          val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
+          wd.copy(write = Some(deltaWrite), query = newQuery)
+        case other =>
+          throw new AnalysisException(s"$other is not DeltaWriteBuilder")
+      }
   }
 
   private def isTruncate(filters: Array[Filter]): Boolean = {

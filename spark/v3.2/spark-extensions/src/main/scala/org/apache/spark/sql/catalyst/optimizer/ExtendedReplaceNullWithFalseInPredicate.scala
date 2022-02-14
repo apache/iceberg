@@ -29,9 +29,16 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
 import org.apache.spark.sql.catalyst.expressions.Not
 import org.apache.spark.sql.catalyst.expressions.Or
+import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.InsertAction
+import org.apache.spark.sql.catalyst.plans.logical.InsertStarAction
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeAction
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateStarAction
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.INSET
 import org.apache.spark.sql.catalyst.trees.TreePattern.NULL_LITERAL
@@ -46,8 +53,18 @@ object ExtendedReplaceNullWithFalseInPredicate extends Rule[LogicalPlan] {
 
   def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(NULL_LITERAL, TRUE_OR_FALSE_LITERAL, INSET)) {
-    case d @ DeleteFromIcebergTable(_, Some(cond), _) => d.copy(condition = Some(replaceNullWithFalse(cond)))
-    case u @ UpdateIcebergTable(_, _, Some(cond), _) => u.copy(condition = Some(replaceNullWithFalse(cond)))
+
+    case d @ DeleteFromIcebergTable(_, Some(cond), _) =>
+      d.copy(condition = Some(replaceNullWithFalse(cond)))
+
+    case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
+      u.copy(condition = Some(replaceNullWithFalse(cond)))
+
+    case m @ MergeIntoIcebergTable(_, _, mergeCond, matchedActions, notMatchedActions, _) =>
+      m.copy(
+        mergeCondition = replaceNullWithFalse(mergeCond),
+        matchedActions = replaceNullWithFalse(matchedActions),
+        notMatchedActions = replaceNullWithFalse(notMatchedActions))
   }
 
   /**
@@ -100,5 +117,16 @@ object ExtendedReplaceNullWithFalseInPredicate extends Rule[LogicalPlan] {
   private def isNullLiteral(e: Expression): Boolean = e match {
     case Literal(null, _) => true
     case _ => false
+  }
+
+  private def replaceNullWithFalse(mergeActions: Seq[MergeAction]): Seq[MergeAction] = {
+    mergeActions.map {
+      case u @ UpdateAction(Some(cond), _) => u.copy(condition = Some(replaceNullWithFalse(cond)))
+      case u @ UpdateStarAction(Some(cond)) => u.copy(condition = Some(replaceNullWithFalse(cond)))
+      case d @ DeleteAction(Some(cond)) => d.copy(condition = Some(replaceNullWithFalse(cond)))
+      case i @ InsertAction(Some(cond), _) => i.copy(condition = Some(replaceNullWithFalse(cond)))
+      case i @ InsertStarAction(Some(cond)) => i.copy(condition = Some(replaceNullWithFalse(cond)))
+      case other => other
+    }
   }
 }
