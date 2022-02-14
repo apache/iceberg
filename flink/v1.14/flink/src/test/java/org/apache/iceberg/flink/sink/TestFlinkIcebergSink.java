@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -307,6 +308,8 @@ public class TestFlinkIcebergSink {
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidPrefix("rightIcebergSink")
+        .setSnapshotProperty("flink.test", TestFlinkIcebergSink.class.getName())
+        .setSnapshotProperties(Collections.singletonMap("direction", "rightTable"))
         .append();
 
     // Execute the program.
@@ -314,6 +317,13 @@ public class TestFlinkIcebergSink {
 
     SimpleDataUtil.assertTableRows(leftTablePath, convertToRowData(leftRows));
     SimpleDataUtil.assertTableRows(rightTablePath, convertToRowData(rightRows));
+
+    leftTable.refresh();
+    Assert.assertNull(leftTable.currentSnapshot().summary().get("flink.test"));
+    Assert.assertNull(leftTable.currentSnapshot().summary().get("direction"));
+    rightTable.refresh();
+    Assert.assertEquals(TestFlinkIcebergSink.class.getName(), rightTable.currentSnapshot().summary().get("flink.test"));
+    Assert.assertEquals("rightTable", rightTable.currentSnapshot().summary().get("direction"));
   }
 
 }

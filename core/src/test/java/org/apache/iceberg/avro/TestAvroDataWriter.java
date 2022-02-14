@@ -85,7 +85,7 @@ public class TestAvroDataWriter {
 
     try {
       for (Record record : records) {
-        dataWriter.add(record);
+        dataWriter.write(record);
       }
     } finally {
       dataWriter.close();

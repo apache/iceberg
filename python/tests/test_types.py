@@ -136,6 +136,7 @@ def test_struct_type():
     assert type_var != StructType(NestedField(True, 1, "optional_field", IntegerType()))
 
 
+
 def test_list_type():
     type_var = ListType(
         1,

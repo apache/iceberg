@@ -41,6 +41,7 @@ import org.apache.spark.sql.execution.metric.CustomMetrics
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.util.LongAccumulator
 import org.apache.spark.util.Utils
+import scala.collection.compat.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -74,7 +75,7 @@ trait ExtendedV2ExistingTableWriteExec[W <: DataWriter[InternalRow]] extends V2E
       // SPARK-23271 If we are attempting to write a zero partition rdd, create a dummy single
       // partition rdd to make sure we at least set up one write task to write the metadata.
       if (tempRdd.partitions.length == 0) {
-        sparkContext.parallelize(Array.empty[InternalRow], 1)
+        sparkContext.parallelize(Seq.empty[InternalRow], 1)
       } else {
         tempRdd
       }
@@ -156,7 +157,7 @@ trait WritingSparkTask[W <: DataWriter[InternalRow]] extends Logging with Serial
     Utils.tryWithSafeFinallyAndFailureCallbacks(block = {
       while (iter.hasNext) {
         if (count % CustomMetrics.NUM_ROWS_PER_UPDATE == 0) {
-          CustomMetrics.updateMetrics(dataWriter.currentMetricsValues, customMetrics)
+          CustomMetrics.updateMetrics(ArraySeq.unsafeWrapArray(dataWriter.currentMetricsValues), customMetrics)
         }
 
         // Count is here.
@@ -164,7 +165,7 @@ trait WritingSparkTask[W <: DataWriter[InternalRow]] extends Logging with Serial
         writeFunc(dataWriter, iter.next())
       }
 
-      CustomMetrics.updateMetrics(dataWriter.currentMetricsValues, customMetrics)
+      CustomMetrics.updateMetrics(ArraySeq.unsafeWrapArray(dataWriter.currentMetricsValues), customMetrics)
 
       val msg = if (useCommitCoordinator) {
         val coordinator = SparkEnv.get.outputCommitCoordinator

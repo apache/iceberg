@@ -111,7 +111,9 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
   private DistributionMode distributionMode() {
     switch (command) {
       case DELETE:
-        return writeConf.positionDeleteDistributionMode();
+        return writeConf.deleteDistributionMode();
+      case UPDATE:
+        return writeConf.updateDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }

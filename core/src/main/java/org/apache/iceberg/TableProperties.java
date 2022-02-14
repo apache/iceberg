@@ -119,6 +119,10 @@ public class TableProperties {
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 
+  public static final String AVRO_COMPRESSION_LEVEL = "write.avro.compression-level";
+  public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
+  public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
+
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
