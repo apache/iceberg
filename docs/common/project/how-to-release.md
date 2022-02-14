@@ -268,13 +268,19 @@ The commands described below assume the `iceberg-docs` repository and `iceberg` 
 and the release manager is executing commands in the `iceberg` repository.
 Adjust the commands accordingly if it is not the case.
 
-#### Release notes
+#### iceberg repository preparations
 
-Release notes need to be drafted and published in the `iceberg` repository and reviewed by the community.
+A PR needs to be published in `iceberg` repository with the following changes:
+1. Mark the current latest release notes to past releases
+2. Update the latest artifact links in the release notes page
+3. Add release notes for the new release version
+2. Create new folder called `docs/versioned/releases/<VERSION NUMBER>` with a `_index.md` file. See the existing folders under `docs/versioned/releases` for more details.
 
-#### Iceberg version update
+#### iceberg-docs repository preparations
 
-Before release, publish a PR in the `iceberg-docs` repository to update `landing-page/config.toml` and `docs/config.toml` to use the new Iceberg version number.
+A PR needs to be published in `iceberg-docs` repository with the following changes:
+1. Update variable `latestVersions.iceberg` to the new release version in `landing-page/config.toml`
+2. Update variable `latestVersions.iceberg` to the new release version in `docs/config.toml`
 
 #### Documentation update
 
