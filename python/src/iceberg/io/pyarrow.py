@@ -34,6 +34,23 @@ _FILESYSTEM_INSTANCES: dict = {}
 
 
 def get_filesystem(location: str):
+    """Retrieve a pyarrow.fs.FileSystem instance
+    
+    This method checks _FILESYSTEM_INSTANCES for an existing filesystem based on the location's
+    scheme, i.e. s3, hdfs, viewfs. If an existing filesystem has not been cached, it instantiates a new
+    filesystem using `pyarrow.fs.FileSystem.from_uri(location)`, caches the returned filesystem, and
+    also returns that filesystem. If a path with no scheme is provided, it's assumed to be a path to
+    a local file.
+
+    Args:
+        location(str): The location of the file
+    
+    Returns:
+        pyarrow.fs.FileSystem: An implementation of the FileSystem base class inferred from the location
+    
+    Raises:
+        ArrowInvalid: A suitable FileSystem implementation cannot be found based on the location provided
+    """
     parsed_location = urlparse(location)  # Create a ParseResult from the uri
     if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
         if _FILESYSTEM_INSTANCES.get("local"):
