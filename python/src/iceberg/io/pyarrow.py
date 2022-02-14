@@ -35,7 +35,7 @@ _FILESYSTEM_INSTANCES: dict = {}
 
 def get_filesystem(location: str):
     """Retrieve a pyarrow.fs.FileSystem instance
-    
+
     This method checks _FILESYSTEM_INSTANCES for an existing filesystem based on the location's
     scheme, i.e. s3, hdfs, viewfs. If an existing filesystem has not been cached, it instantiates a new
     filesystem using `pyarrow.fs.FileSystem.from_uri(location)`, caches the returned filesystem, and
@@ -44,10 +44,10 @@ def get_filesystem(location: str):
 
     Args:
         location(str): The location of the file
-    
+
     Returns:
         pyarrow.fs.FileSystem: An implementation of the FileSystem base class inferred from the location
-    
+
     Raises:
         ArrowInvalid: A suitable FileSystem implementation cannot be found based on the location provided
     """
@@ -86,9 +86,8 @@ class PyArrowFile(InputFile, OutputFile):
     """
 
     def __init__(self, location: str):
-        filesystem = get_filesystem(location)  # Checks for cached filesystem for this location's scheme
+        self._filesystem = get_filesystem(location)  # Checks for cached filesystem for this location's scheme
         super().__init__(location=location)
-        self._filesystem = filesystem
 
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
