@@ -134,7 +134,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     WriteResult result = writer.complete();
     Assert.assertEquals(partitioned ? 7 : 1, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 6 : 1, result.deleteFiles().length);
+    Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records.", expectedRowSet(
