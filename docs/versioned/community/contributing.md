@@ -1,7 +1,7 @@
 ---
-title: "Join"
-weight: 100
-bookUrlFromBaseURL: /../../community
+title: "Contribute"
+weight: 400
+bookUrlFromBaseURL: /../../contribute
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more

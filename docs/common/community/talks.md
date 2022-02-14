@@ -1,6 +1,5 @@
 ---
 url: talks
-weight: 300
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
