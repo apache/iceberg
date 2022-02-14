@@ -34,29 +34,50 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.split.metadata-target-size   | 33554432 (32 MB)   | Target size when combining metadata input splits       |
 | read.split.planning-lookback      | 10                 | Number of bins to consider when combining input splits |
 | read.split.open-file-cost         | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| read.parquet.vectorization.enabled| false              | Enables parquet vectorization read                     |
+| read.parquet.vectorization.batch-size| 5000            | The batch size of parquet vectorization read           |
+| read.orc.vectorization.enabled    | false              | Enables orc vectorization read                         |
+| read.orc.vectorization.batch-size | 5000               | The batch size of orc vectorization read               |
 
 ### Write properties
 
 | Property                           | Default            | Description                                        |
 | ---------------------------------- | ------------------ | -------------------------------------------------- |
 | write.format.default               | parquet            | Default file format for the table; parquet, avro, or orc |
+| write.delete.format.default               |             | Default delete file format for the table; parquet, avro, or orc |
 | write.parquet.row-group-size-bytes | 134217728 (128 MB) | Parquet row group size                             |
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec: gzip(deflate with 9 level), gzip, snappy, uncompressed |
+| write.avro.compression-level       | null               | Avro compression level                              |
 | write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
 | write.target-file-size-bytes       | 536870912 (512 MB) | Controls the size of files generated to target about this many bytes |
+| write.delete.target-file-size-bytes| 67108864 (64 MB) | Controls the size of delete files generated to target about this many bytes |
 | write.distribution-mode            | none               | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder |
+| write.delete.distribution-mode     | hash               | Defines distribution of write delete data           |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 | write.spark.fanout.enabled       | false        | Enables Partitioned-Fanout-Writer writes in Spark |
+| write.object-storage.enabled      | false              | Enables object storage write like s3              |
+| write.data.path                    | a "data" folder underneath the root path of the table | Defines the path of data files |
+| write.metadata.path                | a "metadata" folder underneath the root path of the table | Defines the path of metadata files |
+| write.manifest-lists.enabled       | true               | Enables to list manifest                                                  |
+| write.delete.isolation-level       | serializable       | Defines the isolation level of write delete                         |
+| write.delete.mode                  | copy-on-write      | Defines the write delete mode                         |
+| write.update.isolation-level       | serializable       | Defines the isolation level of write update             |
+| write.update.mode                  | copy-on-write      | Defines the write update mode                         |
+| write.merge.isolation-level       | serializable       | Defines the isolation level of write merge             |
+| write.merge.mode                  | copy-on-write      | Defines the write merge mode                         |
+| write.upsert.enabled              | false              | Enables the upsert writes                            |
+
+
 
 ### Table behavior properties
 
@@ -75,7 +96,6 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
 | history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep while expiring snapshots    |
 | history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep while expiring snapshots |
-| history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
 
 ### Reserved table properties
 Reserved table properties are only used to control behaviors when creating or updating a table.
@@ -102,6 +122,9 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | warehouse                         | null               | the root path of the data warehouse                    |
 | uri                               | null               | a URI string, such as Hive metastore URI               |
 | clients                           | 2                  | client pool size                                       |
+| cache-enabled                     | true               | Controls whether the catalog will cache table entries upon load. |
+| cache.expiration-interval-ms      | 30000              | Controls the duration for which entries in the catalog are cached. |
+| client.pool.cache.eviction-interval-ms | 5000          | Controls the duration for which clients in the pool          |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
