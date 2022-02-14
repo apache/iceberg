@@ -86,13 +86,15 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private TableMetadata loadTableMetadata(String metadataLocation) {
     // Update the TableMetadata with the Content of NessieTableState.
-    return TableMetadata.buildFrom(TableMetadataParser.read(io(), metadataLocation))
-        .setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH)
+    TableMetadata.Builder builder = TableMetadata.buildFrom(TableMetadataParser.read(io(), metadataLocation))
         .setCurrentSchema(table.getSchemaId())
         .setDefaultSortOrder(table.getSortOrderId())
-        .setDefaultPartitionSpec(table.getSpecId())
-        .discardChanges()
-        .build();
+        .setDefaultPartitionSpec(table.getSpecId());
+    if (table.getSnapshotId() != -1) {
+      builder.setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH);
+    }
+
+    return builder.discardChanges().build();
   }
 
   @Override
