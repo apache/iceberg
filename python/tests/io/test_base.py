@@ -261,7 +261,7 @@ def test_custom_file_io_locations(CustomFileIO, string_uri, scheme, netloc, path
     "string_uri_w_netloc",
     ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
 )
-def test_raise_on_network_location_in_InputFile(string_uri_w_netloc):
+def test_raise_on_network_location_in_input_file(string_uri_w_netloc):
 
     with pytest.raises(ValueError) as exc_info:
         LocalInputFile(location=string_uri_w_netloc)
@@ -273,7 +273,7 @@ def test_raise_on_network_location_in_InputFile(string_uri_w_netloc):
     "string_uri_w_netloc",
     ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
 )
-def test_raise_on_network_location_in_OutputFile(string_uri_w_netloc):
+def test_raise_on_network_location_in_output_file(string_uri_w_netloc):
 
     with pytest.raises(ValueError) as exc_info:
         LocalInputFile(location=string_uri_w_netloc)
@@ -304,7 +304,7 @@ def test_deleting_local_file_using_file_io(CustomFileIO):
 
 
 @pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_raise_FileNotFoundError_for_fileio_delete(CustomFileIO):
+def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -324,7 +324,7 @@ def test_raise_FileNotFoundError_for_fileio_delete(CustomFileIO):
 
 
 @pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowFile)])
-def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFile):
+def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -349,7 +349,7 @@ def test_deleting_local_file_using_file_io_InputFile(CustomFileIO, CustomInputFi
 
 
 @pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowFile)])
-def test_deleting_local_file_using_file_io_OutputFile(CustomFileIO, CustomOutputFile):
+def test_deleting_local_file_using_file_io_output_file(CustomFileIO, CustomOutputFile):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file

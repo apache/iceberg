@@ -87,7 +87,7 @@ def test_pyarrow_invalid_scheme():
 
 
 @patch("iceberg.io.pyarrow.FileSystem")
-def test_pyarrow_violating_InputStream_protocol(MockedFileSystem):
+def test_pyarrow_violating_input_stream_protocol(MockedFileSystem):
     """Test that a TypeError is raised if an input file is provided that violates the InputStream protocol"""
 
     # Missing seek, tell, closed, and close
@@ -110,7 +110,7 @@ def test_pyarrow_violating_InputStream_protocol(MockedFileSystem):
 
 
 @patch("iceberg.io.pyarrow.FileSystem")
-def test_pyarrow_violating_OutputStream_protocol(MockedFileSystem):
+def test_pyarrow_violating_output_stream_protocol(MockedFileSystem):
     """Test that a TypeError is raised if an output stream is provided that violates the OutputStream protocol"""
 
     # Missing closed, and close
