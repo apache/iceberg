@@ -31,7 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class Namespace {
   private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
   private static final Joiner DOT = Joiner.on('.');
-  private static final Predicate<String> CONTAINS_NULL_BYTE =
+  private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
   public static Namespace empty() {
@@ -47,7 +47,7 @@ public class Namespace {
     for (String level : levels) {
       Preconditions.checkNotNull(level,
           "Cannot create a namespace with a null level");
-      Preconditions.checkArgument(!CONTAINS_NULL_BYTE.test(level),
+      Preconditions.checkArgument(!CONTAINS_NULL_CHARACTER.test(level),
           "Cannot create a namespace with the null-byte character");
     }
 
