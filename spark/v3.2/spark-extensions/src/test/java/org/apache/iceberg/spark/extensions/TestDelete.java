@@ -621,6 +621,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
+    // Pre-populate the table to force it to use the DeltaWriter instead of Metadata-Only Delete
+    List<Integer> initialIds = ImmutableList.of(1, 2);
+    Dataset<Row> initialInputDf = spark.createDataset(initialIds, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hr"));
+    try {
+      initialInputDf.coalesce(1).writeTo(tableName).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(e);
+    }
+
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
