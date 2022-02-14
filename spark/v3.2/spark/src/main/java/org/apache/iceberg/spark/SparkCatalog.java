@@ -253,19 +253,17 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean purgeTable(Identifier ident) {
-    try {
-      Table table = load(ident).first();
-      ValidationException.check(
-          PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-          "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
-      return dropTableInternal(ident, true);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      return false;
-    }
+    return dropTableInternal(ident, true);
   }
 
   private boolean dropTableInternal(Identifier ident, boolean purge) {
     try {
+      if (purge) {
+        Table table = load(ident).first();
+        ValidationException.check(
+            PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+            "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
+      }
       return isPathIdentifier(ident) ?
           tables.dropTable(((PathIdentifier) ident).location(), purge) :
           icebergCatalog.dropTable(buildIdentifier(ident), purge);
