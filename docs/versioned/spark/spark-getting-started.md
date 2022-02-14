@@ -39,10 +39,9 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:{{% ice
 ```
 
 {{< hint info >}}
-If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.2_2.12` Jar][spark-runtime-jar] to Spark's `jars` folder.
+If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.2_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.2_2.12/{{% icebergVersion %}}/iceberg-spark-runtime-3.2_2.12-{{% icebergVersion %}}.jar) to Spark's `jars` folder.
 {{< /hint >}}
 
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.2_2.12/{{% icebergVersion %}}/iceberg-spark-runtime-3.2_2.12-{{% icebergVersion %}}.jar
 
 ### Adding catalogs
 
