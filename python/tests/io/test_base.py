@@ -246,15 +246,9 @@ def test_custom_file_io_locations(CustomFileIO, string_uri, scheme, netloc, path
     file_io = CustomFileIO()
     input_file = file_io.new_input(location=string_uri)
     assert input_file.location == string_uri
-    assert input_file.parsed_location.scheme == scheme
-    assert input_file.parsed_location.netloc == netloc
-    assert input_file.parsed_location.path == path
 
     output_file = file_io.new_output(location=string_uri)
     assert output_file.location == string_uri
-    assert output_file.parsed_location.scheme == scheme
-    assert output_file.parsed_location.netloc == netloc
-    assert output_file.parsed_location.path == path
 
 
 @pytest.mark.parametrize(

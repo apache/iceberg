@@ -17,7 +17,7 @@
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from pyarrow.fs import FileType
@@ -74,20 +74,15 @@ def test_pyarrow_invalid_scheme():
     with pytest.raises(ValueError) as exc_info:
         PyArrowFile("foo://bar/baz.txt")
 
-    assert ("PyArrowFile location must have one of the following schemes: ['file', 'mock', 's3fs', 'hdfs', 'viewfs']") in str(
-        exc_info.value
-    )
+    assert ("Unrecognized filesystem type in URI") in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
         PyArrowFile("foo://bar/baz.txt")
 
-    assert ("PyArrowFile location must have one of the following schemes: ['file', 'mock', 's3fs', 'hdfs', 'viewfs']") in str(
-        exc_info.value
-    )
+    assert ("Unrecognized filesystem type in URI") in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.FileSystem")
-def test_pyarrow_violating_input_stream_protocol(MockedFileSystem):
+def test_pyarrow_violating_input_stream_protocol():
     """Test that a TypeError is raised if an input file is provided that violates the InputStream protocol"""
 
     # Missing seek, tell, closed, and close
@@ -97,40 +92,35 @@ def test_pyarrow_violating_input_stream_protocol(MockedFileSystem):
     filesystem_mock = MagicMock()
     filesystem_mock.open_input_file.return_value = input_file_mock
 
-    MockedFileSystem.from_uri.return_value = (
-        filesystem_mock,
-        "foo_path",
-    )  # Patch the FileSystem.from_uri method to return the mocked filesystem
-
+    input_file = PyArrowFile("foo.txt")
+    input_file._filesystem = filesystem_mock
     with pytest.raises(TypeError) as exc_info:
-        PyArrowFile("foo.txt").open()
+        input_file.open()
 
     assert ("Object of type") in str(exc_info.value)
     assert ("returned from PyArrowFile.open does not match the InputStream protocol.") in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.FileSystem")
-def test_pyarrow_violating_output_stream_protocol(MockedFileSystem):
+def test_pyarrow_violating_output_stream_protocol():
     """Test that a TypeError is raised if an output stream is provided that violates the OutputStream protocol"""
 
     # Missing closed, and close
     output_file_mock = MagicMock(spec=["write"])
     output_file_mock.exists = False
 
-    file_info_mock = MagicMock
+    file_info_mock = MagicMock()
     file_info_mock.type = FileType.NotFound
 
     # Create a mocked filesystem that returns output_file_mock
     filesystem_mock = MagicMock()
     filesystem_mock.open_output_stream.return_value = output_file_mock
     filesystem_mock.get_file_info.return_value = file_info_mock
-    MockedFileSystem.from_uri.return_value = (
-        filesystem_mock,
-        "foo_path",
-    )  # Patch the FileSystem.from_uri method to return the mocked filesystem
+
+    output_file = PyArrowFile("foo.txt")
+    output_file._filesystem = filesystem_mock
 
     with pytest.raises(TypeError) as exc_info:
-        PyArrowFile("foo.txt").create()
+        output_file.create()
 
     assert ("Object of type") in str(exc_info.value)
     assert ("returned from PyArrowFile.create does not match the OutputStream protocol.") in str(exc_info.value)

@@ -17,25 +17,36 @@
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
-by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct filesytem
+by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct filesystem
 type to use. Theoretically, this allows the supported storage types to grow naturally
 with the pyarrow library.
 """
 
+import os
 from typing import Union
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import urlparse
 
 from pyarrow.fs import FileSystem, FileType
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
-SUPPORTED_SCHEMES = [
-    "file",
-    "mock",
-    "s3fs",
-    "hdfs",
-    "viewfs",
-]
+_FILESYSTEM_INSTANCES: dict = {}
+
+
+def get_filesystem(location: str):
+    parsed_location = urlparse(location)  # Create a ParseResult from the uri
+    if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
+        if _FILESYSTEM_INSTANCES.get("local"):
+            filesystem = _FILESYSTEM_INSTANCES["local"]
+        else:
+            filesystem, _ = FileSystem.from_uri(os.path.abspath(location))
+            _FILESYSTEM_INSTANCES["local"] = filesystem
+    elif _FILESYSTEM_INSTANCES.get(parsed_location.scheme):  # Check for a cached filesystem
+        filesystem = _FILESYSTEM_INSTANCES[parsed_location.scheme]
+    else:  # Instantiate a filesystem and cache it by scheme
+        filesystem, _ = FileSystem.from_uri(location)  # Infer the proper filesystem
+        _FILESYSTEM_INSTANCES[parsed_location.scheme] = filesystem  # Cache the filesystem
+    return filesystem
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -46,9 +57,8 @@ class PyArrowFile(InputFile, OutputFile):
 
     Attributes:
         location(str): The URI or path to a local file for a PyArrowFile instance
-        parsed_location(urllib.parse.ParseResult): The parsed location with attributes `scheme`, `netloc`, `path`, `params`,
-          `query`, and `fragment`
         exists(bool): Whether the file exists or not
+        filesystem(pyarrow.fs.FileSystem): An implementation of the FileSystem base class inferred from the location
 
     Examples:
         >>> from iceberg.io.pyarrow import PyArrowFile
@@ -59,35 +69,19 @@ class PyArrowFile(InputFile, OutputFile):
     """
 
     def __init__(self, location: str):
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
-
-        if parsed_location.scheme and parsed_location.scheme not in SUPPORTED_SCHEMES:
-            raise ValueError(f"PyArrowFile location must have one of the following schemes: {SUPPORTED_SCHEMES}")
-
+        filesystem = get_filesystem(location)  # Checks for cached filesystem for this location's scheme
         super().__init__(location=location)
-        self._parsed_location = parsed_location
+        self._filesystem = filesystem
 
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
-        filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        file = filesytem.open_input_file(path)
+        file = self._filesystem.open_input_file(self.location)
         return file.size()
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
 
     @property
     def exists(self) -> bool:
         """Checks whether the file exists"""
-        filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        file_info = filesytem.get_file_info(path)
+        file_info = self._filesystem.get_file_info(self.location)
         return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> InputStream:
@@ -96,8 +90,7 @@ class PyArrowFile(InputFile, OutputFile):
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
         """
-        filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        input_file = filesytem.open_input_file(path)
+        input_file = self._filesystem.open_input_file(self.location)
         if not isinstance(input_file, InputStream):
             raise TypeError(
                 f"Object of type {type(input_file)} returned from PyArrowFile.open does not match the InputStream protocol."
@@ -120,8 +113,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise FileExistsError(
                 f"A file already exists at this location. If you would like to overwrite it, set `overwrite=True`: {self.location}"
             )
-        filesytem, path = FileSystem.from_uri(self.location)  # Infer the proper filesystem
-        output_file = filesytem.open_output_stream(path)
+        output_file = self._filesystem.open_output_stream(self.location)
         if not isinstance(output_file, OutputStream):
             raise TypeError(
                 f"Object of type {type(output_file)} returned from PyArrowFile.create does not match the OutputStream protocol."
@@ -163,8 +155,8 @@ class PyArrowFileIO(FileIO):
             OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
         """
         str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        filesytem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
+        filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
         try:
-            filesytem.delete_file(path)
+            filesystem.delete_file(path)
         except OSError:
             raise FileNotFoundError(f"File could not be deleted because it does not exist: {str_path}")
