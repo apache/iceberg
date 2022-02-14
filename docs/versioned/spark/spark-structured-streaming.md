@@ -44,8 +44,7 @@ val df = spark.readStream
 ```
 
 {{< hint warning >}}
-Iceberg only supports reading data from snapshots of type `Append` or `Replace`. Snapshots of type `Delete` & `Overwrite` cannot be processed and will cause an exception.
-The spark options `streaming-skip-delete-snapshots=true` & `streaming-skip-overwrite-snapshots=true` may be used while reading from the iceberg tables where, there are known cases of deletes and overwrites performed on the table that can be ignored.
+Iceberg only supports reading data from snapshots of type `Append` or `Replace`. Snapshots of type `Delete` & `Overwrite` cannot be processed and will cause an exception. The spark options `streaming-skip-delete-snapshots=true` & `streaming-skip-overwrite-snapshots=true` may be used while reading from the iceberg tables where, there are known cases of deletes and overwrites performed on the table that can be ignored.
 {{</ hint >}}
 
 ## Streaming Writes
