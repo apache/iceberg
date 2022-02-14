@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -31,12 +32,14 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -83,7 +86,6 @@ public abstract class TestWriterMetrics<T> {
 
   protected FileFormat fileFormat;
   protected TestTables.TestTable table = null;
-  protected File metadataDir = null;
   private OutputFileFactory fileFactory = null;
 
   @Parameterized.Parameters(name = "FileFormat = {0}")
@@ -98,16 +100,16 @@ public abstract class TestWriterMetrics<T> {
     this.fileFormat = fileFormat;
   }
 
-  protected abstract FileWriterFactory<T> newWriterFactory(Schema dataSchema);
+  protected abstract FileWriterFactory<T> newWriterFactory(Table sourceTable);
 
   protected abstract T toRow(Integer id, String data, boolean boolValue, Long longValue);
+
+  protected abstract T toGenericRow(int value, int repeated);
 
   @Before
   public void setupTable() throws Exception {
     File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
-
-    this.metadataDir = new File(tableDir, "metadata");
 
     this.table = TestTables.create(
         tableDir,
@@ -129,7 +131,7 @@ public abstract class TestWriterMetrics<T> {
   @Test
   public void verifySortedColMetric() throws Exception {
     T row = toRow(3, "3", true, 3L);
-    DataWriter dataWriter = newWriterFactory(SCHEMA).newDataWriter(
+    DataWriter dataWriter = newWriterFactory(table).newDataWriter(
         fileFactory.newOutputFile(),
         PartitionSpec.unpartitioned(),
         null
@@ -156,7 +158,7 @@ public abstract class TestWriterMetrics<T> {
 
   @Test
   public void testPositionDeleteMetrics() throws IOException {
-    FileWriterFactory<T> writerFactory = newWriterFactory(SCHEMA);
+    FileWriterFactory<T> writerFactory = newWriterFactory(table);
     EncryptedOutputFile outputFile = fileFactory.newOutputFile();
     PositionDeleteWriter<T> deleteWriter = writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
 
@@ -201,5 +203,88 @@ public abstract class TestWriterMetrics<T> {
     Assert.assertFalse(upperBounds.containsKey(3));
     Assert.assertFalse(upperBounds.containsKey(4));
     Assert.assertEquals(3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)));
+  }
+
+  @Test
+  public void testMaxColumns() throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete(); // created by table create
+
+    int numColumns = 33;
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
+    for (int i = 0; i < numColumns; i++) {
+      fields.add(required(i, "col" + i, Types.IntegerType.get()));
+    }
+    Schema maxColSchema = new Schema(fields);
+
+    Table maxColumnTable = TestTables.create(
+        tableDir,
+        "max_col_table",
+        maxColSchema,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        FORMAT_V2);
+    OutputFileFactory maxColFactory = OutputFileFactory.builderFor(maxColumnTable, 1, 1)
+        .format(fileFormat).build();
+
+    T row = toGenericRow(1, numColumns);
+    DataWriter dataWriter = newWriterFactory(maxColumnTable).newDataWriter(
+        maxColFactory.newOutputFile(),
+        PartitionSpec.unpartitioned(),
+        null
+    );
+    dataWriter.add(row);
+    dataWriter.close();
+    DataFile dataFile = dataWriter.toDataFile();
+
+    // No field should have metrics
+    Assert.assertTrue("Should not have any lower bound metrics", dataFile.lowerBounds().isEmpty());
+    Assert.assertTrue("Should not have any upper bound metrics", dataFile.upperBounds().isEmpty());
+    Assert.assertTrue("Should not have any nan value metrics", dataFile.nanValueCounts().isEmpty());
+    Assert.assertTrue("Should not have any null value metrics", dataFile.nullValueCounts().isEmpty());
+    Assert.assertTrue("Should not have any value metrics", dataFile.valueCounts().isEmpty());
+  }
+
+  @Test
+  public void testMaxColumnsWithDefaultOverride() throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete(); // created by table create
+
+    int numColumns = 33;
+    List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
+    for (int i = 0; i < numColumns; i++) {
+      fields.add(required(i, "col" + i, Types.IntegerType.get()));
+    }
+    Schema maxColSchema = new Schema(fields);
+
+    Table maxColumnTable = TestTables.create(
+        tableDir,
+        "max_col_table",
+        maxColSchema,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        FORMAT_V2);
+    maxColumnTable.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE,
+        TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT).commit();
+    OutputFileFactory maxColFactory = OutputFileFactory.builderFor(maxColumnTable, 1, 1)
+        .format(fileFormat).build();
+
+    T row = toGenericRow(1, numColumns);
+    DataWriter dataWriter = newWriterFactory(maxColumnTable).newDataWriter(
+        maxColFactory.newOutputFile(),
+        PartitionSpec.unpartitioned(),
+        null
+    );
+    dataWriter.add(row);
+    dataWriter.close();
+    DataFile dataFile = dataWriter.toDataFile();
+
+    // Field should have metrics because the user set the default explicitly
+    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
+    Map<Integer, ByteBuffer> lowerBounds = dataFile.upperBounds();
+    for (int i = 0; i < numColumns; i++) {
+      Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
+      Assert.assertEquals(1, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
+    }
   }
 }
