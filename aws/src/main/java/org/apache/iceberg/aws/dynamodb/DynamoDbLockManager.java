@@ -104,7 +104,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   /**
    * constructor for dynamic initialization, {@link #initialize(Map)} must be called later.
    */
-  DynamoDbLockManager() {
+  public DynamoDbLockManager() {
   }
 
   /**
@@ -112,7 +112,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
    * @param dynamo dynamo client
    * @param lockTableName lock table name
    */
-  DynamoDbLockManager(DynamoDbClient dynamo, String lockTableName) {
+  public DynamoDbLockManager(DynamoDbClient dynamo, String lockTableName) {
     super.initialize(Maps.newHashMap());
     this.dynamo = dynamo;
     this.lockTableName = lockTableName;
