@@ -90,6 +90,19 @@ public class AvroSchemaUtil {
     return AvroCustomOrderSchemaVisitor.visit(schema, new HasIds());
   }
 
+  /**
+   * @param schema an Avro Schema
+   * @return true/false based on whether any of the nodes in the provided schema is missing an
+   * ID property recognizable by Iceberg core API. To have an ID recognizable by Iceberg core API:
+   * <ul>
+   *   <li>a field node under struct (record) schema should have {@link FIELD_ID_PROP} property
+   *   <li>an element node under list (array) schema should have {@link ELEMENT_ID_PROP} property
+   *   <li>a pair of key and value node under map schema should have {@link KEY_ID_PROP} and
+   *   {@link VALUE_ID_PROP} respectively
+   *   <li>a primitive node is not assigned any ID related properties
+   * </ul>
+   * @implNote see {@link MissingIds} for more details
+   */
   static boolean missingIds(Schema schema) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new MissingIds());
   }
@@ -361,9 +374,9 @@ public class AvroSchemaUtil {
     return copy;
   }
 
-  static Schema copyArray(Schema array, Schema elementSchema) {
+  static Schema replaceElement(Schema array, Schema elementSchema) {
     Preconditions.checkArgument(array.getType() == org.apache.avro.Schema.Type.ARRAY,
-        "Cannot invoke copyArray on non array schema");
+        "Cannot invoke replaceElement on non array schema: %s", array);
     Schema copy = Schema.createArray(elementSchema);
     for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
@@ -371,9 +384,9 @@ public class AvroSchemaUtil {
     return copy;
   }
 
-  static Schema copyMap(Schema map, Schema valueSchema) {
+  static Schema replaceValue(Schema map, Schema valueSchema) {
     Preconditions.checkArgument(map.getType() == org.apache.avro.Schema.Type.MAP,
-        "Cannot invoke copyMap on non map schema");
+        "Cannot invoke replaceValue on non map schema: %s", map);
     Schema copy = Schema.createMap(valueSchema);
     for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());

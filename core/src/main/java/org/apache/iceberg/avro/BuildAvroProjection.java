@@ -206,7 +206,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
         // element was changed, create a new array
         if (!Objects.equals(elementSchema, array.getElementType())) {
-          return AvroSchemaUtil.copyArray(array, elementSchema);
+          return AvroSchemaUtil.replaceElement(array, elementSchema);
         }
 
         return array;
@@ -230,7 +230,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       // element was changed, create a new map
       if (!Objects.equals(valueSchema, map.getValueType())) {
-        return AvroSchemaUtil.copyMap(map, valueSchema);
+        return AvroSchemaUtil.replaceValue(map, valueSchema);
       }
 
       return map;
