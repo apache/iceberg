@@ -263,16 +263,22 @@ Thanks to everyone for contributing!
 
 ### Documentation Release
 
-Documentation and website needs to be updated as a part of Iceberg release.
+Documentation needs to be updated as a part of Iceberg release after a release candidate is passed.
+The commands described below assume the `iceberg-docs` repository and `iceberg` repository are in the same parent directory locally, 
+and the release manager is executing commands in the `iceberg` repository.
+Adjust the commands accordingly if it is not the case.
+
+#### Release notes
+
+Release notes need to be drafted and published in the `iceberg` repository and reviewed by the community.
 
 #### Iceberg version update
 
-Before release, publish a PR to update `landing-page/config.toml` and `docs/config.toml` with the new Iceberg version number.
+Before release, publish a PR in the `iceberg-docs` repository to update `landing-page/config.toml` and `docs/config.toml` to use the new Iceberg version number.
 
 #### Documentation update
 
-To start the release process, run the following steps in the `iceberg-docs` repository to copy docs over 
-(assume the `iceberg-docs` repository and `iceberg` repository are in the same parent directory locally, and you are in the `iceberg` repository):
+To start the release process, run the following steps in the `iceberg-docs` repository to copy docs over:
 
 ```shell
 rm -rf ../iceberg-docs/docs/content/docs
@@ -281,25 +287,22 @@ cp -r docs/versioned ../iceberg-docs/docs/content/docs
 cp -r docs/common ../iceberg-docs/landing-page/content/common
 ```
 
-This should be approved in a separated PR.
+The resulted changes in `iceberg-docs` should be approved in a separated PR.
 
 #### Javadoc update
 
-In `iceberg` repository, generate the javadoc for your release and copy to the `javadoc` folder in `iceberg-docs` repo 
-(assume the `iceberg-docs` repository and `iceberg` repository are in the same parent directory locally, and you are in the `iceberg` repository):
-
+In the `iceberg` repository, generate the javadoc for your release and copy it to the `javadoc` folder in `iceberg-docs` repo:
 ```shell
 ./gradlew refreshJavadoc
 rm -rf ../iceberg-docs/javadoc
 cp site/docs/javadoc/<VERSION NUMBER> ../iceberg-docs/javadoc
 ```
 
-This should be approved in a separated PR.
+This resulted changes in `iceberg-docs` should be approved in a separated PR.
 
-### Cut new version branch
+#### Cut a new version branch
 
-Once completed, go to the `iceberg-docs` repository (the Apache one, not a forked one) to update branches.
-Cut a new branch using the version number as the branch name.
+Once completed, go to the `iceberg-docs` repository (the Apache one, not a forked one) to cut a new branch using the version number as the branch name.
 For example, to cut a new versioned doc for release `0.13.0`:
 
 ```shell
@@ -307,7 +310,7 @@ git checkout -b 0.13.0
 git push --set-upstream origin 0.13.0
 ```
 
-### Update latest branch
+#### Update the latest branch
 
 The last step is to point the `latest` branch to the latest version.
 Because `main` is currently the same as the version branch, simply rebase `latest` branch against `main`:
