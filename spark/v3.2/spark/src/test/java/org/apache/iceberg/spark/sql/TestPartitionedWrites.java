@@ -196,8 +196,8 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testShowPartitions() {
-    sql("SHOW PARTITIONS %s ", tableName);
-    sql("SHOW PARTITIONS %s PARTITION (id_trunc=1)", tableName);
-    sql("SHOW PARTITIONS %s PARTITION (id_trunc=7)", tableName);
+    Assert.assertEquals("Should have 2 rows", 2L, sql("SHOW PARTITIONS %s", tableName).size());
+    Assert.assertEquals("Should have 1 row", 1L,
+            sql("SHOW PARTITIONS %s PARTITION (id_trunc=0)", tableName).size());
   }
 }

@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,9 +51,6 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -79,13 +75,10 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.JavaConverters;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns,
@@ -292,20 +285,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public StructType partitionSchema() {
-    Types.StructType structType = Partitioning.partitionType(table());
-    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(structType.fields().size());
-    structType.fields().forEach(nestedField -> {
-      if (nestedField.name().endsWith("hour") ||
-              nestedField.name().endsWith("month") ||
-              nestedField.name().endsWith("year")) {
-        structFields.add(Types.NestedField.optional(nestedField.fieldId(), nestedField.name(), Types.StringType.get()));
-      } else {
-        // do nothing
-        structFields.add(nestedField);
-      }
-    });
-
-    return (StructType) SparkSchemaUtil.convert(Types.StructType.of(structFields));
+    return (StructType) SparkSchemaUtil.convert(Partitioning.partitionType(table()));
   }
 
   @Override
@@ -333,32 +313,30 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
     // support show partitions
     List<InternalRow> rows = Lists.newArrayList();
-    Dataset<Row> df = SparkTableUtil.loadMetadataTable(sparkSession(), icebergTable, MetadataTableType.PARTITIONS)
-            .select("partition");
-    StructType schema = partitionSchema();
+    Dataset<Row> df = SparkTableUtil.loadMetadataTable(sparkSession(), icebergTable, MetadataTableType.PARTITIONS);
     if (names.length > 0) {
+      StructType schema = partitionSchema();
       df.collectAsList().forEach(row -> {
         GenericRowWithSchema genericRow = (GenericRowWithSchema) row.apply(0);
-        Object[] values = transform(schema, genericRow.values());
         boolean exits = true;
         int index = 0;
         while (index < names.length) {
           DataType dataType = schema.apply(names[index]).dataType();
           int fieldIndex = schema.fieldIndex(names[index]);
-          if (!String.valueOf(values[fieldIndex]).equals(String.valueOf(ident.get(index, dataType)))) {
+          if (!genericRow.values()[fieldIndex].equals(ident.get(index, dataType))) {
             exits = false;
             break;
           }
           index += 1;
         }
         if (exits) {
-          rows.add(new GenericInternalRow(values));
+          rows.add(new GenericInternalRow(genericRow.values()));
         }
       });
     } else {
       df.collectAsList().forEach(row -> {
         GenericRowWithSchema genericRow = (GenericRowWithSchema) row.apply(0);
-        rows.add(new GenericInternalRow(transform(schema, genericRow.values())));
+        rows.add(new GenericInternalRow(genericRow.values()));
       });
     }
     return rows.toArray(new InternalRow[0]);
@@ -404,30 +382,5 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     }
 
     return options;
-  }
-
-  private static Object[] transform(StructType schema, Object[] values) {
-    Object[] resultValues = new Object[values.length];
-    JavaConverters.asJavaIterableConverter(schema).asJava().forEach(field -> {
-      int fieldIndex = schema.fieldIndex(field.name());
-      Object catalystValue = values[fieldIndex];
-      if (field.name().endsWith("hour")) {
-        org.apache.iceberg.transforms.Transform<Object, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
-        catalystValue = UTF8String.fromString(hour.toHumanString(catalystValue != null ? (int) catalystValue : null));
-      } else if (field.name().endsWith("day")) {
-        catalystValue = catalystValue != null ?
-                DateTimeUtil.daysFromDate(LocalDate.parse(String.valueOf(catalystValue))) : null;
-      } else if (field.name().endsWith("month")) {
-        org.apache.iceberg.transforms.Transform<Object, Integer> month = Transforms.month(Types.DateType.get());
-        catalystValue = UTF8String.fromString(month.toHumanString(catalystValue != null ? (int) catalystValue : null));
-      } else if (field.name().endsWith("year")) {
-        org.apache.iceberg.transforms.Transform<Object, Integer> year = Transforms.year(Types.DateType.get());
-        catalystValue = UTF8String.fromString(year.toHumanString(catalystValue != null ? (int) catalystValue : null));
-      } else if (field.dataType() instanceof StringType) {
-        catalystValue = UTF8String.fromString(String.valueOf(catalystValue));
-      }
-      resultValues[fieldIndex] = catalystValue;
-    });
-    return resultValues;
   }
 }
