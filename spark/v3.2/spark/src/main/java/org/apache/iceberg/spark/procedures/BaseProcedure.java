@@ -19,9 +19,14 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -49,6 +54,7 @@ abstract class BaseProcedure implements Procedure {
   private final TableCatalog tableCatalog;
 
   private SparkActions actions;
+  private ExecutorService executorService = null;
 
   protected BaseProcedure(TableCatalog tableCatalog) {
     this.spark = SparkSession.active();
@@ -71,11 +77,15 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
-    return execute(ident, true, func);
+    T result = execute(ident, true, func);
+    closeService();
+    return result;
   }
 
   protected <T> T withIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
-    return execute(ident, false, func);
+    T result = execute(ident, false, func);
+    closeService();
+    return result;
   }
 
   private <T> T execute(Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
@@ -150,5 +160,26 @@ abstract class BaseProcedure implements Procedure {
     TableCatalog tableCatalog() {
       return tableCatalog;
     }
+  }
+
+  /**
+   * Closes the procedure's executor service if a new one was created.
+   */
+  protected void closeService() {
+    if (executorService != null) {
+      executorService.shutdown();
+    }
+  }
+
+  protected ExecutorService executorService(int concurrentDeletes, String nameFormat) {
+    Preconditions.checkArgument(executorService == null, "Cannot create a new executor service, one already exists.");
+    executorService = MoreExecutors.getExitingExecutorService(
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(
+            concurrentDeletes,
+            new ThreadFactoryBuilder()
+                .setNameFormat(nameFormat + "-%d")
+                .build()));
+
+    return executorService;
   }
 }
