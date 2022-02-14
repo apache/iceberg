@@ -27,110 +27,65 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.Identifier;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runners.Parameterized;
 
 public class TestDropTable extends SparkCatalogTestBase {
-  private Map<String, String> config = null;
-  private String implementation = null;
-  private SparkSession session = null;
-
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
-    return new Object[][]{
-        {"testhive", CustomSparkCatalog.class.getName(),
-            ImmutableMap.of(
-                "type", "hive",
-                "default-namespace", "default"
-            )},
-        {"testhadoop", CustomSparkCatalog.class.getName(),
-            ImmutableMap.of(
-                "type", "hadoop"
-            )},
-        {"spark_catalog", CustomSparkSessionCatalog.class.getName(),
-            ImmutableMap.of(
-                "type", "hive",
-                "default-namespace", "default",
-                "parquet-enabled", "true",
-                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-            )}
-    };
-  }
 
   public TestDropTable(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
-    this.config = config;
-    this.implementation = implementation;
   }
 
   @Before
   public void createTable() {
-    // Spark CatalogManager cached the loaded catalog, here we use new SparkSession to force it load the catalog again
-    session = spark.newSession();
-    session.conf().set("spark.sql.catalog." + catalogName, this.implementation);
-    config.forEach((key, value) -> session.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
-
-    if (config.get("type").equalsIgnoreCase("hadoop")) {
-      session.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
-    }
-    sql(session, "CREATE NAMESPACE IF NOT EXISTS default");
-    sql(session, "CREATE TABLE %s (id INT, name STRING) USING iceberg", tableName);
-    sql(session, "INSERT INTO %s VALUES (1, 'test')", tableName);
+    sql("CREATE TABLE %s (id INT, name STRING) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'test')", tableName);
   }
 
   @After
   public void removeTable() throws IOException {
-    sql(session, "DROP TABLE IF EXISTS %s PURGE", tableName);
+    sql("DROP TABLE IF EXISTS %s", tableName);
 
     File baseLocation = new File(getTableBaseLocation());
     if (baseLocation.exists()) {
       FileUtils.deleteDirectory(baseLocation);
     }
-    session = null;
   }
 
   @Test
   public void testDropTable() {
+    dropTableInternal();
+  }
+
+  @Test
+  public void testDropTableGCDisabled() {
+    sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
+    dropTableInternal();
+  }
+
+  private void dropTableInternal() {
     assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "test")), sql(session, "SELECT * FROM %s", tableName));
+        ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
 
-    int fileSize = dataFiles().size();
-    Assert.assertTrue("The number of data files should be larger than zero", fileSize > 0);
+    List<String> previousDataFiles = getDataOrMetadataFiles(true);
+    Assert.assertTrue("The number of data files should be larger than zero", previousDataFiles.size() > 0);
 
-    sql(session, "DROP TABLE %s", tableName);
+    sql("DROP TABLE %s", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
 
     if (catalogName.equals("testhadoop")) {
       // HadoopCatalog drop table without purge will delete the base table location.
-      Assert.assertEquals("The number of data files should be zero", 0, dataFiles().size());
+      Assert.assertEquals("The number of data files should be zero", 0, getDataOrMetadataFiles(true).size());
+      Assert.assertEquals("The number of metadata files should be zero", 0, getDataOrMetadataFiles(false).size());
     } else {
-      Assert.assertEquals("The number of data files should not change", fileSize, dataFiles().size());
-    }
-
-    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
-    if (!"spark_catalog".equals(catalogName)) {
-      CustomSparkCatalog catalog = (CustomSparkCatalog) session.sessionState().catalogManager().catalog(catalogName);
-      Assert.assertTrue("dropTable should be called", catalog.isDropTableCalled());
-      Assert.assertFalse("purgeTable should not be called", catalog.isPurgeTableCalled());
-      Assert.assertEquals(identifier, catalog.droppedIdentifier());
-    } else {
-      CustomSparkSessionCatalog catalog =
-          (CustomSparkSessionCatalog) session.sessionState().catalogManager().catalog(catalogName);
-      Assert.assertTrue("dropTable should be called", catalog.isDropTableCalled());
-      Assert.assertFalse("purgeTable should not be called", catalog.isPurgeTableCalled());
-      Assert.assertEquals(identifier, catalog.droppedIdentifier());
+      Assert.assertEquals("The data files should not change", previousDataFiles, getDataOrMetadataFiles(true));
     }
   }
 
@@ -138,45 +93,46 @@ public class TestDropTable extends SparkCatalogTestBase {
   public void testPurgeTable() {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "test")),
-        sql(session, "SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s", tableName));
 
-    int fileSize = dataFiles().size();
-    Assert.assertTrue("The number of data files should be larger than zero", fileSize > 0);
+    List<String> previousDataFiles = getDataOrMetadataFiles(true);
+    Assert.assertTrue("The number of data files should be larger than zero", previousDataFiles.size() > 0);
 
-    sql(session, "DROP TABLE %s PURGE", tableName);
+    sql("DROP TABLE %s PURGE", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
-    Assert.assertEquals("The number of data files should be zero", 0, dataFiles().size());
-
-    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
-    if (!"spark_catalog".equals(catalogName)) {
-      CustomSparkCatalog catalog = (CustomSparkCatalog) session.sessionState().catalogManager().catalog(catalogName);
-      Assert.assertTrue("purgeTable should be called", catalog.isPurgeTableCalled());
-      Assert.assertFalse("dropTable should not be called", catalog.isDropTableCalled());
-      Assert.assertEquals(identifier, catalog.droppedIdentifier());
-    } else {
-      CustomSparkSessionCatalog catalog =
-          (CustomSparkSessionCatalog) session.sessionState().catalogManager().catalog(catalogName);
-      Assert.assertTrue("purgeTable should be called", catalog.isPurgeTableCalled());
-      Assert.assertFalse("dropTable should not be called", catalog.isDropTableCalled());
-      Assert.assertEquals(identifier, catalog.droppedIdentifier());
-    }
+    Assert.assertEquals("The number of data files should be zero", 0, getDataOrMetadataFiles(true).size());
+    Assert.assertEquals("The number of metadata files should be zero", 0, getDataOrMetadataFiles(false).size());
   }
 
-  private List<Object[]> sql(SparkSession spark, String query, Object... args) {
-    List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
-    if (rows.size() < 1) {
-      return ImmutableList.of();
-    }
+  @Test
+  public void testPurgeTableGCDisabled() {
+    sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
+    List<String> previousDataFiles = getDataOrMetadataFiles(true);
+    List<String> previousMetadataFiles = getDataOrMetadataFiles(false);
+    Assert.assertTrue("The number of data files should be larger than zero", previousDataFiles.size() > 0);
+    Assert.assertTrue("The number of metadata files should be larger than zero", previousMetadataFiles.size() > 0);
 
-    return rowsToJava(rows);
+    AssertHelpers.assertThrows("Purge table is not allowed when GC is disabled", ValidationException.class,
+        "Cannot purge table: GC is disabled (deleting files may corrupt other tables",
+        () -> sql("DROP TABLE %s PURGE", tableName));
+
+    Assert.assertTrue("Table should not been dropped", validationCatalog.tableExists(tableIdent));
+    Assert.assertEquals("The data files should not change", previousDataFiles, getDataOrMetadataFiles(true));
+    Assert.assertEquals("The metadata files should not change", previousMetadataFiles, getDataOrMetadataFiles(false));
   }
 
-  private List<String> dataFiles() {
+  private List<String> getDataOrMetadataFiles(boolean dataFiles) {
     String baseLocation = getTableBaseLocation();
 
-    File dataPath = new File(baseLocation, "data");
-    if (dataPath.exists()) {
-      return Arrays.stream(dataPath.listFiles()).map(File::getAbsolutePath).collect(Collectors.toList());
+    File dir;
+    if (dataFiles) {
+      dir = new File(baseLocation, "data");
+    } else {
+      dir = new File(baseLocation, "metadata");
+    }
+
+    if (dir.exists()) {
+      return Arrays.stream(dir.listFiles()).map(File::getAbsolutePath).collect(Collectors.toList());
     } else {
       return Lists.newArrayList();
     }
@@ -192,69 +148,5 @@ public class TestDropTable extends SparkCatalogTestBase {
     }
 
     return baseLocation;
-  }
-
-  public static class CustomSparkSessionCatalog extends SparkSessionCatalog {
-    private boolean dropTableCalled = false;
-    private boolean purgeTableCalled = false;
-    private Identifier identifier = null;
-
-    public boolean isDropTableCalled() {
-      return dropTableCalled;
-    }
-
-    public boolean isPurgeTableCalled() {
-      return purgeTableCalled;
-    }
-
-    public Identifier droppedIdentifier() {
-      return identifier;
-    }
-
-    @Override
-    public boolean dropTable(Identifier ident) {
-      dropTableCalled = true;
-      identifier = ident;
-      return super.dropTable(ident);
-    }
-
-    @Override
-    public boolean purgeTable(Identifier ident) {
-      purgeTableCalled = true;
-      identifier = ident;
-      return super.purgeTable(ident);
-    }
-  }
-
-  public static class CustomSparkCatalog extends SparkCatalog {
-    private boolean dropTableCalled = false;
-    private boolean purgeTableCalled = false;
-    private Identifier identifier = null;
-
-    public boolean isDropTableCalled() {
-      return dropTableCalled;
-    }
-
-    public boolean isPurgeTableCalled() {
-      return purgeTableCalled;
-    }
-
-    public Identifier droppedIdentifier() {
-      return identifier;
-    }
-
-    @Override
-    public boolean dropTable(Identifier ident) {
-      dropTableCalled = true;
-      identifier = ident;
-      return super.dropTable(ident);
-    }
-
-    @Override
-    public boolean purgeTable(Identifier ident) {
-      purgeTableCalled = true;
-      identifier = ident;
-      return super.purgeTable(ident);
-    }
   }
 }

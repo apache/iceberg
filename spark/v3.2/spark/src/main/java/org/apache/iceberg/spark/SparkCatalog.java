@@ -39,6 +39,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -70,6 +71,9 @@ import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -249,7 +253,15 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean purgeTable(Identifier ident) {
-    return dropTableInternal(ident, true);
+    try {
+      Table table = load(ident).first();
+      ValidationException.check(
+          PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+          "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
+      return dropTableInternal(ident, true);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      return false;
+    }
   }
 
   private boolean dropTableInternal(Identifier ident, boolean purge) {
