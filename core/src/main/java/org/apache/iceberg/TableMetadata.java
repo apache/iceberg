@@ -496,14 +496,6 @@ public class TableMetadata implements Serializable {
     return new Builder(this).setDefaultSortOrder(newOrder).build();
   }
 
-  public TableMetadata addStagedSnapshot(Snapshot snapshot) {
-    return new Builder(this).addSnapshot(snapshot).build();
-  }
-
-  public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
-    return new Builder(this).setBranchSnapshot(snapshot, SnapshotRef.MAIN_BRANCH).build();
-  }
-
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> toRemove = snapshots.stream().filter(removeIf).collect(Collectors.toList());
     return new Builder(this).removeSnapshots(toRemove).build();
