@@ -930,7 +930,7 @@ public class TableMetadata implements Serializable {
 
     public Builder setBranchSnapshot(Snapshot snapshot, String branch) {
       addSnapshot(snapshot);
-      setBranchSnapshot(snapshot.snapshotId(), branch);
+      setBranchSnapshot(snapshot, branch, null);
       return this;
     }
 
