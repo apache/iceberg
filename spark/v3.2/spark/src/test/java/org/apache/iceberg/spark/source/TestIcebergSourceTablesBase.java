@@ -737,6 +737,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(1), actual.get(1));
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(2), actual.get(2));
+    TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(3), actual.get(3));
   }
 
   @Test

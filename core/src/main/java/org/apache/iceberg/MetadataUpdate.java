@@ -153,14 +153,32 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
-  class SetCurrentSnapshot implements MetadataUpdate {
-    private final Long snapshotId;
+  class RemoveSnapshotRef implements MetadataUpdate {
+    private final String name;
 
-    public SetCurrentSnapshot(Long snapshotId) {
+    public RemoveSnapshotRef(String name) {
+      this.name = name;
+    }
+
+    public String name() {
+      return name;
+    }
+  }
+
+  class SetSnapshotRef implements MetadataUpdate {
+    private final String name;
+    private final long snapshotId;
+
+    public SetSnapshotRef(String name, long snapshotId) {
+      this.name = name;
       this.snapshotId = snapshotId;
     }
 
-    public Long snapshotId() {
+    public String name() {
+      return name;
+    }
+
+    public long snapshotId() {
       return snapshotId;
     }
   }
