@@ -283,7 +283,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
             TableMetadata updated;
-            if (stageOnly) {
+            if (base.snapshot(newSnapshot.snapshotId()) != null) {
+              updated = base.replaceCurrentSnapshot(newSnapshot.snapshotId());
+            } else if (stageOnly) {
               updated = base.addStagedSnapshot(newSnapshot);
             } else {
               updated = base.replaceCurrentSnapshot(newSnapshot);

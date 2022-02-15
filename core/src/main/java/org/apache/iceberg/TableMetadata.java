@@ -501,6 +501,10 @@ public class TableMetadata implements Serializable {
     return new Builder(this).setCurrentSnapshot(snapshot).build();
   }
 
+  public TableMetadata replaceCurrentSnapshot(long snapshotId) {
+    return new Builder(this).setCurrentSnapshot(snapshotId).build();
+  }
+
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> toRemove = snapshots.stream().filter(removeIf).collect(Collectors.toList());
     return new Builder(this).removeSnapshots(toRemove).build();
