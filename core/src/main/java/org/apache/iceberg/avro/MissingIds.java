@@ -31,7 +31,7 @@ import org.apache.avro.Schema;
  * that the schema has at least one ID, and not sufficient condition for invoking
  * {@link AvroSchemaUtil#toIceberg(Schema)} on the schema.
  */
-public class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
+class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
   public Boolean record(Schema record, List<String> names, Iterable<Boolean> fields) {
     for (Boolean field : fields) {
