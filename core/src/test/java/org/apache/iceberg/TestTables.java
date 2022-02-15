@@ -171,13 +171,6 @@ public class TestTables {
       this.metadata = new File(location, "metadata");
       metadata.mkdirs();
       refresh();
-      if (current != null) {
-        for (Snapshot snap : current.snapshots()) {
-          this.lastSnapshotId = Math.max(lastSnapshotId, snap.snapshotId());
-        }
-      } else {
-        this.lastSnapshotId = 0;
-      }
     }
 
     void failCommits(int numFailures) {
@@ -193,6 +186,13 @@ public class TestTables {
     public TableMetadata refresh() {
       synchronized (METADATA) {
         this.current = METADATA.get(tableName);
+      }
+      if (current != null) {
+        for (Snapshot snap : current.snapshots()) {
+          this.lastSnapshotId = Math.max(lastSnapshotId, snap.snapshotId());
+        }
+      } else {
+        this.lastSnapshotId = 0;
       }
       return current;
     }
