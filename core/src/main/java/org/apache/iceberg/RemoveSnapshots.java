@@ -81,6 +81,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private int minNumSnapshots;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private ExecutorService manifestAccessExecutor = ThreadPools.getWorkerPool();
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -139,6 +140,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots accessManifestsWith(ExecutorService executorService) {
+    this.manifestAccessExecutor = executorService;
     return this;
   }
 
@@ -395,7 +402,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(manifestAccessExecutor)
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
@@ -415,7 +422,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     Tasks.foreach(manifestsToRevert)
         .retry(3).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(manifestAccessExecutor)
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete

@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Binder;
@@ -112,6 +113,11 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public TableScan appendsAfter(long fromSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
+  }
+
+  @Override
+  public TableScan accessManifestsWith(ExecutorService executorService) {
+    return newRefinedScan(ops, table, schema, context.manifestAccessExecutor(executorService));
   }
 
   @Override

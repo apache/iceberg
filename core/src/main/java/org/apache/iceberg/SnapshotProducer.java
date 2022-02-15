@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -86,6 +87,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
 
+  private ExecutorService manifestAccessExecutor = ThreadPools.getWorkerPool();
+
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
@@ -105,6 +108,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public ThisT stageOnly() {
     this.stageOnly = true;
     return self();
+  }
+
+  @Override
+  public ThisT accessManifestsWith(ExecutorService executorService) {
+    this.manifestAccessExecutor = executorService;
+    return self();
+  }
+
+  protected ExecutorService manifestAccessExecutor() {
+    return this.manifestAccessExecutor;
   }
 
   @Override
@@ -176,7 +189,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
         Tasks.range(manifestFiles.length)
             .stopOnFailure().throwFailureWhenFinished()
-            .executeWith(ThreadPools.getWorkerPool())
+            .executeWith(manifestAccessExecutor)
             .run(index ->
                 manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 

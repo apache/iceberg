@@ -824,6 +824,62 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
   }
 
+
+  @Test
+  public void dataFilesCleanupWithManifestAccessExecutor() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D))
+        .commit();
+    long thirdSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C))
+        .commit();
+    long fourthSnapshotId = table.currentSnapshot().snapshotId();
+
+    long t4 = System.currentTimeMillis();
+    while (t4 <= table.currentSnapshot().timestampMillis()) {
+      t4 = System.currentTimeMillis();
+    }
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests();
+
+    ManifestFile newManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(Status.EXISTING, thirdSnapshotId, FILE_C),
+        manifestEntry(Status.EXISTING, fourthSnapshotId, FILE_D));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    manifests.forEach(rewriteManifests::deleteManifest);
+    rewriteManifests.addManifest(newManifest);
+    rewriteManifests.commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    AtomicInteger accessThreadsIndex = new AtomicInteger(0);
+    table.expireSnapshots()
+        .expireOlderThan(t4)
+        .deleteWith(deletedFiles::add)
+        .accessManifestsWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("access-manifest-" + accessThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }))
+        .commit();
+
+    Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
+    Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
+    Assert.assertTrue("Thread should be created in provided pool", accessThreadsIndex.get() > 0);
+  }
+
   @Test
   public void noDataFileCleanup() throws IOException {
     table.newFastAppend()
