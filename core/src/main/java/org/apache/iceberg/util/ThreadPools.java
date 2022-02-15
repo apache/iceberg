@@ -38,13 +38,7 @@ public class ThreadPools {
       WORKER_THREAD_POOL_SIZE_PROP,
       Math.max(2, Runtime.getRuntime().availableProcessors()));
 
-  private static final ExecutorService WORKER_POOL = MoreExecutors.getExitingExecutorService(
-      (ThreadPoolExecutor) Executors.newFixedThreadPool(
-          WORKER_THREAD_POOL_SIZE,
-          new ThreadFactoryBuilder()
-              .setDaemon(true)
-              .setNameFormat("iceberg-worker-pool-%d")
-              .build()));
+  private static final ExecutorService WORKER_POOL = newWorkerPool("iceberg-worker-pool-%d");
 
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.
@@ -59,6 +53,16 @@ public class ThreadPools {
    */
   public static ExecutorService getWorkerPool() {
     return WORKER_POOL;
+  }
+
+  public static ExecutorService newWorkerPool(String nameFormat) {
+    return MoreExecutors.getExitingExecutorService(
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(
+            WORKER_THREAD_POOL_SIZE,
+            new ThreadFactoryBuilder()
+                .setDaemon(true)
+                .setNameFormat(nameFormat)
+                .build()));
   }
 
   private static int getPoolSize(String systemProperty, int defaultSize) {
