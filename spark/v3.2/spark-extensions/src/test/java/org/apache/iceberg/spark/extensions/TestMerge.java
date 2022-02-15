@@ -98,23 +98,29 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
     Assert.assertEquals("Must have 2 files before MERGE", "2", dataFilesCount);
 
-    // remove the data file from the 'hr' partition to ensure it is not scanned
-    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedFiles());
-    table.io().deleteFile(dataFile.path().toString());
-
     createOrReplaceView("source",
         "{ \"id\": 1, \"dep\": \"finance\" }\n" +
         "{ \"id\": 2, \"dep\": \"hardware\" }");
 
-    // disable dynamic pruning and rely only on static predicate pushdown
-    withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
-      sql("MERGE INTO %s t USING source " +
-          "ON t.id == source.id AND t.dep IN ('software') AND source.id < 10 " +
-          "WHEN MATCHED AND source.id = 1 THEN " +
-          "  UPDATE SET dep = source.dep " +
-          "WHEN NOT MATCHED THEN " +
-          "  INSERT (dep, id) VALUES (source.dep, source.id)", tableName);
+    // remove the data file from the 'hr' partition to ensure it is not scanned
+    withUnavailableFiles(snapshot.addedFiles(), () -> {
+      // disable dynamic pruning and rely only on static predicate pushdown
+      withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
+        sql("MERGE INTO %s t USING source " +
+            "ON t.id == source.id AND t.dep IN ('software') AND source.id < 10 " +
+            "WHEN MATCHED AND source.id = 1 THEN " +
+            "  UPDATE SET dep = source.dep " +
+            "WHEN NOT MATCHED THEN " +
+            "  INSERT (dep, id) VALUES (source.dep, source.id)", tableName);
+      });
     });
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1L, "finance"),  // updated
+        row(1L, "hr"),       // kept
+        row(2L, "hardware")  // new
+    );
+    assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }
 
   @Test

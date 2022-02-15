@@ -862,7 +862,6 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
     checkCopyOnWriteDistributionAndOrdering(table, UPDATE, FILE_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
-
   @Test
   public void testNoneCopyOnWriteUpdatePartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
@@ -1571,26 +1570,30 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // Distribution and ordering for merge-on-read MERGE operations with position deletes
   // ==================================================================================
   //
+  // IMPORTANT: metadata columns like _spec_id and _partition are NULL for new rows
+  //
   // UNPARTITIONED UNORDERED
   // -------------------------------------------------------------------------
-  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NOT SET -> use write mode
   // merge mode is NONE -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
-  // merge mode is HASH -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
-  // merge mode is RANGE -> unspecified distribution + LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is HASH -> CLUSTER BY _spec_id, _partition, _file +
+  //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
+  //                        LOCALLY ORDER BY _spec_id, _partition, _file, _pos
   //
   // UNPARTITIONED ORDERED BY id, data
   // -------------------------------------------------------------------------
-  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NOT SET -> use write mode
   // merge mode is NONE -> unspecified distribution +
   //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, id, data
-  // merge mode is HASH -> unspecified distribution +
+  // merge mode is HASH -> CLUSTER BY _spec_id, _partition, _file +
   //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, id, data
   // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file, id, data +
   //                        LOCALLY ORDER BY _spec_id, _partition, _file, _pos, id, data
   //
   // PARTITIONED BY date, days(ts) UNORDERED
   // -------------------------------------------------------------------------
-  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NOT SET -> use write mode
   // merge mode is NONE -> unspecified distribution +
   //                       LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
   // merge mode is HASH -> CLUSTER BY _spec_id, _partition, date, days(ts) +
@@ -1600,7 +1603,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   //
   // PARTITIONED BY date ORDERED BY id
   // -------------------------------------------------------------------------
-  // merge mode is NOT SET -> rely on write distribution and ordering as a basis
+  // merge mode is NOT SET -> use write mode
   // merge mode is NONE -> unspecified distribution +
   //                       LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, id
   // merge mode is HASH -> CLUSTER BY _spec_id, _partition, date +
@@ -1609,7 +1612,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, id
 
   @Test
-  public void testNonPositionDeltaMergeUnpartitionedUnsortedTable() {
+  public void testNonePositionDeltaMergeUnpartitionedUnsortedTable() {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -1632,8 +1635,15 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH)
         .commit();
 
+    Expression[] expectedClustering = new Expression[]{
+        Expressions.column(MetadataColumns.SPEC_ID.name()),
+        Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME),
+        Expressions.column(MetadataColumns.FILE_PATH.name())
+    };
+    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+
     checkPositionDeltaDistributionAndOrdering(
-        table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+        table, MERGE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
   }
 
   @Test
@@ -1646,8 +1656,15 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         .set(MERGE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_RANGE)
         .commit();
 
+    SortOrder[] expectedDistributionOrdering = new SortOrder[]{
+        Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+        Expressions.sort(Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING)
+    };
+    Distribution expectedDistribution = Distributions.ordered(expectedDistributionOrdering);
+
     checkPositionDeltaDistributionAndOrdering(
-        table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+        table, MERGE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
   }
 
   @Test
@@ -1692,6 +1709,13 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         .asc("data")
         .commit();
 
+    Expression[] expectedClustering = new Expression[]{
+        Expressions.column(MetadataColumns.SPEC_ID.name()),
+        Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME),
+        Expressions.column(MetadataColumns.FILE_PATH.name())
+    };
+    Distribution expectedDistribution = Distributions.clustered(expectedClustering);
+
     SortOrder[] expectedOrdering = new SortOrder[]{
         Expressions.sort(Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
         Expressions.sort(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
@@ -1701,7 +1725,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         Expressions.sort(Expressions.column("data"), SortDirection.ASCENDING)
     };
 
-    checkPositionDeltaDistributionAndOrdering(table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
   }
 
   @Test
@@ -1963,7 +1987,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
       case UPDATE:
         return writeConf.updateDistributionMode();
       case MERGE:
-        return writeConf.mergeDistributionMode();
+        return writeConf.copyOnWriteMergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }
@@ -1990,7 +2014,7 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
       case UPDATE:
         return writeConf.updateDistributionMode();
       case MERGE:
-        return writeConf.mergeDistributionMode();
+        return writeConf.positionDeltaMergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }

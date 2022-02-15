@@ -115,7 +115,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
       case UPDATE:
         return writeConf.updateDistributionMode();
       case MERGE:
-        return writeConf.mergeDistributionMode();
+        return writeConf.positionDeltaMergeDistributionMode();
       default:
         throw new IllegalArgumentException("Unexpected command: " + command);
     }

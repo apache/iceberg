@@ -216,7 +216,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(updateModeName);
   }
 
-  public DistributionMode mergeDistributionMode() {
+  public DistributionMode copyOnWriteMergeDistributionMode() {
     String mergeModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
@@ -228,6 +228,14 @@ public class SparkWriteConf {
     } else {
       return distributionMode();
     }
+  }
+
+  public DistributionMode positionDeltaMergeDistributionMode() {
+    String mergeModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
+        .parseOptional();
+    return mergeModeName != null ? DistributionMode.fromName(mergeModeName) : distributionMode();
   }
 
   public boolean useTableDistributionAndOrdering() {

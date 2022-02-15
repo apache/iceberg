@@ -154,25 +154,31 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   private static Distribution buildPositionMergeDistribution(Table table, DistributionMode distributionMode) {
-    Distribution dataDistribution = buildRequiredDistribution(table, distributionMode);
+    switch (distributionMode) {
+      case NONE:
+        return Distributions.unspecified();
 
-    if (dataDistribution instanceof ClusteredDistribution) {
-      Expression[] deleteClustering = new Expression[]{SPEC_ID, PARTITION};
-      Expression[] dataClustering = ((ClusteredDistribution) dataDistribution).clustering();
-      Expression[] clustering = ObjectArrays.concat(deleteClustering, dataClustering, Expression.class);
-      return Distributions.clustered(clustering);
+      case HASH:
+        if (table.spec().isUnpartitioned()) {
+          Expression[] clustering = new Expression[]{SPEC_ID, PARTITION, FILE_PATH};
+          return Distributions.clustered(clustering);
+        } else {
+          Distribution dataDistribution = buildRequiredDistribution(table, distributionMode);
+          Expression[] dataClustering = ((ClusteredDistribution) dataDistribution).clustering();
+          Expression[] deleteClustering = new Expression[]{SPEC_ID, PARTITION};
+          Expression[] clustering = ObjectArrays.concat(deleteClustering, dataClustering, Expression.class);
+          return Distributions.clustered(clustering);
+        }
 
-    } else if (dataDistribution instanceof OrderedDistribution) {
-      SortOrder[] deleteOrdering = new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER};
-      SortOrder[] dataOrdering = ((OrderedDistribution) dataDistribution).ordering();
-      SortOrder[] ordering = ObjectArrays.concat(deleteOrdering, dataOrdering, SortOrder.class);
-      return Distributions.ordered(ordering);
+      case RANGE:
+        Distribution dataDistribution = buildRequiredDistribution(table, distributionMode);
+        SortOrder[] dataOrdering = ((OrderedDistribution) dataDistribution).ordering();
+        SortOrder[] deleteOrdering = new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER};
+        SortOrder[] ordering = ObjectArrays.concat(deleteOrdering, dataOrdering, SortOrder.class);
+        return Distributions.ordered(ordering);
 
-    } else if (dataDistribution instanceof UnspecifiedDistribution) {
-      return Distributions.unspecified();
-
-    } else {
-      throw new IllegalArgumentException("Unexpected data distribution type: " + dataDistribution);
+      default:
+        throw new IllegalArgumentException("Unexpected distribution mode: " + distributionMode);
     }
   }
 

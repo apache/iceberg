@@ -259,7 +259,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
     // use inner join if there is no NOT MATCHED action, unmatched source rows can be discarded
     // use right outer join in all other cases, unmatched source rows may be needed
-    // also disable broadcasts for the target table to perform the cardinality check later
+    // also disable broadcasts for the target table to perform the cardinality check
     val joinType = if (notMatchedActions.isEmpty) Inner else RightOuter
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
     val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
@@ -268,24 +268,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     val metadataReadAttrs = readAttrs.filterNot(relation.outputSet.contains)
 
     val matchedConditions = matchedActions.map(actionCondition)
-    val matchedOutputs = matchedActions.map { action =>
-      deltaActionOutput(action, deleteRowValues, metadataReadAttrs)
-    }
+    val matchedOutputs = matchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
 
     val notMatchedConditions = notMatchedActions.map(actionCondition)
-    val notMatchedOutputs = notMatchedActions.map { action =>
-      deltaActionOutput(action, deleteRowValues, metadataReadAttrs)
-    }
+    val notMatchedOutputs = notMatchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
 
     val operationTypeAttr = AttributeReference(OPERATION_COLUMN, IntegerType, nullable = false)()
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
     val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
     // merged rows must contain values for the operation type and all read attrs
-    val mergeRowsOutput = buildMergeRowsOutput(
-      matchedOutputs,
-      notMatchedOutputs,
-      attrs = operationTypeAttr +: readAttrs)
+    val mergeRowsOutput = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, operationTypeAttr +: readAttrs)
 
     val mergeRows = MergeRows(
       isSourceRowPresent = IsNotNull(rowFromSourceAttr),
@@ -294,6 +287,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
       matchedOutputs = matchedOutputs,
       notMatchedConditions = notMatchedConditions,
       notMatchedOutputs = notMatchedOutputs,
+      // only needed if emitting unmatched target rows
       targetOutput = Nil,
       rowIdAttrs = rowIdAttrs,
       performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
