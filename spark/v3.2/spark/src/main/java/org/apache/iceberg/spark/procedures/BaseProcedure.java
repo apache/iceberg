@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import com.clearspring.analytics.util.Preconditions;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -77,15 +79,21 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
-    T result = execute(ident, true, func);
-    closeService();
-    return result;
+    try {
+      T result = execute(ident, true, func);
+      return result;
+    } finally {
+      closeService();
+    }
   }
 
   protected <T> T withIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
-    T result = execute(ident, false, func);
-    closeService();
-    return result;
+    try {
+      T result = execute(ident, false, func);
+      return result;
+    } finally {
+      closeService();
+    }
   }
 
   private <T> T execute(Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
@@ -168,11 +176,14 @@ abstract class BaseProcedure implements Procedure {
   protected void closeService() {
     if (executorService != null) {
       executorService.shutdown();
+      Preconditions.checkArgument(executorService.isTerminated(),
+          "Internal Error, closeService called before all tasks were finished");
     }
   }
 
   protected ExecutorService executorService(int concurrentDeletes, String nameFormat) {
     Preconditions.checkArgument(executorService == null, "Cannot create a new executor service, one already exists.");
+    Preconditions.checkArgument(nameFormat != null, "Cannot create a service with null nameFormat arg");
     executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(
             concurrentDeletes,
