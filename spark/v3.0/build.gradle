@@ -189,8 +189,7 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
       exclude group: 'com.ibm.icu'
       exclude group: 'org.glassfish'
       exclude group: 'org.abego.treelayout'
-      exclude group: 'org.antlr', module: 'ST4'
-      exclude group: 'org.antlr', module: 'antlr4'
+      exclude group: 'org.antlr'
     }
   }
 
@@ -250,8 +249,6 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
     relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-    // relocate Antlr runtime and related deps to shade Iceberg specific version
-    relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
     relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
     classifier null
