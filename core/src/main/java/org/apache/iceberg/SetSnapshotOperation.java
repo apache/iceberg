@@ -85,11 +85,6 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
     return setCurrentSnapshot(snapshotId);
   }
 
-  protected void validate(TableMetadata base) {
-    ValidationException.check(!isRollback || isCurrentAncestor(base, targetSnapshotId),
-        "Cannot roll back to %s: not an ancestor of the current table state", targetSnapshotId);
-  }
-
   @Override
   public Snapshot apply() {
     this.base = ops.refresh();
@@ -99,8 +94,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
       return base.currentSnapshot();
     }
 
-    // call validate directly because this overrides apply
-    validate(base);
+    ValidationException.check(!isRollback || isCurrentAncestor(base, targetSnapshotId),
+        "Cannot roll back to %s: not an ancestor of the current table state", targetSnapshotId);
 
     return base.snapshot(targetSnapshotId);
   }
