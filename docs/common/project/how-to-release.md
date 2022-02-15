@@ -60,6 +60,11 @@ To use `gpg` instead of `gpg2`, also set `signing.gnupg.executable=gpg`
 
 For more information, see the Gradle [signing documentation](https://docs.gradle.org/current/userguide/signing_plugin.html#sec:signatory_credentials).
 
+### Apache repository
+
+The release should be executed against `https://github.com/apache/iceberg.git` instead of any fork.
+Set it as remote with name `apache` for release if it is not already set up.
+
 ## Creating a release candidate
 
 ### Build the source release
@@ -254,4 +259,70 @@ This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/icebe
 Java artifacts are available from Maven Central.
 
 Thanks to everyone for contributing!
+```
+
+### Documentation Release
+
+Documentation needs to be updated as a part of Iceberg release after a release candidate is passed.
+The commands described below assume the `iceberg-docs` repository and `iceberg` repository are in the same parent directory locally, 
+and the release manager is executing commands in the `iceberg` repository.
+Adjust the commands accordingly if it is not the case.
+
+#### iceberg repository preparations
+
+A PR needs to be published in `iceberg` repository with the following changes:
+1. Mark the current latest release notes to past releases
+2. Update the latest artifact links in the release notes page
+3. Add release notes for the new release version
+2. Create new folder called `docs/versioned/releases/<VERSION NUMBER>` with a `_index.md` file. See the existing folders under `docs/versioned/releases` for more details.
+
+#### iceberg-docs repository preparations
+
+A PR needs to be published in `iceberg-docs` repository with the following changes:
+1. Update variable `latestVersions.iceberg` to the new release version in `landing-page/config.toml`
+2. Update variable `latestVersions.iceberg` to the new release version in `docs/config.toml`
+
+#### Documentation update
+
+To start the release process, run the following steps in the `iceberg-docs` repository to copy docs over:
+
+```shell
+rm -rf ../iceberg-docs/docs/content/docs
+rm -rf ../iceberg-docs/landing-page/content/common
+cp -r docs/versioned ../iceberg-docs/docs/content/docs
+cp -r docs/common ../iceberg-docs/landing-page/content/common
+```
+
+The resulted changes in `iceberg-docs` should be approved in a separate PR.
+
+#### Javadoc update
+
+In the `iceberg` repository, generate the javadoc for your release and copy it to the `javadoc` folder in `iceberg-docs` repo:
+```shell
+./gradlew refreshJavadoc
+rm -rf ../iceberg-docs/javadoc
+cp site/docs/javadoc/<VERSION NUMBER> ../iceberg-docs/javadoc
+```
+
+This resulted changes in `iceberg-docs` should be approved in a separate PR.
+
+#### Cut a new version branch
+
+Once completed, go to the `iceberg-docs` repository to cut a new branch using the version number as the branch name.
+For example, to cut a new versioned doc for release `0.13.0`:
+
+```shell
+git checkout -b 0.13.0
+git push --set-upstream apache 0.13.0
+```
+
+#### Update the latest branch
+
+The last step is to point the `latest` branch to the latest version.
+Because `main` is currently the same as the version branch, simply rebase `latest` branch against `main`:
+
+```shell
+git checkout latest
+git rebase main
+git push apache latest
 ```

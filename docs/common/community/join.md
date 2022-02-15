@@ -1,6 +1,5 @@
 ---
 url: community
-weight: 100
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -24,20 +23,6 @@ weight: 100
 Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
 
 Community discussions happen primarily on the dev mailing list, on apache-iceberg Slack workspace, and on specific GitHub issues.
-
-
-## Contributing
-
-The Iceberg Project is hosted on Github at <https://github.com/apache/iceberg>.
-
-The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
-
-* [View open pull requests][iceberg-prs]
-* [Learn about pull requests][github-pr-docs]
-
-[iceberg-prs]: https://github.com/apache/iceberg/pulls
-[github-pr-docs]: https://help.github.com/articles/about-pull-requests/
-
 
 ## Issues
 

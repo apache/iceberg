@@ -1,5 +1,6 @@
 ---
 title: "Blogs"
+weight: 200
 bookUrlFromBaseURL: /../../blogs
 ---
 <!--
