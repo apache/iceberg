@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
@@ -43,7 +44,7 @@ import org.apache.iceberg.parquet.Parquet;
 /**
  * A base writer factory to be extended by query engine integrations.
  */
-public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
+public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, Serializable {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final Schema dataSchema;
