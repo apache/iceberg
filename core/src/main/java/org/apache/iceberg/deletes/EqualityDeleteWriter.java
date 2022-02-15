@@ -31,6 +31,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
+import org.apache.iceberg.io.PathOffset;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult> {
@@ -43,6 +44,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   private final int[] equalityFieldIds;
   private final SortOrder sortOrder;
   private DeleteFile deleteFile = null;
+  private long recordCount = 0;
 
   public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
@@ -58,8 +60,10 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   }
 
   @Override
-  public void write(T row) {
+  public PathOffset write(T row) {
     appender.add(row);
+    long offset = recordCount++;
+    return PathOffset.of(location, offset);
   }
 
   /**

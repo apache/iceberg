@@ -82,14 +82,15 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
   }
 
   @Override
-  public void write(T row) {
-    currentWriter.write(row);
+  public PathOffset write(T row) {
+    PathOffset pathOffset = currentWriter.write(row);
     currentFileRows++;
 
     if (shouldRollToNewFile()) {
       closeCurrentWriter();
       openCurrentWriter();
     }
+    return pathOffset;
   }
 
   private boolean shouldRollToNewFile() {

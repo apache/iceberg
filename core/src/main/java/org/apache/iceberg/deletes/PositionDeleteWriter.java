@@ -30,6 +30,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
+import org.apache.iceberg.io.PathOffset;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -43,6 +44,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final PositionDelete<T> delete;
   private final CharSequenceSet referencedDataFiles;
   private DeleteFile deleteFile = null;
+  private long recordCount = 0;
 
   public PositionDeleteWriter(FileAppender<StructLike> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata) {
@@ -57,9 +59,11 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   }
 
   @Override
-  public void write(PositionDelete<T> positionDelete) {
+  public PathOffset write(PositionDelete<T> positionDelete) {
     referencedDataFiles.add(positionDelete.path());
     appender.add(positionDelete);
+    long offset = recordCount++;
+    return PathOffset.of(location, offset);
   }
 
   /**

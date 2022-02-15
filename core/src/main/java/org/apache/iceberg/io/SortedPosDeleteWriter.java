@@ -79,8 +79,9 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   }
 
   @Override
-  public void write(PositionDelete<T> payload) {
+  public PathOffset write(PositionDelete<T> payload) {
     delete(payload.path(), payload.pos(), payload.row());
+    return null;
   }
 
   public void delete(CharSequence path, long pos) {
