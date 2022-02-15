@@ -83,6 +83,7 @@ public class TableMigrationUtil {
   public static List<DataFile> listPartition(Map<String, String> partitionPath, String partitionUri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsSpec,
                                              NameMapping mapping, int parallelism) {
+    ExecutorService service = null;
     try {
       String partitionKey = spec.fields().stream()
               .map(PartitionField::name)
@@ -100,7 +101,8 @@ public class TableMigrationUtil {
               .throwFailureWhenFinished();
 
       if (parallelism > 1) {
-        task.executeWith(migrationService(parallelism));
+        service = migrationService(parallelism);
+        task.executeWith(service);
       }
 
       if (format.contains("avro")) {
@@ -124,6 +126,10 @@ public class TableMigrationUtil {
       return Arrays.asList(datafiles);
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    } finally {
+      if (service != null) {
+        service.shutdown();
+      }
     }
   }
 
