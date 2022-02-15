@@ -91,7 +91,7 @@ public class AvroSchemaUtil {
   }
 
   /**
-   * Check if any of the nodes on a given avro schema is missing ID property recognizable by Iceberg core API
+   * Check if any of the nodes in a given avro schema is missing an ID recognizable by Iceberg core API
    *
    * To have an ID recognizable by Iceberg core API:
    * <ul>
