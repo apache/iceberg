@@ -91,17 +91,19 @@ public class AvroSchemaUtil {
   }
 
   /**
-   * @param schema an Avro Schema
-   * @return true/false based on whether any of the nodes in the provided schema is missing an
-   * ID property recognizable by Iceberg core API. To have an ID recognizable by Iceberg core API:
+   * Check if any of the nodes on a given avro schema is missing ID property recognizable by Iceberg core API
+   *
+   * To have an ID recognizable by Iceberg core API:
    * <ul>
    *   <li>a field node under struct (record) schema should have {@link FIELD_ID_PROP} property
    *   <li>an element node under list (array) schema should have {@link ELEMENT_ID_PROP} property
    *   <li>a pair of key and value node under map schema should have {@link KEY_ID_PROP} and
    *   {@link VALUE_ID_PROP} respectively
-   *   <li>a primitive node is not assigned any ID related properties
+   *   <li>a primitive node is not assigned any ID properties
    * </ul>
-   * @implNote see {@link MissingIds} for more details
+   *
+   * @param schema an Avro Schema
+   * @return true if any of the nodes of the given Avro Schema is missing an ID property, false otherwise
    */
   static boolean missingIds(Schema schema) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new MissingIds());
