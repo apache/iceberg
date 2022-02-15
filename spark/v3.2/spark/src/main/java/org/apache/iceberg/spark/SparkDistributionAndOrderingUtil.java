@@ -54,6 +54,9 @@ public class SparkDistributionAndOrderingUtil {
   private static final SortOrder ROW_POSITION_ORDER = Expressions.sort(ROW_POSITION, SortDirection.ASCENDING);
 
   private static final SortOrder[] EXISTING_FILE_ORDERING = new SortOrder[]{FILE_PATH_ORDER, ROW_POSITION_ORDER};
+  private static final SortOrder[] POSITION_DELETE_ORDERING = new SortOrder[]{
+      SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER
+  };
 
   private SparkDistributionAndOrderingUtil() {
   }
@@ -201,15 +204,12 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command) {
-    // the spec requires position delete files to be sorted by file and pos
-    SortOrder[] deleteOrdering = {SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
-
     if (command == DELETE || command == UPDATE) {
-      return deleteOrdering;
+      return POSITION_DELETE_ORDERING;
     } else {
       // all metadata columns like _spec_id, _file, _pos will be null for new data records
       SortOrder[] dataOrdering = buildTableOrdering(table);
-      return ObjectArrays.concat(deleteOrdering, dataOrdering, SortOrder.class);
+      return ObjectArrays.concat(POSITION_DELETE_ORDERING, dataOrdering, SortOrder.class);
     }
   }
 
