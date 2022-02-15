@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -174,8 +175,11 @@ abstract class BaseProcedure implements Procedure {
   protected void closeService() {
     if (executorService != null) {
       executorService.shutdown();
-      Preconditions.checkArgument(executorService.isTerminated(),
-          "Internal Error, closeService called before all tasks were finished");
+      try {
+        executorService.awaitTermination(1, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        throw new RuntimeException("Internal Error, Procedure closeService was called before all tasks were finished");
+      }
     }
   }
 
