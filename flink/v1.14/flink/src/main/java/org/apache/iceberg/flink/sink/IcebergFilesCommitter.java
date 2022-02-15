@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.SortedMap;
+import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -55,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,6 +111,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // All pending checkpoints states for this function.
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
+
+  private transient ExecutorService workerPool;
 
   IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions, Map<String, String> snapshotProperties) {
     this.tableLoader = tableLoader;
@@ -249,7 +253,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkState(deleteFilesNum == 0, "Cannot overwrite partitions with delete files.");
 
     // Commit the overwrite transaction.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().accessManifestsWith(workerPool);
 
     int numFiles = 0;
     for (WriteResult result : pendingResults.values()) {
@@ -267,7 +271,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     if (deleteFilesNum == 0) {
       // To be compatible with iceberg format V1.
-      AppendFiles appendFiles = table.newAppend();
+      AppendFiles appendFiles = table.newAppend().accessManifestsWith(workerPool);
 
       int numFiles = 0;
       for (WriteResult result : pendingResults.values()) {
@@ -292,7 +296,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // rows from data files that are being added in this commit. There is no way for data files added along with
         // the delete files to be concurrently removed, so there is no need to validate the files referenced by the
         // position delete files that are being committed.
-        RowDelta rowDelta = table.newRowDelta();
+        RowDelta rowDelta = table.newRowDelta().accessManifestsWith(workerPool);
 
         int numDataFiles = result.dataFiles().length;
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
@@ -351,9 +355,17 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
+  public void open() throws Exception {
+    this.workerPool = ThreadPools.newWorkerPool("iceberg-files-committer-worker-pool-%d");
+  }
+
+  @Override
   public void close() throws Exception {
     if (tableLoader != null) {
       tableLoader.close();
+    }
+    if (workerPool != null) {
+      workerPool.shutdown();
     }
   }
 

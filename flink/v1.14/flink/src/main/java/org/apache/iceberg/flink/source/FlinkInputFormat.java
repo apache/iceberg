@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.LocatableInputSplitAssigner;
@@ -34,6 +35,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Flink {@link InputFormat} for Iceberg.
@@ -50,6 +52,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   private transient DataIterator<RowData> iterator;
   private transient long currentReadCount = 0L;
+  private transient ExecutorService workerPool;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
                    ScanContext context) {
@@ -78,7 +81,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     tableLoader.open();
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
-      return FlinkSplitPlanner.planInputSplits(table, context);
+      return FlinkSplitPlanner.planInputSplits(table, context, workerPool);
     }
   }
 
@@ -96,6 +99,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public void open(FlinkInputSplit split) {
     this.iterator = new DataIterator<>(rowDataReader, split.getTask(), io, encryption);
+    this.workerPool = ThreadPools.newWorkerPool("flink-input-format-worker-pool-%d");
   }
 
   @Override
@@ -117,6 +121,9 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   public void close() throws IOException {
     if (iterator != null) {
       iterator.close();
+    }
+    if (workerPool != null) {
+      workerPool.shutdown();
     }
   }
 }
