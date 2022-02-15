@@ -39,7 +39,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
   private final Map<Integer, PartitionSpec> specsById;
   private Snapshot cherrypickSnapshot = null;
-  private boolean isFastForward = false;
+  private boolean requireFastForward = false;
   private PartitionSet replacedPartitions = null;
 
   CherryPickOperation(String tableName, TableOperations ops) {
@@ -118,7 +118,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       ValidationException.check(isFastForward(current),
           "Cannot cherry-pick snapshot %s: not append, dynamic overwrite, or fast-forward",
           cherrypickSnapshot.snapshotId());
-      this.isFastForward = true;
+      this.requireFastForward = true;
     }
 
     return this;
@@ -172,8 +172,9 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       return base.currentSnapshot();
     }
 
-    if (isFastForward) {
-      ValidationException.check(isFastForward(base),
+    boolean isFastForward = isFastForward(base);
+    if (requireFastForward || isFastForward) {
+      ValidationException.check(isFastForward,
           "Cannot cherry-pick snapshot %s: not append, dynamic overwrite, or fast-forward",
           cherrypickSnapshot.snapshotId());
       return base.snapshot(cherrypickSnapshot.snapshotId());
