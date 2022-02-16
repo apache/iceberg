@@ -33,7 +33,7 @@ import org.apache.iceberg.io.FileIOMetricsContext;
  * statistics implementation using the provided scheme.
  */
 public class HadoopMetricsContext implements FileIOMetricsContext {
-  public static final String SCHEME = "fileio.scheme";
+  public static final String SCHEME = "io.metrics-scheme";
 
   private String scheme;
   private transient FileSystem.Statistics statistics;
