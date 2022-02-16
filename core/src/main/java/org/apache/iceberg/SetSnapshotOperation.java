@@ -113,7 +113,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
         .run(taskOps -> {
           Snapshot snapshot = apply();
           TableMetadata updated = TableMetadata.buildFrom(base)
-              .setCurrentSnapshot(snapshot.snapshotId())
+              .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
               .build();
 
           if (updated.changes().isEmpty()) {
