@@ -44,7 +44,7 @@ public class DellClientFactories {
       ctor = DynConstructors.builder(DellClientFactory.class).hiddenImpl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
-          "Cannot initialize AwsClientFactory, missing no-arg constructor: %s", impl), e);
+          "Cannot initialize DellClientFactory, missing no-arg constructor: %s", impl), e);
     }
 
     DellClientFactory factory;
@@ -52,7 +52,7 @@ public class DellClientFactories {
       factory = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize AwsClientFactory, %s does not implement AwsClientFactory.", impl), e);
+          String.format("Cannot initialize DellClientFactory, %s does not implement DellClientFactory.", impl), e);
     }
 
     factory.initialize(properties);
