@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
@@ -79,8 +81,8 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @Override
   @BeforeEach
-  public void beforeEach() throws IOException {
-    super.beforeEach();
+  public void beforeEach(@NessieUri URI uri) throws IOException {
+    super.beforeEach(uri);
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 

@@ -20,6 +20,7 @@
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
@@ -50,6 +51,7 @@ import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
@@ -102,9 +104,9 @@ public abstract class BaseTestIceberg {
   }
 
   @BeforeEach
-  public void beforeEach() throws IOException {
-    uri = server.getURI().toString();
-    this.api = HttpClientBuilder.builder().withUri(uri).build(NessieApiV1.class);
+  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
+    this.uri = nessieUri.toString();
+    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
     resetData();
 
