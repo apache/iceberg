@@ -25,10 +25,14 @@ import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
- * Lazily evaluates the schema to see if any field ids are set.
- * Returns true when a first field is found which has field id set
+ * Returns true once the first node is found with ID property missing. Reverse of {@link HasIds}
+ * <p>
+ * Note: To use {@link AvroSchemaUtil#toIceberg(Schema)} on an avro schema, the avro schema need to be either
+ * have IDs on every node or not have IDs at all. Invoke {@link AvroSchemaUtil#hasIds(Schema)} only proves
+ * that the schema has at least one ID, and not sufficient condition for invoking
+ * {@link AvroSchemaUtil#toIceberg(Schema)} on the schema.
  */
-class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
+class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
   public Boolean record(Schema record, List<String> names, Iterable<Boolean> fields) {
     return Iterables.any(fields, Boolean.TRUE::equals);
@@ -36,20 +40,22 @@ class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean field(Schema.Field field, Supplier<Boolean> fieldResult) {
-    // see if field id is present, if not, try to find it in the sub tree
-    return AvroSchemaUtil.hasFieldId(field) || fieldResult.get();
+    // either this field is missing ID, or the subtree is missing ID somewhere
+    return !AvroSchemaUtil.hasFieldId(field) || fieldResult.get();
   }
 
   @Override
   public Boolean map(Schema map, Supplier<Boolean> value) {
-    return AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP) ||
-        AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP) ||
+    // either this map node is missing (key/value) ID, or the subtree is missing ID somewhere
+    return !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP) ||
+        !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP) ||
         value.get();
   }
 
   @Override
   public Boolean array(Schema array, Supplier<Boolean> element) {
-    return AvroSchemaUtil.hasProperty(array, AvroSchemaUtil.ELEMENT_ID_PROP) || element.get();
+    // either this list node is missing (elem) ID, or the subtree is missing ID somewhere
+    return !AvroSchemaUtil.hasProperty(array, AvroSchemaUtil.ELEMENT_ID_PROP) || element.get();
   }
 
   @Override
@@ -59,6 +65,7 @@ class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean primitive(Schema primitive) {
+    // primitive node cannot be missing ID as Iceberg do not assign primitive node IDs in the first place
     return false;
   }
 }
