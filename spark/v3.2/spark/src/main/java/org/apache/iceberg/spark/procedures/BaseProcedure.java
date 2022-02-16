@@ -78,8 +78,7 @@ abstract class BaseProcedure implements Procedure {
 
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
     try {
-      T result = execute(ident, true, func);
-      return result;
+      return execute(ident, true, func);
     } finally {
       closeService();
     }
@@ -87,8 +86,7 @@ abstract class BaseProcedure implements Procedure {
 
   protected <T> T withIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
     try {
-      T result = execute(ident, false, func);
-      return result;
+      return execute(ident, false, func);
     } finally {
       closeService();
     }
@@ -169,7 +167,8 @@ abstract class BaseProcedure implements Procedure {
   }
 
   /**
-   * Closes the procedure's executor service if a new one was created.
+   * Closes this procedure's executor service if a new one was created with {@link #executorService(int, String)}. Does
+   * not block for any remaining tasks.
    */
   protected void closeService() {
     if (executorService != null) {
@@ -177,10 +176,19 @@ abstract class BaseProcedure implements Procedure {
     }
   }
 
+  /**
+   * Starts a new executor service which can be used by this procedure in its work. The pool will be automatically
+   * shut down if {@link #withIcebergTable(Identifier, Function)} or {@link #modifyIcebergTable(Identifier, Function)}
+   * are called. If these methods are not used then the service can be shut down with {@link #closeService()} or left
+   * to be closed when this class is finalized.
+   * @param threadPoolSize number of threads in the service
+   * @param nameFormat name prefix for threads created in this service
+   * @return the new executor service owned by this procedure
+   */
   protected ExecutorService executorService(int threadPoolSize, String nameFormat) {
     Preconditions.checkArgument(executorService == null, "Cannot create a new executor service, one already exists.");
     Preconditions.checkArgument(nameFormat != null, "Cannot create a service with null nameFormat arg");
-    executorService = MoreExecutors.getExitingExecutorService(
+    this.executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(
             threadPoolSize,
             new ThreadFactoryBuilder()
