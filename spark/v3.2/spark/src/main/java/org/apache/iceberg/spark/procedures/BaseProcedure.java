@@ -175,20 +175,15 @@ abstract class BaseProcedure implements Procedure {
   protected void closeService() {
     if (executorService != null) {
       executorService.shutdown();
-      try {
-        executorService.awaitTermination(1, TimeUnit.SECONDS);
-      } catch (InterruptedException e) {
-        throw new RuntimeException("Internal Error, Procedure closeService was called before all tasks were finished");
-      }
     }
   }
 
-  protected ExecutorService executorService(int concurrentDeletes, String nameFormat) {
+  protected ExecutorService executorService(int threadPoolSize, String nameFormat) {
     Preconditions.checkArgument(executorService == null, "Cannot create a new executor service, one already exists.");
     Preconditions.checkArgument(nameFormat != null, "Cannot create a service with null nameFormat arg");
     executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(
-            concurrentDeletes,
+            threadPoolSize,
             new ThreadFactoryBuilder()
                 .setNameFormat(nameFormat + "-%d")
                 .build()));
