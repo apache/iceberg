@@ -185,6 +185,7 @@ abstract class BaseProcedure implements Procedure {
         (ThreadPoolExecutor) Executors.newFixedThreadPool(
             threadPoolSize,
             new ThreadFactoryBuilder()
+                .setDaemon(true)
                 .setNameFormat(nameFormat + "-%d")
                 .build()));
 
