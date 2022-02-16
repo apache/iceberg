@@ -54,10 +54,18 @@ final class TableScanContext {
     this.toSnapshotId = null;
   }
 
-  private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
-                           boolean caseSensitive, boolean colStats, Schema projectedSchema,
-                           Collection<String> selectedColumns, ImmutableMap<String, String> options,
-                           Long fromSnapshotId, Long toSnapshotId) {
+  private TableScanContext(
+      Long snapshotId,
+      Expression rowFilter,
+      boolean ignoreResiduals,
+      boolean caseSensitive,
+      boolean colStats,
+      Schema projectedSchema,
+      Collection<String> selectedColumns,
+      ImmutableMap<String, String> options,
+      Long fromSnapshotId,
+      Long toSnapshotId) {
+
     this.snapshotId = snapshotId;
     this.rowFilter = rowFilter;
     this.ignoreResiduals = ignoreResiduals;
@@ -75,8 +83,7 @@ final class TableScanContext {
   }
 
   TableScanContext useSnapshotId(Long scanSnapshotId) {
-    return new TableScanContext(scanSnapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
+    return builder().snapshotId(scanSnapshotId).build();
   }
 
   Expression rowFilter() {
@@ -84,8 +91,7 @@ final class TableScanContext {
   }
 
   TableScanContext filterRows(Expression filter) {
-    return new TableScanContext(snapshotId, filter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
+    return builder().rowFilter(filter).build();
   }
 
   boolean ignoreResiduals() {
@@ -93,8 +99,7 @@ final class TableScanContext {
   }
 
   TableScanContext ignoreResiduals(boolean shouldIgnoreResiduals) {
-    return new TableScanContext(snapshotId, rowFilter, shouldIgnoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
+    return builder().ignoreResiduals(shouldIgnoreResiduals).build();
   }
 
   boolean caseSensitive() {
@@ -102,8 +107,7 @@ final class TableScanContext {
   }
 
   TableScanContext setCaseSensitive(boolean isCaseSensitive) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        isCaseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
+    return builder().caseSensitive(isCaseSensitive).build();
   }
 
   boolean returnColumnStats() {
@@ -111,8 +115,7 @@ final class TableScanContext {
   }
 
   TableScanContext shouldReturnColumnStats(boolean returnColumnStats) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, returnColumnStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
+    return builder().colStats(returnColumnStats).build();
   }
 
   Collection<String> selectedColumns() {
@@ -121,8 +124,7 @@ final class TableScanContext {
 
   TableScanContext selectColumns(Collection<String> columns) {
     Preconditions.checkState(projectedSchema == null, "Cannot select columns when projection schema is set");
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, null, columns, options, fromSnapshotId, toSnapshotId);
+    return builder().projectedSchema(null).selectedColumns(columns).build();
   }
 
   Schema projectedSchema() {
@@ -131,8 +133,7 @@ final class TableScanContext {
 
   TableScanContext project(Schema schema) {
     Preconditions.checkState(selectedColumns == null, "Cannot set projection schema when columns are selected");
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, schema, null, options, fromSnapshotId, toSnapshotId);
+    return builder().projectedSchema(schema).selectedColumns(null).build();
   }
 
   Map<String, String> options() {
@@ -140,11 +141,10 @@ final class TableScanContext {
   }
 
   TableScanContext withOption(String property, String value) {
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    builder.putAll(options);
-    builder.put(property, value);
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, builder.build(), fromSnapshotId, toSnapshotId);
+    ImmutableMap.Builder<String, String> mapBuilder = ImmutableMap.builder();
+    mapBuilder.putAll(options);
+    mapBuilder.put(property, value);
+    return builder().options(mapBuilder.build()).build();
   }
 
   Long fromSnapshotId() {
@@ -152,8 +152,7 @@ final class TableScanContext {
   }
 
   TableScanContext fromSnapshotId(long id) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, id, toSnapshotId);
+    return builder().fromSnapshotId(id).build();
   }
 
   Long toSnapshotId() {
@@ -161,7 +160,97 @@ final class TableScanContext {
   }
 
   TableScanContext toSnapshotId(long id) {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, id);
+    return builder().toSnapshotId(id).build();
+  }
+
+  private Builder builder() {
+    return new Builder()
+        .snapshotId(snapshotId)
+        .rowFilter(rowFilter)
+        .ignoreResiduals(ignoreResiduals)
+        .caseSensitive(caseSensitive)
+        .colStats(colStats)
+        .projectedSchema(projectedSchema)
+        .selectedColumns(selectedColumns)
+        .options(options)
+        .fromSnapshotId(fromSnapshotId)
+        .toSnapshotId(toSnapshotId);
+  }
+
+  private static class Builder {
+    private Long snapshotId;
+    private Expression rowFilter;
+    private boolean ignoreResiduals;
+    private boolean caseSensitive;
+    private boolean colStats;
+    private Schema projectedSchema;
+    private Collection<String> selectedColumns;
+    private ImmutableMap<String, String> options;
+    private Long fromSnapshotId;
+    private Long toSnapshotId;
+
+    Builder snapshotId(Long scanSnapshotId) {
+      this.snapshotId = scanSnapshotId;
+      return this;
+    }
+
+    Builder rowFilter(Expression filter) {
+      this.rowFilter = filter;
+      return this;
+    }
+
+    Builder ignoreResiduals(boolean shouldIgnoreResiduals) {
+      this.ignoreResiduals = shouldIgnoreResiduals;
+      return this;
+    }
+
+    Builder caseSensitive(boolean isCaseSensitive) {
+      this.caseSensitive = isCaseSensitive;
+      return this;
+    }
+
+    Builder colStats(boolean returnColumnStats) {
+      this.colStats = returnColumnStats;
+      return this;
+    }
+
+    Builder projectedSchema(Schema schema) {
+      this.projectedSchema = schema;
+      return this;
+    }
+
+    Builder selectedColumns(Collection<String> columns) {
+      this.selectedColumns = columns;
+      return this;
+    }
+
+    Builder options(ImmutableMap<String, String> optionsMap) {
+      this.options = optionsMap;
+      return this;
+    }
+
+    Builder fromSnapshotId(Long id) {
+      this.fromSnapshotId = id;
+      return this;
+    }
+
+    Builder toSnapshotId(Long id) {
+      this.toSnapshotId = id;
+      return this;
+    }
+
+    TableScanContext build() {
+      return new TableScanContext(
+          snapshotId,
+          rowFilter,
+          ignoreResiduals,
+          caseSensitive,
+          colStats,
+          projectedSchema,
+          selectedColumns,
+          options,
+          fromSnapshotId,
+          toSnapshotId);
+    }
   }
 }
