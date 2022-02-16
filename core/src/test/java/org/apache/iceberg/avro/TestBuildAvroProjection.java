@@ -54,8 +54,10 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.array(expected, supplier);
 
-    assertEquals(expected, actual);
-    assertEquals(0, Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue());
+    assertEquals("Array projection produced undesired array schema",
+        expected, actual);
+    assertEquals("Unexpected element ID discovered on the projected array schema",
+        0, Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue());
   }
 
   @Test
@@ -90,8 +92,10 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.array(extraField, supplier);
 
-    assertEquals(expected, actual);
-    assertEquals(0, Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue());
+    assertEquals("Array projection produced undesired array schema",
+        expected, actual);
+    assertEquals("Unexpected element ID discovered on the projected array schema",
+        0, Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue());
   }
 
   @Test
@@ -124,8 +128,10 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.array(lessField, supplier);
 
-    assertEquals(expected, actual);
-    assertEquals(0, Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue());
+    assertEquals("Array projection produced undesired array schema",
+        expected, actual);
+    assertEquals("Unexpected element ID discovered on the projected array schema",
+        0, Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue());
   }
 
   @Test
@@ -154,9 +160,12 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.map(expected, supplier);
 
-    assertEquals(expected, actual);
-    assertEquals(0, Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue());
-    assertEquals(1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
+    assertEquals("Map projection produced undesired map schema",
+        expected, actual);
+    assertEquals("Unexpected key ID discovered on the projected map schema",
+        0, Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue());
+    assertEquals("Unexpected value ID discovered on the projected map schema",
+        1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
   }
 
   @Test
@@ -196,9 +205,12 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.map(extraField, supplier);
 
-    assertEquals(expected, actual);
-    assertEquals(0, Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue());
-    assertEquals(1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
+    assertEquals("Map projection produced undesired map schema",
+        expected, actual);
+    assertEquals("Unexpected key ID discovered on the projected map schema",
+        0, Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue());
+    assertEquals("Unexpected value ID discovered on the projected map schema",
+        1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
   }
 
 
@@ -237,8 +249,11 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.map(lessField, supplier);
 
-    assertEquals(expected, actual);
-    assertEquals(0, Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue());
-    assertEquals(1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
+    assertEquals("Map projection produced undesired map schema",
+        expected, actual);
+    assertEquals("Unexpected key ID discovered on the projected map schema",
+        0, Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue());
+    assertEquals("Unexpected value ID discovered on the projected map schema",
+        1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
   }
 }

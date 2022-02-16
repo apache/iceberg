@@ -53,7 +53,8 @@ public class TestAvroSchemaProjection {
     final org.apache.avro.Schema projectedAvroSchema =
         AvroSchemaUtil.buildAvroProjection(idAllocatedUpdatedAvroSchema, currentIcebergSchema, Collections.emptyMap());
 
-    assertFalse(AvroSchemaUtil.missingIds(projectedAvroSchema));
+    assertFalse("Result of buildAvroProjection is missing some IDs",
+        AvroSchemaUtil.missingIds(projectedAvroSchema));
   }
 
 
@@ -82,7 +83,8 @@ public class TestAvroSchemaProjection {
     final org.apache.avro.Schema projectedAvroSchema =
         AvroSchemaUtil.buildAvroProjection(idAllocatedUpdatedAvroSchema, currentIcebergSchema, Collections.emptyMap());
 
-    assertFalse(AvroSchemaUtil.missingIds(projectedAvroSchema));
+    assertFalse("Result of buildAvroProjection is missing some IDs",
+        AvroSchemaUtil.missingIds(projectedAvroSchema));
   }
 
 }

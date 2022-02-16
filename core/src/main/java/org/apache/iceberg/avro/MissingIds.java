@@ -22,6 +22,7 @@ package org.apache.iceberg.avro;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * Returns true once the first node is found with ID property missing. Reverse of {@link HasIds}
@@ -34,12 +35,7 @@ import org.apache.avro.Schema;
 class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
   public Boolean record(Schema record, List<String> names, Iterable<Boolean> fields) {
-    for (Boolean field : fields) {
-      if (field) {
-        return true;
-      }
-    }
-    return false;
+    return Iterables.any(fields, Boolean.TRUE::equals);
   }
 
   @Override
@@ -64,12 +60,7 @@ class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean union(Schema union, Iterable<Boolean> options) {
-    for (Boolean option : options) {
-      if (option) {
-        return true;
-      }
-    }
-    return false;
+    return Iterables.any(options, Boolean.TRUE::equals);
   }
 
   @Override
