@@ -93,7 +93,7 @@ public class AvroSchemaUtil {
   /**
    * Check if any of the nodes in a given avro schema is missing an ID
    * <p>
-   * To have an ID recognizable by Iceberg core API:
+   * To have an ID for a node:
    * <ul>
    *   <li>a field node under struct (record) schema should have {@link FIELD_ID_PROP} property
    *   <li>an element node under list (array) schema should have {@link ELEMENT_ID_PROP} property
