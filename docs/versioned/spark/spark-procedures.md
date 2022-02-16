@@ -275,9 +275,9 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
 
-See the [`RewriteDataFiles` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/RewriteDataFiles.html#field.summary),
-<br/>  [`BinPackStrategy` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/BinPackStrategy.html#field.summary)
-and <br/> [`SortStrategy` Javadoc](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/actions/SortStrategy.html#field.summary)
+See the [`RewriteDataFiles` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/RewriteDataFiles.html#field.summary),
+<br/>  [`BinPackStrategy` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/BinPackStrategy.html#field.summary)
+and <br/> [`SortStrategy` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/SortStrategy.html#field.summary)
 for list of all the supported options for this action.
 
 #### Output
