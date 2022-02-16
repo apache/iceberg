@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -85,13 +86,15 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private TableMetadata loadTableMetadata(String metadataLocation) {
     // Update the TableMetadata with the Content of NessieTableState.
-    return TableMetadata.buildFrom(TableMetadataParser.read(io(), metadataLocation))
-        .setCurrentSnapshot(table.getSnapshotId())
+    TableMetadata.Builder builder = TableMetadata.buildFrom(TableMetadataParser.read(io(), metadataLocation))
         .setCurrentSchema(table.getSchemaId())
         .setDefaultSortOrder(table.getSortOrderId())
-        .setDefaultPartitionSpec(table.getSpecId())
-        .discardChanges()
-        .build();
+        .setDefaultPartitionSpec(table.getSpecId());
+    if (table.getSnapshotId() != -1) {
+      builder.setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH);
+    }
+
+    return builder.discardChanges().build();
   }
 
   @Override

@@ -151,7 +151,7 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
     AssertHelpers.assertThrows("Should reject invalid snapshot id",
-        ValidationException.class, "Cannot cherry pick unknown snapshot id",
+        ValidationException.class, "Cannot cherry-pick unknown snapshot ID",
         () -> sql("CALL %s.system.cherrypick_snapshot('%s', -1L)", catalogName, tableIdent));
   }
 
