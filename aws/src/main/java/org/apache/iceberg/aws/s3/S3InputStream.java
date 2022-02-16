@@ -65,7 +65,7 @@ class S3InputStream extends SeekableInputStream {
     this.awsProperties = awsProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.SCALAR);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
 
     this.createStack = Thread.currentThread().getStackTrace();
   }

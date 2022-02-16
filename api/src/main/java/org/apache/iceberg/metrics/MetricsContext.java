@@ -32,7 +32,7 @@ public interface MetricsContext extends Serializable {
   enum Unit {
     UNDEFINED("undefined"),
     BYTES("bytes"),
-    SCALAR("scalar");
+    COUNT("count");
 
     private final String displayName;
 
@@ -85,15 +85,7 @@ public interface MetricsContext extends Serializable {
    * @return a counter implementation
    */
   default <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-    return new Counter<T>() {
-      @Override
-      public void increment() {
-      }
-
-      @Override
-      public void increment(T amount) {
-      }
-    };
+    throw new UnsupportedOperationException("Counter is not supported.");
   }
 
   /**
@@ -102,6 +94,19 @@ public interface MetricsContext extends Serializable {
    * @return a non-recording metrics context
    */
   static MetricsContext nullMetrics() {
-    return new MetricsContext() {};
+    return new MetricsContext() {
+      @Override
+      public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
+        return new Counter<T>() {
+          @Override
+          public void increment() {
+          }
+
+          @Override
+          public void increment(T amount) {
+          }
+        };
+      }
+    };
   }
 }

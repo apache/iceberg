@@ -38,14 +38,18 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   private String scheme;
   private transient FileSystem.Statistics statistics;
 
-  @Override
-  public void initialize(Map<String, String> properties) {
-    ValidationException.check(properties.containsKey(SCHEME),
+  public HadoopMetricsContext(String scheme) {
+    ValidationException.check(scheme != null,
         "Scheme is required for Hadoop FileSystem metrics reporting");
 
+    this.scheme = scheme;
+  }
+
+  @Override
+  public void initialize(Map<String, String> properties) {
     // FileIO has no specific implementation class, but Hadoop will
     // still track and report for the provided scheme.
-    this.scheme = properties.get(SCHEME);
+    this.scheme = properties.getOrDefault(SCHEME, scheme);
     this.statistics = FileSystem.getStatistics(scheme, null);
   }
 
@@ -88,6 +92,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
       public void increment() {
         increment(1L);
       }
+
       @Override
       public void increment(Long amount) {
         consumer.accept(amount);

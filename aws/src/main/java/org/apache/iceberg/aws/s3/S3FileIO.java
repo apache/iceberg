@@ -19,17 +19,15 @@
 
 package org.apache.iceberg.aws.s3;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,14 +118,13 @@ public class S3FileIO implements FileIO {
 
     // Report Hadoop metrics if Hadoop is available
     try {
-      Class<? extends MetricsContext> clazz = DynClasses.builder().impl(DEFAULT_METRICS_IMPL).buildChecked();
+      DynConstructors.Ctor<MetricsContext> ctor =
+          DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+      this.metrics = ctor.newInstance("s3");
 
-      this.metrics = clazz.getDeclaredConstructor().newInstance();
-      metrics.initialize(ImmutableMap.of("fileio.scheme", "s3"));
-    } catch (ClassNotFoundException e) {
-      LOG.warn("Metrics class not found: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
-    } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
-      LOG.warn("Failed to instantiate metrics: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
+      metrics.initialize(properties);
+    } catch (NoSuchMethodException | ClassCastException e) {
+      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
     }
   }
 
