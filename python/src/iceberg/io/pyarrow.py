@@ -30,41 +30,6 @@ from pyarrow.fs import FileSystem, FileType
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
-_FILESYSTEM_INSTANCES: dict = {}
-
-
-def get_filesystem(location: str):
-    """Retrieve a pyarrow.fs.FileSystem instance
-
-    This method checks _FILESYSTEM_INSTANCES for an existing filesystem based on the location's
-    scheme, i.e. s3, hdfs, viewfs. If an existing filesystem has not been cached, it instantiates a new
-    filesystem using `pyarrow.fs.FileSystem.from_uri(location)`, caches the returned filesystem, and
-    also returns that filesystem. If a path with no scheme is provided, it's assumed to be a path to
-    a local file.
-
-    Args:
-        location(str): The location of the file
-
-    Returns:
-        pyarrow.fs.FileSystem: An implementation of the FileSystem base class inferred from the location
-
-    Raises:
-        ArrowInvalid: A suitable FileSystem implementation cannot be found based on the location provided
-    """
-    parsed_location = urlparse(location)  # Create a ParseResult from the uri
-    if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
-        if _FILESYSTEM_INSTANCES.get("local"):
-            filesystem = _FILESYSTEM_INSTANCES["local"]
-        else:
-            filesystem, _ = FileSystem.from_uri(os.path.abspath(location))
-            _FILESYSTEM_INSTANCES["local"] = filesystem
-    elif _FILESYSTEM_INSTANCES.get(parsed_location.scheme):  # Check for a cached filesystem
-        filesystem = _FILESYSTEM_INSTANCES[parsed_location.scheme]
-    else:  # Instantiate a filesystem and cache it by scheme
-        filesystem, _ = FileSystem.from_uri(location)  # Infer the proper filesystem
-        _FILESYSTEM_INSTANCES[parsed_location.scheme] = filesystem  # Cache the filesystem
-    return filesystem
-
 
 class PyArrowFile(InputFile, OutputFile):
     """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances
@@ -86,18 +51,22 @@ class PyArrowFile(InputFile, OutputFile):
     """
 
     def __init__(self, location: str):
-        self._filesystem = get_filesystem(location)  # Checks for cached filesystem for this location's scheme
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
+            self._filesystem, self._path = FileSystem.from_uri(os.path.abspath(location))
+        else:
+            self._filesystem, self._path = FileSystem.from_uri(location)  # Infer the proper filesystem
         super().__init__(location=location)
 
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
-        file = self._filesystem.open_input_file(self.location)
+        file = self._filesystem.open_input_file(self._path)
         return file.size()
 
     @property
     def exists(self) -> bool:
         """Checks whether the file exists"""
-        file_info = self._filesystem.get_file_info(self.location)
+        file_info = self._filesystem.get_file_info(self._path)
         return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> InputStream:
@@ -106,7 +75,7 @@ class PyArrowFile(InputFile, OutputFile):
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
         """
-        input_file = self._filesystem.open_input_file(self.location)
+        input_file = self._filesystem.open_input_file(self._path)
         if not isinstance(input_file, InputStream):
             raise TypeError(
                 f"Object of type {type(input_file)} returned from PyArrowFile.open does not match the InputStream protocol."
@@ -129,7 +98,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise FileExistsError(
                 f"A file already exists at this location. If you would like to overwrite it, set `overwrite=True`: {self.location}"
             )
-        output_file = self._filesystem.open_output_stream(self.location)
+        output_file = self._filesystem.open_output_stream(self._path)
         if not isinstance(output_file, OutputStream):
             raise TypeError(
                 f"Object of type {type(output_file)} returned from PyArrowFile.create does not match the OutputStream protocol."
