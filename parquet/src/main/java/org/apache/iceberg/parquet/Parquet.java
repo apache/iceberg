@@ -235,7 +235,9 @@ public class Parquet {
             config.put("compression.brotli.quality", compressionLevel);
             break;
           case ZSTD:
+            // keep "io.compression.codec.zstd.level" for backwards compatibility
             config.put("io.compression.codec.zstd.level", compressionLevel);
+            config.put("parquet.compression.codec.zstd.level", compressionLevel);
             break;
           default:
             // compression level is not supported; ignore it
