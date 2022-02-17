@@ -282,17 +282,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(taskOps -> {
             Snapshot newSnapshot = apply();
             newSnapshotId.set(newSnapshot.snapshotId());
-            TableMetadata updated;
+            TableMetadata.Builder update = TableMetadata.buildFrom(base);
             if (base.snapshot(newSnapshot.snapshotId()) != null) {
-              // this is a rollback operation
-              updated = base.replaceCurrentSnapshot(newSnapshot.snapshotId());
+              // this is a rollback or cherrypick operation
+              update.setCurrentSnapshot(newSnapshot.snapshotId());
             } else if (stageOnly) {
-              updated = base.addStagedSnapshot(newSnapshot);
+              update.addSnapshot(newSnapshot);
             } else {
-              updated = base.replaceCurrentSnapshot(newSnapshot);
+              update.setCurrentSnapshot(newSnapshot);
             }
 
-            if (updated == base) {
+            TableMetadata updated = update.build();
+            if (updated.changes().isEmpty()) {
               // do not commit if the metadata has not changed. for example, this may happen when setting the current
               // snapshot to an ID that is already current. note that this check uses identity.
               return;
