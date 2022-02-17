@@ -25,7 +25,7 @@ import java.util.Map;
 public interface DellClientFactory {
 
   /**
-   * create a Dell EMC ECS S3 client
+   * Create a Dell EMC ECS S3 client
    *
    * @return Dell EMC ECS S3 client
    */

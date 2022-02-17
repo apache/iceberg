@@ -82,23 +82,4 @@ class EcsURI {
   public String toString() {
     return location;
   }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    EcsURI ecsURI = (EcsURI) o;
-    return Objects.equals(location, ecsURI.location) &&
-        Objects.equals(bucket, ecsURI.bucket) &&
-        Objects.equals(name, ecsURI.name);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(location, bucket, name);
-  }
 }

@@ -32,7 +32,7 @@ class EcsAppendOutputStream extends PositionOutputStream {
 
   private final S3Client client;
 
-  private final EcsURI key;
+  private final EcsURI uri;
 
   /**
    * Local bytes cache that avoid too many requests
@@ -51,9 +51,9 @@ class EcsAppendOutputStream extends PositionOutputStream {
    */
   private long pos;
 
-  private EcsAppendOutputStream(S3Client client, EcsURI key, byte[] localCache) {
+  private EcsAppendOutputStream(S3Client client, EcsURI uri, byte[] localCache) {
     this.client = client;
-    this.key = key;
+    this.uri = uri;
     this.localCache = ByteBuffer.wrap(localCache);
   }
 
@@ -111,11 +111,11 @@ class EcsAppendOutputStream extends PositionOutputStream {
 
   private void flushBuffer(byte[] buffer, int offset, int length) {
     if (firstPart) {
-      client.putObject(new PutObjectRequest(key.bucket(), key.name(),
+      client.putObject(new PutObjectRequest(uri.bucket(), uri.name(),
           new ByteArrayInputStream(buffer, offset, length)));
       firstPart = false;
     } else {
-      client.appendObject(key.bucket(), key.name(), new ByteArrayInputStream(buffer, offset, length));
+      client.appendObject(uri.bucket(), uri.name(), new ByteArrayInputStream(buffer, offset, length));
     }
   }
 

@@ -599,7 +599,6 @@ project(':iceberg-dell') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    testImplementation 'com.emc.ecs:object-client-bundle'
     testImplementation "javax.xml.bind:jaxb-api"
     testImplementation "javax.activation:activation"
     testImplementation "org.glassfish.jaxb:jaxb-runtime"
