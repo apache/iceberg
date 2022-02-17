@@ -23,6 +23,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -143,6 +145,28 @@ public class TestMergeAppend extends TableTestBase {
         ids(snapshotId, snapshotId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testAppendWithManifestScanExecutor() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    TableMetadata base = readMetadata();
+    Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .scanManifestsWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }))
+        .commit();
+    Assert.assertTrue("Thread should be created in provided pool", scanThreadsIndex.get() > 0);
+    Assert.assertNotNull("Should create a snapshot", table.currentSnapshot());
   }
 
   @Test

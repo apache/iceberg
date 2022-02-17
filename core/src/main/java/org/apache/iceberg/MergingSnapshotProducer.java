@@ -698,7 +698,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
     private DataFileFilterManager() {
-      super(ops.current().specsById());
+      super(ops.current().specsById(), MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
@@ -719,7 +719,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private class DataFileMergeManager extends ManifestMergeManager<DataFile> {
     DataFileMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled) {
-      super(targetSizeBytes, minCountToMerge, mergeEnabled);
+      super(targetSizeBytes, minCountToMerge, mergeEnabled, MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
@@ -750,7 +750,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private class DeleteFileFilterManager extends ManifestFilterManager<DeleteFile> {
     private DeleteFileFilterManager() {
-      super(ops.current().specsById());
+      super(ops.current().specsById(), MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
@@ -771,7 +771,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private class DeleteFileMergeManager extends ManifestMergeManager<DeleteFile> {
     DeleteFileMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled) {
-      super(targetSizeBytes, minCountToMerge, mergeEnabled);
+      super(targetSizeBytes, minCountToMerge, mergeEnabled, MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
