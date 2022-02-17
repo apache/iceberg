@@ -98,7 +98,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
           StreamExecutionEnvironment env = StreamExecutionEnvironment
               .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
           env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-          env.enableCheckpointing(400);
+          env.enableCheckpointing(1000);
           env.setMaxParallelism(2);
           env.setParallelism(2);
           tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
@@ -277,15 +277,15 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
       ));
 
       // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval,
-      // thus producing multiple snapshots.  Here we assert that each snapshot has only 1 file per partition.
+      // thus producing multiple snapshots.  Here we assert that each snapshot has no more than 1 file per partition.
       Map<Long, List<DataFile>> snapshotToDataFiles = SimpleDataUtil.snapshotToDataFiles(table);
       for (List<DataFile> dataFiles : snapshotToDataFiles.values()) {
-        Assert.assertEquals("There should be 1 data file in partition 'aaa'", 1,
-            SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "aaa")).size());
-        Assert.assertEquals("There should be 1 data file in partition 'bbb'", 1,
-            SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "bbb")).size());
-        Assert.assertEquals("There should be 1 data file in partition 'ccc'", 1,
-            SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "ccc")).size());
+        Assert.assertTrue("There should be no more than 1 data file in partition 'aaa'",
+            SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "aaa")).size() < 2);
+        Assert.assertTrue("There should be no more than 1 data file in partition 'bbb'",
+            SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "bbb")).size() < 2);
+        Assert.assertTrue("There should be no more than 1 data file in partition 'ccc'",
+            SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "ccc")).size() < 2);
       }
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
