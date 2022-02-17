@@ -60,7 +60,7 @@ class LocalInputFile(InputFile):
     def open(self) -> InputStream:
         input_file = open(self.parsed_location.path, "rb")
         if not isinstance(input_file, InputStream):
-            raise TypeError("Object returned from LocalInputFile.open does not match the OutputStream protocol.")
+            raise TypeError("Object returned from LocalInputFile.open() does not match the OutputStream protocol.")
         return input_file
 
 
@@ -101,7 +101,7 @@ class LocalOutputFile(OutputFile):
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
         if not isinstance(output_file, OutputStream):
-            raise TypeError("Object returned from LocalOutputFile.create does not match the OutputStream protocol.")
+            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
 
 
@@ -124,6 +124,7 @@ class LocalFileIO(FileIO):
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
 def test_custom_local_input_file(CustomInputFile):
+    """Test initializing an InputFile implementation to read a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
         with open(file_location, "wb") as f:
@@ -145,6 +146,7 @@ def test_custom_local_input_file(CustomInputFile):
 
 @pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
 def test_custom_local_output_file(CustomOutputFile):
+    """Test initializing an OutputFile implementation to write to a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
 
@@ -165,6 +167,7 @@ def test_custom_local_output_file(CustomOutputFile):
 
 @pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
 def test_custom_local_output_file_with_overwrite(CustomOutputFile):
+    """Test initializing an OutputFile implementation to overwrite a local file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
@@ -189,6 +192,7 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
 
 @pytest.mark.parametrize("CustomFile", [LocalInputFile, LocalOutputFile, PyArrowFile, PyArrowFile])
 def test_custom_file_exists(CustomFile):
+    """Test that the exists property returns the proper value for existing and non-existing files"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
         with open(file_location, "wb") as f:
@@ -214,6 +218,7 @@ def test_custom_file_exists(CustomFile):
 
 @pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
 def test_output_file_to_input_file(CustomOutputFile):
+    """Test initializing an InputFile using the `to_input_file()` method on an OutputFile instance"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
@@ -241,7 +246,8 @@ def test_output_file_to_input_file(CustomOutputFile):
         (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
     ],
 )
-def test_custom_file_io_locations(CustomFileIO, string_uri, scheme, netloc, path):
+def test_custom_file_io_locations(CustomFileIO, string_uri):
+    """Test that the location property is maintained as the value of the location argument"""
     # Instantiate the file-io and create a new input and output file
     file_io = CustomFileIO()
     input_file = file_io.new_input(location=string_uri)
@@ -256,7 +262,7 @@ def test_custom_file_io_locations(CustomFileIO, string_uri, scheme, netloc, path
     ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
 )
 def test_raise_on_network_location_in_input_file(string_uri_w_netloc):
-
+    """Test raising a ValueError when providing a network location to a LocalInputFile"""
     with pytest.raises(ValueError) as exc_info:
         LocalInputFile(location=string_uri_w_netloc)
 
@@ -268,7 +274,7 @@ def test_raise_on_network_location_in_input_file(string_uri_w_netloc):
     ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
 )
 def test_raise_on_network_location_in_output_file(string_uri_w_netloc):
-
+    """Test raising a ValueError when providing a network location to a LocalOutputFile"""
     with pytest.raises(ValueError) as exc_info:
         LocalInputFile(location=string_uri_w_netloc)
 
@@ -277,7 +283,7 @@ def test_raise_on_network_location_in_output_file(string_uri_w_netloc):
 
 @pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
 def test_deleting_local_file_using_file_io(CustomFileIO):
-
+    """Test deleting a local file using FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -299,7 +305,7 @@ def test_deleting_local_file_using_file_io(CustomFileIO):
 
 @pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
 def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
-
+    """Test raising a FileNotFound error when trying to delete a non-existent file"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -319,7 +325,7 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
 
 @pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowFile)])
 def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputFile):
-
+    """Test deleting a local file by passing an InputFile instance to FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -344,7 +350,7 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputF
 
 @pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowFile)])
 def test_deleting_local_file_using_file_io_output_file(CustomFileIO, CustomOutputFile):
-
+    """Test deleting a local file by passing an OutputFile instance to FileIO.delete(...)"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         file_location = os.path.join(tmpdirname, "foo.txt")

@@ -70,10 +70,10 @@ class PyArrowFile(InputFile, OutputFile):
         return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> InputStream:
-        """Opens the location using a PyArrow FileSystem inferred from the scheme
+        """Opens the location using a PyArrow FileSystem inferred from the location
 
         Returns:
-            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
         """
         input_file = self._filesystem.open_input_file(self._path)
         if not isinstance(input_file, InputStream):
@@ -101,7 +101,7 @@ class PyArrowFile(InputFile, OutputFile):
         output_file = self._filesystem.open_output_stream(self._path)
         if not isinstance(output_file, OutputStream):
             raise TypeError(
-                f"Object of type {type(output_file)} returned from PyArrowFile.create does not match the OutputStream protocol."
+                f"Object of type {type(output_file)} returned from PyArrowFile.create(...) does not match the OutputStream protocol."
             )
         return output_file
 
@@ -121,6 +121,9 @@ class PyArrowFileIO(FileIO):
 
         Args:
             location(str): A URI or a path to a local file
+
+        Returns:
+            PyArrowFile: A PyArrowFile instance for the given location
         """
         return PyArrowFile(location)
 
@@ -129,15 +132,19 @@ class PyArrowFileIO(FileIO):
 
         Args:
             location(str): A URI or a path to a local file
+
+        Returns:
+            PyArrowFile: A PyArrowFile instance for the given location
         """
         return PyArrowFile(location)
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given path
+        """Delete the file at the given location
 
         Args:
             location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an
-            OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
+            OutputFile instance is provided, the location attribute for that instance is used as the location
+            to delete
         """
         str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
         filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
