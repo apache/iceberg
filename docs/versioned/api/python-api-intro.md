@@ -53,7 +53,7 @@ schema = Schema(NestedField.optional(1, "DateTime", TimestampType.with_timezone(
                 NestedField.optional(4, "symbol", StringType.get()))
 partition_spec = PartitionSpecBuilder(schema).add(1, 1000, "DateTime_day", "day").build()
 
-tables.create(schema, "test.test_123", partition)
+tables.create(schema, "test.test_123", partition_spec)
 ```
 
 
