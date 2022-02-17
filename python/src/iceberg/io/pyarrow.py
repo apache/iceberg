@@ -47,7 +47,7 @@ class PyArrowFile(InputFile, OutputFile):
         >>> input_file = PyArrowFile("s3://foo/bar.txt")
         >>> file_content = input_file.open().read()  # Read the contents of the PyArrowFile instance
         >>> output_file = PyArrowFile("s3://baz/qux.txt")
-        >>> output_file.create().write(b'foobytes')  # Write bytes to the PyarrowFile instance
+        >>> output_file.create().write(b'foobytes')  # Write bytes to the PyArrowFile instance
     """
 
     def __init__(self, location: str):
