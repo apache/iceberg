@@ -177,7 +177,8 @@ public class ManifestReader<F extends ContentFile<F>>
 
   CloseableIterable<ManifestEntry<F>> entries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
+        (partFilter != null && partFilter != Expressions.alwaysTrue()) ||
+        (partitionSet != null && !partitionSet.isEmpty())) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
@@ -190,7 +191,7 @@ public class ManifestReader<F extends ContentFile<F>>
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()) &&
-              inPartitionSet(entry.file()));
+              partitionSet.contains(entry.file().specId(), entry.file().partition()));
     } else {
       return open(projection(fileSchema, fileProjection, columns, caseSensitive));
     }
@@ -281,10 +282,6 @@ public class ManifestReader<F extends ContentFile<F>>
       }
     }
     return lazyMetricsEvaluator;
-  }
-
-  private boolean inPartitionSet(F fileToCheck) {
-    return partitionSet == null || partitionSet.contains(fileToCheck.specId(), fileToCheck.partition());
   }
 
   private static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {

@@ -67,7 +67,7 @@ public class TestConflictValidation extends SparkCatalogTestBase {
     try {
       conflictingDf.writeTo(tableName)
           .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-          .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+          .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
           .overwritePartitions();
     } catch (Exception e) {
       thrown = e;
@@ -82,7 +82,7 @@ public class TestConflictValidation extends SparkCatalogTestBase {
     snapshotId = table.currentSnapshot().snapshotId();
     conflictingDf.writeTo(tableName)
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-        .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+        .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
         .overwritePartitions();
   }
 
@@ -100,7 +100,7 @@ public class TestConflictValidation extends SparkCatalogTestBase {
     Exception thrown = null;
     try {
       conflictingDf.writeTo(tableName)
-          .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+          .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
           .overwritePartitions();
     } catch (Exception e) {
       thrown = e;
@@ -108,14 +108,14 @@ public class TestConflictValidation extends SparkCatalogTestBase {
     Assert.assertNotNull("Expected validation exception but none thrown", thrown);
     Assert.assertTrue("Nested validation exception", thrown.getCause() instanceof ValidationException);
     Assert.assertTrue(thrown.getCause().getMessage().contains(
-        "Cannot determine history between starting snapshot"));
+        "Found conflicting files that can contain records matching partitions [id=1]"));
 
     // Validating from latest snapshot should succeed
     table.refresh();
     long snapshotId = table.currentSnapshot().snapshotId();
     conflictingDf.writeTo(tableName)
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-        .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+        .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
         .overwritePartitions();
   }
 }

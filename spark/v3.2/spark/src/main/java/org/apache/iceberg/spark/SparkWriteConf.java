@@ -254,16 +254,15 @@ public class SparkWriteConf {
         .parse();
   }
 
-  public long validateFromSnapshotId() {
+  public Long validateFromSnapshotId() {
     return confParser.longConf()
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID)
-        .defaultValue(0)
-        .parse();
+        .parseOptional();
   }
 
   public IsolationLevel dynamicOverwriteIsolationLevel() {
     String isolationLevelName = confParser.stringConf()
-        .option(SparkWriteOptions.DYNAMIC_OVERWRITE_ISOLATION_LEVEL)
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
         .defaultValue(SparkWriteOptions.DYNAMIC_OVERWRITE_LEVEL_DEFAULT)
         .parse();
     return IsolationLevel.fromName(isolationLevelName);

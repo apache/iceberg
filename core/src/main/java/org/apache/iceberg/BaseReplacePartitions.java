@@ -31,6 +31,7 @@ public class BaseReplacePartitions
   private Long startingSnapshotId;
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
+  private boolean validateDeletedDataFiles = false;
 
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -63,7 +64,7 @@ public class BaseReplacePartitions
   }
 
   @Override
-  public ReplacePartitions validateFromSnapshot(long newStartingSnapshotId) {
+  public ReplacePartitions validateFromSnapshot(Long newStartingSnapshotId) {
     this.startingSnapshotId = newStartingSnapshotId;
     return this;
   }
@@ -81,6 +82,12 @@ public class BaseReplacePartitions
   }
 
   @Override
+  public ReplacePartitions validateNoConflictingDeletedData() {
+    this.validateDeletedDataFiles = true;
+    return this;
+  }
+
+  @Override
   public void validate(TableMetadata currentMetadata) {
     if (validateNewDataFiles) {
       if (dataSpec().isUnpartitioned()) {
@@ -89,6 +96,15 @@ public class BaseReplacePartitions
         validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
       }
     }
+
+    if (validateDeletedDataFiles) {
+      if (dataSpec().isUnpartitioned()) {
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+      } else {
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+      }
+    }
+
     if (validateNewDeleteFiles) {
       validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
     }

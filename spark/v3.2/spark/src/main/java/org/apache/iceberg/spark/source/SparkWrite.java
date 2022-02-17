@@ -111,7 +111,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final boolean partitionedFanoutEnabled;
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
-  private final long validateFromSnapshotId;
+  private final Long validateFromSnapshotId;
   private final IsolationLevel dynamicOverwriteIsolationLevel;
 
   SparkWrite(SparkSession spark, Table table, SparkWriteConf writeConf,
@@ -279,8 +279,9 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       if (dynamicOverwriteIsolationLevel == SERIALIZABLE) {
         dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
-        dynamicOverwrite.validateNoConflictingDeletes();
         dynamicOverwrite.validateNoConflictingData();
+        dynamicOverwrite.validateNoConflictingDeletedData();
+        dynamicOverwrite.validateNoConflictingDeletes();
       }
 
       int numFiles = 0;
