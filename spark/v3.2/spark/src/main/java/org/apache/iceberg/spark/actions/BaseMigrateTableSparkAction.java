@@ -62,7 +62,7 @@ public class BaseMigrateTableSparkAction
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
   // Max number of concurrent files to read per partition while indexing table
-  private final int readDatafileParallelism;
+  private int readDatafileParallelism;
 
   public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
@@ -70,18 +70,8 @@ public class BaseMigrateTableSparkAction
     this.destTableIdent = sourceTableIdent;
     String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
     this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
-    this.readDatafileParallelism = 1;
   }
 
-  public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
-                                     int parallelism) {
-    super(spark, sourceCatalog, sourceTableIdent);
-    this.destCatalog = checkDestinationCatalog(sourceCatalog);
-    this.destTableIdent = sourceTableIdent;
-    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
-    this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
-    this.readDatafileParallelism = parallelism;
-  }
 
   @Override
   protected MigrateTable self() {
@@ -107,6 +97,12 @@ public class BaseMigrateTableSparkAction
   @Override
   public MigrateTable tableProperty(String property, String value) {
     setProperty(property, value);
+    return this;
+  }
+
+  @Override
+  public MigrateTable withParallelReads(int numReaders) {
+    this.readDatafileParallelism = numReaders;
     return this;
   }
 

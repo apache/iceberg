@@ -90,7 +90,9 @@ class MigrateTableProcedure extends BaseProcedure {
       parallelism = 1;
     }
 
-    MigrateTable.Result result = SparkActions.get().migrateTable(tableName, parallelism).tableProperties(properties)
+    MigrateTable.Result result = SparkActions.get().migrateTable(tableName)
+        .withParallelReads(parallelism)
+        .tableProperties(properties)
         .execute();
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
