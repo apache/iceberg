@@ -24,6 +24,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -131,7 +132,19 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    boolean mergeSchema = writeInfo.options().getBoolean("mergeSchema", false);
+    if (mergeSchema) {
+      UpdateSchema update = table.updateSchema().unionByNameWith(writeSchema);
+      Schema mergedSchema = update.apply();
+      TypeUtil.validateWriteSchema(
+          mergedSchema, writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+      // if the validation passed, update the table schema
+      update.commit();
+    } else {
+      TypeUtil.validateWriteSchema(
+          table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    }
+
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
