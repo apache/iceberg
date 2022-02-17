@@ -20,7 +20,6 @@
 package org.apache.iceberg.dell.ecs;
 
 import java.net.URI;
-import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
