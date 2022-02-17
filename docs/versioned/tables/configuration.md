@@ -67,13 +67,13 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.spark.fanout.enabled         | false              | Enables Partitioned-Fanout-Writer writes in Spark  |
 | write.object-storage.enabled       | false              | Enables to use object-storage location provider by default                |
 | write.data.path                    | a "data" folder underneath the root path of the table | Customize the root path for data files         |
-| write.metadata.path                | a "metadata" folder underneath the root path of the table | Customize the root path for metadata files |                                         |
+| write.metadata.path                | a "metadata" folder underneath the root path of the table | Customize the root path for metadata files |                                     
 | write.delete.isolation-level       | serializable       | Defines the isolation level of write delete: serializable and snapshot    |
 | write.delete.mode                  | copy-on-write      | Defines the write delete mode: copy-on-write and merge-on-read(v2 tables only)            |
 | write.update.isolation-level       | serializable       | Defines the isolation level of write update: serializable and snapshot    |
 | write.update.mode                  | copy-on-write      | Defines the write update mode: copy-on-write and merge-on-read(v2 tables only)            |
 | write.merge.isolation-level        | serializable       | Defines the isolation level of write merge: serializable and snapshot     |
-| write.merge.mode                   | copy-on-write      | Defines the write merge mode: copy-on-write and merge-on-read(v2 tables only)             |                        |
+| write.merge.mode                   | copy-on-write      | Defines the write merge mode: copy-on-write and merge-on-read(v2 tables only)             |                        
 
 ### Table behavior properties
 
