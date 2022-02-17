@@ -191,10 +191,14 @@ public class ManifestReader<F extends ContentFile<F>>
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
               metricsEvaluator.eval(entry.file()) &&
-              partitionSet.contains(entry.file().specId(), entry.file().partition()));
+              inPartitionSet(entry.file()));
     } else {
       return open(projection(fileSchema, fileProjection, columns, caseSensitive));
     }
+  }
+
+  private boolean inPartitionSet(F fileToCheck) {
+    return partitionSet == null || partitionSet.contains(fileToCheck.specId(), fileToCheck.partition());
   }
 
   private CloseableIterable<ManifestEntry<F>> open(Schema projection) {
