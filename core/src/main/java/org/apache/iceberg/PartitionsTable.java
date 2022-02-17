@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
  * A {@link Table} implementation that exposes a table's partitions as rows.
@@ -126,7 +125,7 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     if (PLAN_SCANS_WITH_WORKER_POOL && scan.snapshot().dataManifests().size() > 1) {
-      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+      manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
     }
 
     return manifestGroup.planFiles();

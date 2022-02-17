@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -514,6 +516,65 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasksAndEq = PartitionsTable.planFiles((StaticTableScan) scanAndEq);
     Assert.assertEquals(1, Iterators.size(tasksAndEq.iterator()));
     validateIncludesPartitionScan(tasksAndEq, 0);
+  }
+
+
+  @Test
+  public void testAllDataFilesTableScanWithPlanExecutor() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Table allDataFilesTable = new AllDataFilesTable(table.ops(), table);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = allDataFilesTable.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testAllEntriesTableScanWithPlanExecutor() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Table allEntriesTable = new AllEntriesTable(table.ops(), table);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = allEntriesTable.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testPartitionsTableScanWithPlanExecutor() {
+    preparePartitionedTable();
+
+    Table partitionsTable = new PartitionsTable(table.ops(), table);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = partitionsTable.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
+    Assert.assertEquals(4, Iterables.size(tasks));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {

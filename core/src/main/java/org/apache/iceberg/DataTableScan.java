@@ -25,7 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.ThreadPools;
 
 public class DataTableScan extends BaseTableScan {
   static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
@@ -94,7 +93,7 @@ public class DataTableScan extends BaseTableScan {
     }
 
     if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.dataManifests().size() > 1) {
-      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+      manifestGroup = manifestGroup.planWith(context().planExecutor());
     }
 
     return manifestGroup.planFiles();
