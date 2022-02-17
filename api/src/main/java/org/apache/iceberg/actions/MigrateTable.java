@@ -45,7 +45,7 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   MigrateTable tableProperty(String name, String value);
 
   /**
-   * @numReaders the number of concurrent file read operations to use per partition
+   * @param numReaders the number of concurrent file read operations to use per partition
    * @return this for method chaining
    **/
   MigrateTable withParallelReads(int numReaders);

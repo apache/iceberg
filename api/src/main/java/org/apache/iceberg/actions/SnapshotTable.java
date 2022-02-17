@@ -61,7 +61,7 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
   SnapshotTable tableProperty(String key, String value);
 
   /**
-   * @numReaders the number of concurrent file read operations to use per partition
+   * @param numReaders the number of concurrent file read operations to use per partition
    * @return this for method chaining
    **/
   SnapshotTable withParallelReads(int numReaders);
