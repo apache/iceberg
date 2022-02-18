@@ -19,18 +19,17 @@
 
 package org.apache.iceberg.spark.sql;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Assert;
@@ -52,101 +51,90 @@ public class TestDropTable extends SparkCatalogTestBase {
   @After
   public void removeTable() throws IOException {
     sql("DROP TABLE IF EXISTS %s", tableName);
-
-    File baseLocation = new File(getTableBaseLocation());
-    if (baseLocation.exists()) {
-      FileUtils.deleteDirectory(baseLocation);
-    }
   }
 
   @Test
-  public void testDropTable() {
+  public void testDropTable() throws IOException {
     dropTableInternal();
   }
 
   @Test
-  public void testDropTableGCDisabled() {
+  public void testDropTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
     dropTableInternal();
   }
 
-  private void dropTableInternal() {
+  private void dropTableInternal() throws IOException {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
 
-    List<String> previousDataFiles = getDataOrMetadataFiles(true);
-    Assert.assertTrue("The number of data files should be larger than zero", previousDataFiles.size() > 0);
+    List<String> manifestAndFiles = getManifestsAndFiles();
+    Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
     sql("DROP TABLE %s", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
 
     if (catalogName.equals("testhadoop")) {
       // HadoopCatalog drop table without purge will delete the base table location.
-      Assert.assertEquals("The number of data files should be zero", 0, getDataOrMetadataFiles(true).size());
-      Assert.assertEquals("The number of metadata files should be zero", 0, getDataOrMetadataFiles(false).size());
+      Assert.assertTrue("All files should be deleted", checkFilesExist(manifestAndFiles, false));
     } else {
-      Assert.assertEquals("The data files should not change", previousDataFiles, getDataOrMetadataFiles(true));
+      Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));
     }
   }
 
   @Test
-  public void testPurgeTable() {
+  public void testPurgeTable() throws IOException {
     assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "test")),
-        sql("SELECT * FROM %s", tableName));
+        ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
 
-    List<String> previousDataFiles = getDataOrMetadataFiles(true);
-    Assert.assertTrue("The number of data files should be larger than zero", previousDataFiles.size() > 0);
+    List<String> manifestAndFiles = getManifestsAndFiles();
+    Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
     sql("DROP TABLE %s PURGE", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
-    Assert.assertEquals("The number of data files should be zero", 0, getDataOrMetadataFiles(true).size());
-    Assert.assertEquals("The number of metadata files should be zero", 0, getDataOrMetadataFiles(false).size());
+    Assert.assertTrue("All files should be deleted", checkFilesExist(manifestAndFiles, false));
   }
 
   @Test
-  public void testPurgeTableGCDisabled() {
+  public void testPurgeTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
-    List<String> previousDataFiles = getDataOrMetadataFiles(true);
-    List<String> previousMetadataFiles = getDataOrMetadataFiles(false);
-    Assert.assertTrue("The number of data files should be larger than zero", previousDataFiles.size() > 0);
-    Assert.assertTrue("The number of metadata files should be larger than zero", previousMetadataFiles.size() > 0);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
+
+    List<String> manifestAndFiles = getManifestsAndFiles();
+    Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
     AssertHelpers.assertThrows("Purge table is not allowed when GC is disabled", ValidationException.class,
         "Cannot purge table: GC is disabled (deleting files may corrupt other tables",
         () -> sql("DROP TABLE %s PURGE", tableName));
 
     Assert.assertTrue("Table should not been dropped", validationCatalog.tableExists(tableIdent));
-    Assert.assertEquals("The data files should not change", previousDataFiles, getDataOrMetadataFiles(true));
-    Assert.assertEquals("The metadata files should not change", previousMetadataFiles, getDataOrMetadataFiles(false));
+    Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));
   }
 
-  private List<String> getDataOrMetadataFiles(boolean dataFiles) {
-    String baseLocation = getTableBaseLocation();
-
-    File dir;
-    if (dataFiles) {
-      dir = new File(baseLocation, "data");
-    } else {
-      dir = new File(baseLocation, "metadata");
-    }
-
-    if (dir.exists()) {
-      return Arrays.stream(dir.listFiles()).map(File::getAbsolutePath).collect(Collectors.toList());
-    } else {
-      return Lists.newArrayList();
-    }
+  private List<String> getManifestsAndFiles() {
+    List<Object[]> files = sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.FILES);
+    List<Object[]> manifests = sql("SELECT path FROM %s.%s", tableName, MetadataTableType.MANIFESTS);
+    return Streams.concat(files.stream(), manifests.stream()).map(row -> (String) row[0]).collect(Collectors.toList());
   }
 
-  private String getTableBaseLocation() {
-    String baseLocation;
-    if (catalogName.equals("testhadoop")) {
-      baseLocation = Paths.get(warehouse.getAbsolutePath(), "default", "table").toAbsolutePath().toString();
-    } else {
-      String databasePath = metastore.getDefaultDatabasePath();
-      baseLocation = Paths.get(databasePath, "table").toAbsolutePath().toString();
+  private boolean checkFilesExist(List<String> files, boolean shouldExist) throws IOException {
+    boolean mask = !shouldExist;
+    if (files.isEmpty()) {
+      return mask;
     }
 
-    return baseLocation;
+    FileSystem fs = new Path(files.get(0)).getFileSystem(hiveConf);
+    return files.stream().allMatch(file -> {
+      try {
+        return fs.exists(new Path(file)) ^ mask;
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 }
