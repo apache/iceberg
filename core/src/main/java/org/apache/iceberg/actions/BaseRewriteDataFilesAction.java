@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
@@ -300,6 +301,11 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private boolean isPartialFileScan(CombinedScanTask task) {
     if (task.files().size() == 1) {
       FileScanTask fileScanTask = task.files().iterator().next();
+      if (fileScanTask.file().format() == FileFormat.PARQUET) {
+        // in parquet format, there is an initial offset of 4 bytes
+        return fileScanTask.file().fileSizeInBytes() !=
+                (fileScanTask.length() + fileScanTask.file().splitOffsets().get(0));
+      }
       return fileScanTask.file().fileSizeInBytes() != fileScanTask.length();
     } else {
       return false;
