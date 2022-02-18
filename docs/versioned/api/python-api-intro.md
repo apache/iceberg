@@ -37,7 +37,7 @@ from iceberg.hive import HiveTables
 
 # instantiate Hive Tables
 conf = {"hive.metastore.uris": 'thrift://{hms_host}:{hms_port}',
-        "hive.metastore.warehouse.dir": tmpdir}
+        "hive.metastore.warehouse.dir": {tmpdir} }
 tables = HiveTables(conf)
 ```
 
