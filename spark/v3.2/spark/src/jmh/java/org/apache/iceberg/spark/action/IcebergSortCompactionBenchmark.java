@@ -114,6 +114,49 @@ public class IcebergSortCompactionBenchmark {
 
   @Benchmark
   @Threads(1)
+  public void sortInt2() {
+    SparkActions.get()
+            .rewriteDataFiles(table())
+            .sort(SortOrder
+                    .builderFor(table().schema())
+                    .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .build())
+            .execute();
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void sortInt3() {
+    SparkActions.get()
+            .rewriteDataFiles(table())
+            .sort(SortOrder
+                    .builderFor(table().schema())
+                    .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol3", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol4", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .build())
+            .execute();
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void sortInt4() {
+    SparkActions.get()
+            .rewriteDataFiles(table())
+            .sort(SortOrder
+                    .builderFor(table().schema())
+                    .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol3", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .sortBy("intCol4", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .build())
+            .execute();
+  }
+
+  @Benchmark
+  @Threads(1)
   public void sortString() {
     SparkActions.get()
         .rewriteDataFiles(table())
@@ -167,6 +210,33 @@ public class IcebergSortCompactionBenchmark {
 
   @Benchmark
   @Threads(1)
+  public void zSortInt2() {
+    SparkActions.get()
+            .rewriteDataFiles(table())
+            .zOrder("intCol", "intCol2")
+            .execute();
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void zSortInt3() {
+    SparkActions.get()
+            .rewriteDataFiles(table())
+            .zOrder("intCol", "intCol2", "intCol3")
+            .execute();
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void zSortInt4() {
+    SparkActions.get()
+            .rewriteDataFiles(table())
+            .zOrder("intCol", "intCol2", "intCol3", "intCol4")
+            .execute();
+  }
+
+  @Benchmark
+  @Threads(1)
   public void zSortString() {
     SparkActions.get()
         .rewriteDataFiles(table())
@@ -200,11 +270,14 @@ public class IcebergSortCompactionBenchmark {
     Schema schema = new Schema(
         required(1, "longCol", Types.LongType.get()),
         required(2, "intCol", Types.IntegerType.get()),
-        required(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+        required(3, "intCol2", Types.IntegerType.get()),
+        required(4, "intCol3", Types.IntegerType.get()),
+        required(5, "intCol4", Types.IntegerType.get()),
+        required(6, "floatCol", Types.FloatType.get()),
+        optional(7, "doubleCol", Types.DoubleType.get()),
+        optional(8, "dateCol", Types.DateType.get()),
+        optional(9, "timestampCol", Types.TimestampType.withZone()),
+        optional(10, "stringCol", Types.StringType.get()));
 
     SparkSessionCatalog catalog = null;
     try {
@@ -221,6 +294,9 @@ public class IcebergSortCompactionBenchmark {
     Dataset<Row> df = spark().range(0, NUM_ROWS * NUM_FILES, 1, NUM_FILES)
         .withColumnRenamed("id", "longCol")
         .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("intCol2", expr("CAST(longCol AS INT)"))
+        .withColumn("intCol3", expr("CAST(longCol AS INT)"))
+        .withColumn("intCol4", expr("CAST(longCol AS INT)"))
         .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
         .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
         .withColumn("dateCol", date_add(current_date(), col("intCol").mod(NUM_FILES)))

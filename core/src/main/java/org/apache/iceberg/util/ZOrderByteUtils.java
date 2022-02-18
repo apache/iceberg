@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.util;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetEncoder;
@@ -137,6 +138,10 @@ public class ZOrderByteUtils {
         Arrays.stream(columnsBinary).mapToInt(column -> column.length).sum());
   }
 
+  public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize) {
+    return interleaveBits(columnsBinary, interleavedSize, ByteBuffer.allocate(interleavedSize));
+  }
+
   /**
    * Interleave bits using a naive loop. Variable length inputs are allowed but to get a consistent ordering it is
    * required that every column contribute the same number of bytes in each invocation. Bits are interleaved from all
@@ -146,8 +151,8 @@ public class ZOrderByteUtils {
    * @param interleavedSize the number of bytes to use in the output
    * @return the columnbytes interleaved
    */
-  public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize) {
-    byte[] interleavedBytes = new byte[interleavedSize];
+  public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize, ByteBuffer reuse) {
+    byte[] interleavedBytes = reuse.array();
     int sourceColumn = 0;
     int sourceByte = 0;
     int sourceBit = 7;
@@ -191,4 +196,5 @@ public class ZOrderByteUtils {
     }
     return interleavedBytes;
   }
+
 }
