@@ -621,6 +621,18 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
+    // Pre-populate the table to force it to use the Spark Writers instead of Metadata-Only Delete
+    // for more consistent exception stack
+    List<Integer> ids = ImmutableList.of(1, 2);
+    Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hr"));
+    try {
+      inputDF.coalesce(1).writeTo(tableName).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(e);
+    }
+
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
@@ -639,11 +651,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // append thread
     Future<?> appendFuture = executorService.submit(() -> {
-      List<Integer> ids = ImmutableList.of(1, 2);
-      Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
-          .withColumnRenamed("value", "id")
-          .withColumn("dep", lit("hr"));
-
       for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
