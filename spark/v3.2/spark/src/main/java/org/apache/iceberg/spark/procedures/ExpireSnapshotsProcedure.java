@@ -84,7 +84,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
-    Boolean streamResult = args.isNullAt(4) ? false : args.getBoolean(4);
+    boolean streamResult = args.isNullAt(4) ? false : args.getBoolean(4);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
         "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -104,9 +104,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
       }
 
-      if (streamResult) {
-        action.option("stream-results", streamResult.toString());
-      }
+      action.option("stream-results", Boolean.toString(streamResult));
 
       ExpireSnapshots.Result result = action.execute();
 
