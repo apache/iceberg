@@ -41,6 +41,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
@@ -244,8 +245,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
     sql("DELETE FROM %s WHERE id=1", tableName);
 
-    Table table = validationCatalog.loadTable(tableIdent);
-    table.refresh();
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     Assert.assertEquals("Should have 1 delete manifest", 1, deleteManifests(table).size());
     Assert.assertEquals("Should have 1 delete file", 1, deleteFiles(table).size());
@@ -255,7 +255,6 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     sql("CALL %s.system.rewrite_data_files(table => '%s', options => map" +
             "('delete-file-threshold','1', 'use-starting-sequence-number', 'false'))",
         catalogName, tableIdent);
-
     table.refresh();
 
     sql("INSERT INTO TABLE %s VALUES (5, 'e')", tableName); // this txn moves the file to the DELETED state
