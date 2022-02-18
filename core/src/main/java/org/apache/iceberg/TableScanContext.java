@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -55,7 +56,7 @@ final class TableScanContext {
     this.options = ImmutableMap.of();
     this.fromSnapshotId = null;
     this.toSnapshotId = null;
-    this.planExecutor = ThreadPools.getWorkerPool();
+    this.planExecutor = null;
   }
 
   private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
@@ -181,7 +182,11 @@ final class TableScanContext {
   }
 
   ExecutorService planExecutor() {
-    return planExecutor;
+    return Optional.ofNullable(planExecutor).orElseGet(ThreadPools::getWorkerPool);
+  }
+
+  boolean planWithCustomizedExecutor() {
+    return planExecutor != null;
   }
 
   TableScanContext planWith(ExecutorService executor) {

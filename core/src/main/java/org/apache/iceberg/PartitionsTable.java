@@ -124,7 +124,8 @@ public class PartitionsTable extends BaseMetadataTable {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && scan.snapshot().dataManifests().size() > 1) {
+    if (scan.snapshot().dataManifests().size() > 1 &&
+        (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
     }
 

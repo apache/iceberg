@@ -96,7 +96,8 @@ class IncrementalDataTableScan extends DataTableScan {
     Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
         context().toSnapshotId(), context().rowFilter(), schema()));
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
+    if (manifests.size() > 1 &&
+        (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(context().planExecutor());
     }
 
