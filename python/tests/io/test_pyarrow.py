@@ -123,4 +123,4 @@ def test_pyarrow_violating_output_stream_protocol():
         output_file.create()
 
     assert ("Object of type") in str(exc_info.value)
-    assert ("returned from PyArrowFile.create does not match the OutputStream protocol.") in str(exc_info.value)
+    assert ("returned from PyArrowFile.create(...) does not match the OutputStream protocol.") in str(exc_info.value)

@@ -236,14 +236,14 @@ def test_output_file_to_input_file(CustomOutputFile):
 
 
 @pytest.mark.parametrize(
-    "CustomFileIO,string_uri,scheme,netloc,path",
+    "CustomFileIO,string_uri",
     [
-        (LocalFileIO, "foo/bar.parquet", "", "", "foo/bar.parquet"),
-        (LocalFileIO, "file:///foo/bar.parquet", "file", "", "/foo/bar.parquet"),
-        (LocalFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
-        (PyArrowFileIO, "foo/bar/baz.parquet", "", "", "foo/bar/baz.parquet"),
-        (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
-        (PyArrowFileIO, "file:/foo/bar/baz.parquet", "file", "", "/foo/bar/baz.parquet"),
+        (LocalFileIO, "foo/bar.parquet"),
+        (LocalFileIO, "file:///foo/bar.parquet"),
+        (LocalFileIO, "file:/foo/bar/baz.parquet"),
+        (PyArrowFileIO, "foo/bar/baz.parquet"),
+        (PyArrowFileIO, "file:/foo/bar/baz.parquet"),
+        (PyArrowFileIO, "file:/foo/bar/baz.parquet"),
     ],
 )
 def test_custom_file_io_locations(CustomFileIO, string_uri):
