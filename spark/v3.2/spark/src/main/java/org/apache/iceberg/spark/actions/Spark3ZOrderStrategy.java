@@ -19,7 +19,13 @@
 
 package org.apache.iceberg.spark.actions;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -42,6 +48,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.iceberg.util.ZOrderByteUtils;
+import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -67,6 +74,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.TimestampType;
+import org.sparkproject.jetty.server.Authentication;
 import scala.collection.Seq;
 
 public class Spark3ZOrderStrategy extends Spark3SortStrategy {
@@ -76,11 +84,13 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
   private static final org.apache.iceberg.SortOrder Z_SORT_ORDER = org.apache.iceberg.SortOrder.builderFor(Z_SCHEMA)
       .sortBy(Z_COLUMN, SortDirection.ASC, NullOrder.NULLS_LAST)
       .build();
-  private static final int STRING_KEY_LENGTH = 60;
+  private static final int STRING_KEY_LENGTH = 128;
 
   private final List<String> zOrderColNames;
-  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
-  private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
+  private transient FileScanTaskSetManager manager = FileScanTaskSetManager.get();
+  private transient FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
+
+  private final SparkZOrder orderHelper;
 
   public Spark3ZOrderStrategy(Table table, SparkSession spark, List<String> zOrderColNames) {
     super(table, spark);
@@ -96,6 +106,8 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
         "Cannot ZOrder on an Identity partition column as these values are constant within a partition, " +
             "ZOrdering requested on %s",
         partZOrderCols);
+
+    this.orderHelper = new SparkZOrder(zOrderColNames.size());
 
     this.zOrderColNames = zOrderColNames;
   }
@@ -149,10 +161,10 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
           .collect(Collectors.toList());
 
       Column zvalueArray = functions.array(zOrderColumns.stream().map(colStruct ->
-          SparkZOrder.sortedLexicographically(functions.col(colStruct.name()), colStruct.dataType())
+          orderHelper.sortedLexicographically(functions.col(colStruct.name()), colStruct.dataType())
       ).toArray(Column[]::new));
 
-      Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, SparkZOrder.interleaveBytes(zvalueArray));
+      Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, orderHelper.interleaveBytes(zvalueArray));
 
       SQLConf sqlConf = cloneSession.sessionState().conf();
       LogicalPlan sortPlan = sortPlan(distribution, ordering, zvalueDF.logicalPlan(), sqlConf);
@@ -177,126 +189,5 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
   @Override
   protected org.apache.iceberg.SortOrder sortOrder() {
     return Z_SORT_ORDER;
-  }
-
-  static class SparkZOrder {
-
-    private static final byte[] TINY_EMPTY = new byte[Byte.BYTES];
-    private static final byte[] SHORT_EMPTY = new byte[Short.BYTES];
-    private static final byte[] INT_EMPTY = new byte[Integer.BYTES];
-    private static final byte[] LONG_EMPTY = new byte[Long.BYTES];
-    private static final byte[] FLOAT_EMPTY = new byte[Float.BYTES];
-    private static final byte[] DOUBLE_EMPTY = new byte[Double.BYTES];
-
-    static byte[] interleaveBits(Seq<byte[]> scalaBinary) {
-      byte[][] columnsBinary = scala.collection.JavaConverters.seqAsJavaList(scalaBinary)
-          .toArray(new byte[scalaBinary.size()][]);
-      return ZOrderByteUtils.interleaveBits(columnsBinary);
-    }
-
-    private static UserDefinedFunction tinyToOrderedBytesUDF() {
-      return functions.udf((Byte value) -> {
-        if (value == null) {
-          return TINY_EMPTY;
-        }
-        return ZOrderByteUtils.tinyintToOrderedBytes(value);
-      }, DataTypes.BinaryType)
-        .withName("TINY_ORDERED_BYTES");
-    }
-
-    private static UserDefinedFunction shortToOrderedBytesUDF() {
-      return functions.udf((Short value) -> {
-        if (value == null) {
-          return SHORT_EMPTY;
-        }
-        return ZOrderByteUtils.shortToOrderBytes(value);
-      }, DataTypes.BinaryType)
-        .withName("SHORT_ORDERED_BYTES");
-    }
-
-    private static UserDefinedFunction intToOrderedBytesUDF() {
-      return functions.udf((Integer value) -> {
-        if (value == null) {
-          return INT_EMPTY;
-        }
-        return ZOrderByteUtils.intToOrderedBytes(value);
-      }, DataTypes.BinaryType)
-        .withName("INT_ORDERED_BYTES");
-    }
-
-    private static UserDefinedFunction longToOrderedBytesUDF() {
-      return functions.udf((Long value) -> {
-        if (value == null) {
-          return LONG_EMPTY;
-        }
-        return ZOrderByteUtils.longToOrderBytes(value);
-      }, DataTypes.BinaryType)
-      .withName("LONG_ORDERED_BYTES");
-    }
-
-    private static UserDefinedFunction floatToOrderedBytesUDF() {
-      return functions.udf((Float value) -> {
-        if (value == null) {
-          return FLOAT_EMPTY;
-        }
-        return ZOrderByteUtils.floatToOrderedBytes(value);
-      }, DataTypes.BinaryType)
-        .withName("FLOAT_ORDERED_BYTES");
-    }
-
-    private static UserDefinedFunction doubleToOrderedBytesUDF() {
-      return functions.udf((Double value) -> {
-        if (value == null) {
-          return DOUBLE_EMPTY;
-        }
-        return ZOrderByteUtils.doubleToOrderedBytes(value);
-      }, DataTypes.BinaryType)
-        .withName("FLOAT_ORDERED_BYTES");
-    }
-
-    private static UserDefinedFunction stringToOrderedBytesUDF() {
-      return functions.udf((String value) -> ZOrderByteUtils.stringToOrderedBytes(value, STRING_KEY_LENGTH),
-        DataTypes.BinaryType)
-        .withName("STRING-LEXICAL-BYTES");
-    }
-
-    private static final UserDefinedFunction INTERLEAVE_UDF =
-        functions.udf((Seq<byte[]> arrayBinary) -> interleaveBits(arrayBinary), DataTypes.BinaryType)
-            .withName("INTERLEAVE_BYTES");
-
-    static Column interleaveBytes(Column arrayBinary) {
-      return INTERLEAVE_UDF.apply(arrayBinary);
-    }
-
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    static Column sortedLexicographically(Column column, DataType type) {
-      if (type instanceof ByteType) {
-        return tinyToOrderedBytesUDF().apply(column);
-      } else if (type instanceof ShortType) {
-        return shortToOrderedBytesUDF().apply(column);
-      } else if (type instanceof IntegerType) {
-        return intToOrderedBytesUDF().apply(column);
-      } else if (type instanceof LongType) {
-        return longToOrderedBytesUDF().apply(column);
-      } else if (type instanceof FloatType) {
-        return floatToOrderedBytesUDF().apply(column);
-      } else if (type instanceof DoubleType) {
-        return doubleToOrderedBytesUDF().apply(column);
-      } else if (type instanceof StringType) {
-        return stringToOrderedBytesUDF().apply(column);
-      } else if (type instanceof BinaryType) {
-        return stringToOrderedBytesUDF().apply(column);
-      } else if (type instanceof BooleanType) {
-        return column.cast(DataTypes.BinaryType);
-      } else if (type instanceof TimestampType) {
-        return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
-      } else if (type instanceof DateType) {
-        return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Cannot use column %s of type %s in ZOrdering, the type is unsupported",
-                column, type));
-      }
-    }
   }
 }
