@@ -593,13 +593,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
-    // Pre-populate the table to force it to use the DeltaWriter instead of Metadata-Only Delete
-    List<Integer> initialIds = ImmutableList.of(1, 2);
-    Dataset<Row> initialInputDf = spark.createDataset(initialIds, Encoders.INT())
+    // Pre-populate the table to force it to use the Spark Writers instead of Metadata-Only Delete
+    // for more consistent exception stack
+    List<Integer> ids = ImmutableList.of(1, 2);
+    Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
         .withColumnRenamed("value", "id")
         .withColumn("dep", lit("hr"));
     try {
-      initialInputDf.coalesce(1).writeTo(tableName).append();
+      inputDF.coalesce(1).writeTo(tableName).append();
     } catch (NoSuchTableException e) {
       throw new RuntimeException(e);
     }
@@ -626,7 +627,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
         }
-        sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+        try {
+          inputDF.coalesce(1).writeTo(tableName).append();
+        } catch (NoSuchTableException e) {
+          throw new RuntimeException(e);
+        }
+
         barrier.incrementAndGet();
       }
     });
