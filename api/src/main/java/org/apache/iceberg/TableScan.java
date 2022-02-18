@@ -164,8 +164,8 @@ public interface TableScan {
    * Create a new {@link TableScan} to use a particular executor to plan. The default worker pool will be
    * used by default.
    *
-   * @param executorService the provided executor.
-   * @return a table scan which use the provided executor to access manifests.
+   * @param executorService the provided executor
+   * @return a table scan that uses the provided executor to access manifests
    */
   TableScan planWith(ExecutorService executorService);
 
