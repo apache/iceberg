@@ -801,11 +801,18 @@ public class TestRemoveSnapshots extends TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
 
     table.expireSnapshots()
         .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
           thread.setName("remove-snapshot-" + deleteThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }))
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
           thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
           return thread;
         }))
@@ -822,6 +829,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
   }
 
   @Test
