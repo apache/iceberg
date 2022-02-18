@@ -37,21 +37,6 @@ object RowLevelOperationsPredicateCheck extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case DeleteFromTable(r, Some(condition)) if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
-        // this limitation is present since SPARK-25154 fix is not yet available
-        // we use Not(EqualsNullSafe(cond, true)) when deciding which records to keep
-        // such conditions are rewritten by Spark as an existential join and currently Spark
-        // does not handle correctly NOT IN subqueries nested into other expressions
-        failAnalysis("Null-aware predicate subqueries are not currently supported in DELETE")
-
-      case UpdateTable(r, _, Some(condition)) if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
-        // this limitation is present since SPARK-25154 fix is not yet available
-        // we use Not(EqualsNullSafe(cond, true)) when processing records that did not match
-        // the update condition but were present in files we are overwriting
-        // such conditions are rewritten by Spark as an existential join and currently Spark
-        // does not handle correctly NOT IN subqueries nested into other expressions
-        failAnalysis("Null-aware predicate subqueries are not currently supported in UPDATE")
-
       case merge: MergeIntoTable if isIcebergRelation(merge.targetTable) =>
         validateMergeIntoConditions(merge)
 

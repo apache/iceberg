@@ -633,7 +633,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
-  @Ignore // TODO: not supported since SPARK-25154 fix is not yet available
+  @Test
   public void testUpdateWithNotInSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -660,17 +660,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(5, "hr"), row(5, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
-  }
-
-  @Test
-  public void testUpdateWithNotInSubqueryNotSupported() {
-    createAndInitTable("id INT, dep STRING");
-
-    createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
-
-    AssertHelpers.assertThrows("Should complain about NOT IN subquery",
-        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
-        () -> sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id)", tableName));
   }
 
   @Test
