@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
@@ -36,7 +37,7 @@ import org.apache.spark.sql.sources
  *
  * Note this rule must be run after expression optimization.
  */
-object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with PredicateHelper {
+object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with PredicateHelper with Logging {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case d @ DeleteFromIcebergTable(relation: DataSourceV2Relation, cond, Some(_)) =>
@@ -48,6 +49,7 @@ object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with Predic
           val dataSourceFilters = toDataSourceFilters(normalizedPredicates)
           val allPredicatesTranslated = normalizedPredicates.size == dataSourceFilters.length
           if (allPredicatesTranslated && table.canDeleteWhere(dataSourceFilters)) {
+            log.info(s"Optimizing delete expression: ${dataSourceFilters.mkString(",")} as metadata delete")
             d.copy(rewritePlan = None)
           } else {
             d
