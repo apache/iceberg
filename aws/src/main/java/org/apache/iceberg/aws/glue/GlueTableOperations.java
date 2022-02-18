@@ -27,6 +27,7 @@ import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -62,6 +63,12 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final String commitLockEntityId;
   private final FileIO fileIO;
   private final LockManager lockManager;
+
+  // Attempt to load versionId if available on the path
+  private static final DynMethods.UnboundMethod LOAD_VERSION_ID = DynMethods.builder("versionId")
+      .hiddenImpl("software.amazon.awssdk.services.glue.model.UpdateTableRequest$Builder", String.class)
+      .orNoop()
+      .build();
 
   GlueTableOperations(GlueClient glue, LockManager lockManager, String catalogName, AwsProperties awsProperties,
                       FileIO fileIO, TableIdentifier tableIdentifier) {
@@ -185,7 +192,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   void persistGlueTable(Table glueTable, Map<String, String> parameters, TableMetadata metadata) {
     if (glueTable != null) {
       LOG.debug("Committing existing Glue table: {}", tableName());
-      glue.updateTable(UpdateTableRequest.builder()
+      UpdateTableRequest.Builder updateTableRequest = UpdateTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .databaseName(databaseName)
           .skipArchive(awsProperties.glueCatalogSkipArchive())
@@ -194,8 +201,12 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .name(tableName)
               .tableType(GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(parameters)
-              .build())
-          .build());
+              .build());
+      // Use Optimistic locking with version id while updating table
+      if (!LOAD_VERSION_ID.isNoop()) {
+        updateTableRequest.versionId(glueTable.versionId());
+      }
+      glue.updateTable(updateTableRequest.build());
     } else {
       LOG.debug("Committing new Glue table: {}", tableName());
       glue.createTable(CreateTableRequest.builder()
