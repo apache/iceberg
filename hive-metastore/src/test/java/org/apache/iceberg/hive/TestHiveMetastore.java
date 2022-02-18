@@ -177,13 +177,6 @@ public class TestHiveMetastore {
     return hiveConf;
   }
 
-  /**
-   * The default database path is same as the warehouse path.
-   */
-  public String getDefaultDatabasePath() {
-    return HIVE_LOCAL_DIR.getPath();
-  }
-
   public String getDatabasePath(String dbName) {
     File dbDir = new File(HIVE_LOCAL_DIR, dbName + ".db");
     return dbDir.getPath();

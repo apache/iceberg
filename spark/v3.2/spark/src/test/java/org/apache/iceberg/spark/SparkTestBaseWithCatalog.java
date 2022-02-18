@@ -36,7 +36,7 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
-  protected static File warehouse = null;
+  private static File warehouse = null;
 
   @BeforeClass
   public static void createWarehouse() throws IOException {
