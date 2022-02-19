@@ -304,7 +304,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     validateSnapshot(currentSnapshot, "delete", "1", "1", null);
   }
 
-  @Ignore // TODO: fails due to SPARK-33267
+  @Test
   public void testDeleteWithInAndNotInConditions() {
     createAndInitUnpartitionedTable();
 

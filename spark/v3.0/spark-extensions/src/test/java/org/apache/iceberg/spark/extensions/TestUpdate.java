@@ -250,7 +250,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore // TODO: fails due to SPARK-33267
+  @Test
   public void testUpdateWithInAndNotInConditions() {
     createAndInitTable("id INT, dep STRING");
 
