@@ -97,15 +97,15 @@ public class TableProperties {
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
   public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = "write.delete.parquet.row-group-size-bytes";
-  public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = "134217728"; // 128 MB
+  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 134217728; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
   public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = "write.delete.parquet.page-size-bytes";
-  public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB
+  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1048576; // 1 MB
 
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
   public static final String DELETE_PARQUET_DICT_SIZE_BYTES = "write.delete.parquet.dict-size-bytes";
-  public static final String PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"; // 2 MB
+  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2097152; // 2 MB
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
@@ -114,6 +114,18 @@ public class TableProperties {
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL = "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
+
+  public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
+      "write.parquet.row-group-check-min-record-count";
+  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
+      "write.delete.parquet.row-group-check-min-record-count";
+  public static final int PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT = 100;
+
+  public static final String PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
+      "write.parquet.row-group-check-max-record-count";
+  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
+      "write.delete.parquet.row-group-check-max-record-count";
+  public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";

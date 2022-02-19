@@ -17,33 +17,28 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.source;
+package org.apache.iceberg.dell.mock;
 
-import java.util.Arrays;
-import javax.annotation.Nullable;
-import org.apache.flink.core.io.LocatableInputSplit;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import com.emc.object.s3.S3Client;
+import java.util.Map;
+import org.apache.iceberg.dell.DellClientFactory;
+import org.apache.iceberg.dell.DellProperties;
+import org.apache.iceberg.dell.mock.ecs.MockS3Client;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class FlinkInputSplit extends LocatableInputSplit {
+public class MockDellClientFactory implements DellClientFactory {
 
-  private final CombinedScanTask task;
+  public static final Map<String, String> MOCK_ECS_CLIENT_PROPERTIES = ImmutableMap.of(
+      DellProperties.CLIENT_FACTORY,
+      MockDellClientFactory.class.getName()
+  );
 
-  FlinkInputSplit(int splitNumber, CombinedScanTask task, @Nullable String[] hostnames) {
-    super(splitNumber, hostnames);
-    this.task = task;
-  }
-
-  CombinedScanTask getTask() {
-    return task;
+  @Override
+  public S3Client ecsS3() {
+    return new MockS3Client();
   }
 
   @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("splitNumber", getSplitNumber())
-        .add("task", task)
-        .add("hosts", Arrays.toString(getHostnames()))
-        .toString();
+  public void initialize(Map<String, String> properties) {
   }
 }
