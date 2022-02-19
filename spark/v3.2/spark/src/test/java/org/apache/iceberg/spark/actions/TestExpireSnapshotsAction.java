@@ -1027,45 +1027,6 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
-  public void testUseCollectAsList() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
-
-    table.newOverwrite()
-        .deleteFile(FILE_A)
-        .addFile(FILE_B)
-        .commit();
-
-    table.newFastAppend()
-        .appendFile(FILE_C)
-        .commit();
-
-    long end = rightAfterSnapshot();
-
-    int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
-
-    withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
-      ExpireSnapshots.Result results =
-              SparkActions.get().expireSnapshots(table).expireOlderThan(end).execute();
-
-      Assert.assertEquals("Table does not have 1 snapshot after expiration",
-              1, Iterables.size(table.snapshots()));
-
-      int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
-      int totalJobsRun = jobsAfter - jobsBefore;
-
-      checkExpirationResults(1L, 1L, 2L, results);
-
-      // expire() in BaseExpireSnapshotsSparkAction contains two dataframe operations
-      Assert.assertEquals(
-              String.format("Expected more than %d jobs when using local iterator, ran %d",
-                      SHUFFLE_PARTITIONS, totalJobsRun),
-              totalJobsRun, SHUFFLE_PARTITIONS * 2);
-    });
-  }
-
-  @Test
   public void testUseLocalIterator() {
     table.newFastAppend()
             .appendFile(FILE_A)
