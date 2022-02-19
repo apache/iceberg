@@ -25,25 +25,25 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.ManifestContent;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Assert;
@@ -239,10 +239,16 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testExpireDeleteFiles() throws Exception {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg TBLPROPERTIES" +
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES" +
         "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c"),
+        new SimpleRecord(4, "d")
+    );
+    spark.createDataset(records, Encoders.bean(SimpleRecord.class)).coalesce(1).writeTo(tableName).append();
     sql("DELETE FROM %s WHERE id=1", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
@@ -252,15 +258,18 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Path deleteManifestPath = new Path(deleteManifests(table).iterator().next().path());
     Path deleteFilePath = new Path(String.valueOf(deleteFiles(table).iterator().next().path()));
 
-    sql("CALL %s.system.rewrite_data_files(table => '%s', options => map" +
-            "('delete-file-threshold','1', 'use-starting-sequence-number', 'false'))",
+    sql("CALL %s.system.rewrite_data_files(" +
+            "table => '%s'," +
+            "options => map(" +
+            "'delete-file-threshold','1'," +
+            "'use-starting-sequence-number', 'false'))",
         catalogName, tableIdent);
     table.refresh();
 
     sql("INSERT INTO TABLE %s VALUES (5, 'e')", tableName); // this txn moves the file to the DELETED state
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
-
     table.refresh();
+
     Assert.assertEquals("Should have no delete manifests", 0, deleteManifests(table).size());
     Assert.assertEquals("Should have no delete files", 0, deleteFiles(table).size());
 
@@ -279,17 +288,17 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Assert.assertFalse("Delete file should be removed", localFs.exists(deleteFilePath));
   }
 
-  private Set<ManifestFile> deleteManifests(Table table) {
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
-    return manifests.stream().filter(mf -> mf.content().equals(ManifestContent.DELETES))
-        .collect(Collectors.toSet());
+  private List<ManifestFile> deleteManifests(Table table) {
+    return table.currentSnapshot().deleteManifests();
   }
 
   private Set<DeleteFile> deleteFiles(Table table) {
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
-    Stream<DeleteFile> dataFileStream = manifests.stream().filter(mf -> mf.content().equals(ManifestContent.DELETES))
-        .flatMap(mf -> (StreamSupport.stream((ManifestFiles.readDeleteManifest(
-            mf, table.io(), table.specs()).spliterator()), false)));
-    return dataFileStream.collect(Collectors.toSet());
+    Set<DeleteFile> deleteFiles = Sets.newHashSet();
+
+    for (FileScanTask task : table.newScan().planFiles()) {
+      deleteFiles.addAll(task.deletes());
+    }
+
+    return deleteFiles;
   }
 }
