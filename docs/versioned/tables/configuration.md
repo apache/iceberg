@@ -34,29 +34,46 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.split.metadata-target-size   | 33554432 (32 MB)   | Target size when combining metadata input splits       |
 | read.split.planning-lookback      | 10                 | Number of bins to consider when combining input splits |
 | read.split.open-file-cost         | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| read.parquet.vectorization.enabled| false              | Enables parquet vectorized reads                       |
+| read.parquet.vectorization.batch-size| 5000            | The batch size for parquet vectorized reads            |
+| read.orc.vectorization.enabled    | false              | Enables orc vectorized reads                           |
+| read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
 
 ### Write properties
 
 | Property                           | Default            | Description                                        |
 | ---------------------------------- | ------------------ | -------------------------------------------------- |
 | write.format.default               | parquet            | Default file format for the table; parquet, avro, or orc |
+| write.delete.format.default        | data file format   | Default delete file format for the table; parquet, avro, or orc |
 | write.parquet.row-group-size-bytes | 134217728 (128 MB) | Parquet row group size                             |
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec: gzip(deflate with 9 level), gzip, snappy, uncompressed |
+| write.avro.compression-level       | null               | Avro compression level                             |
 | write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
 | write.target-file-size-bytes       | 536870912 (512 MB) | Controls the size of files generated to target about this many bytes |
+| write.delete.target-file-size-bytes| 67108864 (64 MB)   | Controls the size of delete files generated to target about this many bytes |
 | write.distribution-mode            | none               | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder |
+| write.delete.distribution-mode     | hash               | Defines distribution of write delete data          |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
-| write.spark.fanout.enabled       | false        | Enables Partitioned-Fanout-Writer writes in Spark |
+| write.spark.fanout.enabled         | false              | Enables the fanout writer in Spark that does not require data to be clustered; uses more memory |
+| write.object-storage.enabled       | false              | Enables the object storage location provider that adds a hash component to file paths |
+| write.data.path                    | table location + /data | Base location for data files |
+| write.metadata.path                | table location + /metadata | Base location for metadata files |
+| write.delete.mode                  | copy-on-write      | Mode used for delete commands: copy-on-write or merge-on-read (v2 only) |
+| write.delete.isolation-level       | serializable       | Isolation level for delete commands: serializable or snapshot |
+| write.update.mode                  | copy-on-write      | Mode used for update commands: copy-on-write or merge-on-read (v2 only) |
+| write.update.isolation-level       | serializable       | Isolation level for update commands: serializable or snapshot |
+| write.merge.mode                   | copy-on-write      | Mode used for merge commands: copy-on-write or merge-on-read (v2 only) |
+| write.merge.isolation-level        | serializable       | Isolation level for merge commands: serializable or snapshot |
 
 ### Table behavior properties
 
@@ -102,6 +119,8 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | warehouse                         | null               | the root path of the data warehouse                    |
 | uri                               | null               | a URI string, such as Hive metastore URI               |
 | clients                           | 2                  | client pool size                                       |
+| cache-enabled                     | true               | Whether to cache catalog entries |
+| cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
