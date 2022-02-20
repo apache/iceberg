@@ -90,9 +90,7 @@ class PyArrowFile(InputFile, OutputFile):
             FileExistsError: If the file already exists at `self.location` and `overwrite` is False
         """
         if not overwrite and self.exists():
-            raise FileExistsError(
-                f"A file already exists at this location. If you would like to overwrite it, set `overwrite=True`: {self.location}"
-            )
+            raise FileExistsError(f"Cannot create file, already exists: {self.location}")
         output_file = self._filesystem.open_output_stream(self._path)
         return output_file
 
@@ -141,5 +139,5 @@ class PyArrowFileIO(FileIO):
         filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
         try:
             filesystem.delete_file(path)
-        except OSError:
-            raise FileNotFoundError(f"File could not be deleted because it does not exist: {str_path}")
+        except OSError as e:
+            raise FileNotFoundError(f"Cannot delete file, does not exist: {location} - Caused by: " + str(e))

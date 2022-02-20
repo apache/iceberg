@@ -116,8 +116,8 @@ class LocalFileIO(FileIO):
         parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
         try:
             os.remove(parsed_location.path)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File could not be deleted because it does not exist: {parsed_location.path}")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e))
 
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
@@ -315,7 +315,7 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
         with pytest.raises(FileNotFoundError) as exc_info:
             file_io.delete(output_file_location)
 
-        assert (f"File could not be deleted because it does not exist:") in str(exc_info.value)
+        assert (f"Cannot delete file, does not exist:") in str(exc_info.value)
 
         # Confirm that the file no longer exists
         assert not os.path.exists(output_file_location)
