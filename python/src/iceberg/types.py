@@ -161,7 +161,8 @@ class NestedField(IcebergType):
                 (
                     f"{field_id}: {name}: {'optional' if is_optional else 'required'} {field_type}" ""
                     if doc is None
-                    else f" ({doc})"),
+                    else f" ({doc})"
+                ),
                 f"NestedField(field_id={field_id}, name={repr(name)}, field_type={repr(field_type)}, is_optional={is_optional}"
                 f"{docString})",
             )
