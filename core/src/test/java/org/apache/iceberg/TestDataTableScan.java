@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -110,5 +112,22 @@ public class TestDataTableScan extends TableTestBase {
         }
       }
     }
+  }
+
+  @Test
+  public void testTableScanWithPlanExecutor() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = table.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    Assert.assertEquals(2, Iterables.size(scan.planFiles()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
   }
 }

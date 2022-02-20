@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.ThreadPools;
 
 class IncrementalDataTableScan extends DataTableScan {
 
@@ -97,8 +96,9 @@ class IncrementalDataTableScan extends DataTableScan {
     Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
         context().toSnapshotId(), context().rowFilter(), schema()));
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
-      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+    if (manifests.size() > 1 &&
+        (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
+      manifestGroup = manifestGroup.planWith(context().planExecutor());
     }
 
     return manifestGroup.planFiles();
