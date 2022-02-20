@@ -22,10 +22,20 @@ url: blogs
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Apache Iceberg Becomes Industry Open Standard with Ecosystem Adoption](https://www.dremio.com/apache-iceberg-becomes-industry-open-standard-with-ecosystem-adoption/)
+**Date**: February 3rd, 2022, **Company**: Dremio
+
+**Author**: [Mark Lyons](https://www.linkedin.com/in/markclyons/)
+
 ### [Docker, Spark, and Iceberg: The Fastest Way to Try Iceberg!](https://tabular.io/blog/docker-spark-and-iceberg/)
 **Date**: February 2nd, 2022, **Company**: Tabular
 
 **Author**: [Sam Redai](https://www.linkedin.com/in/sredai/), [Kyle Bendickson](https://www.linkedin.com/in/kylebendickson/)
+
+### [Expanding the Data Cloud with Apache Iceberg](https://www.snowflake.com/blog/expanding-the-data-cloud-with-apache-iceberg/)
+**Date**: January 21st, 2022, **Company**: Snowflake
+
+**Author**: [James Malone](https://www.linkedin.com/in/jamesamalone/)
 
 ### [Iceberg FileIO: Cloud Native Tables](https://tabular.io/blog/iceberg-fileio/)
 **Date**: December 16th, 2021, **Company**: Tabular
