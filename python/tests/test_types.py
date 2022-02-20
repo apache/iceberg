@@ -17,7 +17,7 @@
 
 import pytest
 
-from .types import (
+from iceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
