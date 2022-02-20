@@ -101,7 +101,7 @@ class PyArrowFile(InputFile, OutputFile):
         PyArrowFile class (as opposed to separate InputFile and OutputFile implementations), this method effectively returns
         a copy of the same instance.
         """
-        return PyArrowFile(self.location)
+        return self
 
 
 class PyArrowFileIO(FileIO):
