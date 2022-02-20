@@ -105,8 +105,8 @@ def test_pyarrow_violating_output_stream_protocol():
     """Test that a TypeError is raised if an output stream is provided that violates the OutputStream protocol"""
 
     # Missing closed, and close
-    output_file_mock = MagicMock(spec=["write"])
-    output_file_mock.exists = False
+    output_file_mock = MagicMock(spec=["write", "exists"])
+    output_file_mock.exists.return_value = False
 
     file_info_mock = MagicMock()
     file_info_mock.type = FileType.NotFound

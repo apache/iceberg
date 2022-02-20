@@ -98,7 +98,6 @@ class InputFile(ABC):
         """The fully-qualified location of the input file"""
         return self._location
 
-    @property
     @abstractmethod
     def exists(self) -> bool:
         """Checks whether the file exists"""
@@ -134,7 +133,6 @@ class OutputFile(ABC):
         """The fully-qualified location of the output file"""
         return self._location
 
-    @property
     @abstractmethod
     def exists(self) -> bool:
         """Checks whether the file exists"""

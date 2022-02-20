@@ -53,7 +53,6 @@ class LocalInputFile(InputFile):
     def __len__(self):
         return os.path.getsize(self.parsed_location.path)
 
-    @property
     def exists(self):
         return os.path.exists(self.parsed_location.path)
 
@@ -91,7 +90,6 @@ class LocalOutputFile(OutputFile):
     def __len__(self):
         return os.path.getsize(self.parsed_location.path)
 
-    @property
     def exists(self):
         return os.path.exists(self.parsed_location.path)
 
@@ -212,8 +210,8 @@ def test_custom_file_exists(CustomFile):
         non_existent_file = CustomFile(location=f"{non_existent_absolute_file_location}")
 
         # Test opening and reading the file
-        assert file.exists
-        assert not non_existent_file.exists
+        assert file.exists()
+        assert not non_existent_file.exists()
 
 
 @pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])

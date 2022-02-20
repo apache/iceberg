@@ -63,7 +63,6 @@ class PyArrowFile(InputFile, OutputFile):
         file = self._filesystem.open_input_file(self._path)
         return file.size()
 
-    @property
     def exists(self) -> bool:
         """Checks whether the file exists"""
         file_info = self._filesystem.get_file_info(self._path)
@@ -94,7 +93,7 @@ class PyArrowFile(InputFile, OutputFile):
         Raises:
             FileExistsError: If the file already exists at `self.location` and `overwrite` is False
         """
-        if not overwrite and self.exists:
+        if not overwrite and self.exists():
             raise FileExistsError(
                 f"A file already exists at this location. If you would like to overwrite it, set `overwrite=True`: {self.location}"
             )
