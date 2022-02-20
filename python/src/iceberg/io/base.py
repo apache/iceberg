@@ -100,7 +100,7 @@ class InputFile(ABC):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the file exists"""
+        """Checks whether the location exists"""
 
     @abstractmethod
     def open(self) -> InputStream:
@@ -135,7 +135,7 @@ class OutputFile(ABC):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the file exists"""
+        """Checks whether the location exists"""
 
     @abstractmethod
     def to_input_file(self) -> InputFile:

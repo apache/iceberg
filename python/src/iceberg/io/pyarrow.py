@@ -64,7 +64,7 @@ class PyArrowFile(InputFile, OutputFile):
         return file_info.size
 
     def exists(self) -> bool:
-        """Checks whether the file exists"""
+        """Checks whether the location exists"""
         file_info = self._filesystem.get_file_info(self._path)
         return False if file_info.type == FileType.NotFound else True
 
