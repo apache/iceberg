@@ -44,9 +44,12 @@ class Singleton:
 class IcebergType:
     """Base type for all Iceberg Types"""
 
-    def __init__(self, type_string: str, repr_string: str, is_primitive=False):
+    _initialized = False
+
+    def __init__(self, type_string: str, repr_string: str):
         self._type_string = type_string
         self._repr_string = repr_string
+        self._initialized = True
 
     def __repr__(self):
         return self._repr_string
@@ -80,8 +83,9 @@ class FixedType(PrimitiveType):
         return cls._instances[length]
 
     def __init__(self, length: int):
-        super().__init__(f"fixed[{length}]", f"FixedType(length={length})")
-        self._length = length
+        if not self._initialized:
+            super().__init__(f"fixed[{length}]", f"FixedType(length={length})")
+            self._length = length
 
     @property
     def length(self) -> int:
@@ -106,12 +110,13 @@ class DecimalType(PrimitiveType):
         return cls._instances[key]
 
     def __init__(self, precision: int, scale: int):
-        super().__init__(
-            f"decimal({precision}, {scale})",
-            f"DecimalType(precision={precision}, scale={scale})",
-        )
-        self._precision = precision
-        self._scale = scale
+        if not self._initialized:
+            super().__init__(
+                f"decimal({precision}, {scale})",
+                f"DecimalType(precision={precision}, scale={scale})",
+            )
+            self._precision = precision
+            self._scale = scale
 
     @property
     def precision(self) -> int:
@@ -123,16 +128,19 @@ class DecimalType(PrimitiveType):
 
 
 class NestedField(IcebergType):
-    """This represents a field of a struct, a map key, a map value, or a list element. This is where field IDs, names, docs, and nullability are tracked."""
+    """Represents a field of a struct, a map key, a map value, or a list element.
+
+    This is where field IDs, names, docs, and nullability are tracked.
+    """
 
     _instances: Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"] = {}
 
     def __new__(
         cls,
-        is_optional: bool,
         field_id: int,
         name: str,
         field_type: IcebergType,
+        is_optional: bool = True,
         doc: Optional[str] = None,
     ):
         key = (is_optional, field_id, name, field_type, doc)
@@ -141,22 +149,27 @@ class NestedField(IcebergType):
 
     def __init__(
         self,
-        is_optional: bool,
         field_id: int,
         name: str,
         field_type: IcebergType,
+        is_optional: bool = True,
         doc: Optional[str] = None,
     ):
-        super().__init__(
-            (f"{field_id}: {name}: {'optional' if is_optional else 'required'} {field_type}" "" if doc is None else f" ({doc})"),
-            f"NestedField(is_optional={is_optional}, field_id={field_id}, "
-            f"name={repr(name)}, field_type={repr(field_type)}, doc={repr(doc)})",
-        )
-        self._is_optional = is_optional
-        self._id = field_id
-        self._name = name
-        self._type = field_type
-        self._doc = doc
+        if not self._initialized:
+            docString = "" if doc is None else f", doc={repr(doc)}"
+            super().__init__(
+                (
+                    f"{field_id}: {name}: {'optional' if is_optional else 'required'} {field_type}" ""
+                    if doc is None
+                    else f" ({doc})"),
+                f"NestedField(field_id={field_id}, name={repr(name)}, field_type={repr(field_type)}, is_optional={is_optional}"
+                f"{docString})",
+            )
+            self._is_optional = is_optional
+            self._id = field_id
+            self._name = name
+            self._type = field_type
+            self._doc = doc
 
     @property
     def is_optional(self) -> bool:
@@ -200,11 +213,12 @@ class StructType(IcebergType):
         return cls._instances[fields]
 
     def __init__(self, *fields: NestedField):
-        super().__init__(
-            f"struct<{', '.join(map(str, fields))}>",
-            f"StructType{repr(fields)}",
-        )
-        self._fields = fields
+        if not self._initialized:
+            super().__init__(
+                f"struct<{', '.join(map(str, fields))}>",
+                f"StructType{repr(fields)}",
+            )
+            self._fields = fields
 
     @property
     def fields(self) -> Tuple[NestedField, ...]:
@@ -225,7 +239,7 @@ class ListType(IcebergType):
         cls,
         element_id: int,
         element_type: IcebergType,
-        element_is_optional: bool,
+        element_is_optional: bool = True,
     ):
         key = (element_is_optional, element_id, element_type)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
@@ -235,19 +249,20 @@ class ListType(IcebergType):
         self,
         element_id: int,
         element_type: IcebergType,
-        element_is_optional: bool,
+        element_is_optional: bool = True,
     ):
-        super().__init__(
-            f"list<{element_type}>",
-            f"ListType(element_is_optional={element_is_optional}, element_id={element_id}, "
-            f"element_type={repr(element_type)})",
-        )
-        self._element_field = NestedField(
-            name="element",
-            is_optional=element_is_optional,
-            field_id=element_id,
-            field_type=element_type,
-        )
+        if not self._initialized:
+            super().__init__(
+                f"list<{element_type}>",
+                f"ListType(element_id={element_id}, element_type={repr(element_type)}, "
+                f"element_is_optional={element_is_optional})",
+            )
+            self._element_field = NestedField(
+                name="element",
+                is_optional=element_is_optional,
+                field_id=element_id,
+                field_type=element_type,
+            )
 
     @property
     def element(self) -> NestedField:
@@ -259,7 +274,10 @@ class MapType(IcebergType):
 
     Example:
         >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
-        MapType(key=NestedField(is_optional=False, field_id=1, name='key', field_type=StringType(), doc=None), value=NestedField(is_optional=True, field_id=2, name='value', field_type=IntegerType(), doc=None))
+        MapType(
+            key=NestedField(is_optional=False, field_id=1, name='key', field_type=StringType(), doc=None),
+            value=NestedField(is_optional=True, field_id=2, name='value', field_type=IntegerType(), doc=None)
+        )
     """
 
     _instances: Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"] = {}
@@ -270,7 +288,7 @@ class MapType(IcebergType):
         key_type: IcebergType,
         value_id: int,
         value_type: IcebergType,
-        value_is_optional: bool,
+        value_is_optional: bool = True,
     ):
         impl_key = (key_id, key_type, value_id, value_type, value_is_optional)
         cls._instances[impl_key] = cls._instances.get(impl_key) or object.__new__(cls)
@@ -282,19 +300,21 @@ class MapType(IcebergType):
         key_type: IcebergType,
         value_id: int,
         value_type: IcebergType,
-        value_is_optional: bool,
+        value_is_optional: bool = True,
     ):
-        super().__init__(
-            f"map<{key_type}, {value_type}>",
-            f"MapType(key_id={key_id}, key_type={repr(key_type)}, value_id={value_id}, value_type={repr(value_type)}, value_is_optional={value_is_optional})",
-        )
-        self._key_field = NestedField(name="key", field_id=key_id, field_type=key_type, is_optional=False)
-        self._value_field = NestedField(
-            name="value",
-            field_id=value_id,
-            field_type=value_type,
-            is_optional=value_is_optional,
-        )
+        if not self._initialized:
+            super().__init__(
+                f"map<{key_type}, {value_type}>",
+                f"MapType(key_id={key_id}, key_type={repr(key_type)}, value_id={value_id}, value_type={repr(value_type)}, "
+                f"value_is_optional={value_is_optional})",
+            )
+            self._key_field = NestedField(name="key", field_id=key_id, field_type=key_type, is_optional=False)
+            self._value_field = NestedField(
+                name="value",
+                field_id=value_id,
+                field_type=value_type,
+                is_optional=value_is_optional,
+            )
 
     @property
     def key(self) -> NestedField:
@@ -315,7 +335,8 @@ class BooleanType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("boolean", "BooleanType()")
+        if not self._initialized:
+            super().__init__("boolean", "BooleanType()")
 
 
 class IntegerType(PrimitiveType, Singleton):
@@ -339,7 +360,8 @@ class IntegerType(PrimitiveType, Singleton):
     min: int = -2147483648
 
     def __init__(self):
-        super().__init__("int", "IntegerType()")
+        if not self._initialized:
+            super().__init__("int", "IntegerType()")
 
 
 class LongType(PrimitiveType, Singleton):
@@ -363,7 +385,8 @@ class LongType(PrimitiveType, Singleton):
     min: int = -9223372036854775808
 
     def __init__(self):
-        super().__init__("long", "LongType()")
+        if not self._initialized:
+            super().__init__("long", "LongType()")
 
 
 class FloatType(PrimitiveType, Singleton):
@@ -377,7 +400,8 @@ class FloatType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("float", "FloatType()")
+        if not self._initialized:
+            super().__init__("float", "FloatType()")
 
 
 class DoubleType(PrimitiveType, Singleton):
@@ -391,7 +415,8 @@ class DoubleType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("double", "DoubleType()")
+        if not self._initialized:
+            super().__init__("double", "DoubleType()")
 
 
 class DateType(PrimitiveType, Singleton):
@@ -405,7 +430,8 @@ class DateType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("date", "DateType()")
+        if not self._initialized:
+            super().__init__("date", "DateType()")
 
 
 class TimeType(PrimitiveType, Singleton):
@@ -419,7 +445,8 @@ class TimeType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("time", "TimeType()")
+        if not self._initialized:
+            super().__init__("time", "TimeType()")
 
 
 class TimestampType(PrimitiveType, Singleton):
@@ -433,7 +460,8 @@ class TimestampType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("timestamp", "TimestampType()")
+        if not self._initialized:
+            super().__init__("timestamp", "TimestampType()")
 
 
 class TimestamptzType(PrimitiveType, Singleton):
@@ -447,7 +475,8 @@ class TimestamptzType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("timestamptz", "TimestamptzType()")
+        if not self._initialized:
+            super().__init__("timestamptz", "TimestamptzType()")
 
 
 class StringType(PrimitiveType, Singleton):
@@ -461,7 +490,8 @@ class StringType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("string", "StringType()")
+        if not self._initialized:
+            super().__init__("string", "StringType()")
 
 
 class UUIDType(PrimitiveType, Singleton):
@@ -475,7 +505,8 @@ class UUIDType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("uuid", "UUIDType()")
+        if not self._initialized:
+            super().__init__("uuid", "UUIDType()")
 
 
 class BinaryType(PrimitiveType, Singleton):
@@ -489,4 +520,5 @@ class BinaryType(PrimitiveType, Singleton):
     """
 
     def __init__(self):
-        super().__init__("binary", "BinaryType()")
+        if not self._initialized:
+            super().__init__("binary", "BinaryType()")

@@ -17,7 +17,7 @@
 
 import pytest
 
-from iceberg.types import (
+from .types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -83,12 +83,12 @@ def test_repr_primitive_types(input_index, input_type):
         ),
         (
             StructType(
-                NestedField(True, 1, "required_field", StringType()),
-                NestedField(False, 2, "optional_field", IntegerType()),
+                NestedField(1, "required_field", StringType(), is_optional=False),
+                NestedField(2, "optional_field", IntegerType(), is_optional=True),
             ),
             False,
         ),
-        (NestedField(True, 1, "required_field", StringType()), False),
+        (NestedField(1, "required_field", StringType(), is_optional=False), False),
     ],
 )
 def test_is_primitive(input_type, result):
@@ -118,30 +118,30 @@ def test_decimal_type():
 
 def test_struct_type():
     type_var = StructType(
-        NestedField(True, 1, "optional_field", IntegerType()),
-        NestedField(False, 2, "required_field", FixedType(5)),
+        NestedField(1, "optional_field", IntegerType(), is_optional=True),
+        NestedField(2, "required_field", FixedType(5), is_optional=False),
         NestedField(
-            False,
             3,
             "required_field",
             StructType(
-                NestedField(True, 4, "optional_field", DecimalType(8, 2)),
-                NestedField(False, 5, "required_field", LongType()),
+                NestedField(4, "optional_field", DecimalType(8, 2), is_optional=True),
+                NestedField(5, "required_field", LongType(), is_optional=False),
             ),
+            is_optional=False,
         ),
     )
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
-    assert type_var != StructType(NestedField(True, 1, "optional_field", IntegerType()))
+    assert type_var != StructType(NestedField(1, "optional_field", IntegerType(), is_optional=True))
 
 
 def test_list_type():
     type_var = ListType(
         1,
         StructType(
-            NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-            NestedField(False, 3, "required_field", LongType()),
+            NestedField(2, "optional_field", DecimalType(8, 2), is_optional=True),
+            NestedField(3, "required_field", LongType(), is_optional=False),
         ),
         False,
     )
@@ -153,7 +153,7 @@ def test_list_type():
     assert type_var != ListType(
         1,
         StructType(
-            NestedField(True, 2, "optional_field", DecimalType(8, 2)),
+            NestedField(2, "optional_field", DecimalType(8, 2), is_optional=True),
         ),
         True,
     )
@@ -173,27 +173,21 @@ def test_map_type():
 
 def test_nested_field():
     field_var = NestedField(
-        True,
         1,
         "optional_field1",
         StructType(
             NestedField(
-                True,
                 2,
                 "optional_field2",
                 ListType(
                     3,
                     DoubleType(),
-                    False,
+                    element_is_optional=False,
                 ),
+                is_optional=True,
             ),
         ),
-        NestedField(
-            False,
-            4,
-            "required_field4",
-            MapType(5, TimeType(), 6, UUIDType(), False),
-        ),
+        is_optional=True,
     )
     assert field_var.is_optional
     assert not field_var.is_required
