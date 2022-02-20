@@ -75,10 +75,6 @@ class PyArrowFile(InputFile, OutputFile):
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
         """
         input_file = self._filesystem.open_input_file(self._path)
-        if not isinstance(input_file, InputStream):
-            raise TypeError(
-                f"Object of type {type(input_file)} returned from PyArrowFile.open does not match the InputStream protocol."
-            )
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -98,10 +94,6 @@ class PyArrowFile(InputFile, OutputFile):
                 f"A file already exists at this location. If you would like to overwrite it, set `overwrite=True`: {self.location}"
             )
         output_file = self._filesystem.open_output_stream(self._path)
-        if not isinstance(output_file, OutputStream):
-            raise TypeError(
-                f"Object of type {type(output_file)} returned from PyArrowFile.create(...) does not match the OutputStream protocol."
-            )
         return output_file
 
     def to_input_file(self) -> "PyArrowFile":

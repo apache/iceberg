@@ -22,6 +22,7 @@ from unittest.mock import MagicMock
 import pytest
 from pyarrow.fs import FileType
 
+from iceberg.io.base import InputStream, OutputStream
 from iceberg.io.pyarrow import PyArrowFile
 
 
@@ -42,6 +43,7 @@ def test_pyarrow_input_file():
 
         # Test opening and reading the file
         f = input_file.open()
+        assert isinstance(f, InputStream)  # Test that the file object abides by the InputStream protocol
         data = f.read()
         assert data == b"foo"
         assert len(input_file) == 3
@@ -59,6 +61,7 @@ def test_pyarrow_output_file():
 
         # Create the output file and write to it
         f = output_file.create()
+        assert isinstance(f, OutputStream)  # Test that the file object abides by the OutputStream protocol
         f.write(b"foo")
 
         # Confirm that bytes were written
@@ -94,11 +97,9 @@ def test_pyarrow_violating_input_stream_protocol():
 
     input_file = PyArrowFile("foo.txt")
     input_file._filesystem = filesystem_mock
-    with pytest.raises(TypeError) as exc_info:
-        input_file.open()
 
-    assert ("Object of type") in str(exc_info.value)
-    assert ("returned from PyArrowFile.open does not match the InputStream protocol.") in str(exc_info.value)
+    f = input_file.open()
+    assert not isinstance(f, InputStream)
 
 
 def test_pyarrow_violating_output_stream_protocol():
@@ -119,8 +120,6 @@ def test_pyarrow_violating_output_stream_protocol():
     output_file = PyArrowFile("foo.txt")
     output_file._filesystem = filesystem_mock
 
-    with pytest.raises(TypeError) as exc_info:
-        output_file.create()
+    f = output_file.create()
 
-    assert ("Object of type") in str(exc_info.value)
-    assert ("returned from PyArrowFile.create(...) does not match the OutputStream protocol.") in str(exc_info.value)
+    assert not isinstance(f, OutputStream)
