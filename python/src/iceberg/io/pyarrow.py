@@ -60,8 +60,8 @@ class PyArrowFile(InputFile, OutputFile):
 
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
-        file = self._filesystem.open_input_file(self._path)
-        return file.size()
+        file_info = self._filesystem.get_file_info(self._path)
+        return file_info.size
 
     def exists(self) -> bool:
         """Checks whether the file exists"""
