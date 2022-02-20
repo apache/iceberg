@@ -34,10 +34,10 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.split.metadata-target-size   | 33554432 (32 MB)   | Target size when combining metadata input splits       |
 | read.split.planning-lookback      | 10                 | Number of bins to consider when combining input splits |
 | read.split.open-file-cost         | 4194304 (4 MB)     | The estimated cost to open a file, used as a minimum weight when combining splits. |
-| read.parquet.vectorization.enabled| false              | Enables parquet vectorization read                     |
-| read.parquet.vectorization.batch-size| 5000            | The batch size of parquet vectorization read           |
-| read.orc.vectorization.enabled    | false              | Enables orc vectorization read                         |
-| read.orc.vectorization.batch-size | 5000               | The batch size of orc vectorization read               |
+| read.parquet.vectorization.enabled| false              | Enables parquet vectorized reads                       |
+| read.parquet.vectorization.batch-size| 5000            | The batch size for parquet vectorized reads            |
+| read.orc.vectorization.enabled    | false              | Enables orc vectorized reads                           |
+| read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
 
 ### Write properties
 
@@ -57,23 +57,23 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
 | write.target-file-size-bytes       | 536870912 (512 MB) | Controls the size of files generated to target about this many bytes |
-| write.delete.target-file-size-bytes| 67108864 (64 MB) | Controls the size of delete files generated to target about this many bytes |
+| write.delete.target-file-size-bytes| 67108864 (64 MB)   | Controls the size of delete files generated to target about this many bytes |
 | write.distribution-mode            | none               | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder |
 | write.delete.distribution-mode     | hash               | Defines distribution of write delete data          |
-| write.wap.enabled                  | false              | Enables write-audit-publish writes                 |
+| write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
-| write.spark.fanout.enabled         | false              | Enables Partitioned-Fanout-Writer writes in Spark  |
-| write.object-storage.enabled       | false              | Enables to use object-storage location provider by default                |
-| write.data.path                    | a "data" folder underneath the root path of the table | Customize the root path for data files         |
-| write.metadata.path                | a "metadata" folder underneath the root path of the table | Customize the root path for metadata files |                                     
-| write.delete.isolation-level       | serializable       | Defines the isolation level of write delete: serializable and snapshot    |
-| write.delete.mode                  | copy-on-write      | Defines the write delete mode: copy-on-write and merge-on-read(v2 tables only)            |
-| write.update.isolation-level       | serializable       | Defines the isolation level of write update: serializable and snapshot    |
-| write.update.mode                  | copy-on-write      | Defines the write update mode: copy-on-write and merge-on-read(v2 tables only)            |
-| write.merge.isolation-level        | serializable       | Defines the isolation level of write merge: serializable and snapshot     |
-| write.merge.mode                   | copy-on-write      | Defines the write merge mode: copy-on-write and merge-on-read(v2 tables only)             |                        
+| write.spark.fanout.enabled         | false              | Enables the fanout writer in Spark that does not require data to be clustered; uses more memory |
+| write.object-storage.enabled       | false              | Enables the object storage location provider that adds a hash component to file paths |
+| write.data.path                    | table location + /data | Base location for data files |
+| write.metadata.path                | table location + /metadata | Base location for metadata files |
+| write.delete.mode                  | copy-on-write      | Mode used for delete commands: copy-on-write or merge-on-read (v2 only) |
+| write.delete.isolation-level       | serializable       | Isolation level for delete commands: serializable or snapshot |
+| write.update.mode                  | copy-on-write      | Mode used for update commands: copy-on-write or merge-on-read (v2 only) |
+| write.update.isolation-level       | serializable       | Isolation level for update commands: serializable or snapshot |
+| write.merge.mode                   | copy-on-write      | Mode used for merge commands: copy-on-write or merge-on-read (v2 only) |
+| write.merge.isolation-level        | serializable       | Isolation level for merge commands: serializable or snapshot |
 
 ### Table behavior properties
 
@@ -86,7 +86,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.status-check.num-retries    | 3                | Number of times to check whether a commit succeeded after a connection is lost before failing due to an unknown commit state |
 | commit.status-check.min-wait-ms    | 1000 (1s)        | Minimum time in milliseconds to wait before retrying a status-check |
 | commit.status-check.max-wait-ms    | 60000 (1 min)    | Maximum time in milliseconds to wait before retrying a status-check |
-| commit.status-check.total-timeout-ms | 1800000 (30 min) | Total timeout period in which the commit status-check must succeed, in milliseconds |
+| commit.status-check.total-timeout-ms| 1800000 (30 min) | Total timeout period in which the commit status-check must succeed, in milliseconds |
 | commit.manifest.target-size-bytes  | 8388608 (8 MB)   | Target size when merging manifest files                       |
 | commit.manifest.min-count-to-merge | 100              | Minimum number of manifests to accumulate before merging      |
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
@@ -119,9 +119,8 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | warehouse                         | null               | the root path of the data warehouse                    |
 | uri                               | null               | a URI string, such as Hive metastore URI               |
 | clients                           | 2                  | client pool size                                       |
-| client.pool.cache.eviction-interval-ms | 5000          | Controls the duration for which client pool cache      |
-| cache-enabled                     | true               | Controls whether the catalog will cache table entries upon load |
-| cache.expiration-interval-ms      | 30000              | Controls the duration for which table entries in the catalog are cached: Zero - Caching and cache expiration are both disabled; Negative Values - Cache expiration is turned off and entries expire only on refresh; Positive Values - Cache entries expire if not accessed via the cache after this many milliseconds |
+| cache-enabled                     | true               | Whether to cache catalog entries |
+| cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
