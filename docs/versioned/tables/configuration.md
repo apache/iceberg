@@ -44,7 +44,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | Property                           | Default            | Description                                        |
 | ---------------------------------- | ------------------ | -------------------------------------------------- |
 | write.format.default               | parquet            | Default file format for the table; parquet, avro, or orc |
-| write.delete.format.default        | same to data file format | Default delete file format for the table; parquet, avro, or orc |
+| write.delete.format.default        | data file format   | Default delete file format for the table; parquet, avro, or orc |
 | write.parquet.row-group-size-bytes | 134217728 (128 MB) | Parquet row group size                             |
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
