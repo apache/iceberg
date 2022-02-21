@@ -108,7 +108,7 @@ class InputFile(ABC):
 
         Returns:
             InputStream: An object that matches the InputStream protocol
-        
+
         Raises:
             FileNotFoundError: If the file at self.location does not exist
         """
@@ -152,10 +152,10 @@ class OutputFile(ABC):
         Args:
             overwrite(bool): If the file already exists at `self.location`
             and `overwrite` is False a FileExistsError should be raised
-        
+
         Returns:
             OutputStream: An object that matches the OutputStream protocol
-        
+
         Raises:
             FileExistsError: If the file at self.location already exists and `overwrite=False`
         """

@@ -73,6 +73,9 @@ class PyArrowFile(InputFile, OutputFile):
 
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
+
+        Raises:
+            FileNotFoundError: If the file at self.location does not exist
         """
         input_file = self._filesystem.open_input_file(self._path)
         return input_file
