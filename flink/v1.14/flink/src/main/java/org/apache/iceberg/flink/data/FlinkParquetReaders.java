@@ -340,7 +340,7 @@ public class FlinkParquetReaders {
 
     @Override
     public long readLong() {
-      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
       long timeOfDayNanos = byteBuffer.getLong();
       int julianDay = byteBuffer.getInt();
       return DateTimeUtil.microsFromInt96(timeOfDayNanos, julianDay);
