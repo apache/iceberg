@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
@@ -35,8 +34,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 /**
  * Context object with optional arguments for a Flink Scan.
  */
-@Internal
-public class ScanContext implements Serializable {
+class ScanContext implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -114,71 +112,71 @@ public class ScanContext implements Serializable {
     this.exposeLocality = exposeLocality;
   }
 
-  public boolean caseSensitive() {
+  boolean caseSensitive() {
     return caseSensitive;
   }
 
-  public Long snapshotId() {
+  Long snapshotId() {
     return snapshotId;
   }
 
-  public Long startSnapshotId() {
+  Long startSnapshotId() {
     return startSnapshotId;
   }
 
-  public Long endSnapshotId() {
+  Long endSnapshotId() {
     return endSnapshotId;
   }
 
-  public Long asOfTimestamp() {
+  Long asOfTimestamp() {
     return asOfTimestamp;
   }
 
-  public Long splitSize() {
+  Long splitSize() {
     return splitSize;
   }
 
-  public Integer splitLookback() {
+  Integer splitLookback() {
     return splitLookback;
   }
 
-  public Long splitOpenFileCost() {
+  Long splitOpenFileCost() {
     return splitOpenFileCost;
   }
 
-  public boolean isStreaming() {
+  boolean isStreaming() {
     return isStreaming;
   }
 
-  public Duration monitorInterval() {
+  Duration monitorInterval() {
     return monitorInterval;
   }
 
-  public String nameMapping() {
+  String nameMapping() {
     return nameMapping;
   }
 
-  public Schema project() {
+  Schema project() {
     return schema;
   }
 
-  public List<Expression> filters() {
+  List<Expression> filters() {
     return filters;
   }
 
-  public long limit() {
+  long limit() {
     return limit;
   }
 
-  public boolean includeColumnStats() {
+  boolean includeColumnStats() {
     return includeColumnStats;
   }
 
-  public boolean exposeLocality() {
+  boolean exposeLocality() {
     return exposeLocality;
   }
 
-  public ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
+  ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(null)
@@ -194,12 +192,12 @@ public class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
-        .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
+        .includeColumnStats(includeColumnStats)
         .build();
   }
 
-  public ScanContext copyWithSnapshotId(long newSnapshotId) {
+  ScanContext copyWithSnapshotId(long newSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(newSnapshotId)
@@ -220,11 +218,11 @@ public class ScanContext implements Serializable {
         .build();
   }
 
-  public static Builder builder() {
+  static Builder builder() {
     return new Builder();
   }
 
-  public static class Builder {
+  static class Builder {
     private boolean caseSensitive = CASE_SENSITIVE.defaultValue();
     private Long snapshotId = SNAPSHOT_ID.defaultValue();
     private Long startSnapshotId = START_SNAPSHOT_ID.defaultValue();
@@ -245,87 +243,87 @@ public class ScanContext implements Serializable {
     private Builder() {
     }
 
-    public Builder caseSensitive(boolean newCaseSensitive) {
+    Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
       return this;
     }
 
-    public Builder useSnapshotId(Long newSnapshotId) {
+    Builder useSnapshotId(Long newSnapshotId) {
       this.snapshotId = newSnapshotId;
       return this;
     }
 
-    public Builder startSnapshotId(Long newStartSnapshotId) {
+    Builder startSnapshotId(Long newStartSnapshotId) {
       this.startSnapshotId = newStartSnapshotId;
       return this;
     }
 
-    public Builder endSnapshotId(Long newEndSnapshotId) {
+    Builder endSnapshotId(Long newEndSnapshotId) {
       this.endSnapshotId = newEndSnapshotId;
       return this;
     }
 
-    public Builder asOfTimestamp(Long newAsOfTimestamp) {
+    Builder asOfTimestamp(Long newAsOfTimestamp) {
       this.asOfTimestamp = newAsOfTimestamp;
       return this;
     }
 
-    public Builder splitSize(Long newSplitSize) {
+    Builder splitSize(Long newSplitSize) {
       this.splitSize = newSplitSize;
       return this;
     }
 
-    public Builder splitLookback(Integer newSplitLookback) {
+    Builder splitLookback(Integer newSplitLookback) {
       this.splitLookback = newSplitLookback;
       return this;
     }
 
-    public Builder splitOpenFileCost(Long newSplitOpenFileCost) {
+    Builder splitOpenFileCost(Long newSplitOpenFileCost) {
       this.splitOpenFileCost = newSplitOpenFileCost;
       return this;
     }
 
-    public Builder streaming(boolean streaming) {
+    Builder streaming(boolean streaming) {
       this.isStreaming = streaming;
       return this;
     }
 
-    public Builder monitorInterval(Duration newMonitorInterval) {
+    Builder monitorInterval(Duration newMonitorInterval) {
       this.monitorInterval = newMonitorInterval;
       return this;
     }
 
-    public Builder nameMapping(String newNameMapping) {
+    Builder nameMapping(String newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
-    public Builder project(Schema newProjectedSchema) {
+    Builder project(Schema newProjectedSchema) {
       this.projectedSchema = newProjectedSchema;
       return this;
     }
 
-    public Builder filters(List<Expression> newFilters) {
+    Builder filters(List<Expression> newFilters) {
       this.filters = newFilters;
       return this;
     }
 
-    public Builder limit(long newLimit) {
+    Builder limit(long newLimit) {
       this.limit = newLimit;
       return this;
     }
 
-    public Builder includeColumnStats(boolean newIncludeColumnStats) {
+    Builder includeColumnStats(boolean newIncludeColumnStats) {
       this.includeColumnStats = newIncludeColumnStats;
       return this;
     }
 
-    public Builder exposeLocality(boolean newExposeLocality) {
+    Builder exposeLocality(boolean newExposeLocality) {
       this.exposeLocality = newExposeLocality;
       return this;
     }
 
-    public Builder fromProperties(Map<String, String> properties) {
+    Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
 
