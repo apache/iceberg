@@ -57,8 +57,6 @@ public class BaseSnapshotTableSparkAction
   private StagingTableCatalog destCatalog;
   private Identifier destTableIdent;
   private String destTableLocation = null;
-  // Max number of concurrent files to read per partition while indexing table
-  private int readDatafileParallelism = 1;
 
   BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
@@ -106,12 +104,6 @@ public class BaseSnapshotTableSparkAction
   @Override
   public SnapshotTable tableProperty(String property, String value) {
     setProperty(property, value);
-    return this;
-  }
-
-  @Override
-  public SnapshotTable withParallelReads(int numReaders) {
-    this.readDatafileParallelism = numReaders;
     return this;
   }
 

@@ -60,8 +60,6 @@ public class BaseMigrateTableSparkAction
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
-  // Max number of concurrent files to read per partition while indexing table
-  private int readDatafileParallelism = 1;
 
   public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
@@ -95,12 +93,6 @@ public class BaseMigrateTableSparkAction
   @Override
   public MigrateTable tableProperty(String property, String value) {
     setProperty(property, value);
-    return this;
-  }
-
-  @Override
-  public MigrateTable withParallelReads(int numReaders) {
-    this.readDatafileParallelism = numReaders;
     return this;
   }
 
