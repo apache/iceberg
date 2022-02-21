@@ -371,7 +371,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
       String value = snapshotId.toString();
       Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
-              "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
+          "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
 
       Map<String, String> scanOptions = Maps.newHashMap();
       scanOptions.putAll(options.asCaseSensitiveMap());
