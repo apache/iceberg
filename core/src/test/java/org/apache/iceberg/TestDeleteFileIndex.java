@@ -263,7 +263,7 @@ public class TestDeleteFileIndex extends TableTestBase {
     FileScanTask task = tasks.get(0);
     Assert.assertEquals("Should have the correct data file path",
         FILE_B.path(), task.file().path());
-    Assert.assertEquals("Should have one associated delete file",
+    Assert.assertEquals("Should have no delete files to apply",
         0, task.deletes().size());
   }
 
