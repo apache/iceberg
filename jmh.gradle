@@ -26,7 +26,7 @@ def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProper
 def jmhProjects = []
 
 if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4_2.12"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4"))
 }
 
 if (sparkVersions.contains("3.0")) {
