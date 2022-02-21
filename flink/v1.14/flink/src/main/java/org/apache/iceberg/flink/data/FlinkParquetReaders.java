@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -328,7 +329,6 @@ public class FlinkParquetReaders {
   }
 
   private static class TimestampInt96Reader extends ParquetValueReaders.UnboxedReader<Long> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
     TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
@@ -342,11 +342,9 @@ public class FlinkParquetReaders {
     @Override
     public long readLong() {
       final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
-          TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+      long timeOfDayNanos = byteBuffer.getLong();
+      int julianDay = byteBuffer.getInt();
+      return DateTimeUtil.microsFromInt96(timeOfDayNanos, julianDay);
     }
   }
 

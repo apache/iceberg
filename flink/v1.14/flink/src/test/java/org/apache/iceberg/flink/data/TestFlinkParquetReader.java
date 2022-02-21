@@ -148,7 +148,7 @@ public class TestFlinkParquetReader extends DataTest {
     writeAndValidate(RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20), schema);
   }
 
-  protected List<RowData> rowDatasFromFile(InputFile inputFile, Schema schema) throws IOException {
+  protected List<RowData> rowDataFromFile(InputFile inputFile, Schema schema) throws IOException {
     try (CloseableIterable<RowData> reader =
         Parquet.read(inputFile)
             .project(schema)
@@ -190,7 +190,7 @@ public class TestFlinkParquetReader extends DataTest {
     }
 
     InputFile parquetInputFile = Files.localInput(outputFilePath);
-    List<RowData> readDataRows = rowDatasFromFile(parquetInputFile, schema);
+    List<RowData> readDataRows = rowDataFromFile(parquetInputFile, schema);
     Assert.assertEquals(rows.size(), readDataRows.size());
     for (int i = 0; i < rows.size(); i += 1) {
       Assert.assertEquals(rows.get(i).getLong(0), readDataRows.get(i).getLong(0));
@@ -200,7 +200,6 @@ public class TestFlinkParquetReader extends DataTest {
   /**
    * Native Spark ParquetWriter.Builder implementation so that we can write timestamps using Spark's native
    * ParquetWriteSupport.
-   * thanks for the PR https://github.com/apache/iceberg/pull/1184 by @gustavoatt
    */
   private static class NativeSparkWriterBuilder
       extends ParquetWriter.Builder<InternalRow, NativeSparkWriterBuilder> {

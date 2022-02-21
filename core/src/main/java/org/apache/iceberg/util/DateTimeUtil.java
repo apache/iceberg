@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.TimeUnit;
 
 public class DateTimeUtil {
   private DateTimeUtil() {
@@ -37,6 +38,7 @@ public class DateTimeUtil {
   public static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
   public static final long MICROS_PER_MILLIS = 1000L;
+  public static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
@@ -68,6 +70,11 @@ public class DateTimeUtil {
 
   public static long microsFromTimestamp(LocalDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
+  }
+
+  public static long microsFromInt96(long timeOfDayNanos, int julianDay) {
+    return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
+            TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
   }
 
   public static long microsToMillis(long micros) {
