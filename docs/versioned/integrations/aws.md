@@ -44,7 +44,7 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.0 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.0 and AWS clients version 2.17.131, you can start the Spark SQL shell with:
 
 ```sh
 # add Iceberg dependency
@@ -52,7 +52,7 @@ ICEBERG_VERSION={{% icebergVersion %}}
 DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:$ICEBERG_VERSION"
 
 # add AWS dependnecy
-AWS_SDK_VERSION=2.15.40
+AWS_SDK_VERSION=2.17.131
 AWS_MAVEN_GROUP=software.amazon.awssdk
 AWS_PACKAGES=(
     "bundle"
@@ -72,7 +72,7 @@ spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog.lock.table=myGlueLockTable
 ```
 
-As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.15.40`.
+As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.17.131`.
 
 ### Flink
 
@@ -86,7 +86,7 @@ ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
 
 # download AWS dependnecy
-AWS_SDK_VERSION=2.15.40
+AWS_SDK_VERSION=2.17.131
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 AWS_PACKAGES=(
     "bundle"
@@ -436,7 +436,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.15.40 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.131 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -465,7 +465,7 @@ For versions before 6.5.0, you can use a [bootstrap action](https://docs.aws.ama
 ```sh
 #!/bin/bash
 
-AWS_SDK_VERSION=2.15.40
+AWS_SDK_VERSION=2.17.131
 ICEBERG_VERSION={{% icebergVersion %}}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
