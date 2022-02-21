@@ -427,10 +427,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests().size());
     validateDeleteManifest(
         snap.deleteManifests().get(0),
-        seqs(2, 1),
-        ids(snap.snapshotId(), deltaSnapshotId),
+        seqs(2, 2),
+        ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(Status.DELETED, Status.EXISTING));
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @Test
@@ -473,10 +473,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests().size());
     validateDeleteManifest(
         snap.deleteManifests().get(0),
-        seqs(2, 1),
-        ids(snap.snapshotId(), deltaSnapshotId),
+        seqs(2, 2),
+        ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
-        statuses(Status.DELETED, Status.EXISTING));
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @Test
@@ -548,10 +548,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 delete manifest", 1, deleteSnap.deleteManifests().size());
     validateDeleteManifest(
         deleteSnap.deleteManifests().get(0),
-        seqs(1),
-        ids(deltaSnapshotId),
+        seqs(2),
+        ids(deleteSnap.snapshotId()),
         files(FILE_A_DELETES),
-        statuses(Status.ADDED));
+        statuses(Status.DELETED));
 
     // the manifest that removed FILE_A will be dropped next commit, causing the min sequence number of all data files
     // to be 2, the largest known sequence number. this will cause FILE_A_DELETES to be removed because it is too old
@@ -565,13 +565,7 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
 
     Assert.assertEquals("Should have 0 data manifests", 0, nextSnap.dataManifests().size());
-    Assert.assertEquals("Should produce 1 delete manifest", 1, nextSnap.deleteManifests().size());
-    validateDeleteManifest(
-        nextSnap.deleteManifests().get(0),
-        seqs(3),
-        ids(nextSnap.snapshotId()),
-        files(FILE_A_DELETES),
-        statuses(Status.DELETED));
+    Assert.assertEquals("Should produce 0 delete manifest", 0, nextSnap.deleteManifests().size());
   }
 
   @Test
@@ -605,10 +599,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 delete manifest", 1, deleteSnap.deleteManifests().size());
     validateDeleteManifest(
         deleteSnap.deleteManifests().get(0),
-        seqs(1),
-        ids(deltaSnapshotId),
+        seqs(2),
+        ids(deleteSnap.snapshotId()),
         files(FILE_A_DELETES),
-        statuses(Status.ADDED));
+        statuses(Status.DELETED));
 
     // the manifest that removed FILE_A will be dropped next merging commit, but FastAppend will not remove it
     table.newFastAppend()
@@ -638,10 +632,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should produce 1 delete manifest", 1, nextSnap.deleteManifests().size());
     validateDeleteManifest(
         nextSnap.deleteManifests().get(0),
-        seqs(1),
-        ids(deltaSnapshotId),
+        seqs(2),
+        ids(deleteSnap.snapshotId()),
         files(FILE_A_DELETES),
-        statuses(Status.ADDED));
+        statuses(Status.DELETED));
   }
 
   @Test

@@ -272,7 +272,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
     Assert.assertEquals(
         "Delete manifest added row count should equal total count",
-        total,
+        0,
         (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
   }
 
