@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -52,6 +53,15 @@ public class LockManagers {
     } else {
       return defaultLockManager();
     }
+  }
+
+  public static LockManager from(DynMethods.UnboundMethod setVersionId, Map<String, String> properties) {
+    if (properties.containsKey(CatalogProperties.LOCK_IMPL)) {
+      return LockManagers.from(properties);
+    } else if (setVersionId.isNoop()) {
+      return LOCK_MANAGER_DEFAULT;
+    }
+    return null;
   }
 
   private static LockManager loadLockManager(String impl, Map<String, String> properties) {

@@ -64,8 +64,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final LockManager lockManager;
 
-  // Attempt to load versionId if available on the path
-  private static final DynMethods.UnboundMethod LOAD_VERSION_ID = DynMethods.builder("versionId")
+  // Attempt to set versionId if available on the path
+  private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
       .hiddenImpl("software.amazon.awssdk.services.glue.model.UpdateTableRequest$Builder", String.class)
       .orNoop()
       .build();
@@ -148,7 +148,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void lock(String newMetadataLocation) {
-    if (!lockManager.acquire(commitLockEntityId, newMetadataLocation)) {
+    if (lockManager != null && !lockManager.acquire(commitLockEntityId, newMetadataLocation)) {
       throw new IllegalStateException(String.format("Fail to acquire lock %s to commit new metadata at %s",
           commitLockEntityId, newMetadataLocation));
     }
@@ -202,10 +202,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .tableType(GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(parameters)
               .build());
-      // Use Optimistic locking with version id while updating table
-      if (!LOAD_VERSION_ID.isNoop()) {
-        updateTableRequest.versionId(glueTable.versionId());
+      // Use Optimistic locking with table version id while updating table
+      if (!SET_VERSION_ID.isNoop()) {
+        SET_VERSION_ID.invoke(updateTableRequest, glueTable.versionId());
       }
+
       glue.updateTable(updateTableRequest.build());
     } else {
       LOG.debug("Committing new Glue table: {}", tableName());
@@ -233,7 +234,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
       throw e;
     } finally {
-      lockManager.release(commitLockEntityId, metadataLocation);
+      if (lockManager != null) {
+        lockManager.release(commitLockEntityId, metadataLocation);
+      }
     }
   }
 }
