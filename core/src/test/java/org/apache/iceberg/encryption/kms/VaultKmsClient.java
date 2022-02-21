@@ -22,6 +22,9 @@ package org.apache.iceberg.encryption.kms;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
@@ -40,32 +43,42 @@ import org.apache.iceberg.encryption.KmsClient;
  * An implementation of {@link KmsClient} that relies on Hashicorp Vault transit engine to
  * manage encryption keys.
  * On initialization it is manadatory to set the properties {@link VaultKmsClient#KMS_INSTANCE_URL_PROP}
- * and {@link VaultKmsClient#ACCESS_TOKEN_PROP}.
- * Authentication to Vault is done using an access token passed in {@link VaultKmsClient#ACCESS_TOKEN_PROP}.
- * If token is changed - {@link VaultKmsClient#initialize(Map)} should be called again with the new
- * token in property {@link VaultKmsClient#ACCESS_TOKEN_PROP}.
+ * and {@link VaultKmsClient#ACCESS_TOKEN_FILE_PROP}.
+ * Authentication to Vault is done using an access token saved in file pointed to by the property
+ * {@link VaultKmsClient#ACCESS_TOKEN_FILE_PROP}.
+ * The token is refreshed from the file on wrap/unwrap after the number of seconds
+ * defined in {@link VaultKmsClient#ACCESS_TOKEN_VALIDITY_SEC_PROP}, or after the
+ * default period defined by {@link VaultKmsClient#DEFAULT_ACCESS_TOKEN_VALIDITY_SEC}.
  * Pre-requisite: install Hashicorp Vault and enable transit engine as per
  * https://www.vaultproject.io/docs/secrets/transit
  */
 public class VaultKmsClient implements KmsClient {
   /**
-   * Property name for Vault access token.
+   * Property name for Vault access token file path.
    */
-  public static final String ACCESS_TOKEN_PROP = "keystore.kms.client.access.token";
+  public static final String ACCESS_TOKEN_FILE_PROP = "kms.client.vault.access.token.file";
 
   /**
    * Property name for Vault instance URL
    */
-  public static final String KMS_INSTANCE_URL_PROP = "keystore.kms.client.instance.url";
+  public static final String KMS_INSTANCE_URL_PROP = "kms.client.vault.instance.url";
 
+  /**
+   * Property name for Vault access token validity in seconds - how often to refresh the token from file
+   */
+  public static final String ACCESS_TOKEN_VALIDITY_SEC_PROP = "kms.client.vault.access.token.validity.sec";
+
+  private static final String DEFAULT_ACCESS_TOKEN_VALIDITY_SEC = Integer.toString(10 * 60);
   private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
   private static final String TRANSIT_ENGINE = "/v1/transit/";
   private static final String TRANSIT_WRAP_ENDPOINT = "encrypt/";
   private static final String TRANSIT_UNWRAP_ENDPOINT = "decrypt/";
   private static final String TOKEN_HEADER = "X-Vault-Token";
   private static final ObjectMapper objectMapper = new ObjectMapper();
-
+  private String accessTokenFile;
   private String kmsToken;
+  private long kmsTokenNextRefreshTimestamp;
+  private int kmsTokenValiditySeconds;
   private String endPointPrefix;
 
   private transient OkHttpClient httpClient = new OkHttpClient.Builder()
@@ -75,10 +88,17 @@ public class VaultKmsClient implements KmsClient {
 
   @Override
   public void initialize(Map<String, String> properties) {
-    kmsToken = properties.get(ACCESS_TOKEN_PROP);
-    if (null == kmsToken) {
-      throw new RuntimeException("Access token is not set: " + ACCESS_TOKEN_PROP);
+    kmsTokenValiditySeconds = Integer.parseInt(
+        properties.getOrDefault(ACCESS_TOKEN_VALIDITY_SEC_PROP,
+            DEFAULT_ACCESS_TOKEN_VALIDITY_SEC));
+
+    accessTokenFile = properties.get(ACCESS_TOKEN_FILE_PROP);
+    if (null == accessTokenFile) {
+      throw new RuntimeException("Access token file path is not set: " + ACCESS_TOKEN_FILE_PROP);
     }
+    kmsTokenNextRefreshTimestamp = 0L;
+    refreshToken();
+
     String kmsInstanceURL = properties.get(KMS_INSTANCE_URL_PROP);
     if (null == kmsInstanceURL) {
       throw new RuntimeException("Required property is not set: " + KMS_INSTANCE_URL_PROP);
@@ -88,6 +108,7 @@ public class VaultKmsClient implements KmsClient {
 
   @Override
   public String wrapKey(ByteBuffer key, String wrappingKeyId) {
+    refreshToken();
     Map<String, String> writeKeyMap = new HashMap<>(1);
     final String dataKeyStr = Base64.getEncoder().encodeToString(key.array());
     writeKeyMap.put("plaintext", dataKeyStr);
@@ -99,6 +120,7 @@ public class VaultKmsClient implements KmsClient {
 
   @Override
   public ByteBuffer unwrapKey(String wrappedKey, String wrappingKeyId) {
+    refreshToken();
     Map<String, String> writeKeyMap = new HashMap<>(1);
     writeKeyMap.put("ciphertext", wrappedKey);
     String response = getContentFromVault(endPointPrefix + TRANSIT_UNWRAP_ENDPOINT,
@@ -160,5 +182,23 @@ public class VaultKmsClient implements KmsClient {
       throw new RuntimeException("Failed to match vault response. " + searchKey + " not found in: " + response);
     }
     return matchingValue;
+  }
+
+  private synchronized void refreshToken() {
+    long nowTimestamp = System.currentTimeMillis();
+    if (nowTimestamp < kmsTokenNextRefreshTimestamp) {
+      return;
+    }
+    kmsTokenNextRefreshTimestamp = System.currentTimeMillis() + kmsTokenValiditySeconds;
+    if (null == accessTokenFile) {
+      throw new RuntimeException("Access token file path is not set: " + ACCESS_TOKEN_FILE_PROP);
+    }
+    Path path = Paths.get(accessTokenFile);
+    try {
+      kmsToken = Files.readAllLines(path).get(0);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to read access token from file : " + accessTokenFile, e);
+    }
+
   }
 }
