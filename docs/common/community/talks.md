@@ -25,6 +25,12 @@ Here is a list of talks and other videos related to Iceberg.
 ### [Expert Roundtable: The Future of Metadata After Hive Metastore](https://www.youtube.com/watch?v=7_Pt1g2x-XE)
 **Date**: November 15, 2021, **Authors**: Lior Ebel, Seshu Adunuthula, Ryan Blue & Oz Katz
 
+### [Presto and Apache Iceberg: Building out Modern Open Data Lakes](https://www.youtube.com/watch?v=OJQHVPChYHw)
+**Date**: November 10, 2021, **Authors**: Daniel Weeks, Chunxu Tang
+
+### [Iceberg Case Studies](https://www.youtube.com/watch?v=Al8feI9QEBc)
+**Date**: September 29, 2021, **Authors**: Ryan Blue
+
 ### [Spark and Iceberg at Apple's Scale - Leveraging differential files for efficient upserts and deletes](https://www.youtube.com/watch?v=IzkSGKoUxcQ)
 **Date**: October 21, 2020, **Author**: Anton
 
