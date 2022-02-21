@@ -273,110 +273,110 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     ///////////////////////////////
     // assert first batch from file1 with full batch of 2 records
 
-    // variable naming convention: batch_<fileOffset>_<batchId>
-    ArrayBatchRecords<RowData> batch_1_0 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
-    Assert.assertTrue(batch_1_0.finishedSplits().isEmpty());
-    Assert.assertEquals(splitId, batch_1_0.nextSplit());
+    // variable naming convention: batch<fileOffset><batchId>
+    ArrayBatchRecords<RowData> batch10 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
+    Assert.assertTrue(batch10.finishedSplits().isEmpty());
+    Assert.assertEquals(splitId, batch10.nextSplit());
     // reusable array size should be the configured value of 2
-    Assert.assertEquals(2, batch_1_0.records().length);
+    Assert.assertEquals(2, batch10.records().length);
     // assert actual number of records in the array
-    Assert.assertEquals(2, batch_1_0.numberOfRecords());
+    Assert.assertEquals(2, batch10.numberOfRecords());
 
     RecordAndPosition<RowData> recordAndPosition;
 
-    recordAndPosition = batch_1_0.nextRecordFromSplit();
+    recordAndPosition = batch10.nextRecordFromSplit();
     Assert.assertEquals(1, recordAndPosition.fileOffset());
     // seek should skip the first record in file1. starting from the second record
     Assert.assertEquals(2, recordAndPosition.recordOffset());
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records1.get(1), recordAndPosition.record());
 
-    recordAndPosition = batch_1_0.nextRecordFromSplit();
+    recordAndPosition = batch10.nextRecordFromSplit();
     Assert.assertEquals(1, recordAndPosition.fileOffset());
     // The position points to where the reader should resume after this record is processed.
     Assert.assertEquals(3, recordAndPosition.recordOffset());
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records1.get(2), recordAndPosition.record());
 
-    Assert.assertNull(batch_1_0.nextRecordFromSplit());
-    Assert.assertNull(batch_1_0.nextSplit());
-    batch_1_0.recycle();
+    Assert.assertNull(batch10.nextRecordFromSplit());
+    Assert.assertNull(batch10.nextSplit());
+    batch10.recycle();
 
     ///////////////////////////////
     // assert second batch from file1 with partial batch of 1 record
 
     // variable naming convention: batch_<fileOffset>_<batchId>
-    ArrayBatchRecords<RowData> batch_1_1 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
+    ArrayBatchRecords<RowData> batch11 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
     // assert array is reused
-    Assert.assertSame(batch_1_0.records(), batch_1_1.records());
-    Assert.assertTrue(batch_1_1.finishedSplits().isEmpty());
-    Assert.assertEquals(splitId, batch_1_1.nextSplit());
+    Assert.assertSame(batch10.records(), batch11.records());
+    Assert.assertTrue(batch11.finishedSplits().isEmpty());
+    Assert.assertEquals(splitId, batch11.nextSplit());
     // reusable array size should be the configured value of 2
-    Assert.assertEquals(2, batch_1_1.records().length);
+    Assert.assertEquals(2, batch11.records().length);
     // assert actual number of records in the array
-    Assert.assertEquals(1, batch_1_1.numberOfRecords());
+    Assert.assertEquals(1, batch11.numberOfRecords());
 
-    recordAndPosition = batch_1_1.nextRecordFromSplit();
+    recordAndPosition = batch11.nextRecordFromSplit();
     Assert.assertEquals(1, recordAndPosition.fileOffset());
     // The position points to where the reader should resume after this record is processed.
     Assert.assertEquals(4, recordAndPosition.recordOffset());
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records1.get(3), recordAndPosition.record());
 
-    Assert.assertNull(batch_1_1.nextRecordFromSplit());
-    Assert.assertNull(batch_1_1.nextSplit());
-    batch_1_1.recycle();
+    Assert.assertNull(batch11.nextRecordFromSplit());
+    Assert.assertNull(batch11.nextSplit());
+    batch11.recycle();
 
     ///////////////////////////////
     // assert first batch from file2 with full batch of 2 records
 
     // variable naming convention: batch_<fileOffset>_<batchId>
-    ArrayBatchRecords<RowData> batch_2_0 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
+    ArrayBatchRecords<RowData> batch20 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
     // assert array is reused
-    Assert.assertSame(batch_1_0.records(), batch_2_0.records());
-    Assert.assertTrue(batch_2_0.finishedSplits().isEmpty());
-    Assert.assertEquals(splitId, batch_2_0.nextSplit());
+    Assert.assertSame(batch10.records(), batch20.records());
+    Assert.assertTrue(batch20.finishedSplits().isEmpty());
+    Assert.assertEquals(splitId, batch20.nextSplit());
     // reusable array size should be the configured value of 2
-    Assert.assertEquals(2, batch_2_0.records().length);
+    Assert.assertEquals(2, batch20.records().length);
     // assert actual number of records in the array
-    Assert.assertEquals(2, batch_2_0.numberOfRecords());
+    Assert.assertEquals(2, batch20.numberOfRecords());
 
-    recordAndPosition = batch_2_0.nextRecordFromSplit();
+    recordAndPosition = batch20.nextRecordFromSplit();
     Assert.assertEquals(2, recordAndPosition.fileOffset());
     // The position points to where the reader should resume after this record is processed.
     Assert.assertEquals(1, recordAndPosition.recordOffset());
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records2.get(0), recordAndPosition.record());
 
-    recordAndPosition = batch_2_0.nextRecordFromSplit();
+    recordAndPosition = batch20.nextRecordFromSplit();
     Assert.assertEquals(2, recordAndPosition.fileOffset());
     // The position points to where the reader should resume after this record is processed.
     Assert.assertEquals(2, recordAndPosition.recordOffset());
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records2.get(1), recordAndPosition.record());
 
-    Assert.assertNull(batch_2_0.nextRecordFromSplit());
-    Assert.assertNull(batch_2_0.nextSplit());
-    batch_2_0.recycle();
+    Assert.assertNull(batch20.nextRecordFromSplit());
+    Assert.assertNull(batch20.nextSplit());
+    batch20.recycle();
 
     ///////////////////////////////
     // assert second batch from file2 with partial batch of 1 record
 
     // variable naming convention: batch_<fileOffset>_<batchId>
-    ArrayBatchRecords<RowData> batch_2_1 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
+    ArrayBatchRecords<RowData> batch21 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
     // assert array is reused
-    Assert.assertSame(batch_1_0.records(), batch_2_1.records());
-    Assert.assertTrue(batch_2_1.finishedSplits().isEmpty());
-    Assert.assertEquals(splitId, batch_2_1.nextSplit());
+    Assert.assertSame(batch10.records(), batch21.records());
+    Assert.assertTrue(batch21.finishedSplits().isEmpty());
+    Assert.assertEquals(splitId, batch21.nextSplit());
     // reusable array size should be the configured value of 2
-    Assert.assertEquals(2, batch_2_1.records().length);
+    Assert.assertEquals(2, batch21.records().length);
     // assert actual number of records in the array
-    Assert.assertEquals(1, batch_2_1.numberOfRecords());
+    Assert.assertEquals(1, batch21.numberOfRecords());
 
-    recordAndPosition = batch_2_1.nextRecordFromSplit();
+    recordAndPosition = batch21.nextRecordFromSplit();
     Assert.assertEquals(2, recordAndPosition.fileOffset());
     // The position points to where the reader should resume after this record is processed.
     Assert.assertEquals(3, recordAndPosition.recordOffset());
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records2.get(2), recordAndPosition.record());
 
-    Assert.assertNull(batch_2_1.nextRecordFromSplit());
-    Assert.assertNull(batch_2_1.nextSplit());
-    batch_2_1.recycle();
+    Assert.assertNull(batch21.nextRecordFromSplit());
+    Assert.assertNull(batch21.nextSplit());
+    batch21.recycle();
 
     // assert end of input
     Assert.assertFalse(recordBatchIterator.hasNext());

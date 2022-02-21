@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.NoSuchElementException;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
