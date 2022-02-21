@@ -37,6 +37,7 @@ import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import scala.collection.compat.immutable.ArraySeq
 import scala.collection.mutable
 
 trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
@@ -120,7 +121,7 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
       operation: RowLevelOperation): Seq[AttributeReference] = {
 
     ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
-      operation.requiredMetadataAttributes,
+      operation.requiredMetadataAttributes.toSeq,
       relation)
   }
 
@@ -131,7 +132,7 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
     operation match {
       case supportsDelta: SupportsDelta =>
         val rowIdAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
-          supportsDelta.rowId,
+          supportsDelta.rowId.toSeq,
           relation)
 
         val nullableRowIdAttrs = rowIdAttrs.filter(_.nullable)

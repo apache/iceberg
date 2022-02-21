@@ -99,6 +99,15 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
   /**
+   * Passes an alternative executor service that will be used for planning.
+   * If this method is not called, the default worker pool will be used.
+   *
+   * @param executorService an executor service to plan
+   * @return this for method chaining
+   */
+  ExpireSnapshots planWith(ExecutorService executorService);
+
+  /**
    * Allows expiration of snapshots without any cleanup of underlying manifest or data files.
    * <p>
    * Allows control in removing data and manifest files which may be more efficiently removed using

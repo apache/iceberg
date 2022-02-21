@@ -38,6 +38,8 @@ case class MergeRows(
     output: Seq[Attribute],
     child: LogicalPlan) extends UnaryNode {
 
+  require(targetOutput.nonEmpty || !emitNotMatchedTargetRows)
+
   override lazy val producedAttributes: AttributeSet = {
     AttributeSet(output.filterNot(attr => inputSet.contains(attr)))
   }

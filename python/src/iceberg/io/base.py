@@ -26,6 +26,54 @@ its location.
 from abc import ABC, abstractmethod
 from typing import Union
 
+try:
+    from typing import Protocol, runtime_checkable
+except ImportError:  # pragma: no cover
+    from typing_extensions import Protocol  # type: ignore
+    from typing_extensions import runtime_checkable
+
+
+@runtime_checkable
+class InputStream(Protocol):  # pragma: no cover
+    """A protocol for the file-like object returned by InputFile.open(...)
+
+    This outlines the minimally required methods for a seekable input stream returned from an InputFile
+    implementation's `open(...)` method. These methods are a subset of IOBase/RawIOBase.
+    """
+
+    def read(self, size: int) -> bytes:
+        ...
+
+    def seek(self, offset: int, whence: int) -> None:
+        ...
+
+    def tell(self) -> int:
+        ...
+
+    def closed(self) -> bool:
+        ...
+
+    def close(self) -> None:
+        ...
+
+
+@runtime_checkable
+class OutputStream(Protocol):  # pragma: no cover
+    """A protocol for the file-like object returned by OutputFile.create(...)
+
+    This outlines the minimally required methods for a writable output stream returned from an OutputFile
+    implementation's `create(...)` method. These methods are a subset of IOBase/RawIOBase.
+    """
+
+    def write(self, b: bytes) -> None:
+        ...
+
+    def closed(self) -> bool:
+        ...
+
+    def close(self) -> None:
+        ...
+
 
 class InputFile(ABC):
     """A base class for InputFile implementations"""
@@ -48,8 +96,11 @@ class InputFile(ABC):
         """Checks whether the file exists"""
 
     @abstractmethod
-    def open(self):
-        """This method should return an instance of an seekable input stream."""
+    def open(self) -> InputStream:
+        """This method should return an object that matches the InputStream protocol
+
+        If a file does not exist at `self.location`, this should raise a FileNotFoundError.
+        """
 
 
 class OutputFile(ABC):
@@ -77,8 +128,8 @@ class OutputFile(ABC):
         """Returns an InputFile for the location of this output file"""
 
     @abstractmethod
-    def create(self, overwrite: bool = False):
-        """This method should return a file-like object.
+    def create(self, overwrite: bool = False) -> OutputStream:
+        """This method should return an object that matches the OutputStream protocol.
 
         Args:
             overwrite(bool): If the file already exists at `self.location`
@@ -87,6 +138,8 @@ class OutputFile(ABC):
 
 
 class FileIO(ABC):
+    """A base class for FileIO implementations"""
+
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
         """Get an InputFile instance to read bytes from the file at the given location"""

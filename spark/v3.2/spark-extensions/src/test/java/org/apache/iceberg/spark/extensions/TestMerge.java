@@ -84,10 +84,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
-    append(tableName,
-        "{ \"id\": 1, \"dep\": \"software\" }\n" +
-        "{ \"id\": 11, \"dep\": \"software\" }\n" +
-        "{ \"id\": 1, \"dep\": \"hr\" }");
+    // add a data file to the 'software' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
+
+    // add a data file to the 'hr' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -99,27 +100,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"finance\" }\n" +
         "{ \"id\": 2, \"dep\": \"hardware\" }");
 
-    // disable dynamic pruning and rely only on static predicate pushdown
-    withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
-      sql("MERGE INTO %s t USING source " +
-          "ON t.id == source.id AND t.dep IN ('software') AND source.id < 10 " +
-          "WHEN MATCHED AND source.id = 1 THEN " +
-          "  UPDATE SET dep = source.dep " +
-          "WHEN NOT MATCHED THEN " +
-          "  INSERT (dep, id) VALUES (source.dep, source.id)", tableName);
+    // remove the data file from the 'hr' partition to ensure it is not scanned
+    withUnavailableFiles(snapshot.addedFiles(), () -> {
+      // disable dynamic pruning and rely only on static predicate pushdown
+      withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
+        sql("MERGE INTO %s t USING source " +
+            "ON t.id == source.id AND t.dep IN ('software') AND source.id < 10 " +
+            "WHEN MATCHED AND source.id = 1 THEN " +
+            "  UPDATE SET dep = source.dep " +
+            "WHEN NOT MATCHED THEN " +
+            "  INSERT (dep, id) VALUES (source.dep, source.id)", tableName);
+      });
     });
-
-    table.refresh();
-
-    Snapshot mergeSnapshot = table.currentSnapshot();
-    String deletedDataFilesCount = mergeSnapshot.summary().get(SnapshotSummary.DELETED_FILES_PROP);
-    Assert.assertEquals("Must overwrite only 1 file", "1", deletedDataFilesCount);
 
     ImmutableList<Object[]> expectedRows = ImmutableList.of(
         row(1L, "finance"),  // updated
         row(1L, "hr"),       // kept
-        row(2L, "hardware"), // new
-        row(11L, "software") // kept
+        row(2L, "hardware")  // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }

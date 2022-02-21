@@ -72,6 +72,7 @@ class ScanContext implements Serializable {
       ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
 
   private final boolean caseSensitive;
+  private final boolean exposeLocality;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -90,8 +91,8 @@ class ScanContext implements Serializable {
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-                      boolean isStreaming, Duration monitorInterval, String nameMapping,
-                      Schema schema, List<Expression> filters, long limit, boolean includeColumnStats) {
+                      boolean isStreaming, Duration monitorInterval, String nameMapping, Schema schema,
+                      List<Expression> filters, long limit, boolean includeColumnStats, boolean exposeLocality) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -108,6 +109,7 @@ class ScanContext implements Serializable {
     this.filters = filters;
     this.limit = limit;
     this.includeColumnStats = includeColumnStats;
+    this.exposeLocality = exposeLocality;
   }
 
   boolean caseSensitive() {
@@ -170,6 +172,10 @@ class ScanContext implements Serializable {
     return includeColumnStats;
   }
 
+  boolean exposeLocality() {
+    return exposeLocality;
+  }
+
   ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -186,6 +192,7 @@ class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
+        .exposeLocality(exposeLocality)
         .includeColumnStats(includeColumnStats)
         .build();
   }
@@ -207,6 +214,7 @@ class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
         .build();
   }
 
@@ -230,6 +238,7 @@ class ScanContext implements Serializable {
     private List<Expression> filters;
     private long limit = -1L;
     private boolean includeColumnStats = INCLUDE_COLUMN_STATS.defaultValue();
+    private boolean exposeLocality;
 
     private Builder() {
     }
@@ -309,6 +318,11 @@ class ScanContext implements Serializable {
       return this;
     }
 
+    Builder exposeLocality(boolean newExposeLocality) {
+      this.exposeLocality = newExposeLocality;
+      return this;
+    }
+
     Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
@@ -331,7 +345,7 @@ class ScanContext implements Serializable {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
           splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, includeColumnStats);
+          filters, limit, includeColumnStats, exposeLocality);
     }
   }
 }

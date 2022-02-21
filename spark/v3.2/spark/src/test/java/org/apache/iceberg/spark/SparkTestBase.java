@@ -19,12 +19,19 @@
 
 package org.apache.iceberg.spark;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -170,6 +177,36 @@ public abstract class SparkTestBase {
 
   protected static String dbPath(String dbName) {
     return metastore.getDatabasePath(dbName);
+  }
+
+  protected void withUnavailableFiles(Iterable<? extends ContentFile<?>> files, Action action) {
+    Iterable<String> fileLocations = Iterables.transform(files, file -> file.path().toString());
+    withUnavailableLocations(fileLocations, action);
+  }
+
+  private void move(String location, String newLocation) {
+    Path path = Paths.get(URI.create(location));
+    Path tempPath = Paths.get(URI.create(newLocation));
+
+    try {
+      Files.move(path, tempPath);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to move: " + location, e);
+    }
+  }
+
+  protected void withUnavailableLocations(Iterable<String> locations, Action action) {
+    for (String location : locations) {
+      move(location, location + "_temp");
+    }
+
+    try {
+      action.invoke();
+    } finally {
+      for (String location : locations) {
+        move(location + "_temp", location);
+      }
+    }
   }
 
   protected void withSQLConf(Map<String, String> conf, Action action) {
