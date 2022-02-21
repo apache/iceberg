@@ -407,7 +407,7 @@ public class SparkTableUtil {
         Preconditions.checkArgument(!sourceTablePartitions.isEmpty(),
             "Cannot find any partitions in table %s", sourceTableIdent);
         importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles,
-                parallelism);
+            parallelism);
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
@@ -486,7 +486,7 @@ public class SparkTableUtil {
 
       List<DataFile> files = TableMigrationUtil.listPartition(
           partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping,
-              parallelism);
+          parallelism);
 
       if (checkDuplicateFiles) {
         Dataset<Row> importedFiles = spark.createDataset(
@@ -541,10 +541,11 @@ public class SparkTableUtil {
         Encoders.javaSerialization(SparkPartition.class));
 
     Dataset<DataFile> filesToImport = partitionDS
-        .flatMap((FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
+        .flatMap(
+            (FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
                 TableMigrationUtil.listPartition(sparkPartition.values, sparkPartition.uri,
-                        sparkPartition.format, spec, serializableConf.get(), metricsConfig, nameMapping,
-                        listPartitionParallelism).iterator(),
+                    sparkPartition.format, spec, serializableConf.get(), metricsConfig, nameMapping,
+                    listPartitionParallelism).iterator(),
             Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {

@@ -197,7 +197,7 @@ class AddFilesProcedure extends BaseProcedure {
                                 boolean checkDuplicateFiles, int parallelism) {
     String stagingLocation = getMetadataLocation(table);
     SparkTableUtil.importSparkPartitions(spark(), partitions, table, table.spec(), stagingLocation,
-            checkDuplicateFiles, parallelism);
+        checkDuplicateFiles, parallelism);
   }
 
   private String getMetadataLocation(Table table) {

@@ -96,7 +96,6 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-
   @Test
   public void testSnapshotWithParallelism() throws IOException {
     String location = temp.newFolder().toString();
@@ -115,7 +114,8 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String tableLocation = createdTable.location();
     Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
