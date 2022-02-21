@@ -174,7 +174,7 @@ public class ScanContext implements Serializable {
     return includeColumnStats;
   }
 
-  boolean exposeLocality() {
+  public boolean exposeLocality() {
     return exposeLocality;
   }
 
@@ -194,8 +194,8 @@ public class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
-        .exposeLocality(exposeLocality)
         .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
         .build();
   }
 
