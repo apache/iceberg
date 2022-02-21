@@ -271,6 +271,10 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     // file0 is skipped by seek
 
     ///////////////////////////////
+    // file1 has 4 records. because the seek position, first record is skipped.
+    // we should read 3 remaining records in 2 batches:
+    // batch10 with 2 records and batch11 with 1 records.
+
     // assert first batch from file1 with full batch of 2 records
 
     // variable naming convention: batch<fileOffset><batchId>
@@ -300,7 +304,6 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     Assert.assertNull(batch10.nextSplit());
     batch10.recycle();
 
-    ///////////////////////////////
     // assert second batch from file1 with partial batch of 1 record
 
     // variable naming convention: batch_<fileOffset>_<batchId>
@@ -325,6 +328,10 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     batch11.recycle();
 
     ///////////////////////////////
+    // file2 has 3 records.
+    // we should read 3 records in 2 batches:
+    // batch20 with 2 records and batch21 with 1 records
+
     // assert first batch from file2 with full batch of 2 records
 
     // variable naming convention: batch_<fileOffset>_<batchId>
