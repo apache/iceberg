@@ -30,7 +30,6 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
-import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -39,7 +38,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 public class AwsClientFactories {
 
-  private static final SdkHttpClient HTTP_CLIENT_DEFAULT = UrlConnectionHttpClient.create();
   private static final DefaultAwsClientFactory AWS_CLIENT_FACTORY_DEFAULT = new DefaultAwsClientFactory();
 
   private AwsClientFactories() {
@@ -89,7 +87,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClient(HTTP_CLIENT_DEFAULT)
+          .httpClient(UrlConnectionHttpClient.create())
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -97,17 +95,17 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
-      return GlueClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return GlueClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return KmsClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
-      return DynamoDbClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
     }
 
     @Override
