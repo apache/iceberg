@@ -85,7 +85,7 @@ public class SparkParquetWritersNestedDataBenchmark {
     dataFile.delete();
   }
 
-  @TearDown(Level.Invocation)
+  @TearDown(Level.Iteration)
   public void tearDownBenchmark() {
     if (dataFile != null) {
       dataFile.delete();
