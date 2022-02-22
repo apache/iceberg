@@ -73,9 +73,9 @@ paths:
         properties from the server to configure the catalog and its HTTP client.
         Configuration from the server consists of two sets of key/value pairs.
 
-        * defaults -  properties that should be used as default configuration; applied before client configuration
+        - defaults -  properties that should be used as default configuration; applied before client configuration
 
-        * overrides - properties that should be used to override client configuration; applied after defaults and client configuration
+        - overrides - properties that should be used to override client configuration; applied after defaults and client configuration
 
 
         Catalog configuration is constructed by setting the defaults, then client-
