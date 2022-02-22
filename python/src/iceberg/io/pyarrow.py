@@ -161,6 +161,9 @@ class PyArrowFileIO(FileIO):
             location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an
             OutputFile instance is provided, the location attribute for that instance is used as the location
             to delete
+
+        Raises:
+            FileNotFoundError: When the file at the provided location does not exist
         """
         str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
         filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
