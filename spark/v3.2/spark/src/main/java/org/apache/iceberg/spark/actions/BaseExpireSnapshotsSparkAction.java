@@ -70,7 +70,7 @@ public class BaseExpireSnapshotsSparkAction
     extends BaseSparkAction<ExpireSnapshots, ExpireSnapshots.Result> implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
 
-  private static final String DATA_FILE = "Data File";
+  private static final String CONTENT_FILE = "Content File";
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
 
@@ -226,7 +226,7 @@ public class BaseExpireSnapshotsSparkAction
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, this.table.io());
-    return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
+    return appendTypeString(buildValidContentFileDF(staticTable), CONTENT_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
         .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
@@ -255,9 +255,9 @@ public class BaseExpireSnapshotsSparkAction
           String type = fileInfo.getString(1);
           deleteFunc.accept(file);
           switch (type) {
-            case DATA_FILE:
+            case CONTENT_FILE:
               dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Data File: {}", file);
+              LOG.trace("Deleted Content File: {}", file);
               break;
             case MANIFEST:
               manifestCount.incrementAndGet();
