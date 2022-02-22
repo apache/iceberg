@@ -203,7 +203,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .parameters(parameters)
               .build());
       // Use Optimistic locking with table version id while updating table
-      if (!SET_VERSION_ID.isNoop()) {
+      if (!SET_VERSION_ID.isNoop() && lockManager == null) {
         SET_VERSION_ID.invoke(updateTableRequest, glueTable.versionId());
       }
 
