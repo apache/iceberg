@@ -21,6 +21,8 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
@@ -259,15 +261,15 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
         TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName()
     );
 
-    // Initialize a BoundedSource table to precisely control that those 9 rows will be emitted in only one checkpoint.
-    List<Row> dataSet = ImmutableList.of(
-        Row.of(1, "aaa"), Row.of(1, "bbb"), Row.of(1, "ccc"),
-        Row.of(2, "aaa"), Row.of(2, "bbb"), Row.of(2, "ccc"),
-        Row.of(3, "aaa"), Row.of(3, "bbb"), Row.of(3, "ccc"));
+    // Initialize a BoundedSource table to precisely emit those rows in only one checkpoint.
+    List<Row> dataSet = IntStream.range(1, 1000)
+        .mapToObj(i -> ImmutableList.of(Row.of(i, "aaa"), Row.of(i, "bbb"), Row.of(i, "ccc")))
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
     String dataId = BoundedTableFactory.registerDataSet(ImmutableList.of(dataSet));
     sql("CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)" +
         " WITH ('connector'='BoundedSource', 'data-id'='%s')", SOURCE_TABLE, dataId);
-    Assert.assertEquals("Should have the expected rows", Sets.newHashSet(dataSet),
+    Assert.assertEquals("Should have the expected rows in source table.", Sets.newHashSet(dataSet),
         Sets.newHashSet(sql("SELECT * FROM %s", SOURCE_TABLE)));
 
     sql("CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
@@ -277,21 +279,12 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
       // Insert data set.
       sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
 
-      Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
-      SimpleDataUtil.assertTableRecords(table, ImmutableList.of(
-          SimpleDataUtil.createRecord(1, "aaa"),
-          SimpleDataUtil.createRecord(1, "bbb"),
-          SimpleDataUtil.createRecord(1, "ccc"),
-          SimpleDataUtil.createRecord(2, "aaa"),
-          SimpleDataUtil.createRecord(2, "bbb"),
-          SimpleDataUtil.createRecord(2, "ccc"),
-          SimpleDataUtil.createRecord(3, "aaa"),
-          SimpleDataUtil.createRecord(3, "bbb"),
-          SimpleDataUtil.createRecord(3, "ccc")
-      ));
+      Assert.assertEquals("Should have the expected rows in sink table.", Sets.newHashSet(dataSet),
+          Sets.newHashSet(sql("SELECT * FROM %s", tableName)));
 
       // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval,
       // thus producing multiple snapshots.  Here we assert that each snapshot has only 1 file per partition.
+      Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
       Map<Long, List<DataFile>> snapshotToDataFiles = SimpleDataUtil.snapshotToDataFiles(table);
       for (List<DataFile> dataFiles : snapshotToDataFiles.values()) {
         if (dataFiles.isEmpty()) {
