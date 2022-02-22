@@ -275,10 +275,10 @@ public class SimpleDataUtil {
       TableScan tableScan = table.newScan();
       if (current.parentId() != null) {
         // Collect the data files that was added only in current snapshot.
-        tableScan.appendsBetween(current.parentId(), current.snapshotId());
+        tableScan = tableScan.appendsBetween(current.parentId(), current.snapshotId());
       } else {
         // Collect the data files that was added in the oldest snapshot.
-        tableScan.useSnapshot(current.snapshotId());
+        tableScan = tableScan.useSnapshot(current.snapshotId());
       }
       try (CloseableIterable<FileScanTask> scanTasks = tableScan.planFiles()) {
         result.put(current.snapshotId(), ImmutableList.copyOf(Iterables.transform(scanTasks, FileScanTask::file)));
