@@ -100,7 +100,12 @@ class InputFile(ABC):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the location exists"""
+        """Checks whether the location exists
+
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
+        """
 
     @abstractmethod
     def open(self) -> InputStream:
@@ -110,6 +115,7 @@ class InputFile(ABC):
             InputStream: An object that matches the InputStream protocol
 
         Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
             FileNotFoundError: If the file at self.location does not exist
         """
 
@@ -139,7 +145,12 @@ class OutputFile(ABC):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the location exists"""
+        """Checks whether the location exists
+
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
+        """
 
     @abstractmethod
     def to_input_file(self) -> InputFile:
@@ -157,6 +168,7 @@ class OutputFile(ABC):
             OutputStream: An object that matches the OutputStream protocol
 
         Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
             FileExistsError: If the file at self.location already exists and `overwrite=False`
         """
 
@@ -187,4 +199,8 @@ class FileIO(ABC):
         Args:
             location(str, InputFile, OutputFile): A URI or a path to a local file--if an InputFile instance or
             an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
+
+        Raises:
+            PermissionError: If the file at location cannot be accessed due to a permission error
+            FileNotFoundError: When the file at the provided location does not exist
         """
