@@ -109,8 +109,17 @@ public class GlueCatalog extends BaseMetastoreCatalog
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         AwsClientFactories.from(properties).glue(),
-        LockManagers.from(SET_VERSION_ID, properties),
+        initializeLockManager(properties),
         initializeFileIO(properties));
+  }
+
+  private LockManager initializeLockManager(Map<String, String> properties) {
+    if (properties.containsKey(CatalogProperties.LOCK_IMPL)) {
+      return LockManagers.from(properties);
+    } else if (SET_VERSION_ID.isNoop()) {
+      return LockManagers.LOCK_MANAGER_DEFAULT;
+    }
+    return null;
   }
 
   private FileIO initializeFileIO(Map<String, String> properties) {
