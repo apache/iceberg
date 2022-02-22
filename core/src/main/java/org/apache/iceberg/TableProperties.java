@@ -97,15 +97,15 @@ public class TableProperties {
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
   public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = "write.delete.parquet.row-group-size-bytes";
-  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 134217728; // 128 MB
+  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
   public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = "write.delete.parquet.page-size-bytes";
-  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1048576; // 1 MB
+  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
   public static final String DELETE_PARQUET_DICT_SIZE_BYTES = "write.delete.parquet.dict-size-bytes";
-  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2097152; // 2 MB
+  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2 * 1024 * 1024; // 2 MB
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
