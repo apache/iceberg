@@ -72,6 +72,10 @@ public class Namespace {
     return levels.length == 0;
   }
 
+  public int length() {
+    return levels.length;
+  }
+
   @Override
   public boolean equals(Object other) {
     if (this == other) {
