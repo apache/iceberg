@@ -223,6 +223,7 @@ project(':iceberg-core') {
 
     implementation("org.apache.httpcomponents.client5:httpclient5") {
       exclude group: 'org.slf4j'
+      exclude group: 'commons-codec'
     }
 
 //    testImplementation 'org.mock-server:mockserver-netty'
