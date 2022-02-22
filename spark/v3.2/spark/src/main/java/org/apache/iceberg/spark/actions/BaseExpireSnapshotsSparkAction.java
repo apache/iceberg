@@ -58,7 +58,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * <p>
  * This action first leverages {@link org.apache.iceberg.ExpireSnapshots} to expire snapshots and then
  * uses metadata tables to find files that can be safely deleted. This is done by anti-joining two Datasets
- * that contain all manifest and data files before and after the expiration. The snapshot expiration
+ * that contain all manifest and content files before and after the expiration. The snapshot expiration
  * will be fully committed before any deletes are issued.
  * <p>
  * This operation performs a shuffle so the parallelism can be controlled through 'spark.sql.shuffle.partitions'.

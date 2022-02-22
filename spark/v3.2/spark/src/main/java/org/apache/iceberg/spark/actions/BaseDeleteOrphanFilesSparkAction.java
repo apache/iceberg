@@ -61,8 +61,8 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
- * An action that removes orphan metadata and data files by listing a given location and comparing
- * the actual files in that location with data and metadata files referenced by all valid snapshots.
+ * An action that removes orphan metadata, data and delete files by listing a given location and comparing
+ * the actual files in that location with content and metadata files referenced by all valid snapshots.
  * The location must be accessible for listing via the Hadoop {@link FileSystem}.
  * <p>
  * By default, this action cleans up the table location returned by {@link Table#location()} and

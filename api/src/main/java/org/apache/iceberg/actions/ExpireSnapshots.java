@@ -65,12 +65,12 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   ExpireSnapshots retainLast(int numSnapshots);
 
   /**
-   * Passes an alternative delete implementation that will be used for manifests and data files.
+   * Passes an alternative delete implementation that will be used for manifests, data and delete files.
    * <p>
-   * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
-   * deleted by snapshots that are expired will be deleted.
+   * Manifest files that are no longer used by valid snapshots will be deleted. Content files that were
+   * marked as logically deleted by snapshots that are expired will be deleted as well.
    * <p>
-   * If this method is not called, unnecessary manifests and data files will still be deleted.
+   * If this method is not called, unnecessary manifests and content files will still be deleted.
    * <p>
    * Identical to {@link org.apache.iceberg.ExpireSnapshots#deleteWith(Consumer)}
    *
@@ -80,9 +80,9 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative executor service that will be used for manifests and data files deletion.
+   * Passes an alternative executor service that will be used for manifests, data and delete files deletion.
    * <p>
-   * If this method is not called, unnecessary manifests and data files will still be deleted in
+   * If this method is not called, unnecessary manifests and content files will still be deleted in
    * the current thread.
    * <p>
    * Identical to {@link org.apache.iceberg.ExpireSnapshots#executeDeleteWith(ExecutorService)}
