@@ -59,7 +59,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     extends BaseSnapshotUpdateAction<ThisT, RewriteDataFilesActionResult> {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesAction.class);
-  private static final int PARQUET_MAGIC_BYTES = 4;
+  private static final int PARQUET_MAGIC_LEN = 4;
 
   private final Table table;
   private final FileIO fileIO;
@@ -304,7 +304,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       FileScanTask fileScanTask = task.files().iterator().next();
       if (fileScanTask.file().format() == FileFormat.PARQUET) {
         // in parquet format, there is an initial offset of 4 bytes
-        return fileScanTask.file().fileSizeInBytes() != (fileScanTask.length() + PARQUET_MAGIC_BYTES);
+        return fileScanTask.file().fileSizeInBytes() != (fileScanTask.length() + PARQUET_MAGIC_LEN);
       }
       return fileScanTask.file().fileSizeInBytes() != fileScanTask.length();
     } else {
