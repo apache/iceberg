@@ -176,12 +176,6 @@ public class TableProperties {
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
 
-  /**
-   * @deprecated will be removed in 0.14.0, use {@link #WRITE_DATA_LOCATION} instead
-   */
-  @Deprecated
-  public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
-
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
   // If not set, defaults to a "data" folder underneath the root path of the table.
@@ -236,11 +230,6 @@ public class TableProperties {
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
   public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
-  /**
-   * @deprecated will be removed in 0.14.0, use specific modes instead
-   */
-  @Deprecated
-  public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = WRITE_DISTRIBUTION_MODE_NONE;
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
