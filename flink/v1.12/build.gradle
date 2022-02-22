@@ -21,7 +21,7 @@ String flinkVersion = '1.12.5'
 String flinkMajorVersion = '1.12'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
-project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}_${scalaVersion}") {
+project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -111,7 +111,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}_${scalaVersion}") {
   }
 }
 
-project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}_${scalaVersion}") {
+project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -131,7 +131,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}_${scalaVersio
   }
 
   dependencies {
-    implementation project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}_${scalaVersion}")
+    implementation project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}")
     implementation project(':iceberg-aws')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
