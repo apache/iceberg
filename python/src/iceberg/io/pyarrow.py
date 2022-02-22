@@ -92,9 +92,9 @@ class PyArrowFile(InputFile, OutputFile):
         try:
             input_file = self._filesystem.open_input_file(self._path)
         except OSError as e:
-            if e.errno == 2 or "Path does not exist" in str(e):
+            if e.errno == 2 or "Path does not exist" in str(e) or isinstance(e, FileNotFoundError):
                 raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}")
-            elif e.errno == 13 or "AWS Error [code 15]" in str(e):
+            elif e.errno == 13 or "AWS Error [code 15]" in str(e) or isinstance(e, PermissionError):
                 raise PermissionError(f"Cannot open file, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return input_file
@@ -112,11 +112,11 @@ class PyArrowFile(InputFile, OutputFile):
             FileExistsError: If the file already exists at `self.location` and `overwrite` is False
         """
         try:
-            if not overwrite and self.exists():
+            if not overwrite and self.exists() is True:
                 raise FileExistsError(f"Cannot create file, already exists: {self.location}")
             output_file = self._filesystem.open_output_stream(self._path)
         except OSError as e:
-            if e.errno == 13 or "AWS Error [code 15]" in str(e):
+            if e.errno == 13 or "AWS Error [code 15]" in str(e) or isinstance(e, PermissionError):
                 raise PermissionError(f"Cannot create file, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
@@ -164,10 +164,16 @@ class PyArrowFileIO(FileIO):
 
         Raises:
             FileNotFoundError: When the file at the provided location does not exist
+            PermissionError: If the file at the provided location cannot be accessed due to a permission error such as
+                an AWS error code 15
         """
         str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
         filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
         try:
             filesystem.delete_file(path)
         except OSError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {location} - Caused by: " + str(e))
+            if e.errno == 2 or "Path does not exist" in str(e):
+                raise FileNotFoundError(f"Cannot delete file, does not exist: {location}")
+            elif e.errno == 13 or "AWS Error [code 15]" in str(e) or isinstance(e, PermissionError):
+                raise PermissionError(f"Cannot delete file, access denied: {location}")
+            raise  # pragma: no cover - If some other kind of OSError, raise the raw error
