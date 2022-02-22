@@ -17,7 +17,7 @@
 
 import os
 import tempfile
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pyarrow.fs import FileType
@@ -123,3 +123,94 @@ def test_pyarrow_violating_output_stream_protocol():
     f = output_file.create()
 
     assert not isinstance(f, OutputStream)
+
+
+def test_raise_on_opening_a_local_file_not_found():
+    """Test that a PyArrowFile raises appropriately when a local file is not found"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        f = PyArrowFile(file_location)
+
+        with pytest.raises(FileNotFoundError) as exc_info:
+            f.open()
+
+        assert "Cannot open file, does not exist:" in str(exc_info.value)
+
+
+def test_raise_on_opening_a_local_file_no_permission():
+    """Test that a PyArrowFile raises appropriately when opening a local file without permission"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        os.chmod(tmpdirname, 0o600)
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        f = PyArrowFile(file_location)
+
+        with pytest.raises(PermissionError) as exc_info:
+            f.open()
+
+        assert "Cannot open file, access denied:" in str(exc_info.value)
+
+
+@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+def test_raise_on_checking_if_local_file_exists_no_permission(exists_mock):
+    """Test that a PyArrowFile raises when checking for existence on a file without permission"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        os.chmod(tmpdirname, 0o600)
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        f = PyArrowFile(file_location)
+
+        with pytest.raises(PermissionError) as exc_info:
+            f.create()
+
+        assert "Cannot create file, access denied:" in str(exc_info.value)
+
+
+def test_raise_on_checking_if_local_file_exists_no_permission():
+    """Test that the PyArrowFile.exists method, specifically, raises when checking for existence on a file without permission"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        os.chmod(tmpdirname, 0o600)
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        f = PyArrowFile(file_location)
+
+        with pytest.raises(PermissionError) as exc_info:
+            f.exists()
+
+        assert "Cannot check if file exists, access denied:" in str(exc_info.value)
+
+
+@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+def test_raise_on_creating_a_local_file_no_permission(exists_mock):
+    """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        os.chmod(tmpdirname, 0o600)
+        file_location = os.path.join(tmpdirname, "foo.txt")
+        f = PyArrowFile(file_location)
+
+        with pytest.raises(PermissionError) as exc_info:
+            f.create()
+
+        assert "Cannot create file, access denied:" in str(exc_info.value)
+
+
+@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+@patch("iceberg.io.pyarrow.FileSystem")
+def test_raise_on_creating_an_s3_file_no_permission(filesystem_mock, exists_mock):
+    """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
+
+    s3fs_mock = MagicMock()
+    s3fs_mock.open_output_stream.side_effect = PermissionError("AWS Error [code 15]")
+
+    filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        os.chmod(tmpdirname, 0o600)
+        f = PyArrowFile("s3://foo/bar.txt")
+
+        with pytest.raises(PermissionError) as exc_info:
+            f.create()
+
+        assert "Cannot create file, access denied:" in str(exc_info.value)

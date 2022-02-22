@@ -64,8 +64,18 @@ class PyArrowFile(InputFile, OutputFile):
         return file_info.size
 
     def exists(self) -> bool:
-        """Checks whether the location exists"""
-        file_info = self._filesystem.get_file_info(self._path)
+        """Checks whether the location exists
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error such as
+                an AWS error code 15
+        """
+        try:
+            file_info = self._filesystem.get_file_info(self._path)
+        except OSError as e:
+            if e.errno == 13 or "AWS Error [code 15]" in str(e):
+                raise PermissionError(f"Cannot check if file exists, access denied: {self.location}")
+            raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> InputStream:
@@ -76,8 +86,17 @@ class PyArrowFile(InputFile, OutputFile):
 
         Raises:
             FileNotFoundError: If the file at self.location does not exist
+            PermissionError: If the file at self.location cannot be accessed due to a permission error such as
+                an AWS error code 15
         """
-        input_file = self._filesystem.open_input_file(self._path)
+        try:
+            input_file = self._filesystem.open_input_file(self._path)
+        except OSError as e:
+            if e.errno == 2 or "Path does not exist" in str(e):
+                raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}")
+            elif e.errno == 13 or "AWS Error [code 15]" in str(e):
+                raise PermissionError(f"Cannot open file, access denied: {self.location}")
+            raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -92,9 +111,14 @@ class PyArrowFile(InputFile, OutputFile):
         Raises:
             FileExistsError: If the file already exists at `self.location` and `overwrite` is False
         """
-        if not overwrite and self.exists():
-            raise FileExistsError(f"Cannot create file, already exists: {self.location}")
-        output_file = self._filesystem.open_output_stream(self._path)
+        try:
+            if not overwrite and self.exists():
+                raise FileExistsError(f"Cannot create file, already exists: {self.location}")
+            output_file = self._filesystem.open_output_stream(self._path)
+        except OSError as e:
+            if e.errno == 13 or "AWS Error [code 15]" in str(e):
+                raise PermissionError(f"Cannot create file, access denied: {self.location}")
+            raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
 
     def to_input_file(self) -> "PyArrowFile":
