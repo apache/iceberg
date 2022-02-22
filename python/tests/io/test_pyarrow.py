@@ -23,7 +23,7 @@ import pytest
 from pyarrow.fs import FileType
 
 from iceberg.io.base import InputStream, OutputStream
-from iceberg.io.pyarrow import PyArrowFile
+from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 def test_pyarrow_input_file():
@@ -152,8 +152,7 @@ def test_raise_on_opening_a_local_file_no_permission():
         assert "Cannot open file, access denied:" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-def test_raise_on_checking_if_local_file_exists_no_permission(exists_mock):
+def test_raise_on_checking_if_local_file_exists_no_permission():
     """Test that a PyArrowFile raises when checking for existence on a file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -181,8 +180,7 @@ def test_raise_on_checking_if_local_file_exists_no_permission():
         assert "Cannot check if file exists, access denied:" in str(exc_info.value)
 
 
-@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
-def test_raise_on_creating_a_local_file_no_permission(exists_mock):
+def test_raise_on_creating_a_local_file_no_permission():
     """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -206,11 +204,26 @@ def test_raise_on_creating_an_s3_file_no_permission(filesystem_mock, exists_mock
 
     filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
 
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        f = PyArrowFile("s3://foo/bar.txt")
+    f = PyArrowFile("s3://foo/bar.txt")
 
-        with pytest.raises(PermissionError) as exc_info:
-            f.create()
+    with pytest.raises(PermissionError) as exc_info:
+        f.create()
 
-        assert "Cannot create file, access denied:" in str(exc_info.value)
+    assert "Cannot create file, access denied:" in str(exc_info.value)
+
+
+@patch("iceberg.io.pyarrow.FileSystem")
+def test_deleting_s3_file_no_permission(filesystem_mock):
+    """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
+
+    s3fs_mock = MagicMock()
+    s3fs_mock.delete_file.side_effect = PermissionError("AWS Error [code 15]")
+
+    filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
+
+    file_io = PyArrowFileIO()
+
+    with pytest.raises(PermissionError) as exc_info:
+        file_io.delete("s3://foo/bar.txt")
+
+    assert "Cannot delete file, access denied:" in str(exc_info.value)
