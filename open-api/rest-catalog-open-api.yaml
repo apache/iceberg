@@ -73,9 +73,9 @@ paths:
         properties from the server to configure the catalog and its HTTP client.
         Configuration from the server consists of two sets of key/value pairs.
 
-        - defaults -  properties that should be used as default configuration; applied before client configuration
+        * defaults -  properties that should be used as default configuration; applied before client configuration
 
-        - overrides - properties that should be used to override client configuration; applied after defaults and client configuration
+        * overrides - properties that should be used to override client configuration; applied after defaults and client configuration
 
 
         Catalog configuration is constructed by setting the defaults, then client-
@@ -94,21 +94,7 @@ paths:
         "
       responses:
         200:
-          description: Server specified configuration values.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CatalogConfiguration'
-              example: {
-                "data": {
-                  "overrides": {
-                    "warehouse": "s3://bucket/warehouse/"
-                  },
-                  "defaults": {
-                    "clients": "4"
-                  }
-                }
-              }
+          $ref: '#/components/responses/RESTCatalogConfigResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -757,7 +743,7 @@ components:
           items:
             type: string
 
-    CatalogConfiguration:
+    RESTCatalogConfig:
       type: object
       description: Server-provided configuration for the catalog.
       required:
@@ -766,12 +752,22 @@ components:
       properties:
         overrides:
           type: object
+          uniqueItems: true
+          additionalProperties:
+            type: string
           description:
             Properties that should be used to override client configuration; applied after defaults and client configuration.
+          example: { "warehouse": "s3://bucket/warehouse" }
+          default: { }
         defaults:
           type: object
+          uniqueItems: true
+          additionalProperties:
+            type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
+          example: { "clients": "4" }
+          default: { }
 
     CreateNamespaceRequest:
       type: object
@@ -1440,6 +1436,34 @@ components:
   # Reusable Response Objects #
   #############################
   responses:
+
+    RESTCatalogConfigResponse:
+      description:
+        Configuration from the server consists of two sets of key/value pairs.
+        * defaults -  properties that should be used as default configuration; applied before client configuration
+        * overrides - properties that should be used to override client configuration; applied after defaults and
+                      client configuration
+        The REST Catalog configuration is constructed by setting the defaults, then client-
+        provided configuration, and finally overrides. The resulting final property set is then
+        used to configure the catalog.
+        
+        For example, a default configuration property might set the size of the
+        client pool, which can be replaced with a client-specific setting. An
+        override might be used to set the warehouse location, which is stored
+        on the server rather than in client configuration.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RESTCatalogConfig'
+          example: {
+            "defaults": {
+              "clients": "4"
+            },
+            "overrides": {
+              "warehouse": "s3://bucket/warehouse/"
+            }
+          }
+
 
     BadRequestErrorResponse:
       description:
