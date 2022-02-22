@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -275,15 +276,11 @@ public class FlinkSource {
         return false;
       }
 
-      FileIO fileIO = table.io();
-      if (fileIO instanceof HadoopFileIO) {
-        HadoopFileIO hadoopFileIO = (HadoopFileIO) fileIO;
-        try {
-          String scheme = new Path(table.location()).getFileSystem(hadoopFileIO.getConf()).getScheme();
-          return FILE_SYSTEM_SUPPORT_LOCALITY.contains(scheme);
-        } catch (IOException e) {
-          LOG.warn("Failed to determine whether the locality information can be exposed for table: {}", table, e);
-        }
+      try {
+        String scheme = URI.create(table.location()).getScheme();
+        return FILE_SYSTEM_SUPPORT_LOCALITY.contains(scheme);
+      } catch (IllegalArgumentException e) {
+        LOG.warn("Failed to determine whether the locality information can be exposed for table: {}", table, e);
       }
 
       return false;
