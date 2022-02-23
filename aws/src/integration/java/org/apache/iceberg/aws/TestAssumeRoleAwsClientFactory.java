@@ -58,7 +58,7 @@ public class TestAssumeRoleAwsClientFactory {
     roleName = UUID.randomUUID().toString();
     iam = IamClient.builder()
         .region(Region.AWS_GLOBAL)
-        .httpClient(UrlConnectionHttpClient.create())
+        .httpClientBuilder(UrlConnectionHttpClient.builder())
         .build();
     CreateRoleResponse response = iam.createRole(CreateRoleRequest.builder()
         .roleName(roleName)

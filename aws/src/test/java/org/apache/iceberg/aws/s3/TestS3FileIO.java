@@ -87,7 +87,7 @@ public class TestS3FileIO {
   @Test
   public void testSerializeClient() {
     SerializableSupplier<S3Client> pre =
-        () -> S3Client.builder().httpClient(UrlConnectionHttpClient.builder().build()).region(Region.US_EAST_1).build();
+        () -> S3Client.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).region(Region.US_EAST_1).build();
 
     byte [] data = SerializationUtils.serialize(pre);
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
