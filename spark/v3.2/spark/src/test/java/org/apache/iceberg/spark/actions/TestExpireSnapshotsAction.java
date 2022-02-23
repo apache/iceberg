@@ -1064,7 +1064,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     long endBeforeStreamResults = rightAfterSnapshot();
 
-    int JobsBeforeStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
+    int jobsBeforeStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
 
     AtomicReference<Integer> jobsRunDuringStreamResults = new AtomicReference<>();
 
@@ -1072,8 +1072,8 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
       ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(endBeforeStreamResults)
           .option("stream-results", "true").execute();
 
-      int JobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
-      jobsRunDuringStreamResults.set(JobsAfterStreamResults - JobsBeforeStreamResults);
+      int jobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
+      jobsRunDuringStreamResults.set(jobsAfterStreamResults - jobsBeforeStreamResults);
 
       checkExpirationResults(1L, 2L, 1L, results);
     });
