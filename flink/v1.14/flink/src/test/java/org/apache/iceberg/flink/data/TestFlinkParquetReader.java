@@ -215,7 +215,7 @@ public class TestFlinkParquetReader extends DataTest {
           rows.get(i).getLong(0),
           actual.getMillisecond() * 1000 + actual.getNanoOfMillisecond() / 1000);
 
-      OffsetDateTime expect = ((OffsetDateTime)genericReadDataRows.get(i).getField("ts"));
+      OffsetDateTime expect = ((OffsetDateTime) genericReadDataRows.get(i).getField("ts"));
       Assert.assertTrue(expect.toLocalDateTime().equals(actual.toLocalDateTime()));
     }
   }
