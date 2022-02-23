@@ -205,7 +205,8 @@ public class TestFlinkParquetReader extends DataTest {
 
     InputFile parquetInputFile = Files.localInput(outputFilePath);
     List<RowData> flinkReadDataRows = flinkReadRowDataFromFile(parquetInputFile, schema);
-    List<org.apache.iceberg.data.GenericRecord> genericReadDataRows = genericReadRowDataFromFile(parquetInputFile, schema);
+    List<org.apache.iceberg.data.GenericRecord> genericReadDataRows = genericReadRowDataFromFile(parquetInputFile,
+        schema);
 
     Assert.assertEquals(rows.size(), flinkReadDataRows.size());
     Assert.assertEquals(rows.size(), genericReadDataRows.size());
