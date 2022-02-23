@@ -117,7 +117,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     if (properties.containsKey(CatalogProperties.LOCK_IMPL)) {
       return LockManagers.from(properties);
     } else if (SET_VERSION_ID.isNoop()) {
-      return LockManagers.LOCK_MANAGER_DEFAULT;
+      return LockManagers.defaultLockManager();
     }
     return null;
   }

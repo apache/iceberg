@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 public class LockManagers {
 
-  public static final LockManager LOCK_MANAGER_DEFAULT = new InMemoryLockManager(Maps.newHashMap());
+  private static final LockManager LOCK_MANAGER_DEFAULT = new InMemoryLockManager(Maps.newHashMap());
 
   private LockManagers() {
   }
