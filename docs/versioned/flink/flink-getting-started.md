@@ -401,7 +401,7 @@ SELECT * FROM sample /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 's
 
 Those are the options that could be set in flink SQL hint options for streaming job:
 
-* monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '1s').
+* monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '10s').
 * start-snapshot-id: the snapshot id that streaming job starts from.
 
 ## Writing with SQL
