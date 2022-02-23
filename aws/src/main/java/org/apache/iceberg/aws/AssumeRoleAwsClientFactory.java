@@ -25,8 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
-import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -37,8 +36,6 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
-
-  private static final SdkHttpClient.Builder HTTP_CLIENT_BUILDER_DEFAULT = ApacheHttpClient.builder();
 
   private String roleArn;
   private String externalId;
@@ -94,12 +91,12 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(StsClient.builder().httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT).build())
+            .stsClient(StsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build())
             .refreshRequest(request)
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT);
+    clientBuilder.httpClientBuilder(UrlConnectionHttpClient.builder());
 
     return clientBuilder;
   }

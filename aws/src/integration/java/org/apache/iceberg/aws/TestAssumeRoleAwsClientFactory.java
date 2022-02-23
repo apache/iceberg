@@ -32,8 +32,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.GlueException;
@@ -48,7 +47,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class TestAssumeRoleAwsClientFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestAssumeRoleAwsClientFactory.class);
-  private static final SdkHttpClient.Builder HTTP_CLIENT_BUILDER_DEFAULT = ApacheHttpClient.builder();
 
   private IamClient iam;
   private String roleName;
@@ -60,7 +58,7 @@ public class TestAssumeRoleAwsClientFactory {
     roleName = UUID.randomUUID().toString();
     iam = IamClient.builder()
         .region(Region.AWS_GLOBAL)
-        .httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT)
+        .httpClientBuilder(UrlConnectionHttpClient.builder())
         .build();
     CreateRoleResponse response = iam.createRole(CreateRoleRequest.builder()
         .roleName(roleName)

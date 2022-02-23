@@ -30,8 +30,7 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
-import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -40,7 +39,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class AwsClientFactories {
 
   private static final DefaultAwsClientFactory AWS_CLIENT_FACTORY_DEFAULT = new DefaultAwsClientFactory();
-  private static final SdkHttpClient.Builder HTTP_CLIENT_BUILDER_DEFAULT = ApacheHttpClient.builder();
 
   private AwsClientFactories() {
   }
@@ -89,7 +87,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT)
+          .httpClientBuilder(UrlConnectionHttpClient.builder())
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -97,17 +95,17 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
-      return GlueClient.builder().httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT).build();
+      return GlueClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT).build();
+      return KmsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
-      return DynamoDbClient.builder().httpClientBuilder(HTTP_CLIENT_BUILDER_DEFAULT).build();
+      return DynamoDbClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
     }
 
     @Override
