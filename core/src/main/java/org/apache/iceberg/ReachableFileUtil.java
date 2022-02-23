@@ -121,25 +121,36 @@ public class ReachableFileUtil {
   }
 
   /**
-   * Emits a human-readable metadata graph of the current snapshot of the given table
+   * Emits a human-readable metadata graph of the Iceberg table's current snapshot
    * @param table Iceberg table
+   * @param out output stream to emit to
+   */
+  public static void printTable(Table table, PrintStream out) {
+    out.println("------------------------------------------------------------");
+    out.println("Table " + table.name());
+    out.println("------------------------------------------------------------");
+    printSnapshot(table, table.currentSnapshot(), out);
+  }
+
+  /**
+   * Emits a human-readable metadata graph of the given snapshot
+   * @param table Iceberg table
+   * @param snapshot Iceberg table snapshot
    * @param out output print stream to emit to
    */
-  public static void printCurrentSnapshot(Table table, PrintStream out) {
-    Iterator<ManifestFile> allManifests = table.currentSnapshot().allManifests().iterator();
-    out.println();
+  public static void printSnapshot(Table table, Snapshot snapshot, PrintStream out) {
+    out.println(snapshot);
+    Iterator<ManifestFile> allManifests = snapshot.allManifests().iterator();
     while (allManifests.hasNext()) {
       ManifestFile mf = allManifests.next();
-      out.print("\\---");
-      out.print(mf);
+      out.println(" \\---" + mf);
 
       if (mf.content().equals(ManifestContent.DATA)) {
         ManifestReader<DataFile> dataReader = ManifestFiles.read(mf, table.io(), table.specs());
         try (CloseableIterator<ManifestEntry<DataFile>> dataEntries = dataReader.entries().iterator()) {
           while (dataEntries.hasNext()) {
+            out.println("     +---" + dataEntries.next());
             out.println();
-            out.print("    +---");
-            out.print(dataEntries.next());
           }
         } catch (IOException e) {
           throw new UncheckedIOException(e);
@@ -149,17 +160,13 @@ public class ReachableFileUtil {
         ManifestReader<DeleteFile> deleteReader = ManifestFiles.readDeleteManifest(mf, table.io(), table.specs());
         try (CloseableIterator<ManifestEntry<DeleteFile>> deleteEntries = deleteReader.entries().iterator()) {
           while (deleteEntries.hasNext()) {
+            out.println("     +---" + deleteEntries.next());
             out.println();
-            out.print("    +---");
-            out.print(deleteEntries.next());
           }
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
       }
-
-      out.println();
-      out.println();
     }
   }
 }
