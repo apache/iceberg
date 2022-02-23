@@ -227,8 +227,18 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "ddd"), record(2, "ddd"))
     );
 
-    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
-        elementsPerCheckpoint, expectedRecords);
+    if (partitioned && distributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
+      AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
+          IllegalStateException.class, "should be included in equality fields",
+          () -> {
+            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
+                elementsPerCheckpoint, expectedRecords);
+            return null;
+          });
+    } else {
+      testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
+          elementsPerCheckpoint, expectedRecords);
+    }
   }
 
   @Test
@@ -343,7 +353,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     AssertHelpers.assertThrows("Should be error because upsert mode and overwrite mode enable at the same time.",
         IllegalStateException.class, "OVERWRITE mode shouldn't be enable",
-        () -> builder.equalityFieldColumns(ImmutableList.of("id")).overwrite(true).append()
+        () -> builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append()
     );
 
     AssertHelpers.assertThrows("Should be error because equality field columns are empty.",
@@ -381,8 +391,8 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
       AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
           IllegalStateException.class, "should be included in equality fields",
           () -> {
-            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true, elementsPerCheckpoint,
-                expectedRecords);
+            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true,
+                elementsPerCheckpoint, expectedRecords);
             return null;
           });
     }
