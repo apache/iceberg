@@ -29,11 +29,7 @@ public class ErrorResponse {
 
   private String message;
   private String type;
-  private Integer code;
-
-  public ErrorResponse() {
-    // Needed for Jackson deserialization
-  }
+  private int code;
 
   private ErrorResponse(String message, String type, int code) {
     this.message = message;
@@ -43,7 +39,6 @@ public class ErrorResponse {
   }
 
   ErrorResponse validate() {
-    Preconditions.checkArgument(code != null, "Invalid response, missing field: code");
     return this;
   }
 

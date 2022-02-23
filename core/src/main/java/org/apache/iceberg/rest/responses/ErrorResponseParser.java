@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ErrorResponseParser {
@@ -31,6 +32,7 @@ public class ErrorResponseParser {
   private ErrorResponseParser() {
   }
 
+  private static final String ERROR = "error";
   private static final String MESSAGE = "message";
   private static final String TYPE = "type";
   private static final String CODE = "code";
@@ -56,9 +58,15 @@ public class ErrorResponseParser {
 
   public static void toJson(ErrorResponse errorResponse, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
+
+    generator.writeObjectFieldStart(ERROR);
+
     generator.writeStringField(MESSAGE, errorResponse.message());
     generator.writeStringField(TYPE, errorResponse.type());
     generator.writeNumberField(CODE, errorResponse.code());
+
+    generator.writeEndObject();
+
     generator.writeEndObject();
   }
 
@@ -70,17 +78,19 @@ public class ErrorResponseParser {
    */
   public static ErrorResponse fromJson(String json) {
     try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJson(node);
+      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read JSON string: " + json, e);
     }
   }
 
   public static ErrorResponse fromJson(JsonNode jsonNode) {
-    String message = JsonUtil.getStringOrNull("message", jsonNode);
-    String type = JsonUtil.getStringOrNull("type", jsonNode);
-    Integer code = JsonUtil.getIntOrNull("code", jsonNode);
+    Preconditions.checkArgument(jsonNode != null && jsonNode.isObject() && jsonNode.has(ERROR),
+        "Cannot parse missing field: error");
+    JsonNode error = jsonNode.get(ERROR);
+    String message = JsonUtil.getStringOrNull(MESSAGE, error);
+    String type = JsonUtil.getStringOrNull(TYPE, error);
+    Integer code = JsonUtil.getIntOrNull(CODE, error);
     return ErrorResponse.builder()
         .withMessage(message)
         .withType(type)

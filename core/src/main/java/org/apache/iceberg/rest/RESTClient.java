@@ -28,7 +28,6 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
  */
 public interface RESTClient extends Closeable {
   <T> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
-  <T> T put(String path, Object body, Consumer<ErrorResponse> errorHandler);
   <T> T post(String path, Object body, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
   <T> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
   <T> T head(String path, Consumer<ErrorResponse> errorHandler);

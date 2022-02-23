@@ -29,7 +29,8 @@ public class TestErrorResponseParser {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
     Integer code = 404;
-    String json = String.format("{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d}", message, type, code);
+    String errorModelJson = String.format("{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d}", message, type, code);
+    String json = "{\"error\":" + errorModelJson + "}";
     ErrorResponse response = ErrorResponse.builder().withMessage(message).withType(type).responseCode(code).build();
     Assert.assertEquals("Should be able to serialize an error response as json",
         ErrorResponseParser.toJson(response), json);
@@ -40,7 +41,8 @@ public class TestErrorResponseParser {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
     Integer code = 404;
-    String json = String.format("{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d}", message, type, code);
+    String errorModelJson = String.format("{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d}", message, type, code);
+    String json = "{\"error\":" + errorModelJson + "}";
 
     ErrorResponse expected = ErrorResponse.builder().withMessage(message).withType(type).responseCode(code).build();
     assertEquals(expected, ErrorResponseParser.fromJson(json));
@@ -48,7 +50,7 @@ public class TestErrorResponseParser {
 
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
     Assert.assertEquals("Message should be equal", expected.message(), actual.message());
-    Assert.assertEquals("Typ should be equal", expected.type(), actual.type());
+    Assert.assertEquals("Type should be equal", expected.type(), actual.type());
     Assert.assertEquals("Response code should be equal", expected.code(), actual.code());
   }
 }
