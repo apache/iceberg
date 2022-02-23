@@ -73,7 +73,6 @@ public class BaseExpireSnapshotsSparkAction
   public static final String STREAM_RESULTS = "stream-results";
 
   private static final String CONTENT_FILE = "Content File";
-
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
 
