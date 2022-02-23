@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws.glue;
+package org.apache.iceberg.aws.dynamodb;
 
 import java.util.List;
 import java.util.Map;
@@ -46,14 +46,14 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
-public class TestDynamoLockManager {
+public class TestDynamoDbLockManager {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
 
   private static String lockTableName;
   private static DynamoDbClient dynamo;
 
-  private DynamoLockManager lockManager;
+  private DynamoDbLockManager lockManager;
   private String entityId;
   private String ownerId;
 
@@ -65,7 +65,7 @@ public class TestDynamoLockManager {
 
   @Before
   public void before() {
-    lockManager = new DynamoLockManager(dynamo, lockTableName);
+    lockManager = new DynamoDbLockManager(dynamo, lockTableName);
     entityId = UUID.randomUUID().toString();
     ownerId = UUID.randomUUID().toString();
   }
@@ -101,7 +101,7 @@ public class TestDynamoLockManager {
     List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
         .mapToObj(i -> {
           try {
-            DynamoLockManager threadLocalLockManager = new DynamoLockManager(dynamo, lockTableName);
+            DynamoDbLockManager threadLocalLockManager = new DynamoDbLockManager(dynamo, lockTableName);
             threadLocalLockManager.acquireOnce(entityId, UUID.randomUUID().toString());
             return true;
           } catch (ConditionalCheckFailedException e) {
@@ -160,7 +160,7 @@ public class TestDynamoLockManager {
     long start = System.currentTimeMillis();
     List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
         .mapToObj(i -> {
-          DynamoLockManager threadLocalLockManager = new DynamoLockManager(dynamo, lockTableName);
+          DynamoDbLockManager threadLocalLockManager = new DynamoDbLockManager(dynamo, lockTableName);
           String owner = UUID.randomUUID().toString();
           boolean succeeded = threadLocalLockManager.acquire(entityId, owner);
           if (succeeded) {
@@ -188,7 +188,7 @@ public class TestDynamoLockManager {
 
     List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
         .mapToObj(i -> {
-          DynamoLockManager threadLocalLockManager = new DynamoLockManager(dynamo, lockTableName);
+          DynamoDbLockManager threadLocalLockManager = new DynamoDbLockManager(dynamo, lockTableName);
           return threadLocalLockManager.acquire(entityId, ownerId);
         })
         .collect(Collectors.toList())).get();
@@ -204,7 +204,7 @@ public class TestDynamoLockManager {
     AssertHelpers.assertThrows("should fail to initialize the lock manager",
         IllegalStateException.class,
         "Cannot find Dynamo table",
-        () -> new DynamoLockManager(dynamo2, lockTableName));
+        () -> new DynamoDbLockManager(dynamo2, lockTableName));
   }
 
   private static String genTableName() {
