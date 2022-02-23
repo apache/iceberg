@@ -26,7 +26,8 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 /**
  * @deprecated this class is kept only for backwards compatibility.
- * For new users, please use {@link org.apache.iceberg.aws.dynamodb.DynamoDbLockManager} instead.
+ * For GlueCatalog, Glue has supported optimistic locking and lock manager is no longer needed.
+ * For HadoopCatalog and HadoopTables, please use {@link org.apache.iceberg.aws.dynamodb.DynamoDbLockManager} instead.
  */
 @Deprecated
 class DynamoLockManager extends DynamoDbLockManager {
