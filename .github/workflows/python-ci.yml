@@ -28,6 +28,10 @@ on:
     - '.github/workflows/python-ci.yml'
     - 'python/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tox:
     runs-on: ubuntu-latest
