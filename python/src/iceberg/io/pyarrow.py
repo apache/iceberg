@@ -26,7 +26,7 @@ import os
 from typing import Union
 from urllib.parse import urlparse
 
-from pyarrow.fs import FileSystem, FileType
+from pyarrow.fs import FileInfo, FileSystem, FileType
 
 from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 
@@ -39,8 +39,6 @@ class PyArrowFile(InputFile, OutputFile):
 
     Attributes:
         location(str): The URI or path to a local file for a PyArrowFile instance
-        exists(bool): Whether the file exists or not
-        filesystem(pyarrow.fs.FileSystem): An implementation of the FileSystem base class inferred from the location
 
     Examples:
         >>> from iceberg.io.pyarrow import PyArrowFile
@@ -58,13 +56,8 @@ class PyArrowFile(InputFile, OutputFile):
             self._filesystem, self._path = FileSystem.from_uri(location)  # Infer the proper filesystem
         super().__init__(location=location)
 
-    def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
-        file_info = self._filesystem.get_file_info(self._path)
-        return file_info.size
-
-    def exists(self) -> bool:
-        """Checks whether the location exists
+    def _file_info(self) -> FileInfo:
+        """Retrieves a pyarrow.fs.FileInfo object for the location
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
@@ -76,6 +69,16 @@ class PyArrowFile(InputFile, OutputFile):
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot check if file exists, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
+        return file_info
+
+    def __len__(self) -> int:
+        """Returns the total length of the file, in bytes"""
+        file_info = self._file_info()
+        return file_info.size
+
+    def exists(self) -> bool:
+        """Checks whether the location exists"""
+        file_info = self._file_info()
         return False if file_info.type == FileType.NotFound else True
 
     def open(self) -> InputStream:
@@ -91,10 +94,14 @@ class PyArrowFile(InputFile, OutputFile):
         """
         try:
             input_file = self._filesystem.open_input_file(self._path)
+        except FileNotFoundError:
+            raise
+        except PermissionError:
+            raise
         except OSError as e:
-            if e.errno == 2 or "Path does not exist" in str(e) or isinstance(e, FileNotFoundError):
+            if e.errno == 2 or "Path does not exist" in str(e):
                 raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}")
-            elif e.errno == 13 or "AWS Error [code 15]" in str(e) or isinstance(e, PermissionError):
+            elif e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot open file, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return input_file
@@ -115,8 +122,10 @@ class PyArrowFile(InputFile, OutputFile):
             if not overwrite and self.exists() is True:
                 raise FileExistsError(f"Cannot create file, already exists: {self.location}")
             output_file = self._filesystem.open_output_stream(self._path)
+        except PermissionError:
+            raise
         except OSError as e:
-            if e.errno == 13 or "AWS Error [code 15]" in str(e) or isinstance(e, PermissionError):
+            if e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot create file, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file

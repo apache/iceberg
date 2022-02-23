@@ -135,7 +135,7 @@ def test_raise_on_opening_a_local_file_not_found():
         with pytest.raises(FileNotFoundError) as exc_info:
             f.open()
 
-        assert "Cannot open file, does not exist:" in str(exc_info.value)
+        assert "[Errno 2] Failed to open local file" in str(exc_info.value)
 
 
 def test_raise_on_opening_a_local_file_no_permission():
@@ -149,7 +149,7 @@ def test_raise_on_opening_a_local_file_no_permission():
         with pytest.raises(PermissionError) as exc_info:
             f.open()
 
-        assert "Cannot open file, access denied:" in str(exc_info.value)
+        assert "[Errno 13] Failed to open local file" in str(exc_info.value)
 
 
 def test_raise_on_checking_if_local_file_exists_no_permission():
@@ -191,16 +191,52 @@ def test_raise_on_creating_a_local_file_no_permission():
         with pytest.raises(PermissionError) as exc_info:
             f.create()
 
-        assert "Cannot create file, access denied:" in str(exc_info.value)
+        assert "Cannot check if file exists, access denied:" in str(exc_info.value)
+
+
+@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+@patch("iceberg.io.pyarrow.FileSystem")
+def test_raise_on_opening_an_s3_file_no_permission(filesystem_mock, exists_mock):
+    """Test that opening a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
+
+    s3fs_mock = MagicMock()
+    s3fs_mock.open_input_file.side_effect = OSError("AWS Error [code 15]")
+
+    filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
+
+    f = PyArrowFile("s3://foo/bar.txt")
+
+    with pytest.raises(PermissionError) as exc_info:
+        f.open()
+
+    assert "Cannot open file, access denied:" in str(exc_info.value)
+
+
+@patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
+@patch("iceberg.io.pyarrow.FileSystem")
+def test_raise_on_opening_an_s3_file_not_found(filesystem_mock, exists_mock):
+    """Test that a PyArrowFile raises a FileNotFoundError when the pyarrow error includes 'Path does not exist'"""
+
+    s3fs_mock = MagicMock()
+    s3fs_mock.open_input_file.side_effect = OSError("Path does not exist")
+
+    filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
+
+    f = PyArrowFile("s3://foo/bar.txt")
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        f.open()
+
+    assert "Cannot open file, does not exist:" in str(exc_info.value)
 
 
 @patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
 @patch("iceberg.io.pyarrow.FileSystem")
 def test_raise_on_creating_an_s3_file_no_permission(filesystem_mock, exists_mock):
-    """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
+    """Test that creating a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
-    s3fs_mock.open_output_stream.side_effect = PermissionError("AWS Error [code 15]")
+    s3fs_mock.open_output_stream.side_effect = OSError("AWS Error [code 15]")
 
     filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
 
@@ -217,7 +253,7 @@ def test_deleting_s3_file_no_permission(filesystem_mock):
     """Test that a PyArrowFile raises a PermissionError when the pyarrow error includes 'AWS Error [code 15]'"""
 
     s3fs_mock = MagicMock()
-    s3fs_mock.delete_file.side_effect = PermissionError("AWS Error [code 15]")
+    s3fs_mock.delete_file.side_effect = OSError("AWS Error [code 15]")
 
     filesystem_mock.from_uri.return_value = (s3fs_mock, "foo.txt")
 
