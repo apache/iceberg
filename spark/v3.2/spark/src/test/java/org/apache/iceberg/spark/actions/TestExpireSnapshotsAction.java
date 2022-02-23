@@ -1029,59 +1029,56 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
   @Test
   public void testUseLocalIterator() {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
 
     table.newOverwrite()
-            .deleteFile(FILE_A)
-            .addFile(FILE_B)
-            .commit();
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .commit();
 
     table.newFastAppend()
-            .appendFile(FILE_C)
-            .commit();
+        .appendFile(FILE_C)
+        .commit();
 
-    long end = rightAfterSnapshot();
+    long endBeforeCollect = rightAfterSnapshot();
 
-    int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
+    int jobsBeforeCollect = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    AtomicReference<Integer> totalJobsRun = new AtomicReference<>();
+    AtomicReference<Integer> jobsRunDuringCollect = new AtomicReference<>();
 
     withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
-      ExpireSnapshots.Result results =
-              SparkActions.get().expireSnapshots(table).expireOlderThan(end)
-                      .option("stream-results", "false").execute();
+      ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(endBeforeCollect)
+          .option("stream-results", "false").execute();
 
-      int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
-      totalJobsRun.set(jobsAfter - jobsBefore);
+      int jobsAfterCollect = spark.sparkContext().dagScheduler().nextJobId().get();
+      jobsRunDuringCollect.set(jobsAfterCollect - jobsBeforeCollect);
 
       checkExpirationResults(1L, 1L, 2L, results);
     });
 
     table.newOverwrite()
-            .deleteFile(FILE_C)
-            .addFile(FILE_B)
-            .commit();
+        .deleteFile(FILE_C)
+        .addFile(FILE_B)
+        .commit();
 
-    long endAgain = rightAfterSnapshot();
+    long endBeforeStreamResults = rightAfterSnapshot();
 
-    int jobsBeforeAgain = spark.sparkContext().dagScheduler().nextJobId().get();
+    int JobsBeforeStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    AtomicReference<Integer> totalJobsRunAgain = new AtomicReference<>();
+    AtomicReference<Integer> jobsRunDuringStreamResults = new AtomicReference<>();
 
     withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
-      ExpireSnapshots.Result results =
-              SparkActions.get().expireSnapshots(table).expireOlderThan(endAgain)
-                      .option("stream-results", "true").execute();
+      ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(endBeforeStreamResults)
+          .option("stream-results", "true").execute();
 
-      int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
-      totalJobsRunAgain.set(jobsAfter - jobsBeforeAgain);
+      int JobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
+      jobsRunDuringStreamResults.set(JobsAfterStreamResults - JobsBeforeStreamResults);
 
       checkExpirationResults(1L, 2L, 1L, results);
     });
 
-    Assert.assertTrue(
-        "Expected total number of jobs with toLocalIterator to be greater than collectAsList",
-            totalJobsRunAgain.get() > totalJobsRun.get());
+    Assert.assertTrue("Expected total number of jobs with toLocalIterator to be greater than collectAsList",
+        jobsRunDuringStreamResults.get() > jobsRunDuringCollect.get());
   }
 }

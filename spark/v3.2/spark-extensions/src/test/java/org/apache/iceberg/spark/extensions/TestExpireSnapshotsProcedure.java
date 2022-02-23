@@ -300,14 +300,12 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
 
     List<Object[]> output = sql(
-            "CALL %s.system.expire_snapshots(" +
-                    "older_than => TIMESTAMP '%s'," +
-                    "table => '%s'," +
-                    "retain_last => 1, " +
-                    "stream_results => true)",
-            catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match",
-            ImmutableList.of(row(0L, 0L, 1L)),
-            output);
+        "CALL %s.system.expire_snapshots(" +
+            "older_than => TIMESTAMP '%s'," +
+            "table => '%s'," +
+            "retain_last => 1, " +
+            "stream_results => true)",
+        catalogName, currentTimestamp, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 1L)), output);
   }
 }
