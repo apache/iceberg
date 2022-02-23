@@ -212,6 +212,7 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
       contextBuilder.exposeLocality(localityEnabled());
+      contextBuilder.planParallelism(readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
 
       return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
     }

@@ -112,12 +112,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
+  private final Integer workerPoolSize;
   private transient ExecutorService workerPool;
 
-  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions, Map<String, String> snapshotProperties) {
+  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions, Map<String, String> snapshotProperties,
+                        Integer workerPoolSize) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
+    this.workerPoolSize = workerPoolSize;
   }
 
   @Override
@@ -356,7 +359,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   @Override
   public void open() throws Exception {
-    this.workerPool = ThreadPools.newWorkerPool("iceberg-files-committer-worker-pool-%d");
+    super.open();
+
+    final String operatorID = getRuntimeContext().getOperatorUniqueID();
+    this.workerPool = ThreadPools.newWorkerPool("iceberg-worker-pool-" + operatorID, workerPoolSize);
   }
 
   @Override
@@ -364,6 +370,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     if (tableLoader != null) {
       tableLoader.close();
     }
+
     if (workerPool != null) {
       workerPool.shutdown();
     }
