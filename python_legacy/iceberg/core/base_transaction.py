@@ -60,13 +60,13 @@ class BaseTransaction(Transaction):
     def table(self):
         return self.transaction_table
 
-    def check_last_operation_commited(self, operation):
+    def check_last_operation_committed(self, operation):
         if self.last_base == self.current:
             raise RuntimeError("Cannot create new %s: last operation has not committed" % operation)
         self.last_base = self.current
 
     def update_schema(self):
-        self.check_last_operation_commited("UpdateSchema")
+        self.check_last_operation_committed("UpdateSchema")
 
     @staticmethod
     def current_id(meta):
