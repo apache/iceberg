@@ -220,6 +220,9 @@ public class TableProperties {
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
 
+  public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
+  public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 
