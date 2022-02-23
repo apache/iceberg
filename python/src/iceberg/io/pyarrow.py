@@ -69,6 +69,9 @@ class PyArrowFile(InputFile, OutputFile):
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot get file info, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
+
+        if file_info.type == FileType.NotFound:
+            raise FileNotFoundError(f"Cannot get file info, file not found: {self.location}")
         return file_info
 
     def __len__(self) -> int:
@@ -78,8 +81,11 @@ class PyArrowFile(InputFile, OutputFile):
 
     def exists(self) -> bool:
         """Checks whether the location exists"""
-        file_info = self._file_info()
-        return False if file_info.type == FileType.NotFound else True
+        try:
+            self._file_info()  # raises FileNotFoundError if it does not exist
+            return True
+        except FileNotFoundError:
+            return False
 
     def open(self) -> InputStream:
         """Opens the location using a PyArrow FileSystem inferred from the location
