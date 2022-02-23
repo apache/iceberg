@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.jdbc;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -29,12 +31,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 final class JdbcUtil {
+  // Catalog Table
   protected static final String CATALOG_TABLE_NAME = "iceberg_tables";
   protected static final String CATALOG_NAME = "catalog_name";
   protected static final String TABLE_NAMESPACE = "table_namespace";
   protected static final String TABLE_NAME = "table_name";
   protected static final String METADATA_LOCATION = "metadata_location";
   protected static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
+
   public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
       " SET " + METADATA_LOCATION + " = ? , " + PREVIOUS_METADATA_LOCATION + " = ? " +
       " WHERE " + CATALOG_NAME + " = ? AND " +
@@ -69,6 +73,35 @@ final class JdbcUtil {
       " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
       ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
       " VALUES (?,?,?,?,null)";
+
+  // Catalog Namespace Properties
+  protected static final String NAMESPACE_PROPERTIES_TABLE_NAME = "iceberg_namespace_properties";
+  protected static final String NAMESPACE_NAME = "namespace";
+  protected static final String NAMESPACE_PROPERTY_KEY = "key";
+  protected static final String NAMESPACE_PROPERTY_VALUE = "value";
+
+  protected static final String CREATE_NAMESPACE_PROPERTIES_TABLE =
+      "CREATE TABLE " + NAMESPACE_PROPERTIES_TABLE_NAME +
+          "(" +
+          CATALOG_NAME + " VARCHAR(255) NOT NULL," +
+          NAMESPACE_NAME + " VARCHAR(255) NOT NULL," +
+          NAMESPACE_PROPERTY_KEY + " VARCHAR(5500)," +
+          NAMESPACE_PROPERTY_VALUE + " VARCHAR(5500)," +
+          "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY + ")" +
+          ")";
+  protected static final String GET_NAMESPACE_PROPERTIES_SQL = "SELECT " + NAMESPACE_NAME +
+      " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ? LIMIT 1";
+  protected static final String INSERT_NAMESPACE_PROPERTIES_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
+      ", " + NAMESPACE_PROPERTY_VALUE + ") VALUES ";
+  protected static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
+  protected static final String GET_ALL_NAMESPACE_PROPERTIES_SQL = "SELECT * " +
+      " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? ";
+  protected static final String DELETE_NAMESPACE_PROPERTIES_SQL = "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ";
+
+  // Utilities
   private static final Joiner JOINER_DOT = Joiner.on('.');
   private static final Splitter SPLITTER_DOT = Splitter.on('.');
 
@@ -98,5 +131,41 @@ final class JdbcUtil {
     });
 
     return result;
+  }
+
+  public static String updatePropertiesStatement(int size) {
+    StringBuilder sqlStatement = new StringBuilder("UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
+            " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE");
+    for (int i = 0; i < size; i += 1) {
+      sqlStatement.append(" WHEN key = ? THEN ?");
+    }
+    sqlStatement.append(" END WHERE " +  CATALOG_NAME + " = ? AND " +
+            NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ");
+
+    String values = String.join(",", Collections.nCopies(size, String.valueOf('?')));
+    sqlStatement.append("(").append(values).append(")");
+
+    return sqlStatement.toString();
+  }
+
+  public static String insertPropertiesStatement(int size) {
+    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
+
+    for (int i = 0; i < size; i++) {
+      if (i != 0) {
+        sqlStatement.append(", ");
+      }
+      sqlStatement.append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
+    }
+
+    return sqlStatement.toString();
+  }
+
+  public static String deletePropertiesStatement(Set<String> properties) {
+    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.DELETE_NAMESPACE_PROPERTIES_SQL);
+    String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
+    sqlStatement.append("(").append(values).append(")");
+
+    return sqlStatement.toString();
   }
 }
