@@ -86,7 +86,7 @@ public class ErrorResponseParser {
 
   public static ErrorResponse fromJson(JsonNode jsonNode) {
     Preconditions.checkArgument(jsonNode != null && jsonNode.isObject(),
-        "Cannot parse %s from non-object value", ERROR);
+        "Cannot parse error respone from non-object value: %s", jsonNode);
     Preconditions.checkArgument(jsonNode.has(ERROR), "Cannot parse missing field: error");
     JsonNode error = jsonNode.get(ERROR);
     String message = JsonUtil.getStringOrNull(MESSAGE, error);
