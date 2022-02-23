@@ -54,7 +54,6 @@ public class ErrorResponse {
     return code;
   }
 
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
