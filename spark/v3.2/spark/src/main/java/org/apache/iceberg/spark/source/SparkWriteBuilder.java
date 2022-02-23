@@ -132,9 +132,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema;
-    boolean mergeSchema = writeInfo.options().getBoolean("mergeSchema",
-        writeInfo.options().getBoolean("merge-schema", false));
-    if (mergeSchema) {
+    if (writeConf.mergeSchema()) {
       // convert the dataset schema and assign fresh ids for new fields
       Schema newSchema = SparkSchemaUtil.convertWithFreshIds(table.schema(), dsSchema);
 

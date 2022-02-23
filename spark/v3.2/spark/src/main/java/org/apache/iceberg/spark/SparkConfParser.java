@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark;
 
+import com.clearspring.analytics.util.Lists;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -149,14 +151,14 @@ class SparkConfParser {
   }
 
   abstract class ConfParser<ThisT, T> {
-    private String optionName;
+    private final List<String> optionNames = Lists.newArrayList();
     private String sessionConfName;
     private String tablePropertyName;
 
     protected abstract ThisT self();
 
     public ThisT option(String name) {
-      this.optionName = name;
+      this.optionNames.add(name);
       return self();
     }
 
@@ -171,11 +173,13 @@ class SparkConfParser {
     }
 
     protected T parse(Function<String, T> conversion, T defaultValue) {
-      if (optionName != null) {
-        // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case map
-        String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
-        if (optionValue != null) {
-          return conversion.apply(optionValue);
+      if (!optionNames.isEmpty()) {
+        for (String optionName : optionNames) {
+          // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case map
+          String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
+          if (optionValue != null) {
+            return conversion.apply(optionValue);
+          }
         }
       }
 

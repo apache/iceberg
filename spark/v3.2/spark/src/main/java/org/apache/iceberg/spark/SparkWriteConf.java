@@ -115,6 +115,14 @@ public class SparkWriteConf {
     return sessionConf.get("spark.wap.id", null);
   }
 
+  public boolean mergeSchema() {
+    return confParser.booleanConf()
+        .option(SparkWriteOptions.MERGE_SCHEMA)
+        .option(SparkWriteOptions.SPARK_MERGE_SCHEMA)
+        .defaultValue(SparkWriteOptions.MERGE_SCHEMA_DEFAULT)
+        .parse();
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString = confParser.stringConf()
         .option(SparkWriteOptions.WRITE_FORMAT)
