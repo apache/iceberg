@@ -51,6 +51,7 @@ import com.emc.object.s3.bean.ObjectLockRetention;
 import com.emc.object.s3.bean.PingResponse;
 import com.emc.object.s3.bean.PutObjectResult;
 import com.emc.object.s3.bean.QueryObjectsResult;
+import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.bean.VersioningConfiguration;
 import com.emc.object.s3.request.AbortMultipartUploadRequest;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -83,9 +84,16 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.junit.Assert;
 
 /**
  * Memorized s3 client used in tests.
@@ -97,24 +105,33 @@ public class MockS3Client implements S3Client {
    * <p>
    * Current {@link S3ObjectMetadata} only store the user metadata.
    */
-  private final Map<String, ObjectData> objectData = new ConcurrentHashMap<>();
-
-  private String createId(String bucket, String key) {
-    return bucket + "/" + key;
-  }
+  private final ConcurrentMap<ObjectId, ObjectData> objectData = new ConcurrentHashMap<>();
 
   @Override
   public PutObjectResult putObject(PutObjectRequest request) {
-    S3ObjectMetadata metadata = request.getObjectMetadata();
-    objectData.put(
-        createId(request.getBucketName(), request.getKey()),
-        ObjectData.create(convertContent(request.getEntity()), metadata));
+    ObjectId objectId = new ObjectId(request.getBucketName(), request.getKey());
+    ObjectData data = ObjectData.create(convertContent(request.getEntity()), request.getObjectMetadata());
+    if (request.getIfMatch() != null) {
+      // Compare and swap
+      if (this.objectData.computeIfPresent(objectId, (ignored, oldData) ->
+          oldData.createFullMetadata().getETag().equals(request.getIfMatch()) ? data : oldData) != data) {
+        throw new S3Exception("", 412, "PreconditionFailed", "");
+      }
+    } else if (request.getIfNoneMatch() != null) {
+      // Put if absent
+      Assert.assertEquals("If-None-Match only allow *", "*", request.getIfNoneMatch());
+      if (this.objectData.putIfAbsent(objectId, data) != null) {
+        throw new S3Exception("", 412, "PreconditionFailed", "");
+      }
+    } else {
+      this.objectData.put(objectId, data);
+    }
     return new PutObjectResult();
   }
 
   @Override
   public long appendObject(String bucketName, String key, Object content) {
-    String id = createId(bucketName, key);
+    ObjectId id = new ObjectId(bucketName, key);
     ObjectData old = objectData.get(id);
     if (old == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
@@ -144,7 +161,7 @@ public class MockS3Client implements S3Client {
 
   @Override
   public InputStream readObjectStream(String bucketName, String key, Range range) {
-    ObjectData data = objectData.get(createId(bucketName, key));
+    ObjectData data = objectData.get(new ObjectId(bucketName, key));
     if (data == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
@@ -154,7 +171,7 @@ public class MockS3Client implements S3Client {
 
   @Override
   public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
-    ObjectData data = objectData.get(createId(bucketName, key));
+    ObjectData data = objectData.get(new ObjectId(bucketName, key));
     if (data == null) {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
@@ -164,7 +181,79 @@ public class MockS3Client implements S3Client {
 
   @Override
   public void deleteObject(String bucketName, String key) {
-    objectData.remove(createId(bucketName, key));
+    objectData.remove(new ObjectId(bucketName, key));
+  }
+
+  @Override
+  public GetObjectResult<InputStream> getObject(String bucketName, String key) {
+    ObjectData data = objectData.get(new ObjectId(bucketName, key));
+    if (data == null) {
+      throw new S3Exception("", 404, "NoSuchKey", "");
+    }
+
+    GetObjectResult<InputStream> result = new GetObjectResult<InputStream>() {
+      @Override
+      public S3ObjectMetadata getObjectMetadata() {
+        return data.createFullMetadata();
+      }
+    };
+    result.setObject(data.createInputStream(Range.fromOffset(0)));
+    return result;
+  }
+
+  @Override
+  public ListObjectsResult listObjects(ListObjectsRequest request) {
+    String bucket = request.getBucketName();
+    String prefix = request.getPrefix();
+    String marker = request.getMarker();
+    String delimiter = request.getDelimiter();
+    // Use a small default value in mock client
+    Assert.assertNull("MaxKeys does not set", request.getMaxKeys());
+    int maxKeys = 5;
+
+    List<S3Object> objectResults = Lists.newArrayListWithCapacity(maxKeys);
+    Set<String> prefixResults = Sets.newHashSet();
+    String nextMarker = null;
+    for (Map.Entry<ObjectId, ObjectData> entry : objectData.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toList())) {
+      ObjectId id = entry.getKey();
+
+      if (!bucket.equals(id.bucket) || !id.name.startsWith(prefix)) {
+        continue;
+      }
+
+      if (marker != null && id.name.compareTo(marker) < 0) {
+        // skip the entry before marker
+        continue;
+      }
+
+      if (objectResults.size() + prefixResults.size() >= maxKeys) {
+        nextMarker = id.name;
+        break;
+      }
+
+      int nextDelimiter = id.name.indexOf(delimiter, prefix.length());
+      if (nextDelimiter > 0) {
+        // If name = a/b/c and prefix = a/ , then return a/b/
+        prefixResults.add(id.name.substring(0, nextDelimiter + delimiter.length()));
+      } else {
+        S3Object s3Object = new S3Object();
+        s3Object.setKey(id.name);
+        s3Object.setETag(entry.getValue().createFullMetadata().getETag());
+        objectResults.add(s3Object);
+      }
+    }
+
+    ListObjectsResult result = new ListObjectsResult() {
+      @Override
+      public List<String> getCommonPrefixes() {
+        return prefixResults.stream().sorted().collect(Collectors.toList());
+      }
+    };
+    result.setObjects(objectResults);
+    result.setNextMarker(nextMarker);
+    return result;
   }
 
   @Override
@@ -340,11 +429,6 @@ public class MockS3Client implements S3Client {
   }
 
   @Override
-  public ListObjectsResult listObjects(ListObjectsRequest request) {
-    return wontImplement();
-  }
-
-  @Override
   public ListObjectsResult listMoreObjects(ListObjectsResult lastResult) {
     return wontImplement();
   }
@@ -392,11 +476,6 @@ public class MockS3Client implements S3Client {
 
   @Override
   public <T> T readObject(String bucketName, String key, String versionId, Class<T> objectType) {
-    return wontImplement();
-  }
-
-  @Override
-  public GetObjectResult<InputStream> getObject(String bucketName, String key) {
     return wontImplement();
   }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Exception;
+import com.emc.object.s3.request.PutObjectRequest;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -40,6 +41,20 @@ public class TestExceptionCode {
         () -> rule.client().appendObject(rule.bucket(), object, "abc".getBytes()));
     assertS3Exception("Get object", 404, "NoSuchKey",
         () -> rule.client().readObjectStream(rule.bucket(), object, Range.fromOffset(0)));
+
+    rule.client().putObject(new PutObjectRequest(rule.bucket(), object, "abc".getBytes()));
+    assertS3Exception("Put object with unexpect E-Tag", 412, "PreconditionFailed",
+        () -> {
+          PutObjectRequest request = new PutObjectRequest(rule.bucket(), object, "def".getBytes());
+          request.setIfMatch("abc");
+          rule.client().putObject(request);
+        });
+    assertS3Exception("Put object if absent", 412, "PreconditionFailed",
+        () -> {
+          PutObjectRequest request = new PutObjectRequest(rule.bucket(), object, "def".getBytes());
+          request.setIfNoneMatch("*");
+          rule.client().putObject(request);
+        });
   }
 
   public void assertS3Exception(String message, int httpCode, String errorCode, Runnable task) {

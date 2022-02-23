@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.dell.DellClientFactories;
 import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.MockDellClientFactory;
+import org.junit.Assert;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -57,10 +58,7 @@ public class EcsS3MockRule implements TestRule {
   private boolean mock;
 
   // State fields during test
-  /**
-   * Lazy client for test rule.
-   */
-  private S3Client lazyClient;
+  private S3Client client;
   private boolean bucketCreated;
 
   public static EcsS3MockRule create() {
@@ -69,6 +67,17 @@ public class EcsS3MockRule implements TestRule {
 
   public static EcsS3MockRule manualCreateBucket() {
     return new EcsS3MockRule(false);
+  }
+
+  private static final ThreadLocal<EcsS3MockRule> TEST_RULE_FOR_MOCK_CLIENT = new ThreadLocal<>();
+
+  /**
+   * Load rule from thread local and check bucket
+   */
+  public static EcsS3MockRule rule(String id) {
+    EcsS3MockRule rule = TEST_RULE_FOR_MOCK_CLIENT.get();
+    Assert.assertTrue("Test Rule must match id", rule != null && rule.bucket().equals(id));
+    return rule;
   }
 
   public EcsS3MockRule(boolean autoCreateBucket) {
@@ -91,39 +100,40 @@ public class EcsS3MockRule implements TestRule {
   }
 
   private void initialize() {
+    bucket = "test-" + UUID.randomUUID();
     if (System.getenv(DellProperties.ECS_S3_ENDPOINT) == null) {
-      clientProperties = MockDellClientFactory.MOCK_ECS_CLIENT_PROPERTIES;
-      bucket = "test";
       mock = true;
+      Map<String, String> properties = new LinkedHashMap<>();
+      properties.put(DellProperties.CLIENT_FACTORY, MockDellClientFactory.class.getName());
+      properties.put(MockDellClientFactory.ID_KEY, bucket);
+      clientProperties = properties;
+      client = new MockS3Client();
+      TEST_RULE_FOR_MOCK_CLIENT.set(this);
     } else {
+      mock = false;
       Map<String, String> properties = new LinkedHashMap<>();
       properties.put(DellProperties.ECS_S3_ACCESS_KEY_ID, System.getenv(DellProperties.ECS_S3_ACCESS_KEY_ID));
       properties.put(DellProperties.ECS_S3_SECRET_ACCESS_KEY, System.getenv(DellProperties.ECS_S3_SECRET_ACCESS_KEY));
       properties.put(DellProperties.ECS_S3_ENDPOINT, System.getenv(DellProperties.ECS_S3_ENDPOINT));
       clientProperties = properties;
-      bucket = "test-" + UUID.randomUUID();
+      client = DellClientFactories.from(properties).ecsS3();
       if (autoCreateBucket) {
         createBucket();
       }
-
-      mock = false;
     }
   }
 
   private void cleanUp() {
     if (mock) {
-      S3Client client = this.lazyClient;
-      if (client != null) {
-        client.destroy();
-      }
+      // clean up
+      TEST_RULE_FOR_MOCK_CLIENT.set(null);
     } else {
-      S3Client client = client();
       if (bucketCreated) {
         deleteBucket();
       }
-
-      client.destroy();
     }
+
+    client().destroy();
   }
 
   public void createBucket() {
@@ -133,14 +143,13 @@ public class EcsS3MockRule implements TestRule {
   }
 
   private void deleteBucket() {
-    S3Client client = client();
-    if (!client.bucketExists(bucket)) {
+    if (!client().bucketExists(bucket)) {
       return;
     }
 
     // clean up test bucket of this unit test
     while (true) {
-      ListObjectsResult result = client.listObjects(bucket);
+      ListObjectsResult result = client().listObjects(bucket);
       if (result.getObjects().isEmpty()) {
         break;
       }
@@ -149,10 +158,10 @@ public class EcsS3MockRule implements TestRule {
           .stream()
           .map(it -> new ObjectKey(it.getKey()))
           .collect(Collectors.toList());
-      client.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
+      client().deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
     }
 
-    client.deleteBucket(bucket);
+    client().deleteBucket(bucket);
   }
 
   public Map<String, String> clientProperties() {
@@ -160,11 +169,7 @@ public class EcsS3MockRule implements TestRule {
   }
 
   public S3Client client() {
-    if (lazyClient == null) {
-      lazyClient = DellClientFactories.from(clientProperties).ecsS3();
-    }
-
-    return lazyClient;
+    return client;
   }
 
   public String bucket() {

@@ -21,6 +21,8 @@ package org.apache.iceberg.dell;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.dell.ecs.EcsURI;
 
 public class DellProperties implements Serializable {
   /**
@@ -39,6 +41,13 @@ public class DellProperties implements Serializable {
   public static final String ECS_S3_ENDPOINT = "ecs.s3.endpoint";
 
   /**
+   * Catalog prefix. If not set, use {@link CatalogProperties#WAREHOUSE_LOCATION}.
+   * <p>
+   * The value is an EcsURI which like ecs://bucket/prefix.
+   */
+  public static final String ECS_CATALOG_PREFIX = "ecs.catalog.prefix";
+
+  /**
    * The implementation class of {@link DellClientFactory} to customize Dell client configurations.
    * If set, all Dell clients will be initialized by the specified factory.
    * If not set, {@link DellClientFactories.DefaultDellClientFactory} is used as default factory.
@@ -48,6 +57,8 @@ public class DellProperties implements Serializable {
   private String ecsS3Endpoint;
   private String ecsS3AccessKeyId;
   private String ecsS3SecretAccessKey;
+  private EcsURI ecsCatalogPrefix;
+  private String ecsCatalogDelimiter;
 
   public DellProperties() {
   }
@@ -56,6 +67,14 @@ public class DellProperties implements Serializable {
     this.ecsS3AccessKeyId = properties.get(DellProperties.ECS_S3_ACCESS_KEY_ID);
     this.ecsS3SecretAccessKey = properties.get(DellProperties.ECS_S3_SECRET_ACCESS_KEY);
     this.ecsS3Endpoint = properties.get(DellProperties.ECS_S3_ENDPOINT);
+
+    if (properties.containsKey(DellProperties.ECS_CATALOG_PREFIX)) {
+      this.ecsCatalogPrefix = new EcsURI(properties.get(ECS_CATALOG_PREFIX));
+    } else if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
+      this.ecsCatalogPrefix = new EcsURI(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    }
+
+    this.ecsCatalogDelimiter = "/";
   }
 
   public String ecsS3Endpoint() {
@@ -80,5 +99,21 @@ public class DellProperties implements Serializable {
 
   public void setEcsS3SecretAccessKey(String ecsS3SecretAccessKey) {
     this.ecsS3SecretAccessKey = ecsS3SecretAccessKey;
+  }
+
+  public EcsURI ecsCatalogPrefix() {
+    return ecsCatalogPrefix;
+  }
+
+  public void setEcsCatalogPrefix(EcsURI ecsCatalogPrefix) {
+    this.ecsCatalogPrefix = ecsCatalogPrefix;
+  }
+
+  public String ecsCatalogDelimiter() {
+    return ecsCatalogDelimiter;
+  }
+
+  public void setEcsCatalogDelimiter(String ecsCatalogDelimiter) {
+    this.ecsCatalogDelimiter = ecsCatalogDelimiter;
   }
 }
