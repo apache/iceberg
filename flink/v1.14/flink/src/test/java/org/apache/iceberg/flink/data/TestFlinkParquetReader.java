@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.data;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -30,7 +31,9 @@ import java.util.Random;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -41,6 +44,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -125,7 +129,6 @@ public class TestFlinkParquetReader extends DataTest {
         .build()) {
       writer.addAll(iterable);
     }
-
     try (CloseableIterable<RowData> reader = Parquet.read(Files.localInput(testFile))
         .project(schema)
         .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
@@ -148,12 +151,23 @@ public class TestFlinkParquetReader extends DataTest {
     writeAndValidate(RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20), schema);
   }
 
-  protected List<RowData> rowDataFromFile(InputFile inputFile, Schema schema) throws IOException {
+  protected List<RowData> flinkReadRowDataFromFile(InputFile inputFile, Schema schema) throws IOException {
     try (CloseableIterable<RowData> reader =
         Parquet.read(inputFile)
             .project(schema)
             .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
             .build()) {
+      return Lists.newArrayList(reader);
+    }
+  }
+
+  protected List<org.apache.iceberg.data.GenericRecord> genericReadRowDataFromFile(InputFile inputFile,
+      Schema schema) throws IOException {
+    try (CloseableIterable<org.apache.iceberg.data.GenericRecord> reader =
+                 Parquet.read(inputFile)
+                         .project(schema)
+                         .createReaderFunc(type -> GenericParquetReaders.buildReader(schema, type))
+                         .build()) {
       return Lists.newArrayList(reader);
     }
   }
@@ -164,7 +178,7 @@ public class TestFlinkParquetReader extends DataTest {
     HadoopOutputFile outputFile =
         HadoopOutputFile.fromPath(
             new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
-    Schema schema = new Schema(required(1, "ts", Types.TimestampType.withZone()));
+    Schema schema = new Schema(required(1, "ts", Types.TimestampType.withoutZone()));
     StructType sparkSchema =
         new StructType(
             new StructField[] {
@@ -175,7 +189,7 @@ public class TestFlinkParquetReader extends DataTest {
     List<InternalRow> rows = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
       rows.add(new GenericInternalRow(new Object[] {
-              RandomUtil.generatePrimitive(schema.asStruct().fieldType("ts").asPrimitiveType(), random)}));
+          RandomUtil.generatePrimitive(schema.asStruct().fieldType("ts").asPrimitiveType(), random)}));
     }
 
     try (FileAppender<InternalRow> writer =
@@ -190,10 +204,19 @@ public class TestFlinkParquetReader extends DataTest {
     }
 
     InputFile parquetInputFile = Files.localInput(outputFilePath);
-    List<RowData> readDataRows = rowDataFromFile(parquetInputFile, schema);
-    Assert.assertEquals(rows.size(), readDataRows.size());
+    List<RowData> flinkReadDataRows = flinkReadRowDataFromFile(parquetInputFile, schema);
+    List<org.apache.iceberg.data.GenericRecord> genericReadDataRows = genericReadRowDataFromFile(parquetInputFile, schema);
+
+    Assert.assertEquals(rows.size(), flinkReadDataRows.size());
+    Assert.assertEquals(rows.size(), genericReadDataRows.size());
     for (int i = 0; i < rows.size(); i += 1) {
-      Assert.assertEquals(rows.get(i).getLong(0), readDataRows.get(i).getLong(0));
+      TimestampData actual = ((TimestampData) ((GenericRowData) flinkReadDataRows.get(i)).getField(0));
+      Assert.assertEquals(
+          rows.get(i).getLong(0),
+          actual.getMillisecond() * 1000 + actual.getNanoOfMillisecond() / 1000);
+
+      OffsetDateTime expect = ((OffsetDateTime)genericReadDataRows.get(i).getField("ts"));
+      Assert.assertTrue(expect.toLocalDateTime().equals(actual.toLocalDateTime()));
     }
   }
 

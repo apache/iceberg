@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericRowData;
@@ -327,24 +328,29 @@ public class FlinkParquetReaders {
     }
   }
 
-  private static class TimestampInt96Reader extends ParquetValueReaders.UnboxedReader<Long> {
+  private static class TimestampInt96Reader extends ParquetValueReaders.UnboxedReader<TimestampData> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
     TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public Long read(Long ignored) {
-      return readLong();
-    }
-
-    @Override
-    public long readLong() {
-      ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+    public TimestampData read(TimestampData ignored) {
+      ByteBuffer byteBuffer = readBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
       long timeOfDayNanos = byteBuffer.getLong();
       int julianDay = byteBuffer.getInt();
-      return DateTimeUtil.microsFromInt96(timeOfDayNanos, julianDay);
+      return TimestampData.fromLocalDateTime(Instant
+              .ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
+              .plusNanos(timeOfDayNanos).atOffset(ZoneOffset.UTC).toLocalDateTime());
     }
+
+
+    @Override
+    public Binary readBinary() {
+      return column.nextBinary();
+    }
+
   }
 
   private static class MicrosToTimestampTzReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
