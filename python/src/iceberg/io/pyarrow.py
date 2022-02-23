@@ -67,7 +67,7 @@ class PyArrowFile(InputFile, OutputFile):
             file_info = self._filesystem.get_file_info(self._path)
         except OSError as e:
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot check if file exists, access denied: {self.location}")
+                raise PermissionError(f"Cannot get file info, access denied: {self.location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return file_info
 
@@ -180,9 +180,11 @@ class PyArrowFileIO(FileIO):
         filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
         try:
             filesystem.delete_file(path)
+        except PermissionError:
+            raise
         except OSError as e:
             if e.errno == 2 or "Path does not exist" in str(e):
                 raise FileNotFoundError(f"Cannot delete file, does not exist: {location}")
-            elif e.errno == 13 or "AWS Error [code 15]" in str(e) or isinstance(e, PermissionError):
+            elif e.errno == 13 or "AWS Error [code 15]" in str(e):
                 raise PermissionError(f"Cannot delete file, access denied: {location}")
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
