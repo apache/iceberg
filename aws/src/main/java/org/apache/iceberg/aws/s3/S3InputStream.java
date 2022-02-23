@@ -23,7 +23,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -46,18 +50,24 @@ class S3InputStream extends SeekableInputStream {
   private long next = 0;
   private boolean closed = false;
 
+  private final Counter<Long> readBytes;
+  private final Counter<Integer> readOperations;
+
   private int skipSize = 1024 * 1024;
 
   S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new AwsProperties());
+    this(s3, location, new AwsProperties(), MetricsContext.nullMetrics());
   }
 
-  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties) {
+  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
 
-    createStack = Thread.currentThread().getStackTrace();
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+
+    this.createStack = Thread.currentThread().getStackTrace();
   }
 
   @Override
@@ -81,6 +91,8 @@ class S3InputStream extends SeekableInputStream {
 
     pos += 1;
     next += 1;
+    readBytes.increment();
+    readOperations.increment();
 
     return stream.read();
   }
@@ -93,6 +105,8 @@ class S3InputStream extends SeekableInputStream {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
+    readBytes.increment((long) bytesRead);
+    readOperations.increment();
 
     return bytesRead;
   }

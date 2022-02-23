@@ -48,7 +48,7 @@ class Truncate(Transform):
         raise NotImplementedError()
 
     def get_result_type(self, source_type):
-        return type(source_type)
+        return source_type
 
     def project(self, name, predicate):
         raise NotImplementedError()

@@ -94,8 +94,12 @@ public class PartitionSpec implements Serializable {
     return lazyFieldList();
   }
 
+  public boolean isPartitioned() {
+    return fields.length > 0;
+  }
+
   public boolean isUnpartitioned() {
-    return fields.length < 1;
+    return !isPartitioned();
   }
 
   int lastAssignedFieldId() {
@@ -323,6 +327,8 @@ public class PartitionSpec implements Serializable {
     private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
+    // check if there are conflicts between partition and schema field name
+    private boolean checkConflicts = true;
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -336,17 +342,24 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(name, null);
     }
 
+    Builder checkConflicts(boolean check) {
+      checkConflicts = check;
+      return this;
+    }
+
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
       Types.NestedField schemaField = schema.findField(name);
-      if (sourceColumnId != null) {
-        // for identity transform case we allow  conflicts between partition and schema field name as
-        //   long as they are sourced from the same schema field
-        Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
-            "Cannot create identity partition sourced from different field in schema: %s", name);
-      } else {
-        // for all other transforms we don't allow conflicts between partition name and schema field name
-        Preconditions.checkArgument(schemaField == null,
-            "Cannot create partition from name that exists in schema: %s", name);
+      if (checkConflicts) {
+        if (sourceColumnId != null) {
+          // for identity transform case we allow conflicts between partition and schema field name as
+          //   long as they are sourced from the same schema field
+          Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
+              "Cannot create identity partition sourced from different field in schema: %s", name);
+        } else {
+          // for all other transforms we don't allow conflicts between partition name and schema field name
+          Preconditions.checkArgument(schemaField == null,
+              "Cannot create partition from name that exists in schema: %s", name);
+        }
       }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);

@@ -35,23 +35,25 @@ class ManifestOutputFileFactory {
   private final FileIO io;
   private final Map<String, String> props;
   private final String flinkJobId;
+  private final String operatorUniqueId;
   private final int subTaskId;
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
-                            String flinkJobId, int subTaskId, long attemptNumber) {
+                            String flinkJobId,  String operatorUniqueId, int subTaskId, long attemptNumber) {
     this.ops = ops;
     this.io = io;
     this.props = props;
     this.flinkJobId = flinkJobId;
+    this.operatorUniqueId = operatorUniqueId;
     this.subTaskId = subTaskId;
     this.attemptNumber = attemptNumber;
   }
 
   private String generatePath(long checkpointId) {
-    return FileFormat.AVRO.addExtension(String.format("%s-%05d-%d-%d-%05d", flinkJobId, subTaskId,
-        attemptNumber, checkpointId, fileCount.incrementAndGet()));
+    return FileFormat.AVRO.addExtension(String.format("%s-%s-%05d-%d-%d-%05d", flinkJobId, operatorUniqueId,
+        subTaskId, attemptNumber, checkpointId, fileCount.incrementAndGet()));
   }
 
   OutputFile create(long checkpointId) {

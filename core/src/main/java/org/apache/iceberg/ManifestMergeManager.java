@@ -26,6 +26,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -36,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 
 abstract class ManifestMergeManager<F extends ContentFile<F>> {
   private final long targetSizeBytes;
@@ -46,10 +47,14 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
   // cache merge results to reuse when retrying
   private final Map<List<ManifestFile>, ManifestFile> mergedManifests = Maps.newConcurrentMap();
 
-  ManifestMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled) {
+  private final Supplier<ExecutorService> workerPoolSupplier;
+
+  ManifestMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled,
+                       Supplier<ExecutorService> executorSupplier) {
     this.targetSizeBytes = targetSizeBytes;
     this.minCountToMerge = minCountToMerge;
     this.mergeEnabled = mergeEnabled;
+    this.workerPoolSupplier = executorSupplier;
   }
 
   protected abstract long snapshotId();
@@ -116,7 +121,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
 
     Tasks.range(bins.size())
         .stopOnFailure().throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(workerPoolSupplier.get())
         .run(index -> {
           List<ManifestFile> bin = bins.get(index);
           List<ManifestFile> outputManifests = Lists.newArrayList();

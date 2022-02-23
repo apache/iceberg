@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
+import org.apache.flink.api.common.io.LocatableInputSplitAssigner;
 import org.apache.flink.api.common.io.RichInputFormat;
 import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.configuration.Configuration;
@@ -77,13 +78,15 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     tableLoader.open();
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
-      return FlinkSplitGenerator.createInputSplits(table, context);
+      return FlinkSplitPlanner.planInputSplits(table, context);
     }
   }
 
   @Override
   public InputSplitAssigner getInputSplitAssigner(FlinkInputSplit[] inputSplits) {
-    return new DefaultInputSplitAssigner(inputSplits);
+    return context.exposeLocality() ?
+        new LocatableInputSplitAssigner(inputSplits) :
+        new DefaultInputSplitAssigner(inputSplits);
   }
 
   @Override

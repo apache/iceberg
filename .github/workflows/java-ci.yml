@@ -30,7 +30,10 @@ on:
     - 'dev/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -41,7 +44,10 @@ on:
     - 'dev/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
 
 jobs:
   core-tests:

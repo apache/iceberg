@@ -22,12 +22,15 @@ package org.apache.iceberg.aws.s3;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.aws.AwsClientFactories;
-import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 
@@ -39,10 +42,13 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
  * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class S3FileIO implements FileIO {
+  private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
+  private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
+
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-  private AwsClientFactory awsClientFactory;
   private transient S3Client client;
+  private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
   /**
@@ -77,12 +83,12 @@ public class S3FileIO implements FileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, client(), awsProperties);
+    return S3InputFile.fromLocation(path, client(), awsProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return S3OutputFile.fromLocation(path, client(), awsProperties);
+    return S3OutputFile.fromLocation(path, client(), awsProperties, metrics);
   }
 
   @Override
@@ -104,8 +110,22 @@ public class S3FileIO implements FileIO {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
-    this.awsClientFactory = AwsClientFactories.from(properties);
-    this.s3 = awsClientFactory::s3;
+
+    // Do not override s3 client if it was provided
+    if (s3 == null) {
+      this.s3 = AwsClientFactories.from(properties)::s3;
+    }
+
+    // Report Hadoop metrics if Hadoop is available
+    try {
+      DynConstructors.Ctor<MetricsContext> ctor =
+          DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+      this.metrics = ctor.newInstance("s3");
+
+      metrics.initialize(properties);
+    } catch (NoSuchMethodException | ClassCastException e) {
+      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
+    }
   }
 
   @Override

@@ -19,27 +19,19 @@
 
 package org.apache.iceberg.flink.source;
 
-import org.apache.flink.core.io.InputSplit;
+import java.util.Arrays;
+import javax.annotation.Nullable;
 import org.apache.flink.core.io.LocatableInputSplit;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-/**
- * TODO Implement {@link LocatableInputSplit}.
- */
-public class FlinkInputSplit implements InputSplit {
+public class FlinkInputSplit extends LocatableInputSplit {
 
-  private final int splitNumber;
   private final CombinedScanTask task;
 
-  FlinkInputSplit(int splitNumber, CombinedScanTask task) {
-    this.splitNumber = splitNumber;
+  FlinkInputSplit(int splitNumber, CombinedScanTask task, @Nullable String[] hostnames) {
+    super(splitNumber, hostnames);
     this.task = task;
-  }
-
-  @Override
-  public int getSplitNumber() {
-    return splitNumber;
   }
 
   CombinedScanTask getTask() {
@@ -49,8 +41,9 @@ public class FlinkInputSplit implements InputSplit {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("splitNumber", splitNumber)
+        .add("splitNumber", getSplitNumber())
         .add("task", task)
+        .add("hosts", Arrays.toString(getHostnames()))
         .toString();
   }
 }

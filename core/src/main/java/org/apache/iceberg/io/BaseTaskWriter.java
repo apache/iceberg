@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
@@ -135,13 +136,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      *
      * @param key has the same columns with the equality fields.
      */
-    private void internalPosDelete(StructLike key) {
+    private boolean internalPosDelete(StructLike key) {
       PathOffset previous = insertedRowMap.remove(key);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
         posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        return true;
       }
+
+      return false;
     }
 
     /**
@@ -151,9 +155,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param row the given row to delete.
      */
     public void delete(T row) throws IOException {
-      internalPosDelete(structProjection.wrap(asStructLike(row)));
-
-      eqDeleteWriter.write(row);
+      if (!internalPosDelete(structProjection.wrap(asStructLike(row)))) {
+        eqDeleteWriter.write(row);
+      }
     }
 
     /**
@@ -163,9 +167,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key is the projected data whose columns are the same as the equality fields.
      */
     public void deleteKey(T key) throws IOException {
-      internalPosDelete(asStructLike(key));
-
-      eqDeleteWriter.write(key);
+      if (!internalPosDelete(asStructLike(key))) {
+        eqDeleteWriter.write(key);
+      }
     }
 
     @Override
@@ -281,7 +285,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         currentWriter.close();
 
         if (currentRows == 0L) {
-          io.deleteFile(currentFile.encryptingOutputFile());
+          try {
+            io.deleteFile(currentFile.encryptingOutputFile());
+          } catch (UncheckedIOException e) {
+            // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+          }
         } else {
           complete(currentWriter);
         }
@@ -315,7 +323,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     void write(DataWriter<T> writer, T record) {
-      writer.add(record);
+      writer.write(record);
     }
 
     @Override

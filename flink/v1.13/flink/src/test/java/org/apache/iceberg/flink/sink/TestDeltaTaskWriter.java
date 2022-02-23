@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -92,6 +93,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
     }
 
     table.updateProperties()
+        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(8 * 1024))
         .defaultFormat(format)
         .commit();
   }
@@ -134,7 +136,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     WriteResult result = writer.complete();
     Assert.assertEquals(partitioned ? 7 : 1, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 6 : 2, result.deleteFiles().length);
+    Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records.", expectedRowSet(
@@ -218,11 +220,13 @@ public class TestDeltaTaskWriter extends TableTestBase {
     taskWriterFactory.initialize(1, 1);
 
     TaskWriter<RowData> writer = taskWriterFactory.create();
-    writer.write(createUpdateBefore(1, "aaa"));
-    writer.write(createUpdateAfter(1, "bbb"));
+    for (int i = 0; i < 8_000; i += 2) {
+      writer.write(createUpdateBefore(i + 1, "aaa"));
+      writer.write(createUpdateAfter(i + 1, "aaa"));
 
-    writer.write(createUpdateBefore(2, "aaa"));
-    writer.write(createUpdateAfter(2, "bbb"));
+      writer.write(createUpdateBefore(i + 2, "bbb"));
+      writer.write(createUpdateAfter(i + 2, "bbb"));
+    }
 
     // Assert the current data/delete file count.
     List<Path> files = Files.walk(Paths.get(tableDir.getPath(), "data"))
@@ -302,13 +306,13 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer.write(createInsert(1, "aaa"));
     writer.write(createInsert(2, "aaa"));
 
-    writer.write(createDelete(2, "aaa")); // 1 pos-delete and 1 eq-delete.
+    writer.write(createDelete(2, "aaa")); // 1 pos-delete.
 
     WriteResult result = writer.complete();
     Assert.assertEquals(1, result.dataFiles().length);
-    Assert.assertEquals(2, result.deleteFiles().length);
-    Assert.assertEquals(Sets.newHashSet(FileContent.EQUALITY_DELETES, FileContent.POSITION_DELETES),
-        Sets.newHashSet(result.deleteFiles()[0].content(), result.deleteFiles()[1].content()));
+    Assert.assertEquals(1, result.deleteFiles().length);
+    Assert.assertEquals(Sets.newHashSet(FileContent.POSITION_DELETES),
+            Sets.newHashSet(result.deleteFiles()[0].content()));
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(

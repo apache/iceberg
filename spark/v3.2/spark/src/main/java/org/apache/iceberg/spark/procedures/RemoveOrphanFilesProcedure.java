@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -47,7 +48,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("location", DataTypes.StringType),
-      ProcedureParameter.optional("dry_run", DataTypes.BooleanType)
+      ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
+      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -83,6 +85,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     String location = args.isNullAt(2) ? null : args.getString(2);
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
+    Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
+
+    Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
+            "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
     return withIcebergTable(tableIdent, table -> {
       DeleteOrphanFiles action = actions().deleteOrphanFiles(table);
@@ -101,6 +107,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
       if (dryRun) {
         action.deleteWith(file -> { });
+      }
+
+      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+        action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
       }
 
       DeleteOrphanFiles.Result result = action.execute();

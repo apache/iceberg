@@ -77,13 +77,7 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
-### Compatibility
+### Engine Compatibility
 
-Iceberg's Spark integration is compatible with Spark 2.4 and Spark 3.0 using the modules in the following table:
-
-| Iceberg version | Spark 2.4.x   | Spark 3.0.x    |
-| --------------- | ------------- | -------------- |
-| master branch   | spark-runtime | spark3-runtime |
-| 0.9.0           | spark-runtime | spark3-runtime |
-| 0.8.0           | spark-runtime |                |
-
+See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to know about Iceberg compatibility with different Spark, Flink and Hive versions.
+For other engines such as Presto or Trino, please visit their websites for Iceberg integration details.

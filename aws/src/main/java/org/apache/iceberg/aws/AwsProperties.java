@@ -166,6 +166,12 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Enables eTag checks for S3 PUT and MULTIPART upload requests.
+   */
+  public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
+  public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
+
+  /**
    * DynamoDB table name for {@link DynamoDbCatalog}
    */
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
@@ -209,6 +215,12 @@ public class AwsProperties implements Serializable {
    */
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
+  /**
+   * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
+   */
+  @Deprecated
+  public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -223,6 +235,8 @@ public class AwsProperties implements Serializable {
 
   private String dynamoDbTableName;
 
+  private boolean isS3ChecksumEnabled;
+
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -233,6 +247,7 @@ public class AwsProperties implements Serializable {
     this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
     this.s3FileIoMultipartThresholdFactor = S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
+    this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -281,6 +296,9 @@ public class AwsProperties implements Serializable {
     this.s3FileIoAcl = ObjectCannedACL.fromValue(aclType);
     Preconditions.checkArgument(s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
         "Cannot support S3 CannedACL " + aclType);
+
+    this.isS3ChecksumEnabled = PropertyUtil.propertyAsBoolean(properties, S3_CHECKSUM_ENABLED,
+        S3_CHECKSUM_ENABLED_DEFAULT);
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
@@ -372,5 +390,13 @@ public class AwsProperties implements Serializable {
 
   public void setDynamoDbTableName(String name) {
     this.dynamoDbTableName = name;
+  }
+
+  public boolean isS3ChecksumEnabled() {
+    return this.isS3ChecksumEnabled;
+  }
+
+  public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
+    this.isS3ChecksumEnabled = eTagCheckEnabled;
   }
 }

@@ -47,8 +47,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
-import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
+import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.source.SparkScan.ReadTask;
+import org.apache.iceberg.spark.source.SparkScan.ReaderFactory;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
@@ -76,12 +77,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
+  private final boolean skipOverwrite;
   private final Long fromTimestamp;
 
-  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf, boolean caseSensitive,
+  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf,
                         Schema expectedSchema, String checkpointLocation) {
     this.table = table;
-    this.caseSensitive = caseSensitive;
+    this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
@@ -94,6 +96,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
+    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
   }
 
   @Override
@@ -199,12 +202,26 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
-    Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
-        "Cannot process delete snapshot: %s", snapshot.snapshotId());
-    Preconditions.checkState(
-        op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
-        "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
-    return op.equals(DataOperations.APPEND);
+    switch (op) {
+      case DataOperations.APPEND:
+        return true;
+      case DataOperations.REPLACE:
+        return false;
+      case DataOperations.DELETE:
+        Preconditions.checkState(skipDelete,
+            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
+            snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
+        return false;
+      case DataOperations.OVERWRITE:
+        Preconditions.checkState(skipOverwrite,
+            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
+            snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
+        return false;
+      default:
+        throw new IllegalStateException(String.format(
+            "Cannot process unknown snapshot operation: %s (snapshot id %s)",
+            op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
+    }
   }
 
   private static StreamingOffset determineStartingOffset(Table table, Long fromTimestamp) {

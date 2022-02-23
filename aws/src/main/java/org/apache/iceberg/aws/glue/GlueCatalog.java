@@ -30,6 +30,7 @@ import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -38,6 +39,7 @@ import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -49,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LockManagers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -85,6 +88,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
 
+  // Attempt to set versionId if available on the path
+  private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
+      .hiddenImpl("software.amazon.awssdk.services.glue.model.UpdateTableRequest$Builder", String.class)
+      .orNoop()
+      .build();
+
   /**
    * No-arg constructor to load the catalog dynamically.
    * <p>
@@ -100,8 +109,17 @@ public class GlueCatalog extends BaseMetastoreCatalog
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         AwsClientFactories.from(properties).glue(),
-        LockManagers.from(properties),
+        initializeLockManager(properties),
         initializeFileIO(properties));
+  }
+
+  private LockManager initializeLockManager(Map<String, String> properties) {
+    if (properties.containsKey(CatalogProperties.LOCK_IMPL)) {
+      return LockManagers.from(properties);
+    } else if (SET_VERSION_ID.isNoop()) {
+      return LockManagers.defaultLockManager();
+    }
+    return null;
   }
 
   private FileIO initializeFileIO(Map<String, String> properties) {

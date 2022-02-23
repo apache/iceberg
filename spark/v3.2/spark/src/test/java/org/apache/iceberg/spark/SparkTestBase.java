@@ -19,12 +19,19 @@
 
 package org.apache.iceberg.spark;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -33,6 +40,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
@@ -75,7 +84,7 @@ public abstract class SparkTestBase {
   }
 
   @AfterClass
-  public static void stopMetastoreAndSpark() {
+  public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
     metastore.stop();
     SparkTestBase.metastore = null;
@@ -157,7 +166,11 @@ public abstract class SparkTestBase {
       Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
-        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        if (expectedValue instanceof byte[]) {
+          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
+        } else {
+          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+        }
       } else if (expectedValue != ANY) {
         Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
       }
@@ -166,6 +179,36 @@ public abstract class SparkTestBase {
 
   protected static String dbPath(String dbName) {
     return metastore.getDatabasePath(dbName);
+  }
+
+  protected void withUnavailableFiles(Iterable<? extends ContentFile<?>> files, Action action) {
+    Iterable<String> fileLocations = Iterables.transform(files, file -> file.path().toString());
+    withUnavailableLocations(fileLocations, action);
+  }
+
+  private void move(String location, String newLocation) {
+    Path path = Paths.get(URI.create(location));
+    Path tempPath = Paths.get(URI.create(newLocation));
+
+    try {
+      Files.move(path, tempPath);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to move: " + location, e);
+    }
+  }
+
+  protected void withUnavailableLocations(Iterable<String> locations, Action action) {
+    for (String location : locations) {
+      move(location, location + "_temp");
+    }
+
+    try {
+      action.invoke();
+    } finally {
+      for (String location : locations) {
+        move(location + "_temp", location);
+      }
+    }
   }
 
   protected void withSQLConf(Map<String, String> conf, Action action) {
@@ -197,6 +240,11 @@ public abstract class SparkTestBase {
         }
       });
     }
+  }
+
+  protected Dataset<Row> jsonToDF(String schema, String... records) {
+    Dataset<String> jsonDF = spark.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
+    return spark.read().schema(schema).json(jsonDF);
   }
 
   @FunctionalInterface

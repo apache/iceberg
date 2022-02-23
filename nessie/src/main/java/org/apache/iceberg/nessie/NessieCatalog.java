@@ -34,6 +34,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -46,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
+import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
 import org.projectnessie.client.api.NessieApiV1;
@@ -75,7 +77,8 @@ import org.slf4j.LoggerFactory;
  * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
-  private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
+
+  private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private NessieApiV1 api;
   private String warehouseLocation;
@@ -95,9 +98,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
     this.name = inputName == null ? "nessie" : inputName;
     // remove nessie prefix
-    final Function<String, String> removePrefix = x -> x.replace("nessie.", "");
+    final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
 
-    this.api = HttpClientBuilder.builder().fromConfig(x -> options.get(removePrefix.apply(x)))
+    this.api = createNessieClientBuilder(options.get(NessieUtil.CONFIG_CLIENT_BUILDER_IMPL))
+        .fromConfig(x -> options.get(removePrefix.apply(x)))
         .build(NessieApiV1.class);
 
     this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
@@ -118,12 +122,26 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       //        defaultCatalog,
       //        currentNamespace
       //    );
-      logger.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
+      LOG.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
           "'warehouse' is not set, Nessie can't store data.", inputName, options);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
     final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
     this.reference = loadReference(requestedRef, null);
+  }
+
+  private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
+    NessieClientBuilder<?> clientBuilder;
+    if (customBuilder != null) {
+      try {
+        clientBuilder = DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
+      } catch (Exception e) {
+        throw new RuntimeException(String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
+      }
+    } else {
+      clientBuilder = HttpClientBuilder.builder();
+    }
+    return clientBuilder;
   }
 
   @Override
@@ -176,7 +194,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
 
     if (purge) {
-      logger.info("Purging data for table {} was set to true but is ignored", identifier.toString());
+      LOG.info("Purging data for table {} was set to true but is ignored", identifier.toString());
     }
 
     CommitMultipleOperationsBuilder commitBuilderBase = api.commitMultipleOperations()
@@ -200,11 +218,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           }, BaseNessieClientServerException.class);
       threw = false;
     } catch (NessieConflictException e) {
-      logger.error("Cannot drop table: failed after retry (update ref and retry)", e);
+      LOG.error("Cannot drop table: failed after retry (update ref and retry)", e);
     } catch (NessieNotFoundException e) {
-      logger.error("Cannot drop table: ref is no longer valid.", e);
+      LOG.error("Cannot drop table: ref is no longer valid.", e);
     } catch (BaseNessieClientServerException e) {
-      logger.error("Cannot drop table: unknown error", e);
+      LOG.error("Cannot drop table: unknown error", e);
     }
     return !threw;
   }

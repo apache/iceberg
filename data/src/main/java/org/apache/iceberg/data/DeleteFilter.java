@@ -214,7 +214,7 @@ public abstract class DeleteFilter<T> {
 
     if (deleteRowPositions == null) {
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-      deleteRowPositions = Deletes.toPositionBitmap(dataFile.path(), deletes);
+      deleteRowPositions = Deletes.toPositionIndex(dataFile.path(), deletes);
     }
     return deleteRowPositions;
   }
@@ -228,9 +228,7 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      return Deletes.filter(
-          records, this::pos,
-          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
+      return Deletes.filter(records, this::pos, Deletes.toPositionIndex(dataFile.path(), deletes));
     }
 
     return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));

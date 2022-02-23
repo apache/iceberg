@@ -20,6 +20,7 @@
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
@@ -50,6 +51,7 @@ import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
@@ -75,7 +77,7 @@ public abstract class BaseTestIceberg {
   @RegisterExtension
   static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
   @TempDir
   public Path temp;
@@ -84,7 +86,7 @@ public abstract class BaseTestIceberg {
   protected NessieApiV1 api;
   protected Configuration hadoopConfig;
   protected final String branch;
-  private String uri;
+  protected String uri;
 
   public BaseTestIceberg(String branch) {
     this.branch = branch;
@@ -102,9 +104,9 @@ public abstract class BaseTestIceberg {
   }
 
   @BeforeEach
-  public void beforeEach() throws IOException {
-    uri = server.getURI().toString();
-    this.api = HttpClientBuilder.builder().withUri(uri).build(NessieApiV1.class);
+  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
+    this.uri = nessieUri.toString();
+    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
     resetData();
 
@@ -133,7 +135,7 @@ public abstract class BaseTestIceberg {
     try {
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
-      LOGGER.error("unable to do create " + tableIdentifier.toString(), t);
+      LOG.error("unable to do create " + tableIdentifier.toString(), t);
       throw t;
     }
   }

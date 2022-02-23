@@ -124,7 +124,7 @@ public class TableMetadata implements Serializable {
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
-        ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
+        ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of());
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -238,6 +238,7 @@ public class TableMetadata implements Serializable {
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
+  private final Map<String, SnapshotRef> refs;
   private final List<MetadataUpdate> changes;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -260,6 +261,7 @@ public class TableMetadata implements Serializable {
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
                 List<MetadataLogEntry> previousFiles,
+                Map<String, SnapshotRef> refs,
                 List<MetadataUpdate> changes) {
     Preconditions.checkArgument(specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
@@ -299,6 +301,7 @@ public class TableMetadata implements Serializable {
     this.schemasById = indexSchemas();
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
+    this.refs = validateRefs(refs);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -493,14 +496,6 @@ public class TableMetadata implements Serializable {
     return new Builder(this).setDefaultSortOrder(newOrder).build();
   }
 
-  public TableMetadata addStagedSnapshot(Snapshot snapshot) {
-    return new Builder(this).addSnapshot(snapshot).build();
-  }
-
-  public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
-    return new Builder(this).setCurrentSnapshot(snapshot).build();
-  }
-
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> toRemove = snapshots.stream().filter(removeIf).collect(Collectors.toList());
     return new Builder(this).removeSnapshots(toRemove).build();
@@ -607,7 +602,7 @@ public class TableMetadata implements Serializable {
 
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)
-        .setCurrentSnapshot(null)
+        .removeBranch(SnapshotRef.MAIN_BRANCH)
         .setCurrentSchema(freshSchema, newLastColumnId.get())
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
@@ -725,6 +720,18 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
+  private Map<String, SnapshotRef> validateRefs(Map<String, SnapshotRef> inputRefs) {
+    for (Map.Entry<String, SnapshotRef> refEntry : inputRefs.entrySet()) {
+      String refName = refEntry.getKey();
+      SnapshotRef ref = refEntry.getValue();
+      if (!(ref.snapshotId() == -1 && refName.equals(SnapshotRef.MAIN_BRANCH))) {
+        Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
+            "Snapshot reference %s does not exist in the existing snapshots list", ref);
+      }
+    }
+    return inputRefs;
+  }
+
   public static Builder buildFrom(TableMetadata base) {
     return new Builder(base);
   }
@@ -747,6 +754,7 @@ public class TableMetadata implements Serializable {
     private final Map<String, String> properties;
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
+    private Map<String, SnapshotRef> refs;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -788,6 +796,7 @@ public class TableMetadata implements Serializable {
       this.snapshotLog = Lists.newArrayList(base.snapshotLog);
       this.previousFileLocation = base.metadataFileLocation;
       this.previousFiles = base.previousFiles;
+      this.refs = Maps.newHashMap(base.refs);
 
       this.snapshotsById = Maps.newHashMap(base.snapshotsById);
       this.schemasById = Maps.newHashMap(base.schemasById);
@@ -919,23 +928,38 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder setCurrentSnapshot(Snapshot snapshot) {
+    public Builder setBranchSnapshot(Snapshot snapshot, String branch) {
       addSnapshot(snapshot);
-      setCurrentSnapshot(snapshot, null);
+      setBranchSnapshot(snapshot, branch, null);
       return this;
     }
 
-    public Builder setCurrentSnapshot(long snapshotId) {
-      if (currentSnapshotId == snapshotId) {
+    public Builder setBranchSnapshot(long snapshotId, String branch) {
+      SnapshotRef ref = refs.get(branch);
+      if (ref != null && ref.snapshotId() == snapshotId) {
         // change is a noop
         return this;
       }
 
       Snapshot snapshot = snapshotsById.get(snapshotId);
-      ValidationException.check(snapshot != null,
-          "Cannot set current snapshot to unknown: %s", snapshotId);
+      ValidationException.check(snapshot != null, "Cannot set %s to unknown snapshot: %s", branch, snapshotId);
 
-      setCurrentSnapshot(snapshot, System.currentTimeMillis());
+      setBranchSnapshot(snapshot, branch, System.currentTimeMillis());
+
+      return this;
+    }
+
+    public Builder removeBranch(String branch) {
+      if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
+        this.currentSnapshotId = -1;
+        snapshotLog.clear();
+      }
+
+      SnapshotRef ref = refs.remove(branch);
+      if (ref != null) {
+        ValidationException.check(ref.isBranch(), "Cannot remove branch: %s is a tag", branch);
+        changes.add(new MetadataUpdate.RemoveSnapshotRef(branch));
+      }
 
       return this;
     }
@@ -955,9 +979,16 @@ public class TableMetadata implements Serializable {
       }
 
       this.snapshots = retainedSnapshots;
-      if (!snapshotsById.containsKey(currentSnapshotId)) {
-        setCurrentSnapshot(null, System.currentTimeMillis());
+
+      // remove any refs that are no longer valid
+      Set<String> danglingRefs = Sets.newHashSet();
+      for (Map.Entry<String, SnapshotRef> refEntry : refs.entrySet()) {
+        if (!snapshotsById.containsKey(refEntry.getValue().snapshotId())) {
+          danglingRefs.add(refEntry.getKey());
+        }
       }
+
+      danglingRefs.forEach(this::removeBranch);
 
       return this;
     }
@@ -1037,6 +1068,7 @@ public class TableMetadata implements Serializable {
           ImmutableList.copyOf(snapshots),
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
+          ImmutableMap.copyOf(refs),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes)
       );
     }
@@ -1162,16 +1194,14 @@ public class TableMetadata implements Serializable {
       return newOrderId;
     }
 
-    private void setCurrentSnapshot(Snapshot snapshot, Long currentTimestampMillis) {
-      if (snapshot == null) {
-        this.currentSnapshotId = -1;
-        snapshotLog.clear();
-        changes.add(new MetadataUpdate.SetCurrentSnapshot(null));
-        return;
-      }
-
-      if (currentSnapshotId == snapshot.snapshotId()) {
-        return;
+    private void setBranchSnapshot(Snapshot snapshot, String branch, Long currentTimestampMillis) {
+      long replacementSnapshotId = snapshot.snapshotId();
+      SnapshotRef ref = refs.get(branch);
+      if (ref != null) {
+        ValidationException.check(ref.isBranch(), "Cannot update branch: %s is a tag", branch);
+        if (ref.snapshotId() == replacementSnapshotId) {
+          return;
+        }
       }
 
       ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
@@ -1179,9 +1209,21 @@ public class TableMetadata implements Serializable {
           lastSequenceNumber, snapshot.sequenceNumber());
 
       this.lastUpdatedMillis = currentTimestampMillis != null ? currentTimestampMillis : snapshot.timestampMillis();
-      this.currentSnapshotId = snapshot.snapshotId();
-      snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, snapshot.snapshotId()));
-      changes.add(new MetadataUpdate.SetCurrentSnapshot(snapshot.snapshotId()));
+
+      if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
+        this.currentSnapshotId = replacementSnapshotId;
+        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, replacementSnapshotId));
+      }
+
+      SnapshotRef newRef;
+      if (ref != null) {
+        newRef = SnapshotRef.builderFrom(ref, replacementSnapshotId).build();
+      } else {
+        newRef = SnapshotRef.branchBuilder(replacementSnapshotId).build();
+      }
+
+      refs.put(branch, newRef);
+      changes.add(new MetadataUpdate.SetSnapshotRef(branch, replacementSnapshotId));
     }
 
     private static List<MetadataLogEntry> addPreviousFile(
@@ -1219,9 +1261,11 @@ public class TableMetadata implements Serializable {
           // adds must always come before set current snapshot
           MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
           addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
-        } else if (update instanceof MetadataUpdate.SetCurrentSnapshot) {
-          Long snapshotId = ((MetadataUpdate.SetCurrentSnapshot) update).snapshotId();
-          if (snapshotId != null && addedSnapshotIds.contains(snapshotId) && snapshotId != currentSnapshotId) {
+        } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
+          MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
+          long snapshotId = setRef.snapshotId();
+          if (addedSnapshotIds.contains(snapshotId) &&
+              SnapshotRef.MAIN_BRANCH.equals(setRef.name()) && snapshotId != currentSnapshotId) {
             intermediateSnapshotIds.add(snapshotId);
           }
         }

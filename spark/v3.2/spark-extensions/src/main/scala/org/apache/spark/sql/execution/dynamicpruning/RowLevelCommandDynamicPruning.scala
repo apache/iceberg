@@ -31,9 +31,13 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
+import org.apache.spark.sql.catalyst.plans.LeftSemi
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.catalyst.plans.logical.Join
+import org.apache.spark.sql.catalyst.plans.logical.JoinHint
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
@@ -45,6 +49,7 @@ import org.apache.spark.sql.catalyst.trees.TreePattern.PLAN_EXPRESSION
 import org.apache.spark.sql.catalyst.trees.TreePattern.SORT
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
+import scala.collection.compat.immutable.ArraySeq
 
 /**
  * A rule that adds a runtime filter for row-level commands.
@@ -64,7 +69,8 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
       // use reference equality to find exactly the required scan relations
       val newRewritePlan = rewritePlan transformUp {
         case r: DataSourceV2ScanRelation if r.scan eq scan =>
-          val pruningKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](scan.filterAttributes, r)
+          val pruningKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](
+            ArraySeq.unsafeWrapArray(scan.filterAttributes), r)
           val dynamicPruningCond = buildDynamicPruningCondition(r, command, pruningKeys)
           val filter = Filter(dynamicPruningCond, r)
           // always optimize dynamic filtering subqueries for row-level commands as it is important
@@ -89,6 +95,7 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
     val matchingRowsPlan = command match {
       case d: DeleteFromIcebergTable =>
         Filter(d.condition.get, relation)
+
       case u: UpdateIcebergTable =>
         // UPDATEs with subqueries are rewritten using a UNION with two identical scan relations
         // the analyzer clones of them and assigns fresh expr IDs so that attributes don't collide
@@ -100,6 +107,9 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
           case attr: AttributeReference if attrMap.contains(attr) => attrMap(attr)
         }
         Filter(transformedCond, relation)
+
+      case m: MergeIntoIcebergTable =>
+        Join(relation, m.sourceTable, LeftSemi, Some(m.mergeCondition), JoinHint.NONE)
     }
 
     // clone the original relation in the filtering plan and assign new expr IDs to avoid conflicts
@@ -112,7 +122,7 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
 
     val filterableScan = relation.scan.asInstanceOf[SupportsRuntimeFiltering]
     val buildKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](
-      filterableScan.filterAttributes,
+      ArraySeq.unsafeWrapArray(filterableScan.filterAttributes),
       transformedMatchingRowsPlan)
     val buildQuery = Project(buildKeys, transformedMatchingRowsPlan)
     val dynamicPruningSubqueries = pruningKeys.zipWithIndex.map { case (key, index) =>

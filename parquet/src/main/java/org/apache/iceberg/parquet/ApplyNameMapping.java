@@ -67,11 +67,17 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     Preconditions.checkArgument(elementType != null,
         "List type must have element field");
 
+    Type listElement = ParquetSchemaUtil.determineListElementType(list);
     MappedField field = nameMapping.find(currentPath());
-    Type listType = Types.buildGroup(list.getRepetition())
-        .as(LogicalTypeAnnotation.listType())
-        .repeatedGroup().addFields(elementType).named(list.getFieldName(0))
-        .named(list.getName());
+
+    Types.GroupBuilder<GroupType> listBuilder = Types.buildGroup(list.getRepetition())
+        .as(LogicalTypeAnnotation.listType());
+    if (listElement.isRepetition(Type.Repetition.REPEATED)) {
+      listBuilder.addFields(elementType);
+    } else {
+      listBuilder.repeatedGroup().addFields(elementType).named(list.getFieldName(0));
+    }
+    Type listType = listBuilder.named(list.getName());
 
     return field == null ? listType : listType.withId(field.id());
   }
@@ -96,10 +102,12 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     return field == null ? primitive : primitive.withId(field.id());
   }
 
+  @Override
   public void beforeField(Type type) {
     fieldNames.push(type.getName());
   }
 
+  @Override
   public void afterField(Type type) {
     fieldNames.pop();
   }

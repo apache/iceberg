@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,14 +109,28 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     LOG.trace("Creating database tables (if missing) to store iceberg catalog");
     connections.run(conn -> {
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME, null);
-
+      ResultSet tableExists = dbMeta.getTables(null /* catalog name */, null /* schemaPattern */,
+          JdbcUtil.CATALOG_TABLE_NAME /* tableNamePattern */,  null /* types */);
       if (tableExists.next()) {
         return true;
       }
 
       LOG.debug("Creating table {} to store iceberg catalog", JdbcUtil.CATALOG_TABLE_NAME);
       return conn.prepareStatement(JdbcUtil.CREATE_CATALOG_TABLE).execute();
+    });
+
+    connections.run(conn -> {
+      DatabaseMetaData dbMeta = conn.getMetaData();
+      ResultSet tableExists = dbMeta.getTables(null /* catalog name */, null /* schemaPattern */,
+          JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME /* tableNamePattern */, null /* types */);
+
+      if (tableExists.next()) {
+        return true;
+      }
+
+      LOG.debug("Creating table {} to store iceberg catalog namespace properties",
+          JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME);
+      return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE).execute();
     });
   }
 
@@ -246,10 +261,95 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     this.conf = conf;
   }
 
+  private boolean insertProperties(Namespace namespace, Map<String, String> properties) {
+    String namespaceName = JdbcUtil.namespaceToString(namespace);
+
+    try {
+      int insertedRecords = connections.run(conn -> {
+        String sqlStatement = JdbcUtil.insertPropertiesStatement(properties.size());
+
+        try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
+          int rowIndex = 0;
+          for (Map.Entry<String, String> keyValue : properties.entrySet()) {
+            sql.setString(rowIndex + 1, catalogName);
+            sql.setString(rowIndex + 2, namespaceName);
+            sql.setString(rowIndex + 3, keyValue.getKey());
+            sql.setString(rowIndex + 4, keyValue.getValue());
+            rowIndex += 4;
+          }
+          return sql.executeUpdate();
+        }
+      });
+
+      if (insertedRecords == properties.size()) {
+        LOG.debug("Successfully inserted {} properties for namespace {}", properties, namespaceName);
+        return true;
+      } else {
+        throw new IllegalStateException();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e, "Interrupted in call to insertProperties(namespace, properties) " +
+          "Namespace: %s", namespace);
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Failed to insert properties to namespace: %s in catalog: %s", namespace,
+          catalogName);
+    }
+  }
+
+  private boolean updateProperties(Namespace namespace, Map<String, String> properties) {
+    String namespaceName = JdbcUtil.namespaceToString(namespace);
+
+    try {
+      int updatedRecords = connections.run(conn -> {
+        String sqlStatement = JdbcUtil.updatePropertiesStatement(properties.size());
+
+        try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
+          int rowIndex = 0;
+          for (Map.Entry<String, String> keyValue : properties.entrySet()) {
+            sql.setString(rowIndex + 1, keyValue.getKey());
+            sql.setString(rowIndex + 2, keyValue.getValue());
+            rowIndex += 2;
+          }
+          sql.setString(rowIndex + 1, catalogName);
+          sql.setString(rowIndex + 2, namespaceName);
+          rowIndex += 2;
+          for (String key : properties.keySet()) {
+            sql.setString(rowIndex + 1, key);
+            rowIndex += 1;
+          }
+          LOG.debug("Running query to update namespace properties: {}", sql);
+          return sql.executeUpdate();
+        }
+      });
+
+      if (updatedRecords == properties.size()) {
+        LOG.debug("Successfully updated {} to new namespace: {}", properties, namespaceName);
+        return true;
+      } else {
+        throw new IllegalStateException();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e,
+          "Interrupted in call to updateProperties(namespace, properties) Namespace: %s", namespace);
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Failed to update properties to namespace: %s in catalog: %s", namespace,
+              catalogName);
+    }
+  }
+
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    throw new UnsupportedOperationException("Cannot create namespace " + namespace +
-        ": createNamespace is not supported");
+    if (namespaceExists(namespace)) {
+      throw new AlreadyExistsException("Namespace already exists: %s", namespace);
+    }
+
+    if (metadata == null || metadata.isEmpty()) {
+      throw new IllegalArgumentException("Cannot create a namespace with null or empty metadata");
+    }
+
+    insertProperties(namespace, metadata);
   }
 
   @Override
@@ -336,14 +436,119 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) throws
       NoSuchNamespaceException {
-    throw new UnsupportedOperationException(
-        "Cannot set properties " + namespace + " : setProperties is not supported");
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
+    if (properties == null || properties.isEmpty()) {
+      throw new IllegalArgumentException("Cannot set properties to a namespace with null or empty properties");
+    }
+
+    Map<String, String> namespaceProperties = fetchProperties(namespace);
+    Map<String, String> propertiesToInsert = Maps.newHashMap();
+    Map<String, String> propertiesToUpdate = Maps.newHashMap();
+
+    for (String key : properties.keySet()) {
+      String value = properties.get(key);
+      if (namespaceProperties.containsKey(key)) {
+        if (!namespaceProperties.get(key).equals(value)) {
+          propertiesToUpdate.put(key, value);
+        }
+      } else {
+        propertiesToInsert.put(key, value);
+      }
+    }
+
+    boolean insertedProperties = true;
+    if (!propertiesToInsert.isEmpty()) {
+      insertedProperties = insertProperties(namespace, propertiesToInsert);
+    }
+
+    boolean updatedProperties = true;
+    if (!propertiesToUpdate.isEmpty()) {
+      updatedProperties = updateProperties(namespace, propertiesToUpdate);
+    }
+
+    return (insertedProperties && updatedProperties);
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
-    throw new UnsupportedOperationException(
-        "Cannot remove properties " + namespace + " : removeProperties is not supported");
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
+    if (properties == null || properties.isEmpty()) {
+      throw new IllegalArgumentException("Cannot remove properties with null or empty properties");
+    }
+
+    String namespaceName = JdbcUtil.namespaceToString(namespace);
+
+    try {
+      int deletedRecords = connections.run(conn -> {
+        String sqlStatement = JdbcUtil.deletePropertiesStatement(properties);
+
+        try (PreparedStatement sql = conn.prepareStatement(sqlStatement)) {
+          sql.setString(1, catalogName);
+          sql.setString(2, namespaceName);
+          int valueIndex = 2;
+          for (String property : properties) {
+            sql.setString(++valueIndex, property);
+          }
+          return sql.executeUpdate();
+        }
+      });
+
+      if (deletedRecords == properties.size()) {
+        LOG.info("Successfully committed to namespace: {}", namespaceName);
+        return true;
+      } else {
+        throw new IllegalStateException();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e,
+              "Interrupted in call to removeProperties(namespace, properties) Namespace: %s", namespace);
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Failed to remove properties for namespace: %s in catalog: %s", namespace,
+              catalogName);
+    }
+  }
+
+  public Map<String, String> fetchProperties(Namespace namespace) {
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
+    try {
+      return connections.run(conn -> {
+        Map<String, String> properties = Maps.newHashMap();
+        String namespaceName = JdbcUtil.namespaceToString(namespace);
+
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_ALL_NAMESPACE_PROPERTIES_SQL)) {
+          sql.setString(1, catalogName);
+          sql.setString(2, namespaceName);
+          ResultSet rs = sql.executeQuery();
+
+          while (rs.next()) {
+            properties.put(rs.getString(JdbcUtil.NAMESPACE_PROPERTY_KEY),
+                    rs.getString(JdbcUtil.NAMESPACE_PROPERTY_VALUE));
+          }
+
+          rs.close();
+        }
+
+        return properties;
+      });
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e,
+              "Interrupted in call to fetchProperties(namespace) Namespace: %s", namespace);
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Failed to fetch properties for namespace: %s in catalog: %s", namespace,
+              catalogName);
+    }
+
   }
 
   @Override
@@ -355,20 +560,37 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   public boolean namespaceExists(Namespace namespace) {
     try {
       return connections.run(conn -> {
-        boolean exists = false;
+        boolean tableExists = false;
 
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();
           if (rs.next()) {
-            exists = true;
+            tableExists = true;
           }
 
           rs.close();
         }
 
-        return exists;
+        if (tableExists) {
+          return true;
+        }
+
+        boolean namespacePropertyExists = false;
+
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL)) {
+          sql.setString(1, catalogName);
+          sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
+          ResultSet rs = sql.executeQuery();
+          if (rs.next()) {
+            namespacePropertyExists = true;
+          }
+
+          rs.close();
+        }
+
+        return namespacePropertyExists;
       });
 
     } catch (SQLException e) {
