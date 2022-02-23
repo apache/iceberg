@@ -21,6 +21,9 @@ package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
+/**
+ * Base class for REST client exceptions
+ */
 public class RESTException extends RuntimeException {
   @FormatMethod
   public RESTException(String message, Object... args) {
@@ -32,4 +35,3 @@ public class RESTException extends RuntimeException {
     super(String.format(message, args), cause);
   }
 }
-

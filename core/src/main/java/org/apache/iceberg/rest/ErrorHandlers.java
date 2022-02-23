@@ -19,9 +19,7 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.IOException;
 import java.util.function.Consumer;
-import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.ForbiddenException;
@@ -55,61 +53,59 @@ public class ErrorHandlers {
    */
   private static Consumer<ErrorResponse> baseTableErrorHandler() {
     return error -> {
-
       switch (error.code()) {
-        // Some table resource routes can encounter namespace not found or table not found.
-        // Those routes might need a separate error handler first.
-        case HttpStatus.SC_NOT_FOUND:
+        case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
-            throw new NoSuchNamespaceException("Resource not found: %s", error);
+            throw new NoSuchNamespaceException("%s", error.message());
           } else {
-            throw new NoSuchTableException("Resource not found: %s", error);
+            throw new NoSuchTableException("%s", error.message());
           }
-        case HttpStatus.SC_CONFLICT:
-          throw new AlreadyExistsException("The table already exists: %s", error);
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
       }
     };
   }
 
   /**
    * Request error handlers specifically for CRUD ops on namespaces.
-   * Should be chained wih the {@linkplain ErrorHandlers#defaultErrorHandler}, which takes care of common cases.
+   * Should be chained wih the {@link #defaultErrorHandler}, which takes care of common cases.
    */
   private static Consumer<ErrorResponse> baseNamespaceErrorHandler() {
     return error -> {
       switch (error.code()) {
-        case HttpStatus.SC_NOT_FOUND:
-          throw new NoSuchNamespaceException("Namespace not found: %s", error);
-        case HttpStatus.SC_CONFLICT:
-          throw new AlreadyExistsException("Namespace already exists: %s", error);
-        case HttpStatus.SC_UNPROCESSABLE_ENTITY:
-          throw new RESTException("Unable to process request due to bad property updates");
+        case 404:
+          throw new NoSuchNamespaceException("%s", error.message());
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
+        case 422:
+          throw new RESTException("Unable to process: %s", error.message());
       }
     };
   }
 
   /**
    * Request error handler that handles the common cases that are included with all responses,
-   * such as 400, 401, 403, 500, etc.
+   * such as 400, 500, etc.
    */
   public static Consumer<ErrorResponse> defaultErrorHandler() {
-    return errorResponse -> {
-      switch (errorResponse.code()) {
-        case HttpStatus.SC_CLIENT_ERROR:
-          throw new BadRequestException("Unable to process the request as it is somehow malformed: %s", errorResponse);
-        case HttpStatus.SC_UNAUTHORIZED:
-          throw new NotAuthorizedException("Not Authorized: %s", errorResponse);
-        case HttpStatus.SC_FORBIDDEN:
-          throw new ForbiddenException("Forbidden: %s", errorResponse);
-        case HttpStatus.SC_METHOD_NOT_ALLOWED:
-        case HttpStatus.SC_NOT_ACCEPTABLE:
-        case HttpStatus.SC_NOT_IMPLEMENTED:
-          throw new UnsupportedOperationException(String.format("Not supported: %s", errorResponse));
-        case HttpStatus.SC_SERVER_ERROR:
-          throw new ServiceFailureException("Server error: %s", errorResponse);
-        default:
-          throw new RESTException("Unknown error: %s", errorResponse);
+    return error -> {
+      switch (error.code()) {
+        case 400:
+          throw new BadRequestException("Malformed request: %s", error.message());
+        case 401:
+          throw new NotAuthorizedException("Not authorized: %s", error.message());
+        case 403:
+          throw new ForbiddenException("Forbidden: %s", error.message());
+        case 405:
+        case 406:
+          break;
+        case 501:
+          throw new UnsupportedOperationException(error.message());
+        case 500:
+          throw new ServiceFailureException("Server error: %s", error.message());
       }
+
+      throw new RESTException("Unable to process: %s", error.message());
     };
   }
 }

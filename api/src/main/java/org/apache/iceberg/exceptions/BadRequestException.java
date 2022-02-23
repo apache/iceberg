@@ -35,4 +35,3 @@ public class BadRequestException extends RuntimeException {
     super(String.format(message, args), cause);
   }
 }
-

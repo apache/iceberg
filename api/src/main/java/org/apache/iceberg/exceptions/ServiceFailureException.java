@@ -22,17 +22,16 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /**
- * Exception thrown on HTTP 401 Unauthorized.
- * The user is either not authenticated or failed authorization checks.
+ * Exception thrown on HTTP 5XX Server Error.
  */
-public class NotAuthorizedException extends RESTException {
+public class ServiceFailureException extends RuntimeException {
   @FormatMethod
-  public NotAuthorizedException(String message, Object... args) {
-    super(message, args);
+  public ServiceFailureException(String message, Object... args) {
+    super(String.format(message, args));
   }
 
   @FormatMethod
-  public NotAuthorizedException(Throwable cause, String message, Object... args) {
-    super(cause, message, args);
+  public ServiceFailureException(Throwable cause, String message, Object... args) {
+    super(String.format(message, args), cause);
   }
 }

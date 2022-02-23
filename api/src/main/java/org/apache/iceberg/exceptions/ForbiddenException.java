@@ -35,4 +35,3 @@ public class ForbiddenException extends RuntimeException {
     super(String.format(message, args), cause);
   }
 }
-
