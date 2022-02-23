@@ -193,6 +193,8 @@ class PyArrowFileIO(FileIO):
         filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
         try:
             filesystem.delete_file(path)
+        except FileNotFoundError:
+            raise
         except PermissionError:
             raise
         except OSError as e:

@@ -315,7 +315,7 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
         with pytest.raises(FileNotFoundError) as exc_info:
             file_io.delete(output_file_location)
 
-        assert (f"Cannot delete file, does not exist:") in str(exc_info.value)
+        assert (f"Cannot delete file") in str(exc_info.value)
 
         # Confirm that the file no longer exists
         assert not os.path.exists(output_file_location)
