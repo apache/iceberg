@@ -34,13 +34,17 @@ class DynamoLockManager extends DynamoDbLockManager {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoLockManager.class);
 
   DynamoLockManager() {
-    LOG.warn("{} is deprecated, please use {} instead",
-        DynamoLockManager.class.getName(), DynamoDbLockManager.class.getName());
+    logDeprecationWarning();
   }
 
   DynamoLockManager(DynamoDbClient dynamo, String lockTableName) {
     super(dynamo, lockTableName);
-    LOG.warn("{} is deprecated, please use {} instead",
+    logDeprecationWarning();
+  }
+
+  private void logDeprecationWarning() {
+    LOG.warn("{} is deprecated. For GlueCatalog, Glue has supported optimistic locking and " +
+            "lock manager is no longer needed. For HadoopCatalog and HadoopTables, please use {} instead.",
         DynamoLockManager.class.getName(), DynamoDbLockManager.class.getName());
   }
 }
