@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
