@@ -19,11 +19,13 @@
 
 name: "Python CI"
 on:
-  push:
-    paths:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
   pull_request:
+    types:
+    - opened
+    - reopened
+    - ready_for_review
+    # Synchronize represents any kind of change to head ref on an open PR
+    - synchronize
     paths:
     - '.github/workflows/python-ci.yml'
     - 'python/**'

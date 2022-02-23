@@ -19,27 +19,13 @@
 
 name: "Spark CI"
 on:
-  push:
-    paths-ignore:
-    - '.github/workflows/python-ci.yml'
-    - '.github/workflows/flink-ci.yml'
-    - '.github/workflows/hive-ci.yml'
-    - '.github/workflows/cancel-duplicate-workflow-runs.yml'
-    - '.gitignore'
-    - 'dev/**'
-    - 'mr/**'
-    - 'hive3/**'
-    - 'hive3-orc-bundle/**'
-    - 'hive-runtime/**'
-    - 'flink/**'
-    - 'pig/**'
-    - 'python/**'
-    - 'python_legacy/**'
-    - 'docs/**'
-    - '.gitattributes'
-    - 'README.md'
-    - 'CONTRIBUTING.md'
   pull_request:
+    types:
+    - opened
+    - reopened
+    - ready_for_review
+    # Synchronize represents any kind of change to head ref on an open PR
+    - synchronize
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/flink-ci.yml'
