@@ -123,6 +123,13 @@ class PyArrowFile(InputFile, OutputFile):
 
         Raises:
             FileExistsError: If the file already exists at `self.location` and `overwrite` is False
+
+        Note:
+            This retrieves a pyarrow NativeFile by opening an output stream. If overwrite is set to False,
+            a check is first performed to verify that the file does not exist. This is not thread-safe and
+            a possibility does exist that the file can be created by a concurrent process after the existence
+            check yet before the output stream is created. In such a case, the default pyarrow behavior will
+            truncate the contents of the existing file when opening the output stream.
         """
         try:
             if not overwrite and self.exists() is True:
