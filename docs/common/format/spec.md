@@ -34,7 +34,7 @@ The format version number is incremented when new features are added that will b
 
 Version 1 of the Iceberg spec defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
 
-All version 1 data and metadata files are valid after upgrading a table to version 2. [Appendix E](#version-2) documents how to default version 2 fields when reading version 1 metadata.
+All version 1 data and metadata files are valid after upgrading a table to version 2. [Appendix E](spec/#version-2) documents how to default version 2 fields when reading version 1 metadata.
 
 #### Version 2: Row-level Deletes
 
@@ -42,7 +42,7 @@ Version 2 of the Iceberg spec adds row-level updates and deletes for analytic ta
 
 The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
 
-In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
+In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](spec/#version-2).
 
 
 ## Goals
@@ -837,7 +837,7 @@ Note that the string map case is for maps where the key type is a string. Using 
 
 Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
 
-Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes#lists).
+Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes,md#lists).
 
 | Type               | Parquet physical type                                              | Logical type                                | Notes                                                          |
 |--------------------|--------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|

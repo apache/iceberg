@@ -436,7 +436,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.131 \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.131 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -480,7 +480,7 @@ AWS_PACKAGES=(
 )
 
 ICEBERG_PACKAGES=(
-  "iceberg-spark3-runtime"
+  "iceberg-spark-runtime-3.2_2.12"
   "iceberg-flink-runtime"
 )
 
