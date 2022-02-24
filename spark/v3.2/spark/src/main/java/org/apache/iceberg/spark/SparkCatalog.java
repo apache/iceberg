@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +40,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -268,20 +265,16 @@ public class SparkCatalog extends BaseCatalog {
       boolean dropped = dropTableWithoutPurging(ident);
 
       if (dropped) {
-        try {
-          // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables will drop the
-          // warehouse directly and ignore the `purge` argument.
-          table.io().newInputFile(metadataFileLocation).newStream().close();
-        } catch (NotFoundException e) {
-          return true;
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
+        // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables will drop the
+        // warehouse directly and ignore the `purge` argument.
+        boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
 
-        SparkActions.get()
-            .deleteReachableFiles(metadataFileLocation)
-            .io(table.io())
-            .execute();
+        if (metadataFileExists) {
+          SparkActions.get()
+              .deleteReachableFiles(metadataFileLocation)
+              .io(table.io())
+              .execute();
+        }
       }
 
       return dropped;
