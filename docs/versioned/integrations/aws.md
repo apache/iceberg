@@ -192,7 +192,7 @@ For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/
 
 Glue supports optimistic locking over concurrent updates to a table.
 With optimistic locking, each table has a version id. 
-If you retrieve the table metadata, the Iceberg records the version id of that table. 
+If you retrieve the table metadata, Iceberg records the version id of that table. 
 You can update the table, but only if the version id on the server side has not changed. 
 If there is a version mismatch, it means that someone else has modified the table before you did. 
 The update attempt fails, because you have a stale version of the table. 
