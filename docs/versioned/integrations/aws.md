@@ -188,12 +188,30 @@ However, if you are streaming data to Iceberg, this will easily create a lot of 
 Therefore, it is recommended to turn off the archive feature in Glue by setting `glue.skip-archive` to `true`.
 For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/latest/gr/glue.html) and the [UpdateTable API](https://docs.aws.amazon.com/glue/latest/webapi/API_UpdateTable.html).
 
+#### Optimistic Locking
+
+Glue supports optimistic locking over concurrent updates to a table.
+With optimistic locking, each table has a version id. 
+If you retrieve the table metadata, the Iceberg records the version id of that table. 
+You can update the table, but only if the version id on the server side has not changed. 
+If there is a version mismatch, it means that someone else has modified the table before you did. 
+The update attempt fails, because you have a stale version of the table. 
+If this happens, Iceberg simply tries again by retrieving the table metadata and then trying to update it. 
+Optimistic locking prevents you from accidentally overwriting changes that were made by others. 
+It also prevents others from accidentally overwriting your changes.
+
+To use Glue's Optimistic Locking, you can start the Spark SQL shell with:
+```
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.131 \
+    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+```
+
 #### DynamoDB for Commit Locking
 
-Glue does not have a strong guarantee over concurrent updates to a table. 
-Although it throws `ConcurrentModificationException` when detecting two processes updating a table at the same time,
-there is no guarantee that one update would not clobber the other update.
-Therefore, [DynamoDB](https://aws.amazon.com/dynamodb) can be used for Glue, so that for every commit, 
+[DynamoDB](https://aws.amazon.com/dynamodb) can be used for Glue, so that for every commit, 
 `GlueCatalog` first obtains a lock using a helper DynamoDB table and then try to safely modify the Glue table.
 
 This feature requires the following lock related catalog properties:
