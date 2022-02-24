@@ -140,8 +140,8 @@ public class RESTCatalogConfigResponse {
      * Adds the passed in map entries to the existing `overrides` of this Builder.
      */
     public Builder withOverrides(Map<String, String> overridesToAdd) {
-      Preconditions.checkNotNull(overridesToAdd, "Invalid overrides properties map: null");
-      Preconditions.checkArgument(!overridesToAdd.containsKey(null), "Invalid override: null");
+      Preconditions.checkNotNull(overridesToAdd, "Invalid override properties map: null");
+      Preconditions.checkArgument(!overridesToAdd.containsKey(null), "Invalid override property: null");
       overrides.putAll(overridesToAdd);
       return this;
     }

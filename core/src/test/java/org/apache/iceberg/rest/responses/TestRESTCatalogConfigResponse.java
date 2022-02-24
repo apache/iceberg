@@ -176,28 +176,28 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a key in the properties to override",
         NullPointerException.class,
-        "Invalid config: null",
+        "Invalid override property: null",
         () -> RESTCatalogConfigResponse.builder().withOverride(null, "100").build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a key in the default properties",
         NullPointerException.class,
-        "Invalid config: null",
+        "Invalid default property: null",
         () -> RESTCatalogConfigResponse.builder().withDefault(null, "100").build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null map of config properties to override",
         NullPointerException.class,
-        "Invalid configuration properties map: null",
+        "Invalid override properties map: null",
         () -> RESTCatalogConfigResponse.builder().withOverrides(null).build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null map of default config properties",
         NullPointerException.class,
-        "Invalid configuration properties map: null",
+        "Invalid default properties map: null",
         () -> RESTCatalogConfigResponse.builder().withDefaults(null).build()
     );
 
@@ -207,14 +207,14 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
     AssertHelpers.assertThrows(
         "The builder should not allow passing a map of default config properties with a null key",
         IllegalArgumentException.class,
-        "Invalid config: null",
+        "Invalid default property: null",
         () -> RESTCatalogConfigResponse.builder().withDefaults(mapWithNullKey).build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a map of properties to override with a null key",
         IllegalArgumentException.class,
-        "Invalid config: null",
+        "Invalid override property: null",
         () -> RESTCatalogConfigResponse.builder().withOverrides(mapWithNullKey).build()
     );
   }
