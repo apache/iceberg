@@ -59,7 +59,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
                  List<ParquetValueReader<?>> readers,
                  StructType struct) {
       super(types, readers);
-      this.template = GenericRecord.create(struct);
+      this.template = struct != null ? GenericRecord.create(struct) : null;
     }
 
     @Override

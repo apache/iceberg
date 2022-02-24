@@ -125,7 +125,7 @@ class Deserializer {
 
     @Override
     public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
-      GenericRecord template = GenericRecord.create(type);
+      GenericRecord template = type != null ? GenericRecord.create(type) : null;
       return o -> {
         if (o == null) {
           return null;

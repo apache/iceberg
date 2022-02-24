@@ -209,7 +209,7 @@ public class GenericOrcReaders {
 
     protected StructReader(List<OrcValueReader<?>> readers, Types.StructType structType, Map<Integer, ?> idToConstant) {
       super(readers, structType, idToConstant);
-      this.template = GenericRecord.create(structType);
+      this.template = structType != null ? GenericRecord.create(structType) : null;
     }
 
     @Override
