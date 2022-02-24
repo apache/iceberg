@@ -29,9 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  * Represents a response to requesting server-side provided configuration for the REST catalog.
  * This allows client provided values to be overridden by the server or defaulted if not provided by the client.
  * <p>
- * This configuration should be fetched with a one time initial HTTP request during the REST catalog initialization.
- * The connection used to fetch the configuration should then be disposed and a new http client should be
- * created for use with the catalog.
+ * The catalog properties, with overrides and defaults applied, should be used to configure the catalog and for all
+ * subsequent requests after this initial config request.
  * <p>
  * Configuration from the server consists of two sets of key/value pairs.
  * <ul>
