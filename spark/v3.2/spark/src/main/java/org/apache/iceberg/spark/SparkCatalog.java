@@ -269,7 +269,7 @@ public class SparkCatalog extends BaseCatalog {
 
       if (dropped) {
         try {
-          // We should check whether the metadata file is existed. Because the HadoopCatalog/HadoopTables will drop the
+          // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables will drop the
           // warehouse directly and ignore the `purge` argument.
           table.io().newInputFile(metadataFileLocation).newStream().close();
         } catch (NotFoundException e) {
@@ -292,9 +292,9 @@ public class SparkCatalog extends BaseCatalog {
 
   private boolean dropTableWithoutPurging(Identifier ident) {
     if (isPathIdentifier(ident)) {
-      return tables.dropTable(((PathIdentifier) ident).location(), false);
+      return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
     } else {
-      return icebergCatalog.dropTable(buildIdentifier(ident), false);
+      return icebergCatalog.dropTable(buildIdentifier(ident), false /* don't purge data */);
     }
   }
 

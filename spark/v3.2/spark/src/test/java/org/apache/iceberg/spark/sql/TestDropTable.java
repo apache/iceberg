@@ -68,8 +68,8 @@ public class TestDropTable extends SparkCatalogTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
 
-    List<String> manifestAndFiles = getManifestsAndFiles();
-    Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
+    List<String> manifestAndFiles = manifestsAndFiles();
+    Assert.assertEquals("There should be 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
     sql("DROP TABLE %s", tableName);
@@ -88,9 +88,9 @@ public class TestDropTable extends SparkCatalogTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
 
-    List<String> manifestAndFiles = getManifestsAndFiles();
-    Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
-    Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
+    List<String> manifestAndFiles = manifestsAndFiles();
+    Assert.assertEquals("There should be 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertTrue("All files should exist", checkFilesExist(manifestAndFiles, true));
 
     sql("DROP TABLE %s PURGE", tableName);
     Assert.assertFalse("Table should not exist", validationCatalog.tableExists(tableIdent));
@@ -104,7 +104,7 @@ public class TestDropTable extends SparkCatalogTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
 
-    List<String> manifestAndFiles = getManifestsAndFiles();
+    List<String> manifestAndFiles = manifestsAndFiles();
     Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
@@ -116,7 +116,7 @@ public class TestDropTable extends SparkCatalogTestBase {
     Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));
   }
 
-  private List<String> getManifestsAndFiles() {
+  private List<String> manifestsAndFiles() {
     List<Object[]> files = sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.FILES);
     List<Object[]> manifests = sql("SELECT path FROM %s.%s", tableName, MetadataTableType.MANIFESTS);
     return Streams.concat(files.stream(), manifests.stream()).map(row -> (String) row[0]).collect(Collectors.toList());
