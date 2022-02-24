@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -298,21 +299,21 @@ public class FlinkSink {
       }
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = Lists.newArrayList();
+      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
       if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
         for (String column : equalityFieldColumns) {
           org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
           Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
               column, table.schema());
-          equalityFieldIds.add(field.fieldId());
+          equalityFieldSet.add(field.fieldId());
         }
 
-        if (!Sets.newHashSet(equalityFieldIds).equals(table.schema().identifierFieldIds())) {
+        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
           LOG.warn("The configured equality field columns are not match with the identifier fields of schema, " +
               "use job specified equality field columns as the equality fields by default.");
         }
-      } else {
-        equalityFieldIds.addAll(table.schema().identifierFieldIds());
+        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
       }
 
       // Convert the requested flink table schema to flink row type.

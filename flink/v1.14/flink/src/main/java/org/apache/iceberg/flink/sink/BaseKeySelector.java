@@ -24,7 +24,6 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
 
-
 abstract class BaseKeySelector<I, K> implements KeySelector<I, K> {
 
   private final Schema schema;
