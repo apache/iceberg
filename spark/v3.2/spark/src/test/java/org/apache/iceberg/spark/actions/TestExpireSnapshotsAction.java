@@ -1041,44 +1041,21 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    long endBeforeCollect = rightAfterSnapshot();
-
-    int jobsBeforeCollect = spark.sparkContext().dagScheduler().nextJobId().get();
-
-    AtomicReference<Integer> jobsRunDuringCollect = new AtomicReference<>();
-
-    withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
-      ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(endBeforeCollect)
-          .option("stream-results", "false").execute();
-
-      int jobsAfterCollect = spark.sparkContext().dagScheduler().nextJobId().get();
-      jobsRunDuringCollect.set(jobsAfterCollect - jobsBeforeCollect);
-
-      checkExpirationResults(1L, 1L, 2L, results);
-    });
-
-    table.newOverwrite()
-        .deleteFile(FILE_C)
-        .addFile(FILE_B)
-        .commit();
-
-    long endBeforeStreamResults = rightAfterSnapshot();
+    long end = rightAfterSnapshot();
 
     int jobsBeforeStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    AtomicReference<Integer> jobsRunDuringStreamResults = new AtomicReference<>();
-
     withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
-      ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(endBeforeStreamResults)
+      ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(end)
           .option("stream-results", "true").execute();
 
       int jobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
-      jobsRunDuringStreamResults.set(jobsAfterStreamResults - jobsBeforeStreamResults);
+      int jobsRunDuringStreamResults = jobsAfterStreamResults - jobsBeforeStreamResults;
 
-      checkExpirationResults(1L, 2L, 1L, results);
+      checkExpirationResults(1L, 1L, 2L, results);
+
+      Assert.assertEquals("Expected total number of jobs with stream-results should match the expected number",
+          5L, jobsRunDuringStreamResults);
     });
-
-    Assert.assertTrue("Expected total number of jobs with toLocalIterator to be greater than collectAsList",
-        jobsRunDuringStreamResults.get() > jobsRunDuringCollect.get());
   }
 }
