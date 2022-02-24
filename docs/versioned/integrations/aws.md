@@ -196,7 +196,7 @@ If you retrieve the table metadata, the Iceberg records the version id of that t
 You can update the table, but only if the version id on the server side has not changed. 
 If there is a version mismatch, it means that someone else has modified the table before you did. 
 The update attempt fails, because you have a stale version of the table. 
-If this happens, Iceberg simply tries again by retrieving the table metadata and then trying to update it. 
+If this happens, Iceberg simply tries again by retrieving the table metadata and then tries to update it. 
 Optimistic locking prevents you from accidentally overwriting changes that were made by others. 
 It also prevents others from accidentally overwriting your changes.
 
