@@ -125,13 +125,14 @@ class Deserializer {
 
     @Override
     public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
+      GenericRecord template = GenericRecord.create(type);
       return o -> {
         if (o == null) {
           return null;
         }
 
         List<Object> data = ((StructObjectInspector) pair.sourceInspector()).getStructFieldsDataAsList(o);
-        Record result = GenericRecord.create(type);
+        Record result = template.copy();
 
         for (int i = 0; i < deserializers.size(); i++) {
           Object fieldValue = data.get(i);

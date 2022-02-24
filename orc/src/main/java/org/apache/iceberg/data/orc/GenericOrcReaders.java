@@ -205,16 +205,16 @@ public class GenericOrcReaders {
   }
 
   private static class StructReader extends OrcValueReaders.StructReader<Record> {
-    private final Types.StructType structType;
+    private final GenericRecord template;
 
     protected StructReader(List<OrcValueReader<?>> readers, Types.StructType structType, Map<Integer, ?> idToConstant) {
       super(readers, structType, idToConstant);
-      this.structType = structType;
+      this.template = GenericRecord.create(structType);
     }
 
     @Override
     protected Record create() {
-      return GenericRecord.create(structType);
+      return template.copy();
     }
 
     @Override

@@ -53,13 +53,13 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   }
 
   private static class RecordReader extends StructReader<Record, Record> {
-    private final StructType structType;
+    private final GenericRecord template;
 
     RecordReader(List<Type> types,
                  List<ParquetValueReader<?>> readers,
                  StructType struct) {
       super(types, readers);
-      this.structType = struct;
+      this.template = GenericRecord.create(struct);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
       if (reuse != null) {
         return reuse;
       } else {
-        return GenericRecord.create(structType);
+        return template.copy();
       }
     }
 
