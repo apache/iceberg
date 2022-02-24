@@ -116,13 +116,13 @@ public class RESTCatalogConfigResponse {
     }
 
     public Builder withDefault(String key, String value) {
-      Preconditions.checkNotNull(key, "Invalid default: null");
+      Preconditions.checkNotNull(key, "Invalid default property: null");
       defaults.put(key, value);
       return this;
     }
 
     public Builder withOverride(String key, String value) {
-      Preconditions.checkNotNull(key, "Invalid override: null");
+      Preconditions.checkNotNull(key, "Invalid override property: null");
       overrides.put(key, value);
       return this;
     }
@@ -131,8 +131,8 @@ public class RESTCatalogConfigResponse {
      * Adds the passed in map entries to the existing `defaults` of this Builder.
      */
     public Builder withDefaults(Map<String, String> defaultsToAdd) {
-      Preconditions.checkNotNull(defaultsToAdd, "Invalid default configuration properties map: null");
-      Preconditions.checkArgument(!defaultsToAdd.containsKey(null), "Invalid default: null");
+      Preconditions.checkNotNull(defaultsToAdd, "Invalid default properties map: null");
+      Preconditions.checkArgument(!defaultsToAdd.containsKey(null), "Invalid default property: null");
       defaults.putAll(defaultsToAdd);
       return this;
     }
@@ -141,7 +141,7 @@ public class RESTCatalogConfigResponse {
      * Adds the passed in map entries to the existing `overrides` of this Builder.
      */
     public Builder withOverrides(Map<String, String> overridesToAdd) {
-      Preconditions.checkNotNull(overridesToAdd, "Invalid overrides configuration properties map: null");
+      Preconditions.checkNotNull(overridesToAdd, "Invalid overrides properties map: null");
       Preconditions.checkArgument(!overridesToAdd.containsKey(null), "Invalid override: null");
       overrides.putAll(overridesToAdd);
       return this;
