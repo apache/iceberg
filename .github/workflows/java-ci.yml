@@ -19,13 +19,12 @@
 
 name: "Java CI"
 on:
+  push:
+    branches:
+    - 'master'
+    tags:
+    - '**'
   pull_request:
-    types:
-    - opened
-    - reopened
-    - ready_for_review
-    # Synchronize represents any kind of change to head ref on an open PR (e.g. push to open PR)
-    - synchronize
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - '.github/workflows/spark-ci.yml'

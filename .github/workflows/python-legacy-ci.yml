@@ -19,13 +19,12 @@
 
 name: "Python Legacy CI"
 on:
+  push:
+    branches:
+    - 'master'
+    tags:
+    - '**'
   pull_request:
-    types:
-    - opened
-    - reopened
-    - ready_for_review
-    # Synchronize represents any kind of change to head ref on an open PR
-    - synchronize
     paths:
     - '.github/workflows/python-legacy-ci.yml'
     - 'python_legacy/**'
