@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
 import java.util.Objects;
-
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;

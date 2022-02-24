@@ -219,6 +219,32 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
     );
   }
 
+  @Test
+  public void testMergeStripsNullValuedEntries() {
+    Map<String, String> mapWithNullValue = Maps.newHashMap();
+    mapWithNullValue.put("a", null);
+    mapWithNullValue.put("b", "from_overrides");
+
+    Map<String, String> overrides = mapWithNullValue;
+    Map<String, String> defaults = ImmutableMap.of("a", "from_defaults");
+    Map<String, String> clientConfig = ImmutableMap.of("a", "from_client", "c", "from_client");
+
+    RESTCatalogConfigResponse resp = RESTCatalogConfigResponse.builder()
+            .withOverrides(overrides).withDefaults(defaults).build();
+
+    // "a" isn't present as it was marked as `null` in the overrides, so the provided client configuration is discarded
+    Map<String, String> merged = resp.merge(clientConfig);
+    Map<String, String> expected = ImmutableMap.of(
+            "b", "from_overrides",
+            "c", "from_client"
+    );
+
+    Assert.assertEquals(
+        "The merged properties map should use values from defaults, then client config, and finally overrides",
+        expected, merged);
+    Assert.assertFalse("The merged properties map should omit keys with null values", merged.containsValue(null));
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
     return new String[] {"defaults", "overrides"};
