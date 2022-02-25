@@ -98,7 +98,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
     Table manifestsTable = new ManifestsTable(table.ops(), table);
     TableScan scan = manifestsTable.newScan()
-            .filter(Expressions.lessThan("length", 10000L));
+        .filter(Expressions.lessThan("length", 10000L));
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);

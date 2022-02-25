@@ -239,6 +239,9 @@ public class Partitioning {
               "Conflicting partition fields: ['%s', '%s']",
               field, existingField);
 
+          // Void Transforms always revert back to the Type of the original column being transformed. This will lead
+          // to type errors when analyzing partition fields written for earlier files with a different type. To avoid
+          // this we always restore NullTransforms to their previous non-null state.
           if (Transforms.alwaysNull().equals(existingField.transform()) &&
                   !Transforms.alwaysNull().equals(field.transform())) {
             fieldMap.put(fieldId, field);

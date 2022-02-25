@@ -141,7 +141,6 @@ public class TestPartitioning {
         .commit();
 
     // in v1, we use void transforms instead of dropping partition fields.
-    // We restored the void transforms with the original dropped partition fields.
     StructType expectedType = StructType.of(
         NestedField.optional(1000, "data", Types.StringType.get()),
         NestedField.optional(1001, "data", Types.StringType.get())
