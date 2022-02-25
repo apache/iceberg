@@ -27,8 +27,11 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -44,26 +47,41 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   private static final Namespace NS = Namespace.of("newdb");
   // Schema passed to create tables
-  static final Schema SCHEMA = new Schema(
+  private static final Schema SCHEMA = new Schema(
       required(3, "id", Types.IntegerType.get(), "unique ID"),
       required(4, "data", Types.StringType.get())
   );
 
   // This is the actual schema for the table, with column IDs reassigned
-  static final Schema TABLE_SCHEMA = new Schema(
+  private static final Schema TABLE_SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get())
   );
 
   // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", 16)
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+      .bucket("id", 16)
+      .build();
+
+  private static final PartitionSpec TABLE_SPEC = PartitionSpec.builderFor(TABLE_SCHEMA)
+      .bucket("id", 16)
+      .build();
+
+  // Partition spec used to create tables
+  static final SortOrder WRITE_ORDER = SortOrder.builderFor(SCHEMA)
+      .asc(Expressions.bucket("id", 16))
+      .asc("id")
+      .build();
+
+  static final SortOrder TABLE_WRITE_ORDER = SortOrder.builderFor(TABLE_SCHEMA)
+      .asc(Expressions.bucket("id", 16))
+      .asc("id")
       .build();
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withPartitionPath("id_bucket=0") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
 
@@ -283,7 +301,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Should include only starting namespaces", starting, catalog.listNamespaces());
   }
 
-  @Test
+  @Ignore
   public void testNamespaceWithSlash() {
     C catalog = catalog();
 
@@ -317,6 +335,90 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withDot));
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withDot));
+  }
+
+  @Test
+  public void testBasicCreateTable() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    Table table = catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    // validate table settings
+    Assert.assertEquals("Table name should report its full name", catalog.name() + "." + ident, table.name());
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+    Assert.assertNotNull("Should have a location", table.location());
+    Assert.assertTrue("Should be unpartitioned", table.spec().isUnpartitioned());
+    Assert.assertTrue("Should be unsorted", table.sortOrder().isUnsorted());
+    Assert.assertNotNull("Should have table properties", table.properties());
+  }
+
+  @Test
+  public void testBasicCreateTableThatAlreadyExists() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    AssertHelpers.assertThrows("Should fail to create a table that already exists",
+        AlreadyExistsException.class, "ns.table",
+        () -> catalog.buildTable(ident, new Schema(required(1, "some_id", Types.IntegerType.get()))).create());
+
+    Table table = catalog.loadTable(ident);
+    Assert.assertEquals("Schema should match original table schema",
+        TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+  }
+
+  @Test
+  public void testCompleteCreateTable() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    Map<String, String> properties = ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
+    Table table = catalog.buildTable(ident, SCHEMA)
+        .withLocation("file:/tmp/ns/table")
+        .withPartitionSpec(SPEC)
+        .withSortOrder(WRITE_ORDER)
+        .withProperties(properties)
+        .create();
+
+    // validate table settings
+    Assert.assertEquals("Table name should report its full name", catalog.name() + "." + ident, table.name());
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+    Assert.assertNotNull("Should have a location", table.location());
+    Assert.assertEquals("Should use requested partition spec", TABLE_SPEC, table.spec());
+    Assert.assertEquals("Should use requested write order", TABLE_WRITE_ORDER, table.sortOrder());
+    Assert.assertEquals("Table properties should be a superset of the requested properties",
+        properties.entrySet(),
+        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+  }
+
+  @Test
+  public void testLoadTable() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    Table table = catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), table.schema().asStruct());
   }
 
   private List<Namespace> concat(List<Namespace> starting, Namespace... additional) {
