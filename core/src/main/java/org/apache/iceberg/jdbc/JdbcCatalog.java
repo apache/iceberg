@@ -414,7 +414,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   private int execute(String sql, String... args) {
-    return execute(err -> {}, sql, args);
+    return execute(err -> { }, sql, args);
   }
 
   private int execute(Consumer<SQLException> sqlErrorHandler, String sql, String... args) {
@@ -436,6 +436,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     }
   }
 
+  @SuppressWarnings("checkstyle:NestedTryDepth")
   private boolean exists(String sql, String... args) {
     try {
       return connections.run(conn -> {
@@ -466,6 +467,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     R apply(ResultSet result) throws SQLException;
   }
 
+  @SuppressWarnings("checkstyle:NestedTryDepth")
   private <R> List<R> fetch(RowProducer<R> toRow, String sql, String... args) {
     try {
       return connections.run(conn -> {
