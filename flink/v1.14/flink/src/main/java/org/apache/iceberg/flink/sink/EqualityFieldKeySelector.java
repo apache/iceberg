@@ -24,6 +24,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -31,21 +32,33 @@ import org.apache.iceberg.util.StructProjection;
 
 /**
  * Create a {@link KeySelector} to shuffle by equality fields, to ensure same equality fields record will be emitted to
- * same writer. That can prevent create duplicate record when insert and delete one row which have same equality field
- * values on different writer in one transaction, and guarantee pos-delete will take effect.
+ * same writer in order.
  */
-class EqualityFieldKeySelector extends BaseKeySelector<RowData, Integer> {
+class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
 
   private final Schema schema;
+  private final RowType flinkSchema;
   private final Schema deleteSchema;
 
+  private transient RowDataWrapper rowDataWrapper;
   private transient StructProjection structProjection;
   private transient StructLikeWrapper structLikeWrapper;
 
   EqualityFieldKeySelector(List<Integer> equalityFieldIds, Schema schema, RowType flinkSchema) {
-    super(schema, flinkSchema);
     this.schema = schema;
+    this.flinkSchema = flinkSchema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
+  }
+
+  /**
+   * Construct the {@link RowDataWrapper} lazily here because few members in it are not serializable. In this way, we
+   * don't have to serialize them with forcing.
+   */
+  protected RowDataWrapper lazyRowDataWrapper() {
+    if (rowDataWrapper == null) {
+      rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+    }
+    return rowDataWrapper;
   }
 
   /**
@@ -70,6 +83,9 @@ class EqualityFieldKeySelector extends BaseKeySelector<RowData, Integer> {
 
   @Override
   public Integer getKey(RowData row) {
-    return lazyStructLikeWrapper().set(lazyStructProjection().wrap(lazyRowDataWrapper().wrap(row))).hashCode();
+    RowDataWrapper wrappedRowData = lazyRowDataWrapper().wrap(row);
+    StructProjection projectedRowData = lazyStructProjection().wrap(wrappedRowData);
+    StructLikeWrapper wrapper = lazyStructLikeWrapper().set(projectedRowData);
+    return wrapper.hashCode();
   }
 }

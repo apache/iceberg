@@ -84,12 +84,12 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
-  private final String distributionMode;
+  private final String writeDistributionMode;
 
   private StreamExecutionEnvironment env;
   private TestTableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, Distribution={3}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
@@ -109,12 +109,12 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     };
   }
 
-  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned, String distributionMode) {
+  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned, String writeDistributionMode) {
     super(FORMAT_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.parallelism = parallelism;
     this.partitioned = partitioned;
-    this.distributionMode = distributionMode;
+    this.writeDistributionMode = writeDistributionMode;
   }
 
   @Before
@@ -131,7 +131,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     table.updateProperties()
         .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, distributionMode)
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, writeDistributionMode)
         .commit();
 
     env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
@@ -227,7 +227,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "ddd"), record(2, "ddd"))
     );
 
-    if (partitioned && distributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
+    if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
       AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
           IllegalStateException.class, "should be included in equality fields",
           () -> {

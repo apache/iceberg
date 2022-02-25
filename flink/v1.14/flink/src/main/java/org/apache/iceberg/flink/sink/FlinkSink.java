@@ -299,22 +299,7 @@ public class FlinkSink {
       }
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
-        Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-        for (String column : equalityFieldColumns) {
-          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
-              column, table.schema());
-          equalityFieldSet.add(field.fieldId());
-        }
-
-        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
-          LOG.warn("The configured equality field columns are not match with the identifier fields of schema, " +
-              "use job specified equality field columns as the equality fields by default.");
-        }
-        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
-      }
+      List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
 
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
@@ -358,6 +343,27 @@ public class FlinkSink {
 
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
+    }
+
+    private List<Integer> checkAndGetEqualityFieldIds() {
+      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
+      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
+        for (String column : equalityFieldColumns) {
+          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
+          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
+              column, table.schema());
+          equalityFieldSet.add(field.fieldId());
+        }
+
+        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
+          LOG.warn("The configured equality field column IDs {} are not matched with the schema identifier field IDs" +
+                  " {}, use job specified equality field columns as the equality fields by default.",
+              equalityFieldSet, table.schema().identifierFieldIds());
+        }
+        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
+      }
+      return equalityFieldIds;
     }
 
     @SuppressWarnings("unchecked")
@@ -473,16 +479,16 @@ public class FlinkSink {
         case RANGE:
           if (equalityFieldIds.isEmpty()) {
             LOG.warn("Fallback to use 'none' distribution mode, because there are no equality fields set " +
-                "and write.distribution-mode=range is not supported yet in flink");
+                "and {}=range is not supported yet in flink", WRITE_DISTRIBUTION_MODE);
             return input;
           } else {
             LOG.info("Distribute rows by equality fields, because there are equality fields set " +
-                "and write.distribution-mode=range is not supported yet in flink");
+                "and{}=range is not supported yet in flink", WRITE_DISTRIBUTION_MODE);
             return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
           }
 
         default:
-          throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
+          throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);
       }
     }
   }
