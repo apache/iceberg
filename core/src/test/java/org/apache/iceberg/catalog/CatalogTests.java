@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.collect.Sets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
