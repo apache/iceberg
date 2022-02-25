@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -107,12 +109,25 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
 
     @Override
     public ChangelogMode getChangelogMode() {
-      return ChangelogMode.newBuilder()
-          .addContainedKind(RowKind.INSERT)
-          .addContainedKind(RowKind.DELETE)
-          .addContainedKind(RowKind.UPDATE_BEFORE)
-          .addContainedKind(RowKind.UPDATE_AFTER)
-          .build();
+      Supplier<Stream<Row>> supplier = () -> elementsPerCheckpoint.stream().flatMap(List::stream);
+
+      // Add the INSERT row kind by default.
+      ChangelogMode.Builder builder = ChangelogMode.newBuilder()
+          .addContainedKind(RowKind.INSERT);
+
+      if (supplier.get().anyMatch(r -> r.getKind() == RowKind.DELETE)) {
+        builder.addContainedKind(RowKind.DELETE);
+      }
+
+      if (supplier.get().anyMatch(r -> r.getKind() == RowKind.UPDATE_BEFORE)) {
+        builder.addContainedKind(RowKind.UPDATE_BEFORE);
+      }
+
+      if (supplier.get().anyMatch(r -> r.getKind() == RowKind.UPDATE_AFTER)) {
+        builder.addContainedKind(RowKind.UPDATE_AFTER);
+      }
+
+      return builder.build();
     }
 
     @Override
@@ -120,7 +135,8 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
       return new DataStreamScanProvider() {
         @Override
         public DataStream<RowData> produceDataStream(StreamExecutionEnvironment env) {
-          SourceFunction<Row> source = new BoundedTestSource<>(elementsPerCheckpoint);
+          boolean checkpointEnabled = env.getCheckpointConfig().isCheckpointingEnabled();
+          SourceFunction<Row> source = new BoundedTestSource<>(elementsPerCheckpoint, checkpointEnabled);
 
           RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
           // Converter to convert the Row to RowData.
