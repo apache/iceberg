@@ -54,6 +54,9 @@ public class SparkDistributionAndOrderingUtil {
   private static final SortOrder ROW_POSITION_ORDER = Expressions.sort(ROW_POSITION, SortDirection.ASCENDING);
 
   private static final SortOrder[] EXISTING_FILE_ORDERING = new SortOrder[]{FILE_PATH_ORDER, ROW_POSITION_ORDER};
+  private static final SortOrder[] POSITION_DELETE_ORDERING = new SortOrder[]{
+      SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER
+  };
 
   private SparkDistributionAndOrderingUtil() {
   }
@@ -146,14 +149,43 @@ public class SparkDistributionAndOrderingUtil {
 
   public static Distribution buildPositionDeltaDistribution(Table table, Command command,
                                                             DistributionMode distributionMode) {
-    if (command == DELETE) {
-      return positionDeleteDistribution(distributionMode);
+    if (command == DELETE || command == UPDATE) {
+      return buildPositionDeleteUpdateDistribution(distributionMode);
     } else {
-      throw new IllegalArgumentException("Only position deletes are currently supported");
+      return buildPositionMergeDistribution(table, distributionMode);
     }
   }
 
-  private static Distribution positionDeleteDistribution(DistributionMode distributionMode) {
+  private static Distribution buildPositionMergeDistribution(Table table, DistributionMode distributionMode) {
+    switch (distributionMode) {
+      case NONE:
+        return Distributions.unspecified();
+
+      case HASH:
+        if (table.spec().isUnpartitioned()) {
+          Expression[] clustering = new Expression[]{SPEC_ID, PARTITION, FILE_PATH};
+          return Distributions.clustered(clustering);
+        } else {
+          Distribution dataDistribution = buildRequiredDistribution(table, distributionMode);
+          Expression[] dataClustering = ((ClusteredDistribution) dataDistribution).clustering();
+          Expression[] deleteClustering = new Expression[]{SPEC_ID, PARTITION};
+          Expression[] clustering = ObjectArrays.concat(deleteClustering, dataClustering, Expression.class);
+          return Distributions.clustered(clustering);
+        }
+
+      case RANGE:
+        Distribution dataDistribution = buildRequiredDistribution(table, distributionMode);
+        SortOrder[] dataOrdering = ((OrderedDistribution) dataDistribution).ordering();
+        SortOrder[] deleteOrdering = new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER};
+        SortOrder[] ordering = ObjectArrays.concat(deleteOrdering, dataOrdering, SortOrder.class);
+        return Distributions.ordered(ordering);
+
+      default:
+        throw new IllegalArgumentException("Unexpected distribution mode: " + distributionMode);
+    }
+  }
+
+  private static Distribution buildPositionDeleteUpdateDistribution(DistributionMode distributionMode) {
     switch (distributionMode) {
       case NONE:
         return Distributions.unspecified();
@@ -171,12 +203,13 @@ public class SparkDistributionAndOrderingUtil {
     }
   }
 
-  public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command, Distribution distribution) {
-    // the spec requires position delete files to be sorted by file and pos
-    if (command == DELETE) {
-      return new SortOrder[]{SPEC_ID_ORDER, PARTITION_ORDER, FILE_PATH_ORDER, ROW_POSITION_ORDER};
+  public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command) {
+    if (command == DELETE || command == UPDATE) {
+      return POSITION_DELETE_ORDERING;
     } else {
-      throw new IllegalArgumentException("Only position deletes are currently supported");
+      // all metadata columns like _spec_id, _file, _pos will be null for new data records
+      SortOrder[] dataOrdering = buildTableOrdering(table);
+      return ObjectArrays.concat(POSITION_DELETE_ORDERING, dataOrdering, SortOrder.class);
     }
   }
 

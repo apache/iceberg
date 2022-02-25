@@ -19,14 +19,9 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -104,7 +99,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       }
 
       if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
-        action.executeDeleteWith(expireService(maxConcurrentDeletes));
+        action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
       }
 
       ExpireSnapshots.Result result = action.execute();
@@ -125,14 +120,5 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "ExpireSnapshotProcedure";
-  }
-
-  private ExecutorService expireService(int concurrentDeletes) {
-    return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(
-            concurrentDeletes,
-            new ThreadFactoryBuilder()
-                .setNameFormat("expire-snapshots-%d")
-                .build()));
   }
 }

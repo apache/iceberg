@@ -23,7 +23,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestWriterMetrics;
 
@@ -34,12 +34,12 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
   }
 
   @Override
-  protected FileWriterFactory<RowData> newWriterFactory(Schema dataSchema) {
-    return FlinkFileWriterFactory.builderFor(table)
-        .dataSchema(table.schema())
+  protected FileWriterFactory<RowData> newWriterFactory(Table sourceTable) {
+    return FlinkFileWriterFactory.builderFor(sourceTable)
+        .dataSchema(sourceTable.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
-        .positionDeleteRowSchema(table.schema())
+        .positionDeleteRowSchema(sourceTable.schema())
         .build();
   }
 
@@ -47,6 +47,15 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
   protected RowData toRow(Integer id, String data, boolean boolValue, Long longValue) {
     GenericRowData nested = GenericRowData.of(boolValue, longValue);
     GenericRowData row = GenericRowData.of(id, StringData.fromString(data), nested);
+    return row;
+  }
+
+  @Override
+  public RowData toGenericRow(int value, int repeated) {
+    GenericRowData row = new GenericRowData(repeated);
+    for (int i = 0; i < repeated; i++) {
+      row.setField(i, value);
+    }
     return row;
   }
 }

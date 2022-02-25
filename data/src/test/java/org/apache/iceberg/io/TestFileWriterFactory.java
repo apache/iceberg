@@ -339,7 +339,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     try (DataWriter<T> closeableWriter = writer) {
       for (T row : rows) {
-        closeableWriter.add(row);
+        closeableWriter.write(row);
       }
     }
 

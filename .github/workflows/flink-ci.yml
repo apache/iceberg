@@ -35,7 +35,10 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -51,7 +54,10 @@ on:
     - 'pig/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
 
 jobs:
   flink-tests:

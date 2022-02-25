@@ -81,7 +81,7 @@ case class WriteDelta(
 
   private def rowIdAttrsResolved: Boolean = {
     val rowIdAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
-      operation.rowId,
+      operation.rowId.toSeq,
       originalTable)
 
     projections.rowIdProjection.schema.forall { field =>
@@ -93,7 +93,7 @@ case class WriteDelta(
     projections.metadataProjection match {
       case Some(projection) =>
         val metadataAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
-          operation.requiredMetadataAttributes,
+          operation.requiredMetadataAttributes.toSeq,
           originalTable)
 
         projection.schema.forall { field =>

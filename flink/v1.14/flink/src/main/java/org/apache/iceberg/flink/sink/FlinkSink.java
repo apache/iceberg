@@ -52,6 +52,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -131,6 +132,7 @@ public class FlinkSink {
     private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
+    private final Map<String, String> snapshotProperties = Maps.newHashMap();
 
     private Builder() {
     }
@@ -267,6 +269,16 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder setSnapshotProperties(Map<String, String> properties) {
+      snapshotProperties.putAll(properties);
+      return this;
+    }
+
+    public Builder setSnapshotProperty(String property, String value) {
+      snapshotProperties.put(property, value);
+      return this;
+    }
+
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -339,7 +351,7 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite, snapshotProperties);
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)

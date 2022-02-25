@@ -125,7 +125,7 @@ public class TestHiveMetastore {
 
   /**
    * Starts a TestHiveMetastore with the default connection pool size (5) with the provided HiveConf.
-   * @param hiveConf The hive configuration to use
+   * @param conf The hive configuration to use
    */
   public void start(HiveConf conf) {
     start(conf, DEFAULT_POOL_SIZE);
@@ -133,7 +133,7 @@ public class TestHiveMetastore {
 
   /**
    * Starts a TestHiveMetastore with a provided connection pool size and HiveConf.
-   * @param hiveConf The hive configuration to use
+   * @param conf The hive configuration to use
    * @param poolSize The number of threads in the executor pool
    */
   public void start(HiveConf conf, int poolSize) {

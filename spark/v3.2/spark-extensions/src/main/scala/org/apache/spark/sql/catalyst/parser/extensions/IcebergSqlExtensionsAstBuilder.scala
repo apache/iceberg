@@ -53,16 +53,19 @@ import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.LiteralValue
 import org.apache.spark.sql.connector.expressions.Transform
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
+
+  private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] = list.asScala
+  private def toSeq[T](list: java.util.List[T]): Seq[T] = toBuffer(list).toSeq
 
   /**
    * Create a [[CallStatement]] for a stored procedure call.
    */
   override def visitCall(ctx: CallContext): CallStatement = withOrigin(ctx) {
-    val name = ctx.multipartIdentifier.parts.asScala.map(_.getText)
-    val args = ctx.callArgument.asScala.map(typedVisit[CallArgument])
+    val name = toSeq(ctx.multipartIdentifier.parts).map(_.getText)
+    val args = toSeq(ctx.callArgument).map(typedVisit[CallArgument])
     CallStatement(name, args)
   }
 
@@ -103,7 +106,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   override def visitSetIdentifierFields(ctx: SetIdentifierFieldsContext): SetIdentifierFields = withOrigin(ctx) {
     SetIdentifierFields(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
-      ctx.fieldList.fields.asScala.map(_.getText))
+      toSeq(ctx.fieldList.fields).map(_.getText))
   }
 
   /**
@@ -112,7 +115,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   override def visitDropIdentifierFields(ctx: DropIdentifierFieldsContext): DropIdentifierFields = withOrigin(ctx) {
     DropIdentifierFields(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
-      ctx.fieldList.fields.asScala.map(_.getText))
+      toSeq(ctx.fieldList.fields).map(_.getText))
   }
 
   /**
@@ -139,7 +142,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     }
 
     val ordering = if (orderingSpec != null && orderingSpec.order != null) {
-      orderingSpec.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)])
+      toSeq(orderingSpec.order.fields).map(typedVisit[(Term, SortDirection, NullOrder)])
     } else {
       Seq.empty
     }
@@ -158,8 +161,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       throw new AnalysisException("ALTER TABLE contains multiple ordering clauses")
     }
 
-    val distributionSpec = writeSpec.writeDistributionSpec.asScala.headOption.orNull
-    val orderingSpec = writeSpec.writeOrderingSpec.asScala.headOption.orNull
+    val distributionSpec = toBuffer(writeSpec.writeDistributionSpec).headOption.orNull
+    val orderingSpec = toBuffer(writeSpec.writeOrderingSpec).headOption.orNull
 
     (distributionSpec, orderingSpec)
   }
@@ -189,7 +192,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    * Create a named Transform from argument expressions.
    */
   override def visitApplyTransform(ctx: ApplyTransformContext): Transform = withOrigin(ctx) {
-    val args = ctx.arguments.asScala.map(typedVisit[expressions.Expression])
+    val args = toSeq(ctx.arguments).map(typedVisit[expressions.Expression])
     ApplyTransform(ctx.transformName.getText, args)
   }
 
@@ -211,7 +214,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    * Return a multi-part identifier as Seq[String].
    */
   override def visitMultipartIdentifier(ctx: MultipartIdentifierContext): Seq[String] = withOrigin(ctx) {
-    ctx.parts.asScala.map(_.getText)
+    toSeq(ctx.parts).map(_.getText)
   }
 
   /**
@@ -249,7 +252,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   private def reconstructSqlString(ctx: ParserRuleContext): String = {
-    ctx.children.asScala.map {
+    toBuffer(ctx.children).map {
       case c: ParserRuleContext => reconstructSqlString(c)
       case t: TerminalNode => t.getText
     }.mkString(" ")
