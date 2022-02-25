@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
-  private static final Pattern LISTENER_REGEX = Pattern.compile("^listeners[.](?<name>[^[.]]+)[.](?<config>.+)$");
+  private static final Pattern LISTENER_REGEX = Pattern.compile("^listeners[.](?<name>[^\\.]+)[.](?<config>.+)$");
   private static final String LISTENER_PROPERTY_REGEX_GROUP_NAME = "name";
   private static final String LISTENER_PROPERTY_REGEX_GROUP_CONFIG = "config";
 
