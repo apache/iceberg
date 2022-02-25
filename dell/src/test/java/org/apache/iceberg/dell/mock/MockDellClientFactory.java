@@ -24,10 +24,16 @@ import java.util.Map;
 import org.apache.iceberg.dell.DellClientFactory;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 
+/**
+ * Provide client which initialized by {@link EcsS3MockRule}
+ */
 public class MockDellClientFactory implements DellClientFactory {
 
   public static final String ID_KEY = "mock.dell.client.factory.id";
 
+  /**
+   * Use ID to avoid using client in other instance.
+   */
   private String id;
 
   @Override

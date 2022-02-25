@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.dell.ecs;
 
-import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
@@ -27,6 +26,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class EcsTableOperations extends BaseMetastoreTableOperations {
 
@@ -75,8 +75,7 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
       EcsCatalog.Properties metadata = catalog.loadProperties(tableObject);
       this.eTag = metadata.eTag();
       metadataLocation = metadata.content().get(ICEBERG_METADATA_LOCATION);
-      Preconditions.checkNotNull(
-          metadataLocation == null,
+      Preconditions.checkNotNull(metadataLocation,
           "Can't find location from table metadata %s", tableObject);
     }
 
@@ -88,7 +87,7 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     if (base == null) {
       // create a new table, the metadataKey should be absent
-      if (!catalog.insertPropertiesObject(tableObject, buildProperties(newMetadataLocation))) {
+      if (!catalog.putNewProperties(tableObject, buildProperties(newMetadataLocation))) {
         throw new CommitFailedException("Table is existed when create table %s", tableName());
       }
     } else {
@@ -104,12 +103,9 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
   }
 
   /**
-   * build a new properties for table
-   *
-   * @param metadataLocation is metadata json file location
-   * @return properties
+   * Build properties for table
    */
   private Map<String, String> buildProperties(String metadataLocation) {
-    return Collections.singletonMap(ICEBERG_METADATA_LOCATION, metadataLocation);
+    return ImmutableMap.of(ICEBERG_METADATA_LOCATION, metadataLocation);
   }
 }

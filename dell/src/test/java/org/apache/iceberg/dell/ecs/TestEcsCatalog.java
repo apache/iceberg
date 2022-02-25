@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.dell.ecs;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -32,7 +30,9 @@ import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -79,33 +79,37 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t4"), SCHEMA);
     ecsCatalog.createTable(TableIdentifier.of("a", "b1", "t5"), SCHEMA);
 
-    Assert.assertEquals("List namespaces with empty namespace", Collections.singletonList(Namespace.of("a")),
+    Assert.assertEquals("List namespaces with empty namespace",
+        ImmutableList.of(Namespace.of("a")),
         ecsCatalog.listNamespaces());
     Assert.assertEquals(
         "List tables with empty namespace",
-        Arrays.asList(TableIdentifier.of("t1"), TableIdentifier.of("t2")),
+        ImmutableList.of(TableIdentifier.of("t1"), TableIdentifier.of("t2")),
         ecsCatalog.listTables(Namespace.empty()));
     Assert.assertEquals(
         "List namespaces in [a]",
-        Arrays.asList(Namespace.of("a", "b1"), Namespace.of("a", "b2")),
+        ImmutableList.of(Namespace.of("a", "b1"), Namespace.of("a", "b2")),
         ecsCatalog.listNamespaces(Namespace.of("a")));
     Assert.assertEquals(
         "List tables in [a]",
-        Arrays.asList(TableIdentifier.of("a", "t3"), TableIdentifier.of("a", "t4")),
+        ImmutableList.of(TableIdentifier.of("a", "t3"), TableIdentifier.of("a", "t4")),
         ecsCatalog.listTables(Namespace.of("a")));
   }
 
   @Test
   public void testNamespaceProperties() {
     ecsCatalog.createNamespace(Namespace.of("a"), ImmutableMap.of("a", "a"));
+
     Assert.assertEquals("The initial properties", ImmutableMap.of("a", "a"),
         ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
 
-    ecsCatalog.setProperties(Namespace.of("a"), Collections.singletonMap("b", "b"));
+    ecsCatalog.setProperties(Namespace.of("a"), ImmutableMap.of("b", "b"));
+
     Assert.assertEquals("Update properties", ImmutableMap.of("a", "a", "b", "b"),
         ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
 
-    ecsCatalog.removeProperties(Namespace.of("a"), Collections.singleton("a"));
+    ecsCatalog.removeProperties(Namespace.of("a"), ImmutableSet.of("a"));
+
     Assert.assertEquals("Remove properties", ImmutableMap.of("b", "b"),
         ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
   }

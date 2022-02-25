@@ -41,11 +41,19 @@ public class DellProperties implements Serializable {
   public static final String ECS_S3_ENDPOINT = "ecs.s3.endpoint";
 
   /**
-   * Catalog prefix. If not set, use {@link CatalogProperties#WAREHOUSE_LOCATION}.
+   * Catalog prefix is used to store catalog data. If not set, use {@link CatalogProperties#WAREHOUSE_LOCATION}.
    * <p>
    * The value is an EcsURI which like ecs://bucket/prefix.
    */
   public static final String ECS_CATALOG_PREFIX = "ecs.catalog.prefix";
+
+  /**
+   * Catalog delimiter is separator of namespace levels. Default value is '/'.
+   * <p>
+   * For example, the properties object of namespace [a, b] is ecs://bucket/prefix/a/b.namespace when delimiter is '/',
+   * and is ecs://bucket/prefix-a-b when delimiter is '-'.
+   */
+  public static final String ECS_CATALOG_DELIMITER = "ecs.catalog.delimiter";
 
   /**
    * The implementation class of {@link DellClientFactory} to customize Dell client configurations.
@@ -74,7 +82,7 @@ public class DellProperties implements Serializable {
       this.ecsCatalogPrefix = new EcsURI(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    this.ecsCatalogDelimiter = "/";
+    this.ecsCatalogDelimiter = properties.getOrDefault(ECS_CATALOG_DELIMITER, "/");
   }
 
   public String ecsS3Endpoint() {

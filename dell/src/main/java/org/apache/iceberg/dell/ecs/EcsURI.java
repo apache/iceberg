@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.dell.ecs;
 
+import java.io.Serializable;
 import java.net.URI;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -28,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 /**
  * An immutable record class of ECS location
  */
-public class EcsURI {
+public class EcsURI implements Serializable {
 
   private static final Set<String> VALID_SCHEME = ImmutableSet.of("ecs", "s3", "s3a", "s3n");
 
