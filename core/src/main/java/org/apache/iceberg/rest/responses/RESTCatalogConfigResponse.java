@@ -88,9 +88,13 @@ public class RESTCatalogConfigResponse {
   public Map<String, String> merge(Map<String, String> clientProperties) {
     Preconditions.checkNotNull(clientProperties,
         "Cannot merge client properties with server-provided properties. Invalid client configuration: null");
-    Map<String, String> merged = Maps.newHashMap(defaults);
+    Map<String, String> merged = defaults != null ? Maps.newHashMap(defaults) : Maps.newHashMap();
     merged.putAll(clientProperties);
-    merged.putAll(overrides);
+
+    if (overrides != null) {
+      merged.putAll(overrides);
+    }
+
     return ImmutableMap.copyOf(Maps.filterValues(merged, Objects::nonNull));
   }
 
