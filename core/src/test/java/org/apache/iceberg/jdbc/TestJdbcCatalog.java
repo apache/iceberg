@@ -378,7 +378,7 @@ public class TestJdbcCatalog {
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
     AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
-        "Failed to rename db.tbl2 to db.tbl2-newtable", () -> catalog.renameTable(from2, to)
+        "Failed to execute", () -> catalog.renameTable(from2, to)
     );
   }
 

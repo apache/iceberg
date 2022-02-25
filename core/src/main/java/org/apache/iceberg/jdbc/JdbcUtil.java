@@ -69,6 +69,9 @@ final class JdbcUtil {
   protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
       " FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ?";
+  protected static final String LIST_ALL_TABLE_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
+      " FROM " + CATALOG_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ?";
   protected static final String DO_COMMIT_CREATE_TABLE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
       " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
       ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
@@ -103,6 +106,12 @@ final class JdbcUtil {
   protected static final String DELETE_ALL_NAMESPACE_PROPERTIES_SQL =
       "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ?";
+  protected static final String LIST_PROPERTY_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
+      " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ?";
+  protected static final String LIST_ALL_PROPERTY_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
+      " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ?";
 
   // Utilities
   private static final Joiner JOINER_DOT = Joiner.on('.');
