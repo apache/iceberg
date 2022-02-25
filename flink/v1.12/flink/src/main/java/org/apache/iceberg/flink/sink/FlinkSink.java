@@ -418,7 +418,16 @@ public class FlinkSink {
           if (partitionSpec.isUnpartitioned()) {
             return input;
           } else {
-            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            if (partitionSpec.isBucketPartiton()) {
+              return input.partitionCustom(new Partitioner<String>() {
+                @Override
+                public int partition(String key, int numPartitions) {
+                  return Integer.parseInt(key) % numPartitions;
+                }
+              }, new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            } else {
+              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            }
           }
 
         case RANGE:

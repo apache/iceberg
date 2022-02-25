@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -62,6 +64,10 @@ public class PartitionSpec implements Serializable {
   private transient volatile Class<?>[] lazyJavaClasses = null;
   private transient volatile List<PartitionField> fieldList = null;
   private final int lastAssignedFieldId;
+
+  // Recognize Bucket Partition
+  private static final String EXTRACT_BUCKET_NUMBER_EXP = "bucket\\[(\\d+)\\]";
+  private static final Pattern pattern = Pattern.compile(EXTRACT_BUCKET_NUMBER_EXP);
 
   private PartitionSpec(Schema schema, int specId, List<PartitionField> fields, int lastAssignedFieldId) {
     this.schema = schema;
@@ -291,6 +297,33 @@ public class PartitionSpec implements Serializable {
     }
     sb.append("]");
     return sb.toString();
+  }
+
+  /*
+   * Check This Table Partition Spec is
+   * Bucket Partition Only or NOT
+   */
+  public boolean isBucketPartiton() {
+    boolean res = false;
+    List<PartitionField> partFields = fields();
+    int bucketCnt = 0;
+
+    for (int i = 0; i < partFields.size(); i++) {
+      PartitionField field = partFields.get(i);
+      Matcher matcher = pattern.matcher(field.transform().dedupName());
+
+      if (!matcher.find()) {
+        break;
+      }
+
+      bucketCnt++;
+    }
+
+    if (bucketCnt == partFields.size()) {
+      res = true;
+    }
+
+    return res;
   }
 
   private static final PartitionSpec UNPARTITIONED_SPEC =

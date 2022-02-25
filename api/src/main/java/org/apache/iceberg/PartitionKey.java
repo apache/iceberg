@@ -136,4 +136,8 @@ public class PartitionKey implements StructLike, Serializable {
   public int hashCode() {
     return Arrays.hashCode(partitionTuple);
   }
+
+  public PartitionSpec getSpec() {
+    return this.spec;
+  }
 }

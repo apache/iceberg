@@ -56,9 +56,69 @@ class PartitionKeySelector implements KeySelector<RowData, String> {
     return rowDataWrapper;
   }
 
+  @SuppressWarnings("unchecked")
+  private <T> T get(StructLike data, int pos, Class<?> javaClass) {
+    return data.get(pos, (Class<T>) javaClass);
+  }
+
+  /* Making data balanceed for a single task to process
+   * Bucket Partition Only
+   */
+  private Integer getBalanceKey() {
+    PartitionSpec spec = partitionKey.getSpec();
+    List<PartitionField> partFields = spec.fields();
+    Class<?>[] javaClasses = spec.javaClasses();
+    Integer res = null;
+    int[][] buckArr = new int[partFields.size()][2];
+
+    for (int i = 0; i < partFields.size(); i++) {
+      PartitionField field = partFields.get(i);
+      String valueStr = partitionKey.get(i, javaClasses[i]).toString();
+      Integer valueInt = Integer.parseInt(escape(valueStr));
+      Matcher matcher = pattern.matcher(field.transform().dedupName());
+
+      if (matcher.find()) {
+        String bucketNum = matcher.group(1);
+        int[] meta = new int[2];
+        meta[0] = Integer.parseInt(bucketNum);
+        meta[1] = valueInt;
+        buckArr[i] = meta;
+      } else {
+        break;
+      }
+    }
+
+    if (buckArr.length == partFields.size()) {
+      int balanceKey = 0;
+      for (int i = 0; i < buckArr.length; i++) {
+        int val = buckArr[i][1];
+        int leafCnt = 1;
+        for (int j = i + 1; j < buckArr.length; j++) {
+          leafCnt = leafCnt * buckArr[j][0];
+        }
+
+        balanceKey += leafCnt * val;
+      }
+
+      res = balanceKey;
+    }
+
+    return res;
+  }
+
   @Override
   public String getKey(RowData row) {
+    String key = null;
     partitionKey.partition(lazyRowDataWrapper().wrap(row));
-    return partitionKey.toPath();
+    boolean isBucketPartTable = partitionKey.getSpec().isBucketPartiton();
+
+    if (isBucketPartTable) {
+      Integer balancekey = getBalanceKey();
+      key = String.valueOf(balancekey.intValue());
+    } else {
+      key = partitionKey.toPath();
+    }
+
+    return key;
   }
 }
