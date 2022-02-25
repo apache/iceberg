@@ -100,6 +100,9 @@ final class JdbcUtil {
       " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? ";
   protected static final String DELETE_NAMESPACE_PROPERTIES_SQL = "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ";
+  protected static final String DELETE_ALL_NAMESPACE_PROPERTIES_SQL =
+      "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ?";
 
   // Utilities
   private static final Joiner JOINER_DOT = Joiner.on('.');

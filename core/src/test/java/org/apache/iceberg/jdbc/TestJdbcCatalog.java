@@ -533,9 +533,8 @@ public class TestJdbcCatalog {
 
   @Test
   public void testDropNamespace() {
-
-    AssertHelpers.assertThrows("Should fail to drop namespace doesn't exist", NoSuchNamespaceException.class,
-        "Namespace does not exist", () -> catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
+    Assert.assertFalse("Should return false if drop does not modify state",
+        catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
 
     TableIdentifier tbl0 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "tbl1");
@@ -558,10 +557,14 @@ public class TestJdbcCatalog {
   @Test
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
-    // Test with null metadata
-    AssertHelpers.assertThrows("Cannot create a namespace with null or empty metadata", IllegalArgumentException.class,
-            () -> catalog.createNamespace(testNamespace, null));
-    Assert.assertFalse(catalog.namespaceExists(testNamespace));
+    // Test with no metadata
+    catalog.createNamespace(testNamespace);
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
+  }
+
+  @Test
+  public void testCreateNamespaceWithMetadata() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
 
     // Test with metadata
     Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2", "key_3", "value_3");
@@ -582,13 +585,16 @@ public class TestJdbcCatalog {
     Assert.assertTrue(catalog.namespaceExists(testNamespace));
     Assert.assertTrue(catalog.setProperties(testNamespace, propertiesToSet));
 
-    Map<String, String> allProperties = catalog.fetchProperties(testNamespace);
-    Assert.assertEquals(5, allProperties.size());
+    Map<String, String> allProperties = catalog.loadNamespaceMetadata(testNamespace);
+    Assert.assertEquals(6, allProperties.size());
 
-    Map<String, String> namespaceProperties = catalog.fetchProperties(testNamespace);
-    for (Map.Entry<String, String> keyValue : namespaceProperties.entrySet()) {
-      Assert.assertTrue(propertiesToSet.containsKey(keyValue.getKey()));
-      Assert.assertEquals(keyValue.getValue(), propertiesToSet.get(keyValue.getKey()));
+    Map<String, String> namespaceProperties = catalog.loadNamespaceMetadata(testNamespace);
+    Assert.assertEquals("All new keys should be in the namespace properties",
+        propertiesToSet.keySet(), Sets.intersection(propertiesToSet.keySet(), namespaceProperties.keySet()));
+    // values should match
+    for (Map.Entry<String, String> keyValue : propertiesToSet.entrySet()) {
+      Assert.assertEquals("Value for key " + keyValue.getKey() + " should match",
+          keyValue.getValue(), namespaceProperties.get(keyValue.getKey()));
     }
   }
 
@@ -601,18 +607,17 @@ public class TestJdbcCatalog {
 
     Set<String> propertiesToRemove = ImmutableSet.of("key_2", "key_4");
     catalog.removeProperties(testNamespace, propertiesToRemove);
-    Map<String, String> remainderProperties = catalog.fetchProperties(testNamespace);
+    Map<String, String> remainderProperties = catalog.loadNamespaceMetadata(testNamespace);
 
-    Assert.assertEquals(2, remainderProperties.size());
+    Assert.assertEquals(3, remainderProperties.size());
     Assert.assertTrue(remainderProperties.containsKey("key_1"));
     Assert.assertTrue(remainderProperties.containsKey("key_3"));
+    Assert.assertTrue(remainderProperties.containsKey("location"));
 
     // Remove remaining properties to test if it deletes the namespace
     Set<String> allProperties = ImmutableSet.of("key_1", "key_3");
     catalog.removeProperties(testNamespace, allProperties);
-    Assert.assertFalse(catalog.namespaceExists(testNamespace));
-    AssertHelpers.assertThrows("Namespace does not exist", NoSuchNamespaceException.class,
-            () -> catalog.removeProperties(testNamespace, allProperties));
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
   }
 
   @Test
