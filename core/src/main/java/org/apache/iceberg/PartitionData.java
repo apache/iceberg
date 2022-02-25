@@ -191,8 +191,10 @@ class PartitionData
   @Override
   public int hashCode() {
     Hasher hasher = Hashing.goodFastHash(32).newHasher();
-    Stream.of(data).map(Objects::hashCode).forEach(hasher::putInt);
-    partitionType.fields().stream().map(Objects::hashCode).forEach(hasher::putInt);
+    if (size > 0) {
+      Stream.of(data).map(Objects::hashCode).forEach(hasher::putInt);
+      partitionType.fields().stream().map(Objects::hashCode).forEach(hasher::putInt);
+    }
     return hasher.hash().hashCode();
   }
 
