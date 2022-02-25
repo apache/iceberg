@@ -70,7 +70,7 @@ public class CreateNamespaceResponse {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private Namespace namespace;
     private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
 
