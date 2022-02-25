@@ -90,9 +90,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 
 /**
@@ -148,7 +148,7 @@ public class MockS3Client implements S3Client {
   private byte[] convertContent(Object entity) {
     if (entity instanceof InputStream) {
       try (InputStream inputStream = (InputStream) entity) {
-        return IOUtils.toByteArray(inputStream);
+        return ByteStreams.toByteArray(inputStream);
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }

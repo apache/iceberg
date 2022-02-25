@@ -45,7 +45,7 @@ public interface PropertiesSerDes {
    */
   String CURRENT_VERSION = "0";
 
-  Logger log = LoggerFactory.getLogger(PropertiesSerDes.class);
+  Logger LOG = LoggerFactory.getLogger(PropertiesSerDes.class);
 
   /**
    * Read properties
@@ -77,7 +77,7 @@ public interface PropertiesSerDes {
         try {
           jdkProperties.load(new InputStreamReader(input, StandardCharsets.UTF_8));
         } catch (IOException e) {
-          log.error("fail to read properties", e);
+          LOG.error("fail to read properties", e);
           throw new UncheckedIOException(e);
         }
 
@@ -101,7 +101,7 @@ public interface PropertiesSerDes {
           jdkProperties.store(new OutputStreamWriter(output, StandardCharsets.UTF_8), null);
           return output.toByteArray();
         } catch (IOException e) {
-          log.error("fail to store properties {} to file", value, e);
+          LOG.error("fail to store properties {} to file", value, e);
           throw new UncheckedIOException(e);
         }
       }
