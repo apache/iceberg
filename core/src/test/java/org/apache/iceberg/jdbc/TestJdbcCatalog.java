@@ -42,6 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -67,7 +68,7 @@ import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestJdbcCatalog {
+public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
 
   static final Schema SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get(), "unique ID"),
@@ -80,9 +81,20 @@ public class TestJdbcCatalog {
   static Configuration conf = new Configuration();
   private static JdbcCatalog catalog;
   private static String warehouseLocation;
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   File tableDir = null;
+
+  @Override
+  protected JdbcCatalog catalog() {
+    return catalog;
+  }
+
+  @Override
+  protected boolean supportsNamespaceProperties() {
+    return true;
+  }
 
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
