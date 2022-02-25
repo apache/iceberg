@@ -37,9 +37,6 @@ import org.slf4j.LoggerFactory;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
-  private static final Pattern LISTENER_REGEX = Pattern.compile("^listeners[.](?<name>[^\\.]+)[.](?<config>.+)$");
-  private static final String LISTENER_PROPERTY_REGEX_GROUP_NAME = "name";
-  private static final String LISTENER_PROPERTY_REGEX_GROUP_CONFIG = "config";
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
@@ -77,33 +74,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Map<String, Map<String, String>> listenerProperties = createListenerProperties(properties);
-
-    for (String listenerName : listenerProperties.keySet()) {
-      if (listenerProperties.get(listenerName).get("impl") != null) {
-        Listener listener = CatalogUtil.loadListener(
-                listenerProperties.get(listenerName).get("impl"),
-                listenerName,
-                listenerProperties.get(listenerName));
-      }
-    }
-  }
-
-  public static Map<String, Map<String, String>> createListenerProperties(Map<String, String> properties) {
-    Map<String, Map<String, String>> listenerProperties = Maps.newHashMap();
-
-    for (String key : properties.keySet()) {
-      Matcher match = LISTENER_REGEX.matcher(key);
-      if (match.matches()) {
-        if (!listenerProperties.containsKey(match.group(LISTENER_PROPERTY_REGEX_GROUP_NAME))) {
-          listenerProperties.put(match.group(LISTENER_PROPERTY_REGEX_GROUP_NAME), Maps.newHashMap());
-        }
-        listenerProperties.get(match.group(LISTENER_PROPERTY_REGEX_GROUP_NAME))
-                .put(match.group(LISTENER_PROPERTY_REGEX_GROUP_CONFIG), properties.get(key));
-      }
-    }
-
-    return listenerProperties;
+    CatalogUtil.initializeListeners(properties);
   }
 
   private Table loadMetadataTable(TableIdentifier identifier) {

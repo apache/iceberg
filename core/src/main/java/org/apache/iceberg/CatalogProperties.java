@@ -19,7 +19,16 @@
 
 package org.apache.iceberg;
 
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.iceberg.events.CreateSnapshotEvent;
+import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.util.Pair;
 
 public class CatalogProperties {
 
@@ -81,5 +90,54 @@ public class CatalogProperties {
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
 
-  public static final String LISTENERS = "listeners";
+  /**
+   * Listeners are registered using catalog properties following the pattern of
+   * listeners.(listener-name).(listener-property)=(property-value)
+   * <p>
+   * A listener name cannot contain dot (.) character
+   * The specified listener is registered when a catalog is initialized
+   * <p>
+   * For example, there is the set of catalog properties registering an AWS SQS listener of name prod:
+   * <ul>
+   *   <li>listener.prod.impl=org.apache.iceberg.aws.sns.SnsListener
+   *   <li>listener.prod.event-types=scan,incremental-scan
+   *   <li>listener.prod.sns.topic-arn=arn:aws:sns:us-east-2:123456789012:MyTopic
+   * </ul>
+   */
+  public static String listenerCatalogProperty(String listenerName, String listenerProperty) {
+    return "listener." + listenerName + "." + listenerProperty;
+  }
+
+  /**
+   * Parse the listener name and listener property from a catalog property string
+   * @param listenerCatalogProperty listener catalog property
+   * @return a pair of the listener name and listener property
+   */
+  public static Optional<Pair<String, String>> parseListenerCatalogProperty(String listenerCatalogProperty) {
+    Matcher matcher = Pattern.compile("^listener[.](?<name>[^\\.]+)[.](?<property>.+)$")
+        .matcher(listenerCatalogProperty);
+    if (matcher.matches()) {
+      return Optional.of(Pair.of(matcher.group("name"), matcher.group("property")));
+    }
+
+    return Optional.empty();
+  }
+
+  /**
+   * Listener property describing the implementation Java class name of the listener for dynamic loading
+   */
+  public static final String LISTENER_PROPERTY_IMPL = "impl";
+
+  /**
+   * Listener property describing the event types that a listener subscribes to.
+   * The value is a comma delimited list of event types (Java class name),
+   * e.g. org.apache.iceberg.events.ScanEvent,org.apache.iceberg.events.IncrementalScanEvent.
+   * If not specified, the listener subscribes to events listed in {@link #LISTENER_EVENT_TYPES_DEFAULT}
+   */
+  public static final String LISTENER_PROPERTY_EVENT_TYPES = "event-types";
+  public static final Set<Class<?>> LISTENER_EVENT_TYPES_DEFAULT = ImmutableSet.of(
+      ScanEvent.class,
+      IncrementalScanEvent.class,
+      CreateSnapshotEvent.class
+  );
 }
