@@ -98,6 +98,11 @@ WHEN NOT MATCHED AND s.event_time > still_valid_threshold THEN INSERT (id, count
 
 Only one record in the source data can update any given row of the target table, or else an error will be thrown.
 
+!!! Note
+    By default Spark uses copy-on-write merge mode.
+    With spark-3.2 and onwards, Iceberg supports merge-on-read mode for merge.    
+    To use merge-on-read mode for merge, set the table property `write.merge.mode` to "merge-on-read".
+
 
 ### `INSERT OVERWRITE`
 
@@ -185,6 +190,11 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 
 If the delete filter matches entire partitions of the table, Iceberg will perform a metadata-only delete. If the filter matches individual rows of a table, then Iceberg will rewrite only the affected data files.
 
+!!! Note
+    By default Spark uses copy-on-write delete mode. 
+    With spark-3.2 and onwards, Iceberg supports merge-on-read mode for delete.    
+    To use merge-on-read mode for delete, set the table property `write.delete.mode` to "merge-on-read".
+
 ### `UPDATE`
 
 Spark 3.1 added support for `UPDATE` queries that update matching rows in tables.
@@ -206,6 +216,11 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 ```
 
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
+
+!!! Note
+    By default Spark uses copy-on-write update mode.
+    With spark-3.2 and onwards, Iceberg supports merge-on-read mode for update.    
+    To use merge-on-read mode for update, set the table property `write.update.mode` to "merge-on-read".
 
 ## Writing with DataFrames
 
