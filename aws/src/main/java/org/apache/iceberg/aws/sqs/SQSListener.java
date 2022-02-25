@@ -42,7 +42,7 @@ public class SQSListener<T> implements Listener<T> {
   private int retry;
   private long retryIntervalMs;
 
-  public SQSListener() {
+  public SQSListener(Class<T> clazz) {
   }
 
   public SQSListener(String queueUrl, SqsClient sqs, int retry, long retryIntervalMs) {

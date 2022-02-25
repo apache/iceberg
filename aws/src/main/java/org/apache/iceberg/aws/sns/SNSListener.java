@@ -42,7 +42,7 @@ public class SNSListener<T> implements Listener<T> {
   private int retry;
   private long retryIntervalMs;
 
-  public SNSListener() {
+  public SNSListener(Class<T> clazz) {
   }
 
   public SNSListener(String topicArn, SnsClient sns, int retry, long retryIntervalMs) {
@@ -53,7 +53,7 @@ public class SNSListener<T> implements Listener<T> {
   }
 
   @Override
-  public void notify(Object event) {
+  public void notify(T event) {
     try {
       String msg = EventParser.toJson(event);
       PublishRequest request = PublishRequest.builder()
