@@ -275,6 +275,11 @@ See the [`RewriteDataFiles` Javadoc](../../../javadoc/{{% icebergVersion %}}/org
 and <br/> [`SortStrategy` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/SortStrategy.html#field.summary)
 for list of all the supported options for this action.
 
+!!! Note
+    This procedure can also read the delete files created by merge-on-read mode if present
+    and rewrite to new data files by masking the result from delete files.
+    By default, delete files will not be considered for compaction. In order to change this behavior, need to set `delete-file-threshold`.
+
 #### Output
 
 | Output Name | Type | Description |

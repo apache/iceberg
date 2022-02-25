@@ -133,6 +133,11 @@ The `files` metadata table is useful for inspecting data file sizes and determin
 
 See the [`RewriteDataFiles` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/RewriteDataFiles.html) to see more configuration options.
 
+!!! Note
+    This action can also read the delete files created by merge-on-read mode if present 
+    and rewrite to new data files by masking the result from delete files. 
+    By default, delete files will not be considered for compaction. In order to change this behavior, need to set `delete-file-threshold`.
+
 ### Rewrite manifests
 
 Iceberg uses metadata in its manifest list and manifest files speed up query planning and to prune unnecessary data files. The metadata tree functions as an index over a table's data.
