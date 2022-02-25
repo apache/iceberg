@@ -98,6 +98,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    super.initialize(name, properties);
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(inputWarehouseLocation != null && !inputWarehouseLocation.equals(""),
         "Cannot instantiate hadoop catalog. No location provided for warehouse (Set warehouse config)");

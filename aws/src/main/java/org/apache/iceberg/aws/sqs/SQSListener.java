@@ -19,8 +19,13 @@
 
 package org.apache.iceberg.aws.sqs;
 
+import java.util.Map;
+import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.util.EventParser;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,10 +37,13 @@ import software.amazon.awssdk.services.sqs.model.SqsException;
 public class SQSListener<T> implements Listener<T> {
   private static final Logger LOG = LoggerFactory.getLogger(SQSListener.class);
 
-  private final String queueUrl;
-  private final SqsClient sqs;
-  private final int retry;
-  private final long retryIntervalMs;
+  private String queueUrl;
+  private SqsClient sqs;
+  private int retry;
+  private long retryIntervalMs;
+
+  public SQSListener() {
+  }
 
   public SQSListener(String queueUrl, SqsClient sqs, int retry, long retryIntervalMs) {
     this.sqs = sqs;
@@ -62,6 +70,28 @@ public class SQSListener<T> implements Listener<T> {
     } catch (RuntimeException e) {
       LOG.error("Failed to add to queue", e);
     }
+  }
+
+  @Override
+  public void initialize(String listenerName, Map<String, String> properties) {
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    this.sqs = factory.sqs();
+
+    if (listenerName == null) {
+      throw new NullPointerException("Listener Name cannot be null");
+    }
+
+    if (properties.get(AwsProperties.SQS_QUEUE_URL) == null) {
+      throw new NullPointerException("SNS queue url cannot be null");
+    }
+
+    this.queueUrl = properties.get(AwsProperties.SQS_QUEUE_URL);
+
+    this.retry = PropertyUtil.propertyAsInt(
+            properties, AwsProperties.SQS_RETRY, AwsProperties.SQS_RETRY_DEFAULT);
+
+    this.retryIntervalMs = PropertyUtil.propertyAsInt(
+            properties, AwsProperties.SQS_RETRY_INTERVAL_MS, AwsProperties.SQS_RETRY_INTERVAL_MS_DEFAULT);
   }
 }
 

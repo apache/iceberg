@@ -93,6 +93,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public void initialize(String inputName, Map<String, String> options) {
+    super.initialize(name, options);
     this.catalogOptions = ImmutableMap.copyOf(options);
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);

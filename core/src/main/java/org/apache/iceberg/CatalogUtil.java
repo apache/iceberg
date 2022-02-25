@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +28,11 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.events.CreateSnapshotEvent;
+import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.Listener;
+import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
@@ -273,6 +279,46 @@ public class CatalogUtil {
 
     fileIO.initialize(properties);
     return fileIO;
+  }
+
+  public static Listener loadListener(String listenerClass, String listenerName, Map<String, String> properties) {
+    DynConstructors.Ctor<Listener> ctor;
+    try {
+      ctor = DynConstructors.builder(Listener.class).impl(listenerClass).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+              "Cannot initialize Listener, missing no-arg constructor: %s", listenerClass), e);
+    }
+
+    Listener listener;
+    try {
+      listener = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+              String.format("Cannot initialize Listener, %s does not implement Listener.", listenerClass), e);
+    }
+
+    listener.initialize(listenerName, properties);
+    String registerEvents = properties.get("event-types");
+
+    if (registerEvents == null) {
+      Listeners.register(listener, CreateSnapshotEvent.class);
+      Listeners.register(listener, ScanEvent.class);
+      Listeners.register(listener, IncrementalScanEvent.class);
+    } else {
+      Set<String> events = Sets.newHashSet(Arrays.asList(registerEvents.split(", ")));
+      if (events.contains("scan")) {
+        Listeners.register(listener, ScanEvent.class);
+      }
+      if (events.contains("create-snapshot")) {
+        Listeners.register(listener, CreateSnapshotEvent.class);
+      }
+      if (events.contains("incremental-scan")) {
+        Listeners.register(listener, IncrementalScanEvent.class);
+      }
+    }
+
+    return listener;
   }
 
   /**
