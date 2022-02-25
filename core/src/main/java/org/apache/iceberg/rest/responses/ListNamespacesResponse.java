@@ -61,7 +61,7 @@ public class ListNamespacesResponse {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private final ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
 
     private Builder() {

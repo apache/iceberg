@@ -63,7 +63,7 @@ public class ListTablesResponse {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private final ImmutableList.Builder<TableIdentifier> identifiers = ImmutableList.builder();
 
     private Builder() {
