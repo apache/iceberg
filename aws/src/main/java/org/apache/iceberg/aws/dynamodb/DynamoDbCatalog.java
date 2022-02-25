@@ -117,6 +117,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    super.initialize(name, properties);
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),

@@ -21,11 +21,15 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -170,6 +174,65 @@ public class TestCatalogUtil {
         "both type and catalog-impl are set", () -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf));
   }
 
+  @Test
+  public void testSingleRegEx() {
+    Pattern pattern = Pattern.compile("^listeners[.](?<name>.+)[.]impl$");
+    Matcher matchTrue = pattern.matcher("listeners.prod.impl");
+    Matcher matchFalse = pattern.matcher("listeners.prod.iampl");
+    Assert.assertTrue(matchTrue.matches());
+    Assert.assertFalse(matchFalse.matches());
+    Assert.assertEquals("prod", matchTrue.group("name"));
+  }
+
+  @Test
+  public void testLoadListener() {
+    Map<String, String> properties = Maps.newHashMap();
+    String listenerName = "ListenerName";
+    properties.put("impl", TestListener.class.getName());
+    properties.put("test.client", "Client-Info");
+    properties.put("test.info", "Information");
+
+    Listener listener = CatalogUtil.loadListener(TestListener.class.getName(), listenerName, properties);
+    Assertions.assertThat(listener).isInstanceOf(TestListener.class);
+    Assert.assertEquals("Client-Info", ((TestListener) listener).client);
+    Assert.assertEquals("Information", ((TestListener) listener).info);
+  }
+
+  @Test
+  public void testListenerProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("listeners.listenerOne.impl", TestListener.class.getName());
+    properties.put("listeners.listenerOne.test.info", "Information");
+    properties.put("listeners.listenerOne.test.client", "Client-Info");
+    properties.put("listeners.listenerTwo.impl", TestListener.class.getName());
+    properties.put("listeners.listenerTwo.test.info", "Information");
+    properties.put("listeners.listenerTwo.test.client", "Client-Info");
+    Map<String, Map<String, String>> listenerProperties = BaseMetastoreCatalog.createListenerProperties(properties);
+    Assert.assertEquals(listenerProperties.get("listenerOne").get("test.client"), "Client-Info");
+    Assert.assertEquals(listenerProperties.get("listenerTwo").get("test.info"), "Information");
+  }
+
+  @Test
+  public void loadBadListenerClass() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("key", "val");
+    String name = "custom";
+    String impl = "ListenerDoesNotExist";
+    AssertHelpers.assertThrows("Listener must exist",
+            IllegalArgumentException.class,
+            "Cannot initialize Listener",
+            () -> CatalogUtil.loadListener(impl, name, properties));
+  }
+
+  @Test
+  public void loadBadListenerConstructor() {
+    String name = "custom";
+    AssertHelpers.assertThrows("cannot find constructor",
+            IllegalArgumentException.class,
+            "missing no-arg constructor",
+            () -> CatalogUtil.loadListener(TestListenerBadConstructor.class.getName(), name, Maps.newHashMap()));
+  }
+
   public static class TestCatalog extends BaseMetastoreCatalog {
 
     private String catalogName;
@@ -180,6 +243,7 @@ public class TestCatalogUtil {
 
     @Override
     public void initialize(String name, Map<String, String> properties) {
+      super.initialize(name, properties);
       this.catalogName = name;
       this.flinkOptions = properties;
     }
@@ -400,6 +464,45 @@ public class TestCatalogUtil {
 
   public static class TestFileIONotImpl {
     public TestFileIONotImpl() {
+    }
+  }
+
+  public static class TestListener<T> implements Listener<T> {
+    private String client;
+    private String info;
+    private String name;
+    public static final AtomicInteger NOTIFY_TIMES = new AtomicInteger();
+
+    public TestListener() {
+    }
+
+    @Override
+    public void notify(Object event) {
+      NOTIFY_TIMES.incrementAndGet();
+    }
+
+    @Override
+    public void initialize(String listenerName, Map<String, String> properties) {
+      this.name = listenerName;
+      this.info = properties.get("test.info");
+      this.client = properties.get("test.client");
+    }
+  }
+
+  public static class TestListenerBadConstructor<T> implements Listener<T> {
+    private String arg;
+
+    public TestListenerBadConstructor(String arg) {
+      this.arg = arg;
+    }
+
+    @Override
+    public void notify(Object event) {
+    }
+
+    @Override
+    public void initialize(String listenerName, Map<String, String> properties) {
+      this.arg = listenerName;
     }
   }
 }

@@ -19,9 +19,14 @@
 
 package org.apache.iceberg.events;
 
+import java.util.Map;
+
 /**
  * A listener interface that can receive notifications.
  */
 public interface Listener<E> {
   void notify(E event);
+
+  default void initialize(String listenerName, Map<String, String> properties) {
+  }
 }

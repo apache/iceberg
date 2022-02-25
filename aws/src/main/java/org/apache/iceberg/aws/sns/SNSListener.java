@@ -19,8 +19,13 @@
 
 package org.apache.iceberg.aws.sns;
 
+import java.util.Map;
+import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.util.EventParser;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,10 +37,13 @@ import software.amazon.awssdk.services.sns.model.SnsException;
 public class SNSListener<T> implements Listener<T> {
   private static final Logger LOG = LoggerFactory.getLogger(SNSListener.class);
 
-  private final String topicArn;
-  private final SnsClient sns;
-  private final int retry;
-  private final long retryIntervalMs;
+  private String topicArn;
+  private SnsClient sns;
+  private int retry;
+  private long retryIntervalMs;
+
+  public SNSListener() {
+  }
 
   public SNSListener(String topicArn, SnsClient sns, int retry, long retryIntervalMs) {
     this.sns = sns;
@@ -62,6 +70,28 @@ public class SNSListener<T> implements Listener<T> {
     } catch (RuntimeException e) {
       LOG.error("Failed to notify subscriber", e);
     }
+  }
+
+  @Override
+  public void initialize(String listenerName, Map<String, String> properties) {
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    this.sns = factory.sns();
+
+    if (listenerName == null) {
+      throw new NullPointerException("Listener Name cannot be null");
+    }
+
+    if (properties.get(AwsProperties.SNS_TOPIC_ARN) == null) {
+      throw new NullPointerException("SNS queue url cannot be null");
+    }
+
+    this.topicArn = properties.get(AwsProperties.SNS_TOPIC_ARN);
+
+    this.retry = PropertyUtil.propertyAsInt(
+            properties, AwsProperties.SNS_RETRY, AwsProperties.SNS_RETRY_DEFAULT);
+
+    this.retryIntervalMs = PropertyUtil.propertyAsInt(
+            properties, AwsProperties.SNS_RETRY_INTERVAL_MS, AwsProperties.SNS_RETRY_INTERVAL_MS_DEFAULT);
   }
 }
 

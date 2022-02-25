@@ -81,4 +81,5 @@ public class CatalogProperties {
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
 
+  public static final String LISTENERS = "listeners";
 }
