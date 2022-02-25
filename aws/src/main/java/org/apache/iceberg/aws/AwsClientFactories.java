@@ -112,12 +112,12 @@ public class AwsClientFactories {
 
     @Override
     public SnsClient sns() {
-      return SnsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return SnsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
     }
 
     @Override
     public SqsClient sqs() {
-      return SqsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return SqsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
     }
 
     @Override
