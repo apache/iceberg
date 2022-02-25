@@ -1149,9 +1149,6 @@ public class TestRemoveSnapshots extends TableTestBase {
   @Test
   public void testExpireWithDeleteFiles() {
     Assume.assumeTrue("Delete files only supported in V2 spec", formatVersion == 2);
-    table.updateProperties()
-        .set(TableProperties.MAX_SNAPSHOT_AGE_MS, "1")
-        .commit();
 
     // Data Manifest => File_A
     table.newAppend()
