@@ -30,7 +30,13 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -43,6 +49,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -244,6 +251,126 @@ public class RESTCatalog
   @Override
   public void setConf(Configuration conf) {
     this.hadoopConf = conf;
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new Builder(identifier, schema);
+  }
+
+  private class Builder implements TableBuilder {
+    private final TableIdentifier ident;
+    private final Schema schema;
+    private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
+    private PartitionSpec spec = null;
+    private SortOrder writeOrder = null;
+    private String location = null;
+
+    private Builder(TableIdentifier ident, Schema schema) {
+      this.ident = ident;
+      this.schema = schema;
+    }
+
+    @Override
+    public TableBuilder withPartitionSpec(PartitionSpec tableSpec) {
+      this.spec = tableSpec;
+      return this;
+    }
+
+    @Override
+    public TableBuilder withSortOrder(SortOrder tableWriteOrder) {
+      this.writeOrder = tableWriteOrder;
+      return this;
+    }
+
+    @Override
+    public TableBuilder withLocation(String location) {
+      this.location = location;
+      return this;
+    }
+
+    @Override
+    public TableBuilder withProperties(Map<String, String> properties) {
+      this.propertiesBuilder.putAll(properties);
+      return this;
+    }
+
+    @Override
+    public TableBuilder withProperty(String key, String value) {
+      this.propertiesBuilder.put(key, value);
+      return this;
+    }
+
+    @Override
+    public Table create() {
+      String joined = RESTUtil.asURLVariable(ident.namespace());
+      CreateTableRequest request = CreateTableRequest.builder()
+          .withName(ident.name())
+          .withSchema(schema)
+          .withPartitionSpec(spec)
+          .withWriteOrder(writeOrder)
+          .withLocation(location)
+          .setProperties(propertiesBuilder.build())
+          .build();
+
+      LoadTableResponse response = client.post(
+          "v1/namespaces/" + joined + "/tables", request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+
+      return new BaseTable(new RESTTableOperations(response.tableMetadata()), fullTableName(ident));
+    }
+
+    @Override
+    public Transaction createTransaction() {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public Transaction createOrReplaceTransaction() {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
+  }
+
+  private static class RESTTableOperations implements TableOperations {
+    private final TableMetadata current;
+
+    private RESTTableOperations(TableMetadata current) {
+      this.current = current;
+    }
+
+    @Override
+    public TableMetadata current() {
+      return current;
+    }
+
+    @Override
+    public TableMetadata refresh() {
+      return current;
+    }
+
+    @Override
+    public void commit(TableMetadata base, TableMetadata metadata) {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public FileIO io() {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public String metadataFileLocation(String fileName) {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public LocationProvider locationProvider() {
+      throw new UnsupportedOperationException("Not implemented yet");
+    }
   }
 
   private FileIO initializeFileIO(Map<String, String> props) {
