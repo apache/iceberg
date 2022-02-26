@@ -25,7 +25,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -34,13 +34,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
-public class RESTCatalogTest {
+public class TestRESTCatalog {
 
-  private static RESTClient restClient;
+  private static final String CATALOG_NAME = "rest";
 
-  @BeforeClass
-  public static void beforeClass() {
+  private RESTClient restClient;
+  private RESTCatalog restCatalog;
+
+  @Before
+  public void before() {
     restClient = Mockito.mock(RESTClient.class);
+    restCatalog = new RESTCatalog();
+    restCatalog.initialize(CATALOG_NAME, );
   }
 
   @Test
