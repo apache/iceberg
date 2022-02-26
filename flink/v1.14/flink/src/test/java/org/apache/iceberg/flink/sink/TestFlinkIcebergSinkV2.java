@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.sink;
 
-import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +35,6 @@ import org.apache.flink.types.RowKind;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -51,6 +49,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -220,6 +219,12 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     builder.equalityFieldColumns(Lists.newArrayList("id"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("id").fieldId()),
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
+    );
+
+    builder.equalityFieldColumns(Lists.newArrayList("type"));
+    Assert.assertEquals(
+        Sets.newHashSet(table.schema().findField("type").fieldId()),
         Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
     );
   }
