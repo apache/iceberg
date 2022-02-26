@@ -20,6 +20,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -45,7 +46,7 @@ public class TestRESTCatalog {
   public void before() {
     restClient = Mockito.mock(RESTClient.class);
     restCatalog = new RESTCatalog();
-    restCatalog.initialize(CATALOG_NAME, );
+    restCatalog.initialize(CATALOG_NAME, restClient, null /* io */);
   }
 
   @Test

@@ -82,50 +82,30 @@ public class RESTCatalog
     String v1BaseUri = SLASH.skipNulls().join(properties.get(CatalogProperties.URI), "v1", prefix);
     LOG.info("Connecting to REST catalog at URI: {}", v1BaseUri);
 
-    RESTClient client = HttpRESTClient.builder()
+    RESTClient restClient = HttpRESTClient.builder()
         .uri(v1BaseUri)
         .withBearerAuth(properties.get(RESTCatalogProperties.AUTH_TOKEN))
         .mapper(MAPPER)
         .defaultErrorHandler(ErrorHandlers.defaultErrorHandler())
         .build();
 
-    this.fileIO = initializeFileIO(properties);
+    FileIO io = initializeFileIO(properties);
     this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(client);
-    closeableGroup.addCloseable(fileIO);
+    closeableGroup.addCloseable(restClient);
+    closeableGroup.addCloseable(io);
     closeableGroup.setSuppressCloseFailure(true);
 
     initialize(
         name,
-        client,
-        fileIO);
+        restClient,
+        io);
   }
 
   @VisibleForTesting
-  void initialize(String name, RESTClient client, FileIO io) {
+  void initialize(String name, RESTClient restClient, FileIO io) {
     this.catalogName = name;
-
-
-    // Fetch one time config that we will use as our final config.
-    Map<String, String> properties = fetchServerConfiguration(initialProperties).merge(initialProperties);
-
-    // For now, assume all paths are V1.
-    // TODO - Add a function V1Route(Route, prefix) that will insert the correct V1 prefix.
-    String prefix = properties.get(RESTCatalogProperties.PREFIX);
-    String v1BaseUri = SLASH.skipNulls().join(uri, "v1", prefix);
-    LOG.info("Connecting to REST catalog at URI: {}", v1BaseUri);
-
-    this.client = HttpRESTClient.builder()
-        .uri(v1BaseUri)
-        .withBearerAuth(properties.get(RESTCatalogProperties.AUTH_TOKEN))
-        .mapper(MAPPER)
-        .defaultErrorHandler(ErrorHandlers.defaultErrorHandler())
-        .build();
-    this.fileIO = initializeFileIO(properties);
-    this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(client);
-    closeableGroup.addCloseable(fileIO);
-    closeableGroup.setSuppressCloseFailure(true);
+    this.fileIO = io;
+    this.client = restClient;
   }
 
   private static ObjectMapper initializeObjectMapper() {

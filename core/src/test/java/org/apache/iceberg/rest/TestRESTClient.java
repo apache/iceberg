@@ -16,11 +16,12 @@ package org.apache.iceberg.rest;
 
 import java.util.function.Consumer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-public class RESTClientTest {
+public class TestRESTClient {
 
   private static RESTClient restClient;
   private static Consumer<ErrorResponse> errorResponseConsumer;
@@ -28,7 +29,6 @@ public class RESTClientTest {
   @BeforeClass
   public static void setUp() throws Exception {
     restClient = Mockito.mock(RESTClient.class);
-
   }
 
   @Test
@@ -37,7 +37,7 @@ public class RESTClientTest {
     Mockito.when(restClient.delete(Mockito.eq("/delete"), Mockito.any())).thenReturn(mockDeleteResponse);
 
     String mockDeleteCall = restClient.delete("/delete", String.class);
-    Assert.assertEquals("")
+    Assert.assertEquals(mockDeleteResponse, mockDeleteCall);
   }
 
   @Test
