@@ -51,6 +51,7 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -345,7 +346,8 @@ public class FlinkSink {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    private List<Integer> checkAndGetEqualityFieldIds() {
+    @VisibleForTesting
+    List<Integer> checkAndGetEqualityFieldIds() {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
       if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
         Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());

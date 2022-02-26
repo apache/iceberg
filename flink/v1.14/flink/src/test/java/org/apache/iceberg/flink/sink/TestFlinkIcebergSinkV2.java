@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.sink;
 
+import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +36,7 @@ import org.apache.flink.types.RowKind;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -49,6 +51,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -194,6 +197,31 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   private Record record(int id, String data) {
     return SimpleDataUtil.createRecord(id, data);
+  }
+
+  @Test
+  public void testCheckAndGetEqualityFieldIds() {
+    table.updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("type", Types.StringType.get())
+        .setIdentifierFields("type")
+        .commit();
+
+    DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
+    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+
+    // Use schema identifier field IDs as equality field id list by default
+    Assert.assertEquals(
+        table.schema().identifierFieldIds(),
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
+    );
+
+    // Use user-provided equality field column as equality field id list
+    builder.equalityFieldColumns(Lists.newArrayList("id"));
+    Assert.assertEquals(
+        Sets.newHashSet(table.schema().findField("id").fieldId()),
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
+    );
   }
 
   @Test
