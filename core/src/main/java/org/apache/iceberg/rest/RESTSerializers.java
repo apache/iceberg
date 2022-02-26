@@ -38,6 +38,8 @@ import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -48,6 +50,8 @@ public class RESTSerializers {
   public static void registerAll(ObjectMapper mapper) {
     SimpleModule module = new SimpleModule();
     module
+        .addSerializer(ErrorResponse.class, new ErrorResponseSerializer())
+        .addDeserializer(ErrorResponse.class, new ErrorResponseDeserializer())
         .addSerializer(TableIdentifier.class, new TableIdentifierSerializer())
         .addDeserializer(TableIdentifier.class, new TableIdentifierDeserializer())
         .addSerializer(Namespace.class, new NamespaceSerializer())
@@ -59,6 +63,22 @@ public class RESTSerializers {
         .addSerializer(SortOrder.class, new SortOrderSerializer())
         .addDeserializer(SortOrder.class, new SortOrderDeserializer());
     mapper.registerModule(module);
+  }
+
+  public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {
+    @Override
+    public ErrorResponse deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return ErrorResponseParser.fromJson(node);
+    }
+  }
+
+  public static class ErrorResponseSerializer extends JsonSerializer<ErrorResponse> {
+    @Override
+    public void serialize(ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      ErrorResponseParser.toJson(errorResponse, gen);
+    }
   }
 
   public static class NamespaceDeserializer extends JsonDeserializer<Namespace> {
