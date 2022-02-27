@@ -97,15 +97,15 @@ public class TableProperties {
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
   public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = "write.delete.parquet.row-group-size-bytes";
-  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 134217728; // 128 MB
+  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
   public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = "write.delete.parquet.page-size-bytes";
-  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1048576; // 1 MB
+  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
   public static final String DELETE_PARQUET_DICT_SIZE_BYTES = "write.delete.parquet.dict-size-bytes";
-  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2097152; // 2 MB
+  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2 * 1024 * 1024; // 2 MB
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
@@ -148,7 +148,7 @@ public class TableProperties {
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
-  public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = false;
+  public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = true;
 
   public static final String PARQUET_BATCH_SIZE = "read.parquet.vectorization.batch-size";
   public static final int PARQUET_BATCH_SIZE_DEFAULT = 5000;
@@ -175,12 +175,6 @@ public class TableProperties {
    */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
-
-  /**
-   * @deprecated will be removed in 0.14.0, use {@link #WRITE_DATA_LOCATION} instead
-   */
-  @Deprecated
-  public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
@@ -226,6 +220,9 @@ public class TableProperties {
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
 
+  public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
+  public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 
@@ -236,11 +233,6 @@ public class TableProperties {
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
   public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
-  /**
-   * @deprecated will be removed in 0.14.0, use specific modes instead
-   */
-  @Deprecated
-  public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = WRITE_DISTRIBUTION_MODE_NONE;
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;

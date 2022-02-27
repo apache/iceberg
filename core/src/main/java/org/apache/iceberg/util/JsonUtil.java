@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -129,8 +130,29 @@ public class JsonUtil {
     return builder.build();
   }
 
+  public static String[] getStringArray(JsonNode node) {
+    Preconditions.checkArgument(node != null && !node.isNull() && node.isArray(),
+        "Cannot parse string array from non-array: %s", node);
+    ArrayNode arrayNode = (ArrayNode) node;
+    String[] arr = new String[arrayNode.size()];
+    for (int i = 0; i < arr.length; i++) {
+      arr[i] = arrayNode.get(i).asText();
+    }
+    return arr;
+  }
+
   public static List<String> getStringList(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing list %s", property);
+    return ImmutableList.<String>builder()
+        .addAll(new JsonStringArrayIterator(property, node))
+        .build();
+  }
+
+  public static List<String> getStringListOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+
     return ImmutableList.<String>builder()
         .addAll(new JsonStringArrayIterator(property, node))
         .build();

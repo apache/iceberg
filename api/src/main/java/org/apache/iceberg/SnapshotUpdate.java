@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -52,4 +53,11 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    */
   ThisT stageOnly();
 
+  /**
+   * Use a particular executor to scan manifests. The default worker pool will be used by default.
+   *
+   * @param executorService the provided executor
+   * @return this for method chaining
+   */
+  ThisT scanManifestsWith(ExecutorService executorService);
 }

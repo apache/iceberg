@@ -23,9 +23,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
- * An action that deletes orphan files in a table.
+ * An action that deletes orphan metadata, data and delete files in a table.
  * <p>
- * A metadata or data file is considered orphan if it is not reachable by any valid snapshot.
+ * A file is considered orphan if it is not reachable by any valid snapshot.
  * The set of actual files is built by listing the underlying storage which makes this operation
  * expensive.
  */

@@ -672,11 +672,11 @@ Notes:
 
 The atomic swap needed to commit new versions of table metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation [1]. The check-and-put validates that the version of the table that a write is based on is still current and then makes the new metadata from the write the current version.
 
-Each version of table metadata is stored in a metadata folder under the table’s base location using a naming scheme that includes a version and UUID: `<V>-<uuid>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
+Each version of table metadata is stored in a metadata folder under the table’s base location using a naming scheme that includes a version and UUID: `<V>-<random-uuid>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
-2. Create a new table metadata file based on the current metadata.
-3. Write the new table metadata to a unique file: `<V+1>-<uuid>.metadata.json`.
-4. Request that the metastore swap the table’s metadata pointer from the location of `V` to the location of `V+1`.
+1. Create a new table metadata file based on the current metadata.
+2. Write the new table metadata to a unique file: `<V+1>-<random-uuid>.metadata.json`.
+3. Request that the metastore swap the table’s metadata pointer from the location of `V` to the location of `V+1`.
     1. If the swap succeeds, the commit succeeded. `V` was still the latest metadata version and the metadata file for `V+1` is now the current metadata.
     2. If the swap fails, another writer has already created `V+1`. The current writer goes back to step 1.
 
