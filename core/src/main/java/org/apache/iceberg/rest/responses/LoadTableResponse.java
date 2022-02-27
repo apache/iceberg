@@ -22,6 +22,7 @@ package org.apache.iceberg.rest.responses;
 import java.util.Map;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -30,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  */
 public class LoadTableResponse {
 
+  private String metadataLocation;
   private TableMetadata meta;
   private Map<String, String> config;
 
@@ -37,13 +39,18 @@ public class LoadTableResponse {
     // Required for Jackson deserialization
   }
 
-  private LoadTableResponse(TableMetadata meta, Map<String, String> config) {
+  private LoadTableResponse(String metadataLocation, TableMetadata meta, Map<String, String> config) {
+    this.metadataLocation = metadataLocation;
     this.meta = meta;
     this.config = config;
   }
 
+  public String metadataLocation() {
+    return metadataLocation;
+  }
+
   public TableMetadata tableMetadata() {
-    return meta;
+    return TableMetadata.buildFrom(meta).withMetadataLocation(metadataLocation).build();
   }
 
   public Map<String, String> config() {
@@ -63,6 +70,7 @@ public class LoadTableResponse {
   }
   
   public static class Builder {
+    private String metadataLocation;
     private TableMetadata meta;
     private Map<String, String> config = Maps.newHashMap();
     
@@ -70,6 +78,7 @@ public class LoadTableResponse {
     }
 
     public Builder withTableMetadata(TableMetadata metadata) {
+      this.metadataLocation = metadata.metadataFileLocation();
       this.meta = metadata;
       return this;
     }
@@ -85,7 +94,8 @@ public class LoadTableResponse {
     }
 
     public LoadTableResponse build() {
-      return new LoadTableResponse(meta, config);
+      Preconditions.checkNotNull(meta, "Invalid metadata: null");
+      return new LoadTableResponse(metadataLocation, meta, config);
     }
   }
 }

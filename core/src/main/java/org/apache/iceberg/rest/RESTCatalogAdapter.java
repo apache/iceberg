@@ -39,15 +39,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.Pair;
 
 /**
  * Adaptor class to translate REST requests into {@link Catalog} API calls.
  */
-public class RESTCatalogAdaptor implements RESTClient {
+public class RESTCatalogAdapter implements RESTClient {
   private static final Splitter SLASH = Splitter.on('/');
-  private static final Splitter NULL = Splitter.on('\0');
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES = ImmutableMap
       .<Class<? extends Exception>, Integer>builder()
@@ -70,7 +70,7 @@ public class RESTCatalogAdaptor implements RESTClient {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Consumer<ErrorResponse> defaultErrorHandler;
 
-  public RESTCatalogAdaptor(Catalog catalog, Consumer<ErrorResponse> defaultErrorHandler) {
+  public RESTCatalogAdapter(Catalog catalog, Consumer<ErrorResponse> defaultErrorHandler) {
     this.catalog = catalog;
     this.asNamespaceCatalog = catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.defaultErrorHandler = defaultErrorHandler;
@@ -201,9 +201,20 @@ public class RESTCatalogAdaptor implements RESTClient {
         return castResponse(responseType, CatalogHandlers.createTable(catalog, namespace, request));
       }
 
+      case DROP_TABLE: {
+        TableIdentifier ident = identFromPathVars(vars);
+        return castResponse(responseType, CatalogHandlers.dropTable(catalog, ident));
+      }
+
       case LOAD_TABLE: {
         TableIdentifier ident = identFromPathVars(vars);
         return castResponse(responseType, CatalogHandlers.loadTable(catalog, ident));
+      }
+
+      case UPDATE_TABLE: {
+        TableIdentifier ident = identFromPathVars(vars);
+        UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
+        return castResponse(responseType, CatalogHandlers.updateTable(catalog, ident, request));
       }
 
       default:
@@ -331,7 +342,7 @@ public class RESTCatalogAdaptor implements RESTClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return Namespace.of(NULL.splitToList(pathVars.get("namespace")).toArray(new String[0]));
+    return RESTUtil.urlDecode(pathVars.get("namespace"));
   }
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {

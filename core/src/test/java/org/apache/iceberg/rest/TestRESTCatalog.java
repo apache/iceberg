@@ -36,9 +36,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Before
   public void createCatalog() throws IOException {
     File warehouse = temp.newFolder();
+    Configuration conf = new Configuration();
 
     JdbcCatalog backendCatalog = new JdbcCatalog();
-    backendCatalog.setConf(new Configuration());
+    backendCatalog.setConf(conf);
     Map<String, String> backendCatalogProperties = ImmutableMap.of(
         CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
         CatalogProperties.URI, "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""),
@@ -46,9 +47,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     backendCatalog.initialize("backend", backendCatalogProperties);
 
-    RESTCatalogAdaptor adaptor = new RESTCatalogAdaptor(backendCatalog, ErrorHandlers.defaultErrorHandler());
+    RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog, ErrorHandlers.defaultErrorHandler());
 
     this.restCatalog = new RESTCatalog(adaptor);
+    restCatalog.setConf(conf);
     restCatalog.initialize("prod", ImmutableMap.of());
   }
 
@@ -59,6 +61,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Override
   protected boolean supportsNamespaceProperties() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsServerSideRetry() {
     return true;
   }
 }

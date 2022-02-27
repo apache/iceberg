@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.rest;
@@ -17,13 +22,14 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -31,26 +37,30 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.DropNamespaceResponse;
+import org.apache.iceberg.rest.responses.DropTableResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 
-public class RESTCatalog implements Catalog, SupportsNamespaces {
-  private static final Joiner NULL = Joiner.on('\0');
+public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Configuration> {
   private final RESTClient client;
   private String catalogName = null;
+  private Map<String, String> properties = null;
+  private Object conf = null;
+  private FileIO io = null;
 
   RESTCatalog(RESTClient client) {
     this.client = client;
@@ -59,6 +69,15 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
   @Override
   public void initialize(String name, Map<String, String> properties) {
     this.catalogName = name;
+    this.properties = properties;
+    String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
+
+  }
+
+  @Override
+  public void setConf(Configuration newConf) {
+    this.conf = newConf;
   }
 
   @Override
@@ -66,22 +85,21 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
     return catalogName;
   }
 
-  private String fullTableName(TableIdentifier ident) {
-    return String.format("%s.%s", catalogName, ident);
-  }
-
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    String joined = NULL.join(namespace.levels());
-    // TODO: URL-encode joined and add tests for / in the namespace name
+    String ns = RESTUtil.urlEncode(namespace);
     ListTablesResponse response = client
-        .get("v1/namespaces/" + joined + "/tables", ListTablesResponse.class, ErrorHandlers.namespaceErrorHandler());
+        .get("v1/namespaces/" + ns + "/tables", ListTablesResponse.class, ErrorHandlers.namespaceErrorHandler());
     return response.identifiers();
   }
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    return false;
+    String tablePath = tablePath(identifier);
+    // TODO: support purge flag
+    DropTableResponse response = client.delete(
+        tablePath, DropTableResponse.class, ErrorHandlers.tableErrorHandler());
+    return response.isDropped();
   }
 
   @Override
@@ -91,13 +109,14 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
-    String joined = NULL.join(identifier.namespace().levels());
-    LoadTableResponse response = client.get(
-        "v1/namespaces/" + joined + "/tables/" + identifier.name(),
-        LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+    String tablePath = tablePath(identifier);
+    LoadTableResponse response = client.get(tablePath, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
 
-    // TODO: implement initialize and fixup the name reported by the table
-    return new BaseTable(new RESTTableOperations(response.tableMetadata()), fullTableName(identifier));
+    // TODO: pass a customized client
+    FileIO tableIO = tableIO(response.config());
+    return new BaseTable(
+        new RESTTableOperations(client, tablePath, tableIO, response.tableMetadata()),
+        fullTableName(identifier));
   }
 
   @Override
@@ -122,30 +141,30 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    String joined = NULL.join(namespace.levels());
+    String ns = RESTUtil.urlEncode(namespace);
     // TODO: rename to LoadNamespaceResponse?
     GetNamespaceResponse response = client
-        .get("v1/namespaces/" + joined, GetNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
+        .get("v1/namespaces/" + ns, GetNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
     return response.properties();
   }
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    String joined = NULL.join(namespace.levels());
+    String ns = RESTUtil.urlEncode(namespace);
     DropNamespaceResponse response = client
-        .delete("v1/namespaces/" + joined, DropNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
+        .delete("v1/namespaces/" + ns, DropNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
     return response.isDropped();
   }
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
-    String joined = NULL.join(namespace.levels());
+    String ns = RESTUtil.urlEncode(namespace);
     UpdateNamespacePropertiesRequest request = UpdateNamespacePropertiesRequest.builder()
         .updateAll(properties)
         .build();
 
     UpdateNamespacePropertiesResponse response = client.post(
-        "v1/namespaces/" + joined + "/properties", request, UpdateNamespacePropertiesResponse.class,
+        "v1/namespaces/" + ns + "/properties", request, UpdateNamespacePropertiesResponse.class,
         ErrorHandlers.namespaceErrorHandler());
 
     return !response.updated().isEmpty();
@@ -153,13 +172,13 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
-    String joined = NULL.join(namespace.levels());
+    String ns = RESTUtil.urlEncode(namespace);
     UpdateNamespacePropertiesRequest request = UpdateNamespacePropertiesRequest.builder()
         .removeAll(properties)
         .build();
 
     UpdateNamespacePropertiesResponse response = client.post(
-        "v1/namespaces/" + joined + "/properties", request, UpdateNamespacePropertiesResponse.class,
+        "v1/namespaces/" + ns + "/properties", request, UpdateNamespacePropertiesResponse.class,
         ErrorHandlers.namespaceErrorHandler());
 
     return !response.removed().isEmpty();
@@ -215,7 +234,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
 
     @Override
     public Table create() {
-      String joined = NULL.join(ident.namespace().levels());
+      String ns = RESTUtil.urlEncode(ident.namespace());
       CreateTableRequest request = CreateTableRequest.builder()
           .withName(ident.name())
           .withSchema(schema)
@@ -226,9 +245,13 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
           .build();
 
       LoadTableResponse response = client.post(
-          "v1/namespaces/" + joined + "/tables", request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+          "v1/namespaces/" + ns + "/tables", request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
 
-      return new BaseTable(new RESTTableOperations(response.tableMetadata()), fullTableName(ident));
+      String tablePath = tablePath(ident);
+      FileIO tableIO = tableIO(response.config());
+      return new BaseTable(
+          new RESTTableOperations(client, tablePath, tableIO, response.tableMetadata()),
+          fullTableName(ident));
     }
 
     @Override
@@ -247,41 +270,22 @@ public class RESTCatalog implements Catalog, SupportsNamespaces {
     }
   }
 
-  private static class RESTTableOperations implements TableOperations {
-    private final TableMetadata current;
+  private String fullTableName(TableIdentifier ident) {
+    return String.format("%s.%s", catalogName, ident);
+  }
 
-    private RESTTableOperations(TableMetadata current) {
-      this.current = current;
-    }
+  private static String tablePath(TableIdentifier ident) {
+    return "v1/namespaces/" + RESTUtil.urlEncode(ident.namespace()) + "/tables/" + ident.name();
+  }
 
-    @Override
-    public TableMetadata current() {
-      return current;
-    }
-
-    @Override
-    public TableMetadata refresh() {
-      return current;
-    }
-
-    @Override
-    public void commit(TableMetadata base, TableMetadata metadata) {
-      throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    @Override
-    public FileIO io() {
-      throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    @Override
-    public String metadataFileLocation(String fileName) {
-      throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    @Override
-    public LocationProvider locationProvider() {
-      throw new UnsupportedOperationException("Not implemented yet");
+  private FileIO tableIO(Map<String, String> conf) {
+    if (conf.isEmpty()) {
+      return io; // reuse the FileIO since config is the same
+    } else {
+      Map<String, String> fullConf = Maps.newHashMap(properties);
+      properties.putAll(conf);
+      String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
+      return CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
     }
   }
 }

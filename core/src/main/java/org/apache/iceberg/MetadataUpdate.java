@@ -22,11 +22,14 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /**
  * Represents a change to table metadata.
  */
 public interface MetadataUpdate extends Serializable {
+  void applyTo(TableMetadata.Builder metadataBuilder);
+
   class AssignUUID implements MetadataUpdate {
     private final String uuid;
 
@@ -36,6 +39,11 @@ public interface MetadataUpdate extends Serializable {
 
     public String uuid() {
       return uuid;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      throw new UnsupportedOperationException("Not implemented");
     }
   }
 
@@ -48,6 +56,11 @@ public interface MetadataUpdate extends Serializable {
 
     public int formatVersion() {
       return formatVersion;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.upgradeFormatVersion(formatVersion);
     }
   }
 
@@ -67,6 +80,11 @@ public interface MetadataUpdate extends Serializable {
     public int lastColumnId() {
       return lastColumnId;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.addSchema(schema, lastColumnId);
+    }
   }
 
   class SetCurrentSchema implements MetadataUpdate {
@@ -78,6 +96,11 @@ public interface MetadataUpdate extends Serializable {
 
     public int schemaId() {
       return schemaId;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setCurrentSchema(schemaId);
     }
   }
 
@@ -91,6 +114,11 @@ public interface MetadataUpdate extends Serializable {
     public PartitionSpec spec() {
       return spec;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.addPartitionSpec(spec);
+    }
   }
 
   class SetDefaultPartitionSpec implements MetadataUpdate {
@@ -103,6 +131,11 @@ public interface MetadataUpdate extends Serializable {
     public int specId() {
       return specId;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setDefaultPartitionSpec(specId);
+    }
   }
 
   class AddSortOrder implements MetadataUpdate {
@@ -112,8 +145,13 @@ public interface MetadataUpdate extends Serializable {
       this.sortOrder = sortOrder;
     }
 
-    public SortOrder spec() {
+    public SortOrder sortOrder() {
       return sortOrder;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.addSortOrder(sortOrder);
     }
   }
 
@@ -127,6 +165,11 @@ public interface MetadataUpdate extends Serializable {
     public int sortOrderId() {
       return sortOrderId;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setDefaultSortOrder(sortOrderId);
+    }
   }
 
   class AddSnapshot implements MetadataUpdate {
@@ -138,6 +181,11 @@ public interface MetadataUpdate extends Serializable {
 
     public Snapshot snapshot() {
       return snapshot;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.addSnapshot(snapshot);
     }
   }
 
@@ -151,6 +199,11 @@ public interface MetadataUpdate extends Serializable {
     public long snapshotId() {
       return snapshotId;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeSnapshots(ImmutableSet.of(snapshotId));
+    }
   }
 
   class RemoveSnapshotRef implements MetadataUpdate {
@@ -162,6 +215,12 @@ public interface MetadataUpdate extends Serializable {
 
     public String name() {
       return name;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      // TODO: this should be generalized when tagging is supported
+      metadataBuilder.removeBranch(name);
     }
   }
 
@@ -181,6 +240,11 @@ public interface MetadataUpdate extends Serializable {
     public long snapshotId() {
       return snapshotId;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setBranchSnapshot(snapshotId, name);
+    }
   }
 
   class SetProperties implements MetadataUpdate {
@@ -192,6 +256,11 @@ public interface MetadataUpdate extends Serializable {
 
     public Map<String, String> updated() {
       return updated;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setProperties(updated);
     }
   }
 
@@ -205,6 +274,11 @@ public interface MetadataUpdate extends Serializable {
     public Set<String> removed() {
       return removed;
     }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeProperties(removed);
+    }
   }
 
   class SetLocation implements MetadataUpdate {
@@ -216,6 +290,11 @@ public interface MetadataUpdate extends Serializable {
 
     public String location() {
       return location;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.setLocation(location);
     }
   }
 }
