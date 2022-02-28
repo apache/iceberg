@@ -22,6 +22,11 @@ url: blogs
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Introducing Apache Iceberg in Cloudera Data Platform](https://blog.cloudera.com/introducing-apache-iceberg-in-cloudera-data-platform/)
+**Date**: February 23rd, 2022, **Company**: Cloudera
+
+**Authors**: [Bill Zhang](https://www.linkedin.com/in/billzhang01/), [Peter Vary](https://www.linkedin.com/in/peter-vary/), [Marton Bod](https://www.linkedin.com/in/martonbod/), [Wing Yew Poon](https://github.com/wypoon)
+
 ### [Apache Iceberg Becomes Industry Open Standard with Ecosystem Adoption](https://www.dremio.com/apache-iceberg-becomes-industry-open-standard-with-ecosystem-adoption/)
 **Date**: February 3rd, 2022, **Company**: Dremio
 
