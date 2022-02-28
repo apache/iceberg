@@ -100,6 +100,11 @@ public class TableMetadataParser {
   static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
+  static final String REFS = "refs";
+  static final String TYPE = "type";
+  static final String MIN_SNAPSHOTS_TO_KEEP = "min-snapshots-to-keep";
+  static final String MAX_SNAPSHOT_AGE_MS = "max-snapshot-age-ms";
+  static final String MAX_REF_AGE_MS = "max-ref-age-ms";
   static final String SNAPSHOTS = "snapshots";
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
@@ -214,6 +219,27 @@ public class TableMetadataParser {
 
     generator.writeNumberField(CURRENT_SNAPSHOT_ID,
         metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
+
+    generator.writeObjectFieldStart(REFS);
+    for (Map.Entry<String, SnapshotRef> refEntry : metadata.refs().entrySet()) {
+      generator.writeObjectFieldStart(refEntry.getKey());
+
+      SnapshotRef ref = refEntry.getValue();
+      generator.writeStringField(TYPE, ref.type().toString().toLowerCase(Locale.ROOT));
+      generator.writeNumberField(SNAPSHOT_ID, ref.snapshotId());
+      if (ref.maxRefAgeMs() != null) {
+        generator.writeNumberField(MAX_REF_AGE_MS, ref.maxRefAgeMs());
+      }
+      if (ref.maxSnapshotAgeMs() != null) {
+        generator.writeNumberField(MAX_SNAPSHOT_AGE_MS, ref.maxSnapshotAgeMs());
+      }
+      if (ref.minSnapshotsToKeep() != null) {
+        generator.writeNumberField(MIN_SNAPSHOTS_TO_KEEP, ref.minSnapshotsToKeep());
+      }
+
+      generator.writeEndObject();
+    }
+    generator.writeEndObject();
 
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
@@ -401,6 +427,25 @@ public class TableMetadataParser {
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
+    ImmutableMap.Builder<String, SnapshotRef> refsBuilder = ImmutableMap.builder();
+    JsonNode refMap = node.get(REFS);
+    Preconditions.checkArgument(refMap.isObject(), "Cannot parse refs from non-object: %s", refMap);
+    Iterator<String> refNames = refMap.fieldNames();
+    while (refNames.hasNext()) {
+      String refName = refNames.next();
+      JsonNode refNode = refMap.get(refName);
+      Preconditions.checkArgument(refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
+      SnapshotRef ref = SnapshotRef
+          .builderFor(
+              JsonUtil.getLong(SNAPSHOT_ID, refNode),
+              SnapshotRefType.valueOf(JsonUtil.getString(TYPE, refNode).toUpperCase(Locale.ROOT)))
+          .maxSnapshotAgeMs(JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, refNode))
+          .minSnapshotsToKeep(JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, refNode))
+          .maxRefAgeMs(JsonUtil.getLongOrNull(MAX_REF_AGE_MS, refNode))
+          .build();
+      refsBuilder.put(refName, ref);
+    }
+
     JsonNode snapshotArray = node.get(SNAPSHOTS);
     Preconditions.checkArgument(snapshotArray.isArray(),
         "Cannot parse snapshots from non-array: %s", snapshotArray);
@@ -434,7 +479,7 @@ public class TableMetadataParser {
     return new TableMetadata(metadataLocation, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build(), ImmutableMap.of(),
+        snapshots, entries.build(), metadataEntries.build(), refsBuilder.build(),
         ImmutableList.of() /* no changes from the file */);
   }
 }

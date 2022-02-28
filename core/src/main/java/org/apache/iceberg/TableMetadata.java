@@ -301,7 +301,7 @@ public class TableMetadata implements Serializable {
     this.schemasById = indexSchemas();
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
-    this.refs = validateRefs(refs);
+    this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -465,6 +465,14 @@ public class TableMetadata implements Serializable {
 
   public List<Snapshot> snapshots() {
     return snapshots;
+  }
+
+  public SnapshotRef ref(String name) {
+    return refs.get(name);
+  }
+
+  public Map<String, SnapshotRef> refs() {
+    return refs;
   }
 
   public List<HistoryEntry> snapshotLog() {
@@ -720,15 +728,22 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private Map<String, SnapshotRef> validateRefs(Map<String, SnapshotRef> inputRefs) {
-    for (Map.Entry<String, SnapshotRef> refEntry : inputRefs.entrySet()) {
-      String refName = refEntry.getKey();
-      SnapshotRef ref = refEntry.getValue();
-      if (!(ref.snapshotId() == -1 && refName.equals(SnapshotRef.MAIN_BRANCH))) {
-        Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
-            "Snapshot reference %s does not exist in the existing snapshots list", ref);
-      }
+  private static Map<String, SnapshotRef> validateRefs(Long currentSnapshotId,
+                                                       Map<String, SnapshotRef> inputRefs,
+                                                       Map<Long, Snapshot> snapshotsById) {
+    for (SnapshotRef ref : inputRefs.values()) {
+      Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
+          "Snapshot reference %s does not exist in the existing snapshots list", ref);
     }
+
+    if (currentSnapshotId != -1) {
+      SnapshotRef main = inputRefs.get(SnapshotRef.MAIN_BRANCH);
+      Preconditions.checkArgument(inputRefs.get(SnapshotRef.MAIN_BRANCH) != null,
+          "Current snapshot ID is set, but main branch is missing");
+      Preconditions.checkArgument(currentSnapshotId == main.snapshotId(),
+          "Current snapshot ID does not match main branch (%s != %s)", currentSnapshotId, main.snapshotId());
+    }
+
     return inputRefs;
   }
 
