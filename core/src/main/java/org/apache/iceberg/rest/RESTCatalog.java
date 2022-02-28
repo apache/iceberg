@@ -292,8 +292,8 @@ public class RESTCatalog
     }
 
     @Override
-    public TableBuilder withLocation(String location) {
-      this.location = location;
+    public TableBuilder withLocation(String tableLocation) {
+      this.location = tableLocation;
       return this;
     }
 

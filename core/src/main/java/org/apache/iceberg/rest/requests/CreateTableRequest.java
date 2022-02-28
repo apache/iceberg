@@ -131,15 +131,15 @@ public class CreateTableRequest {
       return this;
     }
 
-    public Builder withLocation(String location) {
-      this.location = location;
+    public Builder withLocation(String tableLocation) {
+      this.location = tableLocation;
       return this;
     }
 
-    public Builder setProperty(String name, String value) {
-      Preconditions.checkArgument(name != null, "Invalid property: null");
-      Preconditions.checkArgument(value != null, "Invalid value for property %s: null", name);
-      properties.put(name, value);
+    public Builder setProperty(String propertyName, String propertyValue) {
+      Preconditions.checkArgument(propertyName != null, "Invalid property: null");
+      Preconditions.checkArgument(propertyValue != null, "Invalid value for property %s: null", propertyName);
+      properties.put(propertyName, propertyValue);
       return this;
     }
 

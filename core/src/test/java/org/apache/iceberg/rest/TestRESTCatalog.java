@@ -20,7 +20,6 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
-import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
