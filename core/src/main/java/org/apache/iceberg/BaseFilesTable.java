@@ -51,28 +51,31 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
     private final Schema fileSchema;
+    private final MetadataTableType type;
 
-    protected BaseFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
+    protected BaseFilesTableScan(TableOperations ops, Table table, Schema fileSchema, MetadataTableType type) {
       super(ops, table, fileSchema);
       this.fileSchema = fileSchema;
+      this.type = type;
     }
 
     protected BaseFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
-                           TableScanContext context) {
+                           TableScanContext context, MetadataTableType type) {
       super(ops, table, schema, context);
       this.fileSchema = fileSchema;
+      this.type = type;
     }
 
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", MetadataTableType.FILES.name()));
+          String.format("Cannot incrementally scan table of type %s", type.name()));
     }
 
     @Override
     public TableScan appendsAfter(long fromSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", MetadataTableType.FILES.name()));
+          String.format("Cannot incrementally scan table of type %s", type.name()));
     }
 
     protected CloseableIterable<ManifestFile> filterManifests(List<ManifestFile> manifests,

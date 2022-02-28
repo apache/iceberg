@@ -31,6 +31,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.io.CloseableIterable;
@@ -120,6 +121,10 @@ public class TestTableSerialization extends HadoopTableTestBase {
 
   @Test
   public void testSerializableMetadataTablesPlanning() throws IOException {
+    table.updateProperties()
+        .set(TableProperties.FORMAT_VERSION, "2")
+        .commit();
+
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -138,8 +143,12 @@ public class TestTableSerialization extends HadoopTableTestBase {
     table.newAppend()
         .appendFile(FILE_B)
         .commit();
+    table.newRowDelta()
+        .addDeletes(FILE_B_DELETES)
+        .commit();
 
     for (MetadataTableType type : MetadataTableType.values()) {
+
       // Collect the deserialized data
       Set<CharSequence> deserializedFiles = getFiles(deserializeFromBytes(serialized.get(type)));
 

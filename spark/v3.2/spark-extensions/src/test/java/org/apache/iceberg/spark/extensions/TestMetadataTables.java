@@ -77,7 +77,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".delete_files").schema();
 
-    List<Row> actual = spark.sql("SELECT * FROM "+ tableName + ".delete_files").collectAsList();
+    List<Row> actual = spark.sql("SELECT * FROM " + tableName + ".delete_files").collectAsList();
 
     List<GenericData.Record> expected = expectedEntries(table, entriesTableSchema, expectedManifests, null);
 
@@ -120,7 +120,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<ManifestFile> expectedManifests = TestHelpers.deleteManifests(table);
     Assert.assertEquals("Should have 2 delete files", 2, expectedManifests.size());
 
-    List<Row> actual = spark.sql("SELECT * FROM "+ tableName + ".delete_files " +
+    List<Row> actual = spark.sql("SELECT * FROM " + tableName + ".delete_files " +
         "WHERE partition.data='a'").collectAsList();
 
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();

@@ -54,13 +54,13 @@ public class DataFilesTable extends BaseFilesTable {
     private final Schema fileSchema;
 
     DataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema);
+      super(ops, table, fileSchema, MetadataTableType.FILES);
       this.fileSchema = fileSchema;
     }
 
     DataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
                            TableScanContext context) {
-      super(ops, table, schema, fileSchema, context);
+      super(ops, table, schema, fileSchema, context, MetadataTableType.FILES);
       this.fileSchema = fileSchema;
     }
 
