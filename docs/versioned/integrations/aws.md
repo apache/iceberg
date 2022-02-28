@@ -67,9 +67,7 @@ spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
-    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
-    --conf spark.sql.catalog.my_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager \
-    --conf spark.sql.catalog.my_catalog.lock.table=myGlueLockTable
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
 
 As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.17.131`.
@@ -111,9 +109,7 @@ CREATE CATALOG my_catalog WITH (
   'type'='iceberg',
   'warehouse'='s3://my-bucket/my/key/prefix',
   'catalog-impl'='org.apache.iceberg.aws.glue.GlueCatalog',
-  'io-impl'='org.apache.iceberg.aws.s3.S3FileIO',
-  'lock-impl'='org.apache.iceberg.aws.glue.DynamoLockManager',
-  'lock.table'='myGlueLockTable'
+  'io-impl'='org.apache.iceberg.aws.s3.S3FileIO'
 );
 ```
 
@@ -126,8 +122,6 @@ catalogs:
     warehouse: s3://my-bucket/my/key/prefix
     catalog-impl: org.apache.iceberg.aws.glue.GlueCatalog
     io-impl: org.apache.iceberg.aws.s3.S3FileIO
-    lock-impl: org.apache.iceberg.aws.glue.DynamoLockManager
-    lock.table: myGlueLockTable
 ```
 
 ### Hive
@@ -148,8 +142,6 @@ SET iceberg.engine.hive.enabled=true;
 SET hive.vectorized.execution.enabled=false;
 SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
-SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;
-SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 
 -- suppose you have an Iceberg table database_a.table_a created by GlueCatalog
 CREATE EXTERNAL TABLE database_a.table_a
@@ -190,7 +182,7 @@ For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/
 
 #### Optimistic Locking
 
-Glue supports optimistic locking over concurrent updates to a table.
+By default, Iceberg uses Glue's optimistic locking for concurrent updates to a table.
 With optimistic locking, each table has a version id. 
 If you retrieve the table metadata, Iceberg records the version id of that table. 
 You can update the table, but only if the version id on the server side has not changed. 
@@ -200,27 +192,10 @@ If this happens, Iceberg simply tries again by retrieving the table metadata and
 Optimistic locking prevents you from accidentally overwriting changes that were made by others. 
 It also prevents others from accidentally overwriting your changes.
 
-To use Glue's Optimistic Locking, you can start the Spark SQL shell with:
-```
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.131 \
-    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
-    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
-```
-
-#### DynamoDB for Commit Locking
-
-[DynamoDB](https://aws.amazon.com/dynamodb) can be used for Glue, so that for every commit, 
-`GlueCatalog` first obtains a lock using a helper DynamoDB table and then try to safely modify the Glue table.
-
-This feature requires the following lock related catalog properties:
-
-1. Set `lock-impl` as `org.apache.iceberg.aws.glue.DynamoLockManager`.
-2. Set `lock.table` as the DynamoDB table name you would like to use. If the lock table with the given name does not exist in DynamoDB, a new table is created with billing mode set as [pay-per-request](https://aws.amazon.com/blogs/aws/amazon-dynamodb-on-demand-no-capacity-planning-and-pay-per-request-pricing).
-
-Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
-For more details, please refer to [Lock catalog properties](../configuration/#lock-catalog-properties). 
+{{< hint info >}}
+Please use AWS SDK version >= 2.17.131 to leverage Glue's Optimistic Locking.
+If the AWS SDK version is below 2.17.131, then please refer the [DynamoDb Lock Manager section](#dynamodb-lock-manager).
+{{< /hint >}}
 
 #### Warehouse Location
 
@@ -311,11 +286,25 @@ Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserG
 With all the available options, we offer the following guidance when choosing the right catalog to use for your application:
 
 1. if your organization has an existing Glue metastore or plans to use the AWS analytics ecosystem including Glue, [Athena](https://aws.amazon.com/athena), [EMR](https://aws.amazon.com/emr), [Redshift](https://aws.amazon.com/redshift) and [LakeFormation](https://aws.amazon.com/lake-formation), Glue catalog provides the easiest integration.
-2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), DynamoDB catalog provides the best performance through optimistic locking.
+2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), Glue and DynamoDB catalog provides the best performance through optimistic locking.
 3. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
 4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
 5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog. 
 6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, JDBC catalog provides the easiest integration.
+
+## DynamoDb Lock Manager
+
+[DynamoDB](https://aws.amazon.com/dynamodb) can be used by HadoopCatalog or HadoopTables, so that for every commit,
+the catalog first obtains a lock using a helper DynamoDB table and then try to safely modify the Iceberg table.
+
+This feature requires the following lock related catalog properties:
+
+1. Set `lock-impl` as `org.apache.iceberg.aws.dynamodb.DynamoDbLockManager`.
+2. Set `lock.table` as the DynamoDB table name you would like to use. If the lock table with the given name does not exist in DynamoDB, a new table is created with billing mode set as [pay-per-request](https://aws.amazon.com/blogs/aws/amazon-dynamodb-on-demand-no-capacity-planning-and-pay-per-request-pricing).
+
+Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
+For more details, please refer to [Lock catalog properties](../configuration/#lock-catalog-properties).
+
 
 ## S3 FileIO
 
