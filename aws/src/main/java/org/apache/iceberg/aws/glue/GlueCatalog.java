@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.glue;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +87,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private FileIO fileIO;
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProps = Collections.emptyMap();
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -97,6 +99,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProps = properties;
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
@@ -444,5 +447,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Configuration conf) {
     this.hadoopConf = conf;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return this.catalogProps;
   }
 }

@@ -471,80 +471,50 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testTablePropsDefaultsWithoutConflict() {
-    Schema schema = new Schema(
-        required(1, "id", Types.IntegerType.get(), "unique ID")
-    );
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-
-    ImmutableMap<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3",
-        "table-override.key4", "value4");
-    HiveCatalog hiveCatalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, catalogProps, hiveConf);
-
-    try {
-      Table table = hiveCatalog.buildTable(tableIdent, schema)
-          .withProperty("key1", "value1")
-          .withProperty("key2", "value2")
-          .create();
-
-      Assert.assertEquals("value1", table.properties().get("key1"));
-      Assert.assertEquals("value2", table.properties().get("key2"));
-      Assert.assertEquals("value3", table.properties().get("key3"));
-      Assert.assertEquals("value4", table.properties().get("key4"));
-    } finally {
-      hiveCatalog.dropTable(tableIdent);
-    }
-  }
-
-  @Test
-  public void testTablePropsOverrideCatalogDefaultProps() {
-    Schema schema = new Schema(
-        required(1, "id", Types.IntegerType.get(), "unique ID")
-    );
-    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
-
-    ImmutableMap<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3");
-    HiveCatalog hiveCatalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, catalogProps, hiveConf);
-
-    try {
-      Table table = hiveCatalog.buildTable(tableIdent, schema)
-          .withProperty("key1", "value1")
-          .withProperty("key2", "value2")
-          .withProperty("key3", "value31")
-          .create();
-
-      Assert.assertEquals("value1", table.properties().get("key1"));
-      Assert.assertEquals("value2", table.properties().get("key2"));
-      Assert.assertEquals("value31", table.properties().get("key3"));
-    } finally {
-      hiveCatalog.dropTable(tableIdent);
-    }
-  }
-
-  @Test
-  public void testCatalogOverridePropsOverrideTableDefaults() {
+  public void testTablePropsDefinedAtCatalogLevel() {
     Schema schema = new Schema(
         required(1, "id", Types.IntegerType.get(), "unique ID")
     );
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
 
     ImmutableMap<String, String> catalogProps = ImmutableMap.of(
-        "table-override.key3", "value3");
-    HiveCatalog hiveCatalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
+        "table-default.key1", "catalog-default-key1",
+        "table-default.key2", "catalog-default-key2",
+        "table-default.key3", "catalog-default-key3",
+        "table-override.key3", "catalog-override-key3",
+        "table-override.key4", "catalog-override-key4");
+    Catalog hiveCatalog = CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
         CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, catalogProps, hiveConf);
 
     try {
       Table table = hiveCatalog.buildTable(tableIdent, schema)
-          .withProperty("key1", "value1")
-          .withProperty("key2", "value2")
-          .withProperty("key3", "value31")
+          .withProperty("key2", "table-key2")
+          .withProperty("key3", "table-key3")
+          .withProperty("key5", "table-key5")
           .create();
 
-      Assert.assertEquals("value1", table.properties().get("key1"));
-      Assert.assertEquals("value2", table.properties().get("key2"));
-      Assert.assertEquals("value3", table.properties().get("key3"));
+      Assert.assertEquals(
+          "Table defaults set for the catalog must be added to the table properties.",
+          "catalog-default-key1",
+          table.properties().get("key1"));
+      Assert.assertEquals(
+          "Table property must override table default properties set at catalog level.",
+          "table-key2",
+          table.properties().get("key2"));
+      Assert.assertEquals(
+          "Table property override set at catalog level must override table default" +
+              " properties set at catalog level and table property specified.",
+          "catalog-override-key3",
+          table.properties().get("key3"));
+      Assert.assertEquals(
+          "Table override not in table props or defaults should be added to table properties",
+          "catalog-override-key4",
+          table.properties().get("key4"));
+      Assert.assertEquals(
+          "Table properties without any catalog level default or override should be added to table" +
+              " properties.",
+          "table-key5",
+          table.properties().get("key5"));
     } finally {
       hiveCatalog.dropTable(tableIdent);
     }

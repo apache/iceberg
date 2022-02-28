@@ -22,7 +22,6 @@ package org.apache.iceberg.hadoop;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -550,58 +549,44 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testTablePropsDefaultsWithoutConflict() throws IOException {
+  public void testTablePropsDefinedAtCatalogLevel() throws IOException {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Map<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3",
-        "table-override.key4", "value4");
+    ImmutableMap<String, String> catalogProps = ImmutableMap.of(
+        "table-default.key1", "catalog-default-key1",
+        "table-default.key2", "catalog-default-key2",
+        "table-default.key3", "catalog-default-key3",
+        "table-override.key3", "catalog-override-key3",
+        "table-override.key4", "catalog-override-key4");
 
     Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
         .withPartitionSpec(SPEC)
         .withProperties(null)
-        .withProperty("key1", "value1")
-        .withProperty("key2", "value2")
+        .withProperty("key2", "table-key2")
+        .withProperty("key3", "table-key3")
+        .withProperty("key5", "table-key5")
         .create();
 
-    Assert.assertEquals("value1", table.properties().get("key1"));
-    Assert.assertEquals("value2", table.properties().get("key2"));
-    Assert.assertEquals("value3", table.properties().get("key3"));
-    Assert.assertEquals("value4", table.properties().get("key4"));
-  }
-
-
-  @Test
-  public void testTablePropsOverrideCatalogDefaultProps() throws IOException {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Map<String, String> catalogProps = ImmutableMap.of("table-default.key3", "value3");
-
-    Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
-        .withPartitionSpec(SPEC)
-        .withProperties(null)
-        .withProperty("key1", "value1")
-        .withProperty("key2", "value2")
-        .withProperty("key3", "value31")
-        .create();
-
-    Assert.assertEquals("value1", table.properties().get("key1"));
-    Assert.assertEquals("value2", table.properties().get("key2"));
-    Assert.assertEquals("value31", table.properties().get("key3"));
-  }
-
-  @Test
-  public void testCatalogOverridePropsOverrideTableDefaults() throws IOException {
-    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Map<String, String> catalogProps = ImmutableMap.of("table-override.key3", "value3");
-
-    Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
-        .withPartitionSpec(SPEC)
-        .withProperties(null)
-        .withProperty("key1", "value1")
-        .withProperty("key2", "value2")
-        .withProperty("key3", "value31")
-        .create();
-
-    Assert.assertEquals("value1", table.properties().get("key1"));
-    Assert.assertEquals("value2", table.properties().get("key2"));
-    Assert.assertEquals("value3", table.properties().get("key3"));
+    Assert.assertEquals(
+        "Table defaults set for the catalog must be added to the table properties.",
+        "catalog-default-key1",
+        table.properties().get("key1"));
+    Assert.assertEquals(
+        "Table property must override table default properties set at catalog level.",
+        "table-key2",
+        table.properties().get("key2"));
+    Assert.assertEquals(
+        "Table property override set at catalog level must override table default" +
+            " properties set at catalog level and table property specified.",
+        "catalog-override-key3",
+        table.properties().get("key3"));
+    Assert.assertEquals(
+        "Table override not in table props or defaults should be added to table properties",
+        "catalog-override-key4",
+        table.properties().get("key4"));
+    Assert.assertEquals(
+        "Table properties without any catalog level default or override should be added to table" +
+            " properties.",
+        "table-key5",
+        table.properties().get("key5"));
   }
 }

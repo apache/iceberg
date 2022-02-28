@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AccessDeniedException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,13 +93,14 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private FileIO fileIO;
   private LockManager lockManager;
   private boolean suppressPermissionError = false;
+  private Map<String, String> catalogProps = Collections.emptyMap();
 
   public HadoopCatalog() {
   }
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    super.initialize(name, properties);
+    this.catalogProps = properties;
 
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(inputWarehouseLocation != null && !inputWarehouseLocation.equals(""),
@@ -391,6 +393,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   @Override
   public Configuration getConf() {
     return conf;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return this.catalogProps;
   }
 
   private class HadoopCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {

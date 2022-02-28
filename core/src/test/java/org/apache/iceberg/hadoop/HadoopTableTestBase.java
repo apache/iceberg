@@ -178,9 +178,12 @@ public class HadoopTableTestBase {
   protected HadoopCatalog hadoopCatalog(Map<String, String> catalogProperties) throws IOException {
     HadoopCatalog hadoopCatalog = new HadoopCatalog();
     hadoopCatalog.setConf(new Configuration());
-    hadoopCatalog.initialize("hadoop",
-        ImmutableMap.<String, String>builder().putAll(catalogProperties).put(CatalogProperties.WAREHOUSE_LOCATION,
-            temp.newFolder().getAbsolutePath()).build());
+    hadoopCatalog.initialize(
+        "hadoop",
+        ImmutableMap.<String, String>builder()
+            .putAll(catalogProperties)
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
+            .build());
     return hadoopCatalog;
   }
 }
