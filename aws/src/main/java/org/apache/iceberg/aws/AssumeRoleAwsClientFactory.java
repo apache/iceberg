@@ -25,7 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -35,7 +34,7 @@ import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
-public class AssumeRoleAwsClientFactory implements AwsClientFactory {
+public class AssumeRoleAwsClientFactory extends BaseAwsClientFactory {
 
   private String roleArn;
   private String externalId;
@@ -79,6 +78,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     Preconditions.checkNotNull(region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
     this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
+    setHttpClientConfig(properties);
   }
 
   private <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
@@ -91,12 +91,12 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(StsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build())
+            .stsClient(StsClient.builder().httpClientBuilder(getHttpClientBuilder()).build())
             .refreshRequest(request)
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(UrlConnectionHttpClient.builder());
+    clientBuilder.httpClientBuilder(getHttpClientBuilder());
 
     return clientBuilder;
   }

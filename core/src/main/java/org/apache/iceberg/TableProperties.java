@@ -280,4 +280,9 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String HTTP_CLIENT_TYPE = "http-client.type";
+  public static final String APACHE_HTTP_CLIENT = "apache";
+  public static final String URL_HTTP_CLIENT = "url";
+  public static final String HTTP_CLIENT_TYPE_DEFAULT = URL_HTTP_CLIENT;
 }

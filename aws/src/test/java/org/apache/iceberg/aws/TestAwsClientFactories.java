@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
@@ -29,6 +30,9 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -79,8 +83,33 @@ public class TestAwsClientFactories {
     properties.put(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY, "secret");
     AssertHelpers.assertThrows("Should fail if only secret access key is set",
         ValidationException.class,
-        "S3 client access key ID and secret access key must be set at the same time",
-        () -> AwsClientFactories.from(properties));
+            "S3 client access key ID and secret access key must be set at the same time",
+            () -> AwsClientFactories.from(properties));
+  }
+
+  @Test
+  public void testHttpClientConfig() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.HTTP_CLIENT_TYPE, TableProperties.URL_HTTP_CLIENT);
+    AwsClientFactory awsClientFactory = AwsClientFactories.from(properties);
+    Assert.assertEquals(TableProperties.URL_HTTP_CLIENT, awsClientFactory.getHttpClientConfig());
+    Assert.assertTrue(awsClientFactory.getHttpClientBuilder() instanceof UrlConnectionHttpClient.Builder);
+
+    properties = Maps.newHashMap();
+    properties.put(TableProperties.HTTP_CLIENT_TYPE, TableProperties.APACHE_HTTP_CLIENT);
+    awsClientFactory = AwsClientFactories.from(properties);
+    Assert.assertEquals(TableProperties.APACHE_HTTP_CLIENT, awsClientFactory.getHttpClientConfig());
+    Assert.assertTrue(awsClientFactory.getHttpClientBuilder() instanceof ApacheHttpClient.Builder);
+  }
+
+  @Test
+  public void testHttpClientConfigThrows() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.HTTP_CLIENT_TYPE, "unsupported_client");
+    AssertHelpers.assertThrows("Should fail if unsupported client is chosen",
+            ValidationException.class,
+            "HTTP client can be either url or apache",
+            () -> AwsClientFactories.from(properties));
   }
 
   public static class CustomFactory implements AwsClientFactory {
@@ -111,6 +140,16 @@ public class TestAwsClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
 
+    }
+
+    @Override
+    public String getHttpClientConfig() {
+      return null;
+    }
+
+    @Override
+    public SdkHttpClient.Builder getHttpClientBuilder() {
+      return null;
     }
   }
 

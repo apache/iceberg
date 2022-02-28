@@ -30,7 +30,6 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -74,7 +73,7 @@ public class AwsClientFactories {
     return factory;
   }
 
-  static class DefaultAwsClientFactory implements AwsClientFactory {
+  static class DefaultAwsClientFactory extends BaseAwsClientFactory {
 
     private String s3Endpoint;
     private String s3AccessKeyId;
@@ -87,7 +86,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(UrlConnectionHttpClient.builder())
+          .httpClientBuilder(getHttpClientBuilder())
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -95,17 +94,17 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
-      return GlueClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+      return GlueClient.builder().httpClientBuilder(getHttpClientBuilder()).build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+      return KmsClient.builder().httpClientBuilder(getHttpClientBuilder()).build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
-      return DynamoDbClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+      return DynamoDbClient.builder().httpClientBuilder(getHttpClientBuilder()).build();
     }
 
     @Override
@@ -114,6 +113,7 @@ public class AwsClientFactories {
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
       this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
       this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
+      setHttpClientConfig(properties);
 
       ValidationException.check((s3AccessKeyId == null && s3SecretAccessKey == null) ||
           (s3AccessKeyId != null && s3SecretAccessKey != null),

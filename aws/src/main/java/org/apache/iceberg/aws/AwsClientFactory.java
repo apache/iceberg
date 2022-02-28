@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -61,5 +62,15 @@ public interface AwsClientFactory extends Serializable {
    * @param properties catalog properties
    */
   void initialize(Map<String, String> properties);
+
+  /**
+   * Get http client config
+   */
+  String getHttpClientConfig();
+
+  /**
+   * Get http client builder based on http client config
+   */
+  SdkHttpClient.Builder getHttpClientBuilder();
 
 }
