@@ -27,6 +27,8 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
@@ -79,6 +81,10 @@ public class SparkValueReaders {
   static ValueReader<InternalRow> struct(List<ValueReader<?>> readers, Types.StructType struct,
                                          Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
+  }
+
+  static ValueReader<InternalRow> union(Schema schema, List<ValueReader<?>> readers) {
+    return new UnionReader(schema, readers);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -283,6 +289,60 @@ public class SparkValueReaders {
       } else {
         struct.setNullAt(pos);
       }
+    }
+  }
+
+  private static class UnionReader implements ValueReader<InternalRow> {
+    private final Schema schema;
+    private final ValueReader[] readers;
+
+    private UnionReader(Schema schema, List<ValueReader<?>> readers) {
+      this.schema = schema;
+      this.readers = new ValueReader[readers.size()];
+      for (int i = 0; i < this.readers.length; i += 1) {
+        this.readers[i] = readers.get(i);
+      }
+    }
+
+    @Override
+    public InternalRow read(Decoder decoder, Object reuse) throws IOException {
+      // first we need to filter out NULL alternative if it exists in the union schema
+      int nullIndex = -1;
+      List<Schema> alts = schema.getTypes();
+      for (int i = 0; i < alts.size(); i++) {
+        Schema alt = alts.get(i);
+        if (Objects.equals(alt.getType(), Schema.Type.NULL)) {
+          nullIndex = i;
+          break;
+        }
+      }
+
+      int index = decoder.readIndex();
+      if (index == nullIndex) {
+        // if it is a null data, directly return null as the whole union result
+        return null;
+      }
+
+      // otherwise, we need to return an InternalRow as a struct data
+      InternalRow struct = new GenericInternalRow(nullIndex >= 0 ? alts.size() : alts.size() + 1);
+      for (int i = 0; i < struct.numFields(); i += 1) {
+        struct.setNullAt(i);
+      }
+
+      Object value = readers[index].read(decoder, reuse);
+
+      if (nullIndex < 0) {
+        struct.update(index + 1, value);
+        struct.setInt(0, index);
+      } else if (index < nullIndex) {
+        struct.update(index + 1, value);
+        struct.setInt(0, index);
+      } else {
+        struct.update(index, value);
+        struct.setInt(0, index - 1);
+      }
+
+      return struct;
     }
   }
 }

@@ -71,6 +71,21 @@ class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
   }
 
   @Override
+  public TypeDescription union(TypeDescription union, List<TypeDescription> options) {
+    Preconditions.checkArgument(options.size() >= 1, "Union type must have options");
+    MappedField field = nameMapping.find(currentPath());
+    TypeDescription unionType = TypeDescription.createUnion();
+
+    for (TypeDescription option : options) {
+      if (option != null) {
+        unionType.addUnionChild(option);
+      }
+    }
+
+    return setId(unionType, field);
+  }
+
+  @Override
   public TypeDescription list(TypeDescription array, TypeDescription element) {
     Preconditions.checkArgument(element != null, "List type must have element type");
 
