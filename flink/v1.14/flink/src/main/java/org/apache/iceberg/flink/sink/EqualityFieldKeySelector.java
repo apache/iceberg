@@ -44,7 +44,7 @@ class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
   private transient StructProjection structProjection;
   private transient StructLikeWrapper structLikeWrapper;
 
-  EqualityFieldKeySelector(List<Integer> equalityFieldIds, Schema schema, RowType flinkSchema) {
+  EqualityFieldKeySelector(Schema schema, RowType flinkSchema, List<Integer> equalityFieldIds) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));

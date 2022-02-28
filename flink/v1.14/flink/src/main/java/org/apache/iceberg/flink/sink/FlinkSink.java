@@ -451,7 +451,7 @@ public class FlinkSink {
             return input;
           } else {
             LOG.info("Distribute rows by equality fields, because there are equality fields set");
-            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
+            return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
           }
 
         case HASH:
@@ -467,7 +467,7 @@ public class FlinkSink {
             if (partitionSpec.isUnpartitioned()) {
               LOG.info("Distribute rows by equality fields, because there are equality fields set " +
                   "and table is unpartitioned");
-              return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
+              return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
             } else {
               for (PartitionField partitionField : partitionSpec.fields()) {
                 Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
@@ -486,7 +486,7 @@ public class FlinkSink {
           } else {
             LOG.info("Distribute rows by equality fields, because there are equality fields set " +
                 "and{}=range is not supported yet in flink", WRITE_DISTRIBUTION_MODE);
-            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
+            return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
           }
 
         default:
