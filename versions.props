@@ -41,3 +41,5 @@ org.xerial:sqlite-jdbc = 3.34.0
 com.fasterxml.jackson.dataformat:jackson-dataformat-xml = 2.9.9
 org.springframework:* = 5.3.9
 org.springframework.boot:* = 2.5.4
+org.mock-server:mockserver-netty = 5.11.1
+org.mock-server:mockserver-client-javv = 5.11.1
