@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Namespace;
@@ -115,7 +116,8 @@ public class TestRESTCatalog {
     String path = "namespaces";
     CreateNamespaceRequest req = CreateNamespaceRequest.builder()
         .withNamespace(ns).setProperties(props).build();
-    Consumer<ErrorResponse> errorHandler = ErrorHandlers.namespaceErrorHandler();
+    AtomicInteger errorHandlerCallCount = new AtomicInteger(0);
+    Consumer<ErrorResponse> errorHandler = errorResponse -> errorHandlerCallCount.incrementAndGet();
 
     Mockito
         .doReturn(
@@ -131,9 +133,9 @@ public class TestRESTCatalog {
             Mockito.eq(CreateNamespaceRequest.class),
             Mockito.same(errorHandler));
 
-    Consumer<ErrorResponse> spyErrorHandler = Mockito.spy(errorHandler);
-    Mockito.spy(restCatalog).createNamespace(ns, props);
-    Mockito.verifyNoInteractions(spyErrorHandler);
+    restCatalog.createNamespace(ns, props);
+    Assert.assertEquals("On a 200 response from the server, the error handler should not be called",
+        0, errorHandlerCallCount.get());
   }
 
   @Test
