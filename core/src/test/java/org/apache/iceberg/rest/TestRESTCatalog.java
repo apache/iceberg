@@ -20,18 +20,30 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.assertj.core.util.Sets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 
 public class TestRESTCatalog {
@@ -49,7 +61,8 @@ public class TestRESTCatalog {
   }
 
   @Test
-  public void listTables() {
+  @Ignore
+  public void listTablesV1() {
     Namespace namespace = Namespace.of("hank");
     List<TableIdentifier> tables = ImmutableList.of(TableIdentifier.of(namespace, "foo"));
     ListTablesResponse resp = ListTablesResponse.builder()
@@ -62,6 +75,26 @@ public class TestRESTCatalog {
     verify(restClient).get(eq(path), any());
     Assert.assertTrue("Mocked get call should return the correct list tables response",
         listMock.identifiers().containsAll(resp.identifiers()));
+  }
+
+  @Test
+  public void testListTablesV2() {
+    Namespace ns = Namespace.of("db1");
+    List<TableIdentifier> tables = ImmutableList.of("t1", "t2", "t3")
+        .stream()
+        .map(tbl -> TableIdentifier.of(ns, tbl))
+        .collect(Collectors.toList());
+    String path = "namespaces/" + RESTUtil.asURLVariable(ns) + "/tables";
+    Mockito.doReturn(
+        ListTablesResponse
+            .builder()
+            .addAll(tables)
+            .build())
+        .when(restClient).get(Mockito.eq(path), Mockito.eq(ListTablesResponse.class), Mockito.any());
+    Assert.assertEquals(
+        Sets.newHashSet(tables),
+        Sets.newHashSet(restCatalog.listTables(ns))
+    );
   }
 
   @Test
@@ -80,8 +113,31 @@ public class TestRESTCatalog {
   }
 
   @Test
-  @Ignore
-  public void createNamespace() {
+  public void testCreateNamespace200() {
+    Namespace ns = Namespace.of("namespace");
+    Map<String, String> props = ImmutableMap.of("owner", "Hank");
+    String path = "namespaces";
+    CreateNamespaceRequest req = CreateNamespaceRequest.builder()
+        .withNamespace(ns).setProperties(props).build();
+    Consumer<ErrorResponse> errorHandler = ErrorHandlers.namespaceErrorHandler();
+
+    Mockito
+        .doReturn(
+            CreateNamespaceResponse
+                .builder()
+                .withNamespace(ns)
+                .setProperties(props)
+                .build())
+        .when(restClient)
+        .post(
+            Mockito.eq(path),
+            Mockito.eq(req),
+            Mockito.eq(CreateNamespaceRequest.class),
+            Mockito.same(errorHandler));
+
+    Consumer<ErrorResponse> spyErrorHandler = Mockito.spy(errorHandler);
+    Mockito.spy(restCatalog).createNamespace(ns, props);
+    Mockito.verifyNoInteractions(spyErrorHandler);
   }
 
   @Test
