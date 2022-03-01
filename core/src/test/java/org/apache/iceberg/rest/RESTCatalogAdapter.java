@@ -284,8 +284,8 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
-  public <T> T head(String path, Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.HEAD, path, null, null, errorHandler);
+  public void head(String path, Consumer<ErrorResponse> errorHandler) {
+    execute(HTTPMethod.HEAD, path, null, null, errorHandler);
   }
 
   @Override
