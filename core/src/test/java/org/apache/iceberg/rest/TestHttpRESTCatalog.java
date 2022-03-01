@@ -35,12 +35,12 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.util.Sets;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -179,13 +179,12 @@ public class TestHttpRESTCatalog {
         .when(
             request(path)
                 .withMethod("GET")
-                .withHeader(new Header("Authorization", "Bearer auth_token"))
-        ).respond(
+                .withHeader(new Header("Authorization", "Bearer auth_token")))
+        .respond(
             response()
                 .withStatusCode(200)
                 .withHeader("Content-Type", "application/json")
-                .withBody(MAPPER.writeValueAsString(response))
-        );
+                .withBody(MAPPER.writeValueAsString(response)));
 
     Assert.assertEquals(
         Sets.newHashSet(tables),
