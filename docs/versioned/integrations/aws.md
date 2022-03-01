@@ -184,17 +184,18 @@ For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/
 
 By default, Iceberg uses Glue's optimistic locking for concurrent updates to a table.
 With optimistic locking, each table has a version id. 
-If you retrieve the table metadata, Iceberg records the version id of that table. 
-You can update the table, but only if the version id on the server side has not changed. 
+If users retrieve the table metadata, Iceberg records the version id of that table. 
+Users can update the table, but only if the version id on the server side has not changed. 
 If there is a version mismatch, it means that someone else has modified the table before you did. 
 The update attempt fails, because you have a stale version of the table. 
-If this happens, Iceberg simply tries again by retrieving the table metadata and then tries to update it. 
-Optimistic locking prevents you from accidentally overwriting changes that were made by others. 
+If this happens, Iceberg refreshes the metadata and checks if there might be potential conflict. 
+If there is no commit conflict, the operation will be retried.
+Optimistic locking guarantees atomic transaction of Iceberg tables in Glue.
 It also prevents others from accidentally overwriting your changes.
 
 {{< hint info >}}
 Please use AWS SDK version >= 2.17.131 to leverage Glue's Optimistic Locking.
-If the AWS SDK version is below 2.17.131, then please refer the [DynamoDb Lock Manager section](#dynamodb-lock-manager).
+If the AWS SDK version is below 2.17.131, only in-memory lock is used. To ensure atomic transaction, you need to set up a [DynamoDb Lock Manager](#dynamodb-lock-manager).
 {{< /hint >}}
 
 #### Warehouse Location
@@ -294,8 +295,9 @@ With all the available options, we offer the following guidance when choosing th
 
 ## DynamoDb Lock Manager
 
-[DynamoDB](https://aws.amazon.com/dynamodb) can be used by HadoopCatalog or HadoopTables, so that for every commit,
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb) can be used by `HadoopCatalog` or `HadoopTables`, so that for every commit,
 the catalog first obtains a lock using a helper DynamoDB table and then try to safely modify the Iceberg table.
+This is necessary for a file system-based catalog to ensure atomic transaction in storages like S3 that do not provide file write mutual exclusion.
 
 This feature requires the following lock related catalog properties:
 
