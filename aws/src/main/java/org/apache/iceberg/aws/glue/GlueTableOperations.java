@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
@@ -34,6 +36,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +70,12 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
       .hiddenImpl("software.amazon.awssdk.services.glue.model.UpdateTableRequest$Builder", String.class)
+      .orNoop()
+      .build();
+
+  // Attempt to set additionalLocations if available on the given AWS SDK version
+  private static final DynMethods.UnboundMethod ADDITIONAL_LOCATIONS = DynMethods.builder("additionalLocations")
+      .hiddenImpl("software.amazon.awssdk.services.glue.model.UpdateTableRequest$Builder", List.class)
       .orNoop()
       .build();
 
@@ -205,6 +214,15 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       // Use Optimistic locking with table version id while updating table
       if (!SET_VERSION_ID.isNoop() && lockManager == null) {
         SET_VERSION_ID.invoke(updateTableRequest, glueTable.versionId());
+      }
+
+      if (!ADDITIONAL_LOCATIONS.isNoop()) {
+        ADDITIONAL_LOCATIONS.invoke(updateTableRequest,
+            ImmutableList.of(
+                parameters.get(TableProperties.WRITE_DATA_LOCATION),
+                parameters.get(TableProperties.WRITE_METADATA_LOCATION),
+                parameters.get(TableProperties.OBJECT_STORE_PATH),
+                parameters.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION)));
       }
 
       glue.updateTable(updateTableRequest.build());
