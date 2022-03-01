@@ -66,7 +66,7 @@ public class TestRESTUtil {
     );
 
     testCaseAndExpectedAnswer.forEach((input, expected) ->
-      Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected)
+        Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected)
     );
   }
 
