@@ -25,6 +25,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -39,6 +40,12 @@ import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
 public class TestIcebergToGlueConverter {
+
+  private final Map<String, String> tableProps = ImmutableMap.of(
+      TableProperties.WRITE_DATA_LOCATION, "s3://writeDataLoc",
+      TableProperties.WRITE_METADATA_LOCATION, "s3://writeMetaDataLoc",
+      TableProperties.OBJECT_STORE_PATH, "s3://objectStorePath",
+      TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "s3://writeFolderStorageLoc");
 
   @Test
   public void testToDatabaseName() {
@@ -124,13 +131,14 @@ public class TestIcebergToGlueConverter {
         .build();
     TableMetadata tableMetadata = TableMetadata
         .newTableMetadata(schema, partitionSpec, "s3://test", ImmutableMap.of());
-    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableProps, tableMetadata);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     // Expected TableInput
     TableInput expectedTableInput = TableInput.builder().storageDescriptor(
         StorageDescriptor.builder()
             .location("s3://test")
+            .additionalLocations(tableProps.values())
             .columns(ImmutableList.of(
                 Column.builder()
                     .name("x")
@@ -155,6 +163,10 @@ public class TestIcebergToGlueConverter {
             .build())
         .build();
 
+    Assert.assertEquals(
+        "additionalLocations do not match",
+        expectedTableInput.storageDescriptor().additionalLocations(),
+        actualTableInput.storageDescriptor().additionalLocations());
     Assert.assertEquals(
         "Location do not match",
         expectedTableInput.storageDescriptor().location(),
@@ -185,12 +197,13 @@ public class TestIcebergToGlueConverter {
         Types.NestedField.required(1, "x", Types.StringType.get(), "comment1")
     );
     tableMetadata = tableMetadata.updateSchema(newSchema, 3);
-    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableProps, tableMetadata);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     // Expected TableInput
     TableInput expectedTableInput = TableInput.builder().storageDescriptor(
         StorageDescriptor.builder()
+            .additionalLocations(tableProps.values())
             .location("s3://test")
             .columns(ImmutableList.of(
                 Column.builder()
@@ -220,6 +233,10 @@ public class TestIcebergToGlueConverter {
         "Location do not match",
         expectedTableInput.storageDescriptor().location(),
         actualTableInput.storageDescriptor().location());
+    Assert.assertEquals(
+        "additionalLocations do not match",
+        expectedTableInput.storageDescriptor().additionalLocations(),
+        actualTableInput.storageDescriptor().additionalLocations());
     Assert.assertEquals(
         "Columns do not match",
         expectedTableInput.storageDescriptor().columns(),

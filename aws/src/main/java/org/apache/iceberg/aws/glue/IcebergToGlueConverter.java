@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,11 +28,14 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -60,6 +64,12 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
+
+  // Attempt to set additionalLocations if available on the given AWS SDK version
+  private static final DynMethods.UnboundMethod ADDITIONAL_LOCATIONS = DynMethods.builder("additionalLocations")
+      .hiddenImpl("software.amazon.awssdk.services.glue.model.StorageDescriptor$Builder", Collection.class)
+      .orNoop()
+      .build();
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -175,12 +185,25 @@ class IcebergToGlueConverter {
    * and should never be used by any query processing engine to infer information like schema, partition spec, etc.
    * The source of truth is stored in the actual Iceberg metadata file defined by the metadata_location table property.
    * @param tableInputBuilder Glue TableInput builder
+   * @param tableProps Table properties
    * @param metadata Iceberg table metadata
    */
-  static void setTableInputInformation(TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+  static void setTableInputInformation(
+      TableInput.Builder tableInputBuilder,
+      Map<String, String> tableProps,
+      TableMetadata metadata) {
     try {
+      StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
+      if (!ADDITIONAL_LOCATIONS.isNoop()) {
+        ADDITIONAL_LOCATIONS.invoke(storageDescriptor.additionalLocations(),
+            ImmutableList.of(
+                tableProps.get(TableProperties.WRITE_DATA_LOCATION),
+                tableProps.get(TableProperties.WRITE_METADATA_LOCATION),
+                tableProps.get(TableProperties.OBJECT_STORE_PATH),
+                tableProps.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION)));
+      }
       tableInputBuilder
-          .storageDescriptor(StorageDescriptor.builder()
+          .storageDescriptor(storageDescriptor
               .location(metadata.location())
               .columns(toColumns(metadata))
               .build());
