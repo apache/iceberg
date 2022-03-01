@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
@@ -118,9 +117,7 @@ public class TestHttpRESTCatalog {
             response()
                 .withStatusCode(200)
                 .withHeader("Content-Type", "application/json")
-                .withBody(MAPPER.writeValueAsString(response))
-                .withDelay(TimeUnit.SECONDS, 1)
-        );
+                .withBody(MAPPER.writeValueAsString(response)));
 
     CreateNamespaceResponse mockedResponse =
         restClient.post("namespaces", request, CreateNamespaceResponse.class);
@@ -153,14 +150,13 @@ public class TestHttpRESTCatalog {
             response()
                 .withStatusCode(409)
                 .withHeader("Content-Type", "application/json")
-                .withBody(MAPPER.writeValueAsString(response))
-        );
+                .withBody(MAPPER.writeValueAsString(response)));
 
     AssertHelpers.assertThrows(
         "The RESTCatalog should throw AlreadyExistsException when trying to create an existing namespace",
         AlreadyExistsException.class,
         response.message(),
-        () -> restCatalog.createNamespace(request.namespace(), request.properties()));
+        () -> restCatalog.createNamespace(namespace));
   }
 
   @Test
