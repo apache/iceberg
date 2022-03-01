@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -46,7 +47,8 @@ class RESTUtil {
     return path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
   }
 
-  public static Map<String, String> filterAndRemovePrefix(Map<String, String> properties, String prefix) {
+  public static Map<String, String> filterByPrefix(Map<String, String> properties, String prefix) {
+    Preconditions.checkNotNull(properties, "Invalid properties map: null");
     Map<String, String> result = Maps.newHashMap();
     properties.forEach((key, value) -> {
       if (key.startsWith(prefix)) {

@@ -45,7 +45,9 @@ public class TestRESTUtil {
         "warehouse", "/tmp/warehouse",
         "rest.prefix", "/ws/ralphs_catalog",
         "rest.token", "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=",
-        "rest.rest.uri", "https://localhost:1080/");
+        "rest.rest.uri", "https://localhost:1080/",
+        ".rest", "",
+        "", "");
 
     Map<String, String> expected = ImmutableMap.of(
         "prefix", "/ws/ralphs_catalog",
@@ -53,7 +55,7 @@ public class TestRESTUtil {
         "rest.uri", "https://localhost:1080/"
     );
 
-    Map<String, String> actual = RESTUtil.filterAndRemovePrefix(input, "rest.");
+    Map<String, String> actual = RESTUtil.filterByPrefix(input, "rest.");
 
     Assertions.assertThat(actual).isEqualTo(expected);
   }
@@ -61,6 +63,8 @@ public class TestRESTUtil {
   @Test
   public void testStripTrailingSlash() {
     Map<String, String> testCaseAndExpectedAnswer = ImmutableMap.of(
+        "", "",
+        "https://foo", "https://foo",
         "https://foo/", "https://foo",
         "https://foo////", "https://foo///"
     );
