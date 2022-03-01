@@ -295,7 +295,7 @@ Create and replace operations support table configuration methods, like `partiti
 ```scala
 data.writeTo("prod.db.table")
     .tableProperty("write.format.default", "orc")
-    .partitionBy($"level", days($"ts"))
+    .partitionedBy($"level", days($"ts"))
     .createOrReplace()
 ```
 
