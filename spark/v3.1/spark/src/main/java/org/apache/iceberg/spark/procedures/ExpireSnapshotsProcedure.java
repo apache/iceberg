@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.actions.SparkActions;
