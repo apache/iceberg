@@ -137,8 +137,8 @@ public class TypeWithSchemaVisitor<T> {
         }
       }
 
-      Types.StructType struct = iType != null ? iType.asStructType() : null;
-      return visitor.struct(struct, group, visitFields(struct, group, visitor));
+      return iType != null ?
+              visitor.struct(iType.asStructType(), group, visitFields(iType.asStructType(), group, visitor)) : null;
     }
   }
 

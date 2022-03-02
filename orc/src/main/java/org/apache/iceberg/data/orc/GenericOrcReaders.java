@@ -209,11 +209,13 @@ public class GenericOrcReaders {
 
     protected StructReader(List<OrcValueReader<?>> readers, Types.StructType structType, Map<Integer, ?> idToConstant) {
       super(readers, structType, idToConstant);
-      this.template = structType != null ? GenericRecord.create(structType) : null;
+      this.template = GenericRecord.create(structType);
     }
 
     @Override
     protected Record create() {
+      // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since NAME_MAP_CACHE access
+      // is eliminated. Using copy here to gain performance.
       return template.copy();
     }
 

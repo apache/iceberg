@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
@@ -68,7 +69,7 @@ public abstract class ReaderBenchmark {
 
   @Setup
   public void setupBenchmark() throws IOException {
-    testFile = java.nio.file.Files.createTempFile("perf-bench", null).toFile();
+    testFile = Files.createTempFile("perf-bench", null).toFile();
     testFile.delete();
 
     try (FileAppender<Record> writer = writer(testFile, TEST_SCHEMA)) {

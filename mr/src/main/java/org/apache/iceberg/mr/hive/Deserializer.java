@@ -125,13 +125,15 @@ class Deserializer {
 
     @Override
     public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
-      GenericRecord template = type != null ? GenericRecord.create(type) : null;
+      GenericRecord template = GenericRecord.create(type);
       return o -> {
         if (o == null) {
           return null;
         }
 
         List<Object> data = ((StructObjectInspector) pair.sourceInspector()).getStructFieldsDataAsList(o);
+        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since NAME_MAP_CACHE access
+        // is eliminated. Using copy here to gain performance.
         Record result = template.copy();
 
         for (int i = 0; i < deserializers.size(); i++) {

@@ -59,7 +59,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
                  List<ParquetValueReader<?>> readers,
                  StructType struct) {
       super(types, readers);
-      this.template = struct != null ? GenericRecord.create(struct) : null;
+      this.template = GenericRecord.create(struct);
     }
 
     @Override
@@ -67,6 +67,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
       if (reuse != null) {
         return reuse;
       } else {
+        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since NAME_MAP_CACHE access
+        // is eliminated. Using copy here to gain performance.
         return template.copy();
       }
     }
