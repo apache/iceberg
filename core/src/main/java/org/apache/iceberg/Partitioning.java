@@ -211,7 +211,8 @@ public class Partitioning {
 
     Map<Integer, PartitionField> fieldMap = Maps.newHashMap();
     List<NestedField> structFields = Lists.newArrayList();
-    Map<Integer, Integer> fieldToIndex = Maps.newHashMap();
+    // Mapping from a PartitionField with void transform to the index in structFields.
+    Map<Integer, Integer> voidTransformFieldToIndex = Maps.newHashMap();
 
     // sort the spec IDs in descending order to pick up the most recent field names
     List<Integer> specIds = table.specs().keySet().stream()
@@ -231,7 +232,7 @@ public class Partitioning {
           structFields.add(structField);
 
           if (Transforms.alwaysNull().equals(field.transform())) {
-            fieldToIndex.put(fieldId, structFields.size() - 1);
+            voidTransformFieldToIndex.put(fieldId, structFields.size() - 1);
           }
         } else {
           // verify the fields are compatible as they may conflict in v1 tables
@@ -246,7 +247,7 @@ public class Partitioning {
                   !Transforms.alwaysNull().equals(field.transform())) {
             fieldMap.put(fieldId, field);
             NestedField structField = spec.partitionType().field(fieldId);
-            structFields.set(fieldToIndex.get(fieldId), structField);
+            structFields.set(voidTransformFieldToIndex.get(fieldId), structField);
           }
         }
       }
