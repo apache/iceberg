@@ -117,18 +117,16 @@ public class S3FileIO implements FileIO {
     }
 
     // Report Hadoop metrics if Hadoop is available
+    String metricsImpl = properties.getOrDefault(
+            CatalogProperties.IO_METRICS_IMPL, CatalogProperties.DEFAULT_METRICS_IMPL);
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
-              DynConstructors.builder(MetricsContext.class)
-                      .impl(properties.getOrDefault(
-                              CatalogProperties.IO_METRICS_IMPL, CatalogProperties.DEFAULT_METRICS_IMPL))
-                      .buildChecked();
+              DynConstructors.builder(MetricsContext.class).impl(metricsImpl, String.class).buildChecked();
       this.metrics = ctor.newInstance("s3");
 
       metrics.initialize(properties);
     } catch (NoSuchMethodException | ClassCastException e) {
-      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics",
-              CatalogProperties.DEFAULT_METRICS_IMPL, e);
+      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", metricsImpl, e);
     }
   }
 
