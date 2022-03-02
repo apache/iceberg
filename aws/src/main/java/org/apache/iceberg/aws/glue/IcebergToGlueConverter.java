@@ -198,7 +198,7 @@ class IcebergToGlueConverter {
     try {
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
       if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
-        SET_ADDITIONAL_LOCATIONS.invoke(storageDescriptor.additionalLocations(), getAdditionalLocations(metadata));
+        SET_ADDITIONAL_LOCATIONS.invoke(storageDescriptor, getAdditionalLocations(metadata));
       }
       tableInputBuilder
           .storageDescriptor(storageDescriptor
