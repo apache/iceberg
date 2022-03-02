@@ -31,6 +31,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -274,6 +275,25 @@ public class CatalogUtil {
     fileIO.initialize(properties);
     return fileIO;
   }
+
+  public static MetricsContext loadFileIOMetricsContext(
+      String impl,
+      Map<String, String> properties) {
+    LOG.info("Loading custom MetricsContext implementation: {}", impl);
+    MetricsContext metricsContext;
+    try {
+      DynConstructors.Ctor<MetricsContext> ctor =
+              DynConstructors.builder(MetricsContext.class).impl(impl).buildChecked();
+      metricsContext = ctor.newInstance();
+    } catch (NoSuchMethodException | ClassCastException e) {
+      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", impl, e);
+      return null;
+    }
+
+    metricsContext.initialize(properties);
+    return metricsContext;
+  }
+
 
   /**
    * Dynamically detects whether an object is a Hadoop Configurable and calls setConf.

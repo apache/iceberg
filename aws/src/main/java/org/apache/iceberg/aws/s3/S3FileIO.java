@@ -22,9 +22,9 @@ package org.apache.iceberg.aws.s3;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -118,16 +118,11 @@ public class S3FileIO implements FileIO {
 
     // Report Hadoop metrics if Hadoop is available
     String metricsImpl = properties.getOrDefault(
-            CatalogProperties.IO_METRICS_IMPL, CatalogProperties.DEFAULT_METRICS_IMPL);
-    try {
-      DynConstructors.Ctor<MetricsContext> ctor =
-              DynConstructors.builder(MetricsContext.class).impl(metricsImpl, String.class).buildChecked();
-      this.metrics = ctor.newInstance("s3");
+            CatalogProperties.IO_METRICS_IMPL, CatalogProperties.IO_METRICS_IMPL_DEFAULT);
+    properties.put(CatalogProperties.IO_METRICS_SCHEME, properties.getOrDefault(
+            CatalogProperties.IO_METRICS_SCHEME, "s3"));
 
-      metrics.initialize(properties);
-    } catch (NoSuchMethodException | ClassCastException e) {
-      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", metricsImpl, e);
-    }
+    this.metrics = CatalogUtil.loadFileIOMetricsContext(metricsImpl, properties);
   }
 
   @Override

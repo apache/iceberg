@@ -82,7 +82,7 @@ public class CatalogProperties {
   public static final String USER = "user";
 
   public static final String IO_METRICS_IMPL = "io-metrics-impl";
-  public static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  public static final String IO_METRICS_IMPL_DEFAULT = "org.apache.iceberg.hadoop.HadoopMetricsContext";
   public static final String IO_METRICS_SCHEME = "io.metrics-scheme";
 
 }
