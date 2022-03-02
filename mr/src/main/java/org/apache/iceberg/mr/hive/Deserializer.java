@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.hive.serde.objectinspector.WriteObjectInspector;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
@@ -125,6 +126,7 @@ class Deserializer {
 
     @Override
     public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
+      Preconditions.checkNotNull(type, "Can not create reader for null type");
       GenericRecord template = GenericRecord.create(type);
       return o -> {
         if (o == null) {
