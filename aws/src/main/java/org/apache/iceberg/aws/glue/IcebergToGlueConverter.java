@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -64,9 +65,15 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
+  private static final List<String> PROPERTIES_FOR_GLUE_ADDITIONAL_LOCATIONS = ImmutableList.of(
+      TableProperties.WRITE_DATA_LOCATION,
+      TableProperties.WRITE_METADATA_LOCATION,
+      TableProperties.OBJECT_STORE_PATH,
+      TableProperties.WRITE_FOLDER_STORAGE_LOCATION
+  );
 
   // Attempt to set additionalLocations if available on the given AWS SDK version
-  private static final DynMethods.UnboundMethod ADDITIONAL_LOCATIONS = DynMethods.builder("additionalLocations")
+  private static final DynMethods.UnboundMethod SET_ADDITIONAL_LOCATIONS = DynMethods.builder("additionalLocations")
       .hiddenImpl("software.amazon.awssdk.services.glue.model.StorageDescriptor$Builder", Collection.class)
       .orNoop()
       .build();
@@ -185,22 +192,13 @@ class IcebergToGlueConverter {
    * and should never be used by any query processing engine to infer information like schema, partition spec, etc.
    * The source of truth is stored in the actual Iceberg metadata file defined by the metadata_location table property.
    * @param tableInputBuilder Glue TableInput builder
-   * @param tableProps Table properties
    * @param metadata Iceberg table metadata
    */
-  static void setTableInputInformation(
-      TableInput.Builder tableInputBuilder,
-      Map<String, String> tableProps,
-      TableMetadata metadata) {
+  static void setTableInputInformation(TableInput.Builder tableInputBuilder, TableMetadata metadata) {
     try {
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
-      if (!ADDITIONAL_LOCATIONS.isNoop()) {
-        ADDITIONAL_LOCATIONS.invoke(storageDescriptor.additionalLocations(),
-            ImmutableList.of(
-                tableProps.get(TableProperties.WRITE_DATA_LOCATION),
-                tableProps.get(TableProperties.WRITE_METADATA_LOCATION),
-                tableProps.get(TableProperties.OBJECT_STORE_PATH),
-                tableProps.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION)));
+      if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
+        SET_ADDITIONAL_LOCATIONS.invoke(storageDescriptor.additionalLocations(), getAdditionalLocations(metadata));
       }
       tableInputBuilder
           .storageDescriptor(storageDescriptor
@@ -298,5 +296,12 @@ class IcebergToGlueConverter {
           .build());
       dedupe.add(field.name());
     }
+  }
+
+  private static Set<String> getAdditionalLocations(TableMetadata tableMetadata) {
+    return PROPERTIES_FOR_GLUE_ADDITIONAL_LOCATIONS.stream()
+        .map(tableMetadata.properties()::get)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet());
   }
 }
