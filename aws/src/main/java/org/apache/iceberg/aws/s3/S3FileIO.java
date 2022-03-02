@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -43,7 +44,6 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
  */
 public class S3FileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
-  private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
@@ -119,12 +119,16 @@ public class S3FileIO implements FileIO {
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
-          DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+              DynConstructors.builder(MetricsContext.class)
+                      .impl(properties.getOrDefault(
+                              CatalogProperties.IO_METRICS_IMPL, CatalogProperties.DEFAULT_METRICS_IMPL))
+                      .buildChecked();
       this.metrics = ctor.newInstance("s3");
 
       metrics.initialize(properties);
     } catch (NoSuchMethodException | ClassCastException e) {
-      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
+      LOG.warn("Unable to load metrics class: '{}', falling back to null metrics",
+              CatalogProperties.DEFAULT_METRICS_IMPL, e);
     }
   }
 

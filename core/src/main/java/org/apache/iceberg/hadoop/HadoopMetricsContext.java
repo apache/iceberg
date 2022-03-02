@@ -25,6 +25,7 @@ import java.io.ObjectOutputStream;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 
@@ -33,7 +34,6 @@ import org.apache.iceberg.io.FileIOMetricsContext;
  * statistics implementation using the provided scheme.
  */
 public class HadoopMetricsContext implements FileIOMetricsContext {
-  public static final String SCHEME = "io.metrics-scheme";
 
   private String scheme;
   private transient FileSystem.Statistics statistics;
@@ -49,7 +49,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public void initialize(Map<String, String> properties) {
     // FileIO has no specific implementation class, but Hadoop will
     // still track and report for the provided scheme.
-    this.scheme = properties.getOrDefault(SCHEME, scheme);
+    this.scheme = properties.getOrDefault(CatalogProperties.IO_METRICS_SCHEME, scheme);
     this.statistics = FileSystem.getStatistics(scheme, null);
   }
 
