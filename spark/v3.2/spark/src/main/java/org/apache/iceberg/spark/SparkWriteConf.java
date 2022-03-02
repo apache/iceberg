@@ -260,11 +260,10 @@ public class SparkWriteConf {
         .parseOptional();
   }
 
-  public IsolationLevel dynamicOverwriteIsolationLevel() {
+  public IsolationLevel isolationLevel() {
     String isolationLevelName = confParser.stringConf()
         .option(SparkWriteOptions.ISOLATION_LEVEL)
-        .defaultValue(SparkWriteOptions.DYNAMIC_OVERWRITE_LEVEL_DEFAULT)
-        .parse();
-    return IsolationLevel.fromName(isolationLevelName);
+        .parseOptional();
+    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
   }
 }

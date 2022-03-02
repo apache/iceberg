@@ -30,8 +30,8 @@ package org.apache.iceberg;
  * Alternatively, this API can be configured to validate that no new data or deletes
  * have been applied since a snapshot ID associated when this operation began.
  * This can be done by calling {@link #validateNoConflictingDeletes()}, {@link #validateNoConflictingData()},
- * and {@link #validateNoConflictingDeletedData()} to ensure that no conflicting delete files or data files
- * respectively have been written since the snapshot passed to {@link #validateFromSnapshot(Long)}.
+ * to ensure that no conflicting delete files or data files respectively have been written since the snapshot
+ * passed to {@link #validateFromSnapshot(long)}.
  * <p>
  * This API accumulates file additions and produces a new {@link Snapshot} of the table by replacing
  * all files in partitions with new data with the new additions. This operation is used to implement
@@ -69,7 +69,7 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
    * @param snapshotId a snapshot ID, it should be set to when this operation started to read the table.
    * @return this for method chaining
    */
-  ReplacePartitions validateFromSnapshot(Long snapshotId);
+  ReplacePartitions validateFromSnapshot(long snapshotId);
 
   /**
    * Enables validation that deletes that happened concurrently do not conflict with this commit's operation.
@@ -92,15 +92,4 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
    * @return this for method chaining
    */
   ReplacePartitions validateNoConflictingData();
-
-  /**
-   * Enables validation that data files removed concurrently does not conflict with this commit's operation.
-   *
-   * Validating concurrent deleted data files is required during non-idempotent replace partition operations.
-   * This will check if a concurrent operation deletes data in any of the partitions being overwritten,
-   * as the replace partition must be aborted to avoid removing rows added concurrently.
-   *
-   * @return this for method chaining
-   */
-  ReplacePartitions validateNoConflictingDeletedData();
 }

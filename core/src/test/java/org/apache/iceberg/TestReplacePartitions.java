@@ -268,6 +268,59 @@ public class TestReplacePartitions extends TableTestBase {
   }
 
   @Test
+  public void testValidationNotInvoked() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+
+    // Two concurrent ReplacePartitions with No Validation Enabled
+    table.newReplacePartitions()
+        .addFile(FILE_E)
+        .validateFromSnapshot(base.currentSnapshot().snapshotId())
+        .commit();
+    table.newReplacePartitions()
+        .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
+        .addFile(FILE_B)
+        .validateFromSnapshot(base.currentSnapshot().snapshotId())
+        .commit();
+
+    long replaceId = readMetadata().currentSnapshot().snapshotId();
+    Assert.assertEquals("Table should have 2 manifest",
+        2, table.currentSnapshot().allManifests().size());
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        ids(replaceId, replaceId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+        ids(replaceId),
+        files(FILE_E),
+        statuses(Status.DELETED));
+  }
+
+  @Test
+  public void testValidateWithDefaultSnapshotId() {
+    table.newReplacePartitions()
+        .addFile(FILE_A)
+        .commit();
+
+    // Concurrent Replace Partitions should fail with ValidationException
+    ReplacePartitions replace = table.newReplacePartitions();
+    AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
+        ValidationException.class,
+        "Found conflicting files that can contain records matching partitions " +
+            "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
+        () ->
+            replace
+                .addFile(FILE_A)
+                .addFile(FILE_B)
+                .validateNoConflictingData()
+                .validateNoConflictingDeletes()
+                .commit());
+  }
+
+  @Test
   public void testConcurrentReplaceConflict() {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -293,29 +346,6 @@ public class TestReplacePartitions extends TableTestBase {
                 .addFile(FILE_B)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
-                .commit());
-  }
-
-  @Test
-  public void testConcurrentReplaceConflictDefaultSnapshotId() {
-    table.newReplacePartitions()
-        .addFile(FILE_A)
-        .commit();
-
-    // Concurrent Replace Partitions should fail with ValidationException
-    ReplacePartitions replace = table.newReplacePartitions();
-    AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching partitions " +
-            "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
-        () ->
-            replace
-                .addFile(FILE_A)
-                .addFile(FILE_B)
-                .validateNoConflictingData()
-                .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .commit());
   }
 
@@ -331,10 +361,6 @@ public class TestReplacePartitions extends TableTestBase {
     // Concurrent Replace Partitions should not fail if concerning different partitions
     table.newReplacePartitions()
         .addFile(FILE_A)
-        .validateFromSnapshot(id1)
-        .validateNoConflictingData()
-        .validateNoConflictingDeletes()
-        .validateNoConflictingDeletedData()
         .commit();
     long id2 = readMetadata().currentSnapshot().snapshotId();
 
@@ -342,7 +368,6 @@ public class TestReplacePartitions extends TableTestBase {
         .validateFromSnapshot(id1)
         .validateNoConflictingData()
         .validateNoConflictingDeletes()
-        .validateNoConflictingDeletedData()
         .addFile(FILE_B)
         .commit();
 
@@ -384,7 +409,6 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(replaceBaseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_UNPARTITIONED_A)
                 .commit());
   }
@@ -412,7 +436,6 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(baseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .commit());
@@ -438,7 +461,6 @@ public class TestReplacePartitions extends TableTestBase {
         .validateFromSnapshot(id1)
         .validateNoConflictingData()
         .validateNoConflictingDeletes()
-        .validateNoConflictingDeletedData()
         .addFile(FILE_A)
         .commit();
 
@@ -484,7 +506,6 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(replaceBaseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_UNPARTITIONED_A)
                 .commit());
   }
@@ -514,7 +535,6 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(baseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_A)
                 .commit());
   }
@@ -539,14 +559,13 @@ public class TestReplacePartitions extends TableTestBase {
 
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found new conflicting delete files that can apply to records matching []: " +
+        "Found new conflicting delete files that can apply to records matching true: " +
             "[/path/to/data-unpartitioned-a-deletes.parquet]",
         () ->
             unpartitioned.newReplacePartitions()
                 .validateFromSnapshot(replaceBaseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_UNPARTITIONED_A)
                 .commit());
   }
@@ -572,7 +591,6 @@ public class TestReplacePartitions extends TableTestBase {
     table.newReplacePartitions()
         .validateNoConflictingData()
         .validateNoConflictingDeletes()
-        .validateNoConflictingDeletedData()
         .validateFromSnapshot(id1)
         .addFile(FILE_B)
         .commit();
@@ -619,7 +637,6 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(baseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_A)
                 .commit());
   }
@@ -643,7 +660,6 @@ public class TestReplacePartitions extends TableTestBase {
     table.newReplacePartitions()
         .validateNoConflictingData()
         .validateNoConflictingDeletes()
-        .validateNoConflictingDeletedData()
         .validateFromSnapshot(baseId)
         .addFile(FILE_B)
         .commit();
@@ -690,39 +706,43 @@ public class TestReplacePartitions extends TableTestBase {
                 .validateFromSnapshot(replaceBaseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .validateNoConflictingDeletedData()
                 .addFile(FILE_UNPARTITIONED_A)
                 .commit());
   }
 
   @Test
-  public void testConcurrentReplaceValidationDisabled() {
-    table.newFastAppend()
+  public void testValidateOnlyDeletes() {
+    table.newAppend()
         .appendFile(FILE_A)
         .commit();
+    long baseId = readMetadata().currentSnapshot().snapshotId();
 
-    TableMetadata base = readMetadata();
-
-    // Two concurrent ReplacePartitions with Validation Disabled
-    table.newReplacePartitions()
-        .addFile(FILE_E)
+    // Snapshot Isolation mode: appends do not conflict with replace
+    table.newAppend()
+        .appendFile(FILE_B)
         .commit();
+
     table.newReplacePartitions()
-        .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
+        .validateFromSnapshot(baseId)
+        .validateNoConflictingDeletes()
         .addFile(FILE_B)
         .commit();
+    long finalId = readMetadata().currentSnapshot().snapshotId();
 
-    long replaceId = readMetadata().currentSnapshot().snapshotId();
-    Assert.assertEquals("Table should have 2 manifest",
-        2, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Table should have 3 manifest",
+        3, table.currentSnapshot().allManifests().size());
     validateManifestEntries(table.currentSnapshot().allManifests().get(0),
-        ids(replaceId, replaceId),
-        files(FILE_A, FILE_B),
-        statuses(Status.ADDED, Status.ADDED));
+        ids(finalId),
+        files(FILE_B),
+        statuses(Status.ADDED));
     validateManifestEntries(table.currentSnapshot().allManifests().get(1),
-        ids(replaceId),
-        files(FILE_E),
+        ids(finalId),
+        files(FILE_B),
         statuses(Status.DELETED));
+    validateManifestEntries(table.currentSnapshot().allManifests().get(2),
+        ids(baseId),
+        files(FILE_A),
+        statuses(Status.ADDED));
   }
 
   @Test

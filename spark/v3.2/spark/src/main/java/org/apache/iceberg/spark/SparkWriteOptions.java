@@ -76,7 +76,6 @@ public class SparkWriteOptions {
   // Identifies snapshot from which to start validating conflicting changes
   public static final String VALIDATE_FROM_SNAPSHOT_ID = "validate-from-snapshot-id";
 
-  // Isolation Level for DataFrame calls.  Currently supported by overwritePartitions
+  // Isolation Level for DataFrame calls. Currently supported by overwritePartitions
   public static final String ISOLATION_LEVEL = "isolation-level";
-  public static final String DYNAMIC_OVERWRITE_LEVEL_DEFAULT = "snapshot";
 }

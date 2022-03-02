@@ -318,12 +318,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param detectionFilter an expression used to find new data files
+   * @param dataFilter an expression used to find new data files
    * @param partitionSet a set of partitions to find new data files
    */
   private CloseableIterable<ManifestEntry<DataFile>> addedDataFiles(TableMetadata base,
                                                                     Long startingSnapshotId,
-                                                                    Expression detectionFilter,
+                                                                    Expression dataFilter,
                                                                     PartitionSet partitionSet) {
     // if there is no current table state, no files have been added
     if (base.currentSnapshot() == null) {
@@ -342,8 +342,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .ignoreDeleted()
         .ignoreExisting();
 
-    if (detectionFilter != null) {
-      manifestGroup = manifestGroup.filterData(detectionFilter);
+    if (dataFilter != null) {
+      manifestGroup = manifestGroup.filterData(dataFilter);
     }
 
     if (partitionSet != null) {
@@ -531,20 +531,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param detectionFilter an expression used to find deleted data files
+   * @param dataFilter an expression used to find deleted data files
    * @param partitionSet a set of partitions to find deleted data files
    */
   private CloseableIterable<ManifestEntry<DataFile>> deletedDataFiles(TableMetadata base,
-                                                                    Long startingSnapshotId,
-                                                                    Expression detectionFilter,
-                                                                    PartitionSet partitionSet) {
+                                                                      Long startingSnapshotId,
+                                                                      Expression dataFilter,
+                                                                      PartitionSet partitionSet) {
     // if there is no current table state, no files have been deleted
     if (base.currentSnapshot() == null) {
       return CloseableIterable.empty();
     }
 
     Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
+        validationHistory(base, startingSnapshotId, VALIDATE_DATA_FILES_EXIST_OPERATIONS, ManifestContent.DATA);
     List<ManifestFile> manifests = history.first();
     Set<Long> newSnapshots = history.second();
 
@@ -555,8 +555,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .specsById(base.specsById())
         .ignoreExisting();
 
-    if (detectionFilter != null) {
-      manifestGroup = manifestGroup.filterData(detectionFilter);
+    if (dataFilter != null) {
+      manifestGroup = manifestGroup.filterData(dataFilter);
     }
 
     if (partitionSet != null) {
