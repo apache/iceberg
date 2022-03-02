@@ -1162,7 +1162,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .addDeletes(FILE_A_DELETES)
         .commit();
     Snapshot secondSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 data manifests", 1, secondSnapshot.dataManifests().size());
+    Assert.assertEquals("Should have 1 data manifest", 1, secondSnapshot.dataManifests().size());
     Assert.assertEquals("Should have 1 delete manifest", 1, secondSnapshot.deleteManifests().size());
 
     // FILE_A and FILE_A_DELETES move into "DELETED" state
@@ -1175,7 +1175,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Snapshot thirdSnapshot = table.currentSnapshot();
     Set<ManifestFile> manifestOfDeletedFiles = thirdSnapshot.allManifests().stream().filter(
         ManifestFile::hasDeletedFiles).collect(Collectors.toSet());
-    Assert.assertEquals("Should have two manifest of deleted files", 2,
+    Assert.assertEquals("Should have two manifests of deleted files", 2,
         manifestOfDeletedFiles.size());
 
     // Need one more commit before manifests of files of DELETED state get cleared from current snapshot.
