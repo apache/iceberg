@@ -297,7 +297,6 @@ public class CatalogUtil {
     return metricsContext;
   }
 
-
   /**
    * Dynamically detects whether an object is a Hadoop Configurable and calls setConf.
    * @param maybeConfigurable an object that may be Configurable

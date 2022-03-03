@@ -118,7 +118,6 @@ public class S3FileIO implements FileIO {
       this.s3 = AwsClientFactories.from(properties)::s3;
     }
 
-    // Report Hadoop metrics if Hadoop is available
     String metricsImpl = properties.getOrDefault(
             CatalogProperties.IO_METRICS_IMPL, CatalogProperties.IO_METRICS_IMPL_DEFAULT);
 
