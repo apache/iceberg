@@ -52,6 +52,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec: gzip(deflate with 9 level), gzip, snappy, uncompressed |
 | write.avro.compression-level       | null               | Avro compression level                             |
+| write.orc.stripe-size-bytes        | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
+| write.orc.block-size-bytes         | 268435456 (256 MB) | Define the default file system block size for ORC files |
 | write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
