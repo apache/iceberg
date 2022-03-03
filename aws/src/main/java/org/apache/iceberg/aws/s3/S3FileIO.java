@@ -45,14 +45,13 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
  */
 public class S3FileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
+  private static final String IO_METRICS_SCHEME_S3 = "s3";
 
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
   private transient S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-
-  private static final String IO_METRICS_SCHEME_S3 = "s3";
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -123,7 +122,7 @@ public class S3FileIO implements FileIO {
     String metricsImpl = properties.getOrDefault(
             CatalogProperties.IO_METRICS_IMPL, CatalogProperties.IO_METRICS_IMPL_DEFAULT);
 
-    ImmutableMap<String, String> metricContextProperties = ImmutableMap.copyOf(properties);
+    Map<String, String> metricContextProperties = properties;
     if (!properties.containsKey(CatalogProperties.IO_METRICS_SCHEME)) {
       metricContextProperties = ImmutableMap.<String, String>builder()
               .putAll(properties)
@@ -131,7 +130,8 @@ public class S3FileIO implements FileIO {
               .build();
     }
 
-    this.metrics = CatalogUtil.loadFileIOMetricsContext(metricsImpl, metricContextProperties, null);
+    this.metrics = CatalogUtil.loadFileIOMetricsContext(
+            metricsImpl, metricContextProperties, null /* no Hadoop config */);
   }
 
   @Override
