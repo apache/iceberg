@@ -141,7 +141,7 @@ class AddFilesProcedure extends BaseProcedure {
       }
 
       Snapshot snapshot = table.currentSnapshot();
-      return Long.parseLong(snapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP));
+      return Long.parseLong(snapshot.summary().getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0"));
     });
   }
 

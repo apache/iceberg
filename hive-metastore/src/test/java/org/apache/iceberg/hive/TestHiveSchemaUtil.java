@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,6 +29,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -120,7 +120,7 @@ public class TestHiveSchemaUtil {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "Unsupported Hive type", () -> {
-            HiveSchemaUtil.convert(new ArrayList<>(Arrays.asList(notSupportedField)));
+            HiveSchemaUtil.convert(Lists.newArrayList(Arrays.asList(notSupportedField)));
           }
       );
     }
@@ -154,8 +154,24 @@ public class TestHiveSchemaUtil {
     }
   }
 
+  @Test
+  public void testConversionWithoutLastComment() {
+    Schema expected = new Schema(
+        optional(0, "customer_id", Types.LongType.get(), "customer comment"),
+        optional(1, "first_name", Types.StringType.get(), null)
+    );
+
+    Schema schema = HiveSchemaUtil.convert(
+        Arrays.asList("customer_id", "first_name"),
+        Arrays.asList(TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.BIGINT_TYPE_NAME),
+          TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.STRING_TYPE_NAME)),
+        Arrays.asList("customer comment"));
+
+    Assert.assertEquals(expected.asStruct(), schema.asStruct());
+  }
+
   protected List<FieldSchema> getSupportedFieldSchemas() {
-    List<FieldSchema> fields = new ArrayList<>();
+    List<FieldSchema> fields = Lists.newArrayListWithCapacity(10);
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
     fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, "double comment"));
     fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, "boolean comment"));
@@ -170,7 +186,7 @@ public class TestHiveSchemaUtil {
   }
 
   protected List<FieldSchema> getNotSupportedFieldSchemas() {
-    List<FieldSchema> fields = new ArrayList<>();
+    List<FieldSchema> fields = Lists.newArrayListWithCapacity(6);
     fields.add(new FieldSchema("c_byte", serdeConstants.TINYINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_short", serdeConstants.SMALLINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_char", serdeConstants.CHAR_TYPE_NAME + "(5)", ""));

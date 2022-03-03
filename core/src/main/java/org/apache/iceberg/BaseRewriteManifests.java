@@ -42,7 +42,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
@@ -230,7 +229,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     try {
       Tasks.foreach(remainingManifests)
-          .executeWith(ThreadPools.getWorkerPool())
+          .executeWith(workerPool())
           .run(manifest -> {
             if (predicate != null && !predicate.test(manifest)) {
               keptManifests.add(manifest);
@@ -248,7 +247,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
             }
           });
     } finally {
-      Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(WriterWrapper::close);
+      Tasks.foreach(writers.values()).executeWith(workerPool()).run(WriterWrapper::close);
     }
   }
 

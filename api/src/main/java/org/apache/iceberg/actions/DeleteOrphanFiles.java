@@ -19,12 +19,13 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
- * An action that deletes orphan files in a table.
+ * An action that deletes orphan metadata, data and delete files in a table.
  * <p>
- * A metadata or data file is considered orphan if it is not reachable by any valid snapshot.
+ * A file is considered orphan if it is not reachable by any valid snapshot.
  * The set of actual files is built by listing the underlying storage which makes this operation
  * expensive.
  */
@@ -66,6 +67,18 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * @return this for method chaining
    */
   DeleteOrphanFiles deleteWith(Consumer<String> deleteFunc);
+
+  /**
+   * Passes an alternative executor service that will be used for removing orphaned files.
+   * <p>
+   * If this method is not called, orphaned manifests and data files will still be deleted in
+   * the current thread.
+   * <p>
+   *
+   * @param executorService the service to use
+   * @return this for method chaining
+   */
+  DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
   /**
    * The action result that contains a summary of the execution.

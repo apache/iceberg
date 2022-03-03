@@ -61,6 +61,19 @@ public class StructProjection implements StructLike {
   /**
    * Creates a projecting wrapper for {@link StructLike} rows.
    * <p>
+   * This projection does not work with repeated types like lists and maps.
+   *
+   * @param structType type of rows wrapped by this projection
+   * @param projectedStructType result type of the projected rows
+   * @return a wrapper to project rows
+   */
+  public static StructProjection create(StructType structType, StructType projectedStructType) {
+    return new StructProjection(structType, projectedStructType);
+  }
+
+  /**
+   * Creates a projecting wrapper for {@link StructLike} rows.
+   * <p>
    * This projection allows missing fields and does not work with repeated types like lists and maps.
    *
    * @param structType type of rows wrapped by this projection

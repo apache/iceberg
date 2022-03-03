@@ -74,6 +74,7 @@ public interface FileIO extends Serializable, Closeable {
    * Calling this method is only required when this FileIO instance is no longer expected to be used,
    * and the resources it holds need to be explicitly released to avoid resource leaks.
    */
+  @Override
   default void close() {
   }
 }

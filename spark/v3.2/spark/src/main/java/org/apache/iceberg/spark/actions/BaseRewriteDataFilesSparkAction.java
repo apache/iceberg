@@ -79,7 +79,8 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
-      TARGET_FILE_SIZE_BYTES
+      TARGET_FILE_SIZE_BYTES,
+      USE_STARTING_SEQUENCE_NUMBER
   );
 
   private final Table table;
@@ -88,6 +89,7 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean useStartingSequenceNumber;
   private RewriteStrategy strategy = null;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -245,7 +247,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
-    return new RewriteDataFilesCommitManager(table, startingSnapshotId);
+    return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
@@ -374,6 +376,10 @@ abstract class BaseRewriteDataFilesSparkAction
     partialProgressEnabled = PropertyUtil.propertyAsBoolean(options(),
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
+
+    useStartingSequenceNumber = PropertyUtil.propertyAsBoolean(options(),
+        USE_STARTING_SEQUENCE_NUMBER,
+        USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
 
     Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",

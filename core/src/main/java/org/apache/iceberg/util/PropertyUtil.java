@@ -30,7 +30,7 @@ public class PropertyUtil {
                                           String property, boolean defaultValue) {
     String value = properties.get(property);
     if (value != null) {
-      return Boolean.parseBoolean(properties.get(property));
+      return Boolean.parseBoolean(value);
     }
     return defaultValue;
   }
@@ -39,7 +39,7 @@ public class PropertyUtil {
       String property, double defaultValue) {
     String value = properties.get(property);
     if (value != null) {
-      return Double.parseDouble(properties.get(property));
+      return Double.parseDouble(value);
     }
     return defaultValue;
   }
@@ -48,7 +48,7 @@ public class PropertyUtil {
                                   String property, int defaultValue) {
     String value = properties.get(property);
     if (value != null) {
-      return Integer.parseInt(properties.get(property));
+      return Integer.parseInt(value);
     }
     return defaultValue;
   }
@@ -57,7 +57,7 @@ public class PropertyUtil {
                                     String property, long defaultValue) {
     String value = properties.get(property);
     if (value != null) {
-      return Long.parseLong(properties.get(property));
+      return Long.parseLong(value);
     }
     return defaultValue;
   }
@@ -66,7 +66,7 @@ public class PropertyUtil {
                                         String property, String defaultValue) {
     String value = properties.get(property);
     if (value != null) {
-      return properties.get(property);
+      return value;
     }
     return defaultValue;
   }

@@ -20,8 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -803,11 +801,18 @@ public class TestRemoveSnapshots extends TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
 
     table.expireSnapshots()
         .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
           thread.setName("remove-snapshot-" + deleteThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }))
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
           thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
           return thread;
         }))
@@ -824,6 +829,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
   }
 
   @Test
@@ -887,7 +893,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    Set<String> deletedFiles = new HashSet<>();
+    Set<String> deletedFiles = Sets.newHashSet();
 
     // Expire all commits including dangling staged snapshot.
     table.expireSnapshots()
@@ -895,7 +901,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .expireOlderThan(snapshotB.timestampMillis() + 1)
         .commit();
 
-    Set<String> expectedDeletes = new HashSet<>();
+    Set<String> expectedDeletes = Sets.newHashSet();
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
@@ -932,7 +938,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Snapshot snapshotA = table.currentSnapshot();
 
     // `B` commit
-    Set<String> deletedAFiles = new HashSet<>();
+    Set<String> deletedAFiles = Sets.newHashSet();
     table.newOverwrite()
         .addFile(FILE_B)
         .deleteFile(FILE_A)
@@ -964,7 +970,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     table.manageSnapshots()
         .setCurrentSnapshot(snapshotC.snapshotId())
         .commit();
-    List<String> deletedFiles = new ArrayList<>();
+    List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `C`
     table.expireSnapshots()
@@ -1017,7 +1023,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     base = readMetadata();
     Snapshot snapshotD = base.snapshots().get(3);
 
-    List<String> deletedFiles = new ArrayList<>();
+    List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `B` commit.
     table.expireSnapshots()

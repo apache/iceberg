@@ -22,9 +22,14 @@ package org.apache.iceberg.spark;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -190,6 +195,28 @@ public class SparkSchemaUtil {
   }
 
   /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
+   * <p>
+   * This conversion will assign new ids for fields that are not found in the base schema.
+   * <p>
+   * Data types, field order, and nullability will match the spark type. This conversion may return
+   * a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param sparkType a Spark StructType
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convertWithFreshIds(Schema baseSchema, StructType sparkType) {
+    // convert to a type with fresh ids
+    Types.StructType struct = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignOrRefreshIds(new Schema(struct.fields()), baseSchema);
+    // fix types that can't be represented in Spark (UUID and Fixed)
+    return SparkFixupTypes.fixup(schema, baseSchema);
+  }
+
+  /**
    * Prune columns from a {@link Schema} using a {@link StructType Spark type} projection.
    * <p>
    * This requires that the Spark type is a projection of the Schema. Nullability and types must
@@ -298,5 +325,23 @@ public class SparkSchemaUtil {
       result = Long.MAX_VALUE;
     }
     return result;
+  }
+
+  public static void validateMetadataColumnReferences(Schema tableSchema, Schema readSchema) {
+    List<String> conflictingColumnNames = readSchema.columns().stream()
+        .map(Types.NestedField::name)
+        .filter(name -> MetadataColumns.isMetadataColumn(name) && tableSchema.findField(name) != null)
+        .collect(Collectors.toList());
+
+    ValidationException.check(
+        conflictingColumnNames.isEmpty(),
+        "Table column names conflict with names reserved for Iceberg metadata columns: %s.\n" +
+        "Please, use ALTER TABLE statements to rename the conflicting table columns.",
+        conflictingColumnNames);
+  }
+
+  public static Map<Integer, String> indexQuotedNameById(Schema schema) {
+    Function<String, String> quotingFunc = name -> String.format("`%s`", name.replace("`", "``"));
+    return TypeUtil.indexQuotedNameById(schema.asStruct(), quotingFunc);
   }
 }

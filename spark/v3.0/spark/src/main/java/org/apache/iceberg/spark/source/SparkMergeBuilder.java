@@ -21,9 +21,9 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Locale;
 import java.util.Map;
-import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder;
 import org.apache.spark.sql.connector.read.Scan;

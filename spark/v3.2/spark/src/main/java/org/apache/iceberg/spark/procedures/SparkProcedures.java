@@ -45,12 +45,14 @@ public class SparkProcedures {
     mapBuilder.put("rollback_to_timestamp", RollbackToTimestampProcedure::builder);
     mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);
     mapBuilder.put("cherrypick_snapshot", CherrypickSnapshotProcedure::builder);
+    mapBuilder.put("rewrite_data_files", RewriteDataFilesProcedure::builder);
     mapBuilder.put("rewrite_manifests", RewriteManifestsProcedure::builder);
     mapBuilder.put("remove_orphan_files", RemoveOrphanFilesProcedure::builder);
     mapBuilder.put("expire_snapshots", ExpireSnapshotsProcedure::builder);
     mapBuilder.put("migrate", MigrateTableProcedure::builder);
     mapBuilder.put("snapshot", SnapshotTableProcedure::builder);
     mapBuilder.put("add_files", AddFilesProcedure::builder);
+    mapBuilder.put("ancestors_of", AncestorsOfProcedure::builder);
     return mapBuilder.build();
   }
 

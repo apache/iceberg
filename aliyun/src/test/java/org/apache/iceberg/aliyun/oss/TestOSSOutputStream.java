@@ -21,15 +21,16 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -97,8 +98,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     Assert.assertEquals("Object length",
         ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), data.length);
 
-    byte[] actual = new byte[data.length];
-    IOUtils.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
+    byte[] actual = ossDataContent(uri, data.length);
     Assert.assertArrayEquals("Object content", data, actual);
 
     // Verify all staging files are cleaned up.
@@ -122,5 +122,13 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     byte[] data = new byte[size];
     random.nextBytes(data);
     return data;
+  }
+
+  private byte[] ossDataContent(OSSURI uri, int dataSize) throws IOException {
+    try (InputStream is = ossClient.getObject(uri.bucket(), uri.key()).getObjectContent()) {
+      byte[] actual = new byte[dataSize];
+      ByteStreams.readFully(is, actual);
+      return actual;
+    }
   }
 }

@@ -20,12 +20,15 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -44,22 +47,17 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.types.ImportCompatibilityChecker;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
-
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
-
-  private static final Logger LOG = LoggerFactory.getLogger(TableMigrationUtil.class);
 
   private TableMigrationUtil() {
   }
@@ -70,10 +68,8 @@ public class TableMigrationUtil {
    * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
    * <p>
-   * Note:
-   * 1. certain metrics, like NaN counts, that are only supported by iceberg file writers but not file footers,
+   * Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but not file footers,
    * will not be populated.
-   * 2. Schema compatibility checks are currently done only for parquet file format
    *
    * @param partition partition key, e.g., "a=1/b=2"
    * @param uri           partition location URI
@@ -82,136 +78,117 @@ public class TableMigrationUtil {
    * @param conf          a Hadoop conf
    * @param metricsConfig a metrics conf
    * @param mapping       a name mapping
-   * @param schema        table's schema
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
                                              NameMapping mapping, Schema schema) {
-    if (format.contains("avro")) {
-      return listAvroPartition(partition, uri, spec, conf);
-    } else if (format.contains("parquet")) {
-      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping, schema);
-    } else if (format.contains("orc")) {
-      return listOrcPartition(partition, uri, spec, conf, metricsConfig, mapping);
-    } else {
-      throw new UnsupportedOperationException("Unknown partition format: " + format);
-    }
+    return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1, schema);
   }
 
-  private static List<DataFile> listAvroPartition(Map<String, String> partitionPath, String partitionUri,
-                                                  PartitionSpec spec, Configuration conf) {
+  public static List<DataFile> listPartition(Map<String, String> partitionPath, String partitionUri, String format,
+                                             PartitionSpec spec, Configuration conf, MetricsConfig metricsSpec,
+                                             NameMapping mapping, int parallelism, Schema schema) {
+    ExecutorService service = null;
     try {
+      String partitionKey = spec.fields().stream()
+              .map(PartitionField::name)
+              .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+              .collect(Collectors.joining("/"));
+
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
-      return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-          .filter(FileStatus::isFile)
-          .map(stat -> {
-            InputFile file = HadoopInputFile.fromLocation(stat.getPath().toString(), conf);
-            long rowCount = Avro.rowCount(file);
-            Metrics metrics = new Metrics(rowCount, null, null, null, null);
-            String partitionKey = spec.fields().stream()
-                .map(PartitionField::name)
-                .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-                .collect(Collectors.joining("/"));
+      List<FileStatus> fileStatus = Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+              .filter(FileStatus::isFile)
+              .collect(Collectors.toList());
+      DataFile[] datafiles = new DataFile[fileStatus.size()];
+      Tasks.Builder<Integer> task = Tasks.range(fileStatus.size())
+              .stopOnFailure()
+              .throwFailureWhenFinished();
 
-            return DataFiles.builder(spec)
-                .withPath(stat.getPath().toString())
-                .withFormat("avro")
-                .withFileSizeInBytes(stat.getLen())
-                .withMetrics(metrics)
-                .withPartitionPath(partitionKey)
-                .build();
+      if (parallelism > 1) {
+        service = migrationService(parallelism);
+        task.executeWith(service);
+      }
 
-          }).collect(Collectors.toList());
+      if (format.contains("avro")) {
+        task.run(index -> {
+          Metrics metrics = getAvroMerics(fileStatus.get(index).getPath(), conf);
+          datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
+        });
+      } else if (format.contains("parquet")) {
+        task.run(index -> {
+          Metrics metrics = getParquetMerics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping, schema);
+          datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
+        });
+      } else if (format.contains("orc")) {
+        task.run(index -> {
+          Metrics metrics = getOrcMerics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+          datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
+        });
+      } else {
+        throw new UnsupportedOperationException("Unknown partition format: " + format);
+      }
+      return Arrays.asList(datafiles);
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    } finally {
+      if (service != null) {
+        service.shutdown();
+      }
     }
   }
 
-  private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
-                                                     PartitionSpec spec, Configuration conf,
-                                                     MetricsConfig metricsSpec, NameMapping mapping, Schema schema) {
+  private static Metrics getAvroMerics(Path path,  Configuration conf) {
     try {
-      Path partition = new Path(partitionUri);
-      FileSystem fs = partition.getFileSystem(conf);
-
-      return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-          .filter(FileStatus::isFile)
-          .map(stat -> {
-            Metrics metrics;
-            try {
-              ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
-              metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
-              // Checks if the imported file schema is compatible with schema of the table to which it is imported
-              canImportSchema(ParquetSchemaUtil.convert(metadata.getFileMetaData().getSchema()), schema);
-            } catch (IOException e) {
-              throw new RuntimeException("Unable to read the footer of the parquet file: " +
-                  stat.getPath(), e);
-            }
-            String partitionKey = spec.fields().stream()
-                .map(PartitionField::name)
-                .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-                .collect(Collectors.joining("/"));
-
-            return DataFiles.builder(spec)
-                .withPath(stat.getPath().toString())
-                .withFormat("parquet")
-                .withFileSizeInBytes(stat.getLen())
-                .withMetrics(metrics)
-                .withPartitionPath(partitionKey)
-                .build();
-          }).collect(Collectors.toList());
-    } catch (IOException e) {
-      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+      InputFile file = HadoopInputFile.fromPath(path, conf);
+      long rowCount = Avro.rowCount(file);
+      return new Metrics(rowCount, null, null, null, null);
+    } catch (UncheckedIOException e) {
+      throw new RuntimeException("Unable to read Avro file: " +
+              path, e);
     }
   }
 
-  private static List<DataFile> listOrcPartition(Map<String, String> partitionPath, String partitionUri,
-                                                 PartitionSpec spec, Configuration conf,
-                                                 MetricsConfig metricsSpec, NameMapping mapping) {
+  private static Metrics getParquetMerics(Path path, Configuration conf,
+                                          MetricsConfig metricsSpec, NameMapping mapping, Schema schema) {
     try {
-      Path partition = new Path(partitionUri);
-      FileSystem fs = partition.getFileSystem(conf);
-
-      return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-          .filter(FileStatus::isFile)
-          .map(stat -> {
-            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
-                metricsSpec, mapping);
-            String partitionKey = spec.fields().stream()
-                .map(PartitionField::name)
-                .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-                .collect(Collectors.joining("/"));
-
-            return DataFiles.builder(spec)
-                .withPath(stat.getPath().toString())
-                .withFormat("orc")
-                .withFileSizeInBytes(stat.getLen())
-                .withMetrics(metrics)
-                .withPartitionPath(partitionKey)
-                .build();
-
-          }).collect(Collectors.toList());
-    } catch (IOException e) {
-      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+      InputFile file = HadoopInputFile.fromPath(path, conf);
+      return ParquetUtil.fileMetrics(file, metricsSpec, mapping, schema);
+    } catch (UncheckedIOException e) {
+      throw new RuntimeException("Unable to read the metrics of the Parquet file: " +
+              path, e);
     }
   }
 
-  /**
-   * Check the if the schemas are compatible.
-   * Throws {@link ValidationException} when incompatible
-   * @param importSchema the schema of file being imported
-   * @param tableSchema schema of the table to which file is to be imported
-   */
-  public static void canImportSchema(Schema importSchema, Schema tableSchema) {
-    // Assigning ids by name look up, required for checking compatibility
-    Schema schemaWithIds = TypeUtil.assignFreshIds(importSchema, tableSchema, new AtomicInteger(1000)::incrementAndGet);
-    List<String> errors = ImportCompatibilityChecker.importCompatibilityErrors(tableSchema, schemaWithIds, false);
-    if (!errors.isEmpty()) {
-      String errorString = Joiner.on("\n\t").join(errors);
-      throw new ValidationException("Imported file's schema not compatible with table's schema." +
-          " Errors : %s", errorString);
+  private static Metrics getOrcMerics(Path path,  Configuration conf,
+                                          MetricsConfig metricsSpec, NameMapping mapping) {
+    try {
+      return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf),
+              metricsSpec, mapping);
+    } catch (UncheckedIOException e) {
+      throw new RuntimeException("Unable to read the metrics of the Orc file: " +
+              path, e);
     }
+  }
+
+  private static DataFile buildDataFile(FileStatus stat, String partitionKey,
+                                      PartitionSpec spec, Metrics metrics, String format) {
+    return  DataFiles.builder(spec)
+            .withPath(stat.getPath().toString())
+            .withFormat(format)
+            .withFileSizeInBytes(stat.getLen())
+            .withMetrics(metrics)
+            .withPartitionPath(partitionKey)
+            .build();
+  }
+
+  private static ExecutorService migrationService(int concurrentDeletes) {
+    return MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(
+                    concurrentDeletes,
+                    new ThreadFactoryBuilder()
+                            .setNameFormat("table-migration-%d")
+                            .build()));
   }
 }

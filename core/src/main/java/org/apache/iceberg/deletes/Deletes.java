@@ -21,9 +21,7 @@ package org.apache.iceberg.deletes;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
@@ -36,8 +34,6 @@ import org.apache.iceberg.io.FilterIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
@@ -68,7 +64,7 @@ public class Deletes {
   }
 
   public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                                Set<Long> deleteSet) {
+                                                PositionDeleteIndex deleteSet) {
     if (deleteSet.isEmpty()) {
       return rows;
     }
@@ -87,21 +83,19 @@ public class Deletes {
     }
   }
 
-  public static Set<Long> toPositionSet(CharSequence dataLocation, CloseableIterable<? extends StructLike> deleteFile) {
-    return toPositionSet(dataLocation, ImmutableList.of(deleteFile));
-  }
-
-  public static <T extends StructLike> Set<Long> toPositionSet(CharSequence dataLocation,
-                                                               List<CloseableIterable<T>> deleteFiles) {
+  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(CharSequence dataLocation,
+                                                                           List<CloseableIterable<T>> deleteFiles) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
     List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
         CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
-    return toPositionSet(CloseableIterable.concat(positions));
+    return toPositionIndex(CloseableIterable.concat(positions));
   }
 
-  public static Set<Long> toPositionSet(CloseableIterable<Long> posDeletes) {
+  public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {
     try (CloseableIterable<Long> deletes = posDeletes) {
-      return Sets.newHashSet(deletes);
+      PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
+      deletes.forEach(positionDeleteIndex::delete);
+      return positionDeleteIndex;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close position delete source", e);
     }
@@ -145,16 +139,16 @@ public class Deletes {
 
   private static class PositionSetDeleteFilter<T> extends Filter<T> {
     private final Function<T, Long> rowToPosition;
-    private final Set<Long> deleteSet;
+    private final PositionDeleteIndex deleteSet;
 
-    private PositionSetDeleteFilter(Function<T, Long> rowToPosition, Set<Long> deleteSet) {
+    private PositionSetDeleteFilter(Function<T, Long> rowToPosition, PositionDeleteIndex deleteSet) {
       this.rowToPosition = rowToPosition;
       this.deleteSet = deleteSet;
     }
 
     @Override
     protected boolean shouldKeep(T row) {
-      return !deleteSet.contains(rowToPosition.apply(row));
+      return !deleteSet.isDeleted(rowToPosition.apply(row));
     }
   }
 
@@ -234,7 +228,6 @@ public class Deletes {
   }
 
   private static class DataFileFilter<T extends StructLike> extends Filter<T> {
-    private static final Comparator<CharSequence> CHARSEQ_COMPARATOR = Comparators.charSequences();
     private final CharSequence dataLocation;
 
     DataFileFilter(CharSequence dataLocation) {
@@ -243,7 +236,32 @@ public class Deletes {
 
     @Override
     protected boolean shouldKeep(T posDelete) {
-      return CHARSEQ_COMPARATOR.compare(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete)) == 0;
+      return charSeqEquals(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete));
+    }
+
+    private boolean charSeqEquals(CharSequence s1, CharSequence s2) {
+      if (s1 == s2) {
+        return true;
+      }
+
+      int count = s1.length();
+      if (count != s2.length()) {
+        return false;
+      }
+
+      if (s1 instanceof String && s2 instanceof String && s1.hashCode() != s2.hashCode()) {
+        return false;
+      }
+
+      // File paths inside a delete file normally have more identical chars at the beginning. For example, a typical
+      // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
+      // The uuid is where the difference starts. So it's faster to find the first diff backward.
+      for (int i = count - 1; i >= 0; i--) {
+        if (s1.charAt(i) != s2.charAt(i)) {
+          return false;
+        }
+      }
+      return true;
     }
   }
 }

@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 
@@ -68,6 +70,11 @@ class SparkConfParser {
       return self();
     }
 
+    public BooleanConfParser defaultValue(String value) {
+      this.defaultValue = Boolean.parseBoolean(value);
+      return self();
+    }
+
     public boolean parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Boolean::parseBoolean, defaultValue);
@@ -90,6 +97,10 @@ class SparkConfParser {
     public int parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Integer::parseInt, defaultValue);
+    }
+
+    public Integer parseOptional() {
+      return parse(Integer::parseInt, null);
     }
   }
 
@@ -133,17 +144,21 @@ class SparkConfParser {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Function.identity(), defaultValue);
     }
+
+    public String parseOptional() {
+      return parse(Function.identity(), null);
+    }
   }
 
   abstract class ConfParser<ThisT, T> {
-    private String optionName;
+    private final List<String> optionNames = Lists.newArrayList();
     private String sessionConfName;
     private String tablePropertyName;
 
     protected abstract ThisT self();
 
     public ThisT option(String name) {
-      this.optionName = name;
+      this.optionNames.add(name);
       return self();
     }
 
@@ -158,11 +173,13 @@ class SparkConfParser {
     }
 
     protected T parse(Function<String, T> conversion, T defaultValue) {
-      if (optionName != null) {
-        // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case map
-        String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
-        if (optionValue != null) {
-          return conversion.apply(optionValue);
+      if (!optionNames.isEmpty()) {
+        for (String optionName : optionNames) {
+          // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case map
+          String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
+          if (optionValue != null) {
+            return conversion.apply(optionValue);
+          }
         }
       }
 

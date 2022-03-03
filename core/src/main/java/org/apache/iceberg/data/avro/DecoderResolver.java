@@ -20,7 +20,6 @@
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
@@ -29,6 +28,7 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}. This class uses a {@link ThreadLocal} for caching
@@ -53,7 +53,7 @@ public class DecoderResolver {
   private static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema) throws IOException {
     Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
     Map<Schema, ResolvingDecoder> fileSchemaToResolver = cache
-        .computeIfAbsent(readSchema, k -> new HashMap<>());
+        .computeIfAbsent(readSchema, k -> Maps.newHashMap());
 
     ResolvingDecoder resolver = fileSchemaToResolver.computeIfAbsent(
         fileSchema,

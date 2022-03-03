@@ -47,7 +47,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import scala.Option;
-import scala.collection.JavaConversions;
+import scala.collection.JavaConverters;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -300,6 +300,6 @@ public class TestStructuredStreaming {
   }
 
   private <T> void send(List<T> records, MemoryStream<T> stream) {
-    stream.addData(JavaConversions.asScalaBuffer(records));
+    stream.addData(JavaConverters.asScalaBuffer(records));
   }
 }

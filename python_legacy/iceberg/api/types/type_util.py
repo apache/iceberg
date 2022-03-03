@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from decimal import Decimal
 import math
 from typing import List
 
@@ -105,6 +106,14 @@ def assign_fresh_ids(type_var, next_id):
                            .as_nested_type().fields))
 
 
+def decimal_to_bytes(_, value):
+    scale = abs(value.as_tuple().exponent)
+    quantized_value = value.quantize(Decimal("10")**-scale)
+    unscaled_value = int((quantized_value * 10**scale).to_integral_value())
+    min_num_bytes = (unscaled_value.bit_length() + 7) // 8
+    return unscaled_value.to_bytes(min_num_bytes, 'big', signed=True)
+
+
 def visit(arg, visitor): # noqa: ignore=C901
     from ..schema import Schema
     if isinstance(visitor, CustomOrderSchemaVisitor):
@@ -143,7 +152,29 @@ def visit(arg, visitor): # noqa: ignore=C901
 
             return visitor.list(list_var, element_result)
         elif type_var.type_id == TypeID.MAP:
-            raise NotImplementedError()
+            map_var = type_var.as_nested_type().as_map_type()
+            visitor.field_ids.append(map_var.key_field.field_id)
+            visitor.field_names.append(map_var.key_field.name)
+            try:
+                key_result = visit(map_var.key_type(), visitor)
+            except NotImplementedError:
+                # will remove it after missing functions are implemented.
+                pass
+            finally:
+                visitor.field_ids.pop()
+                visitor.field_names.pop()
+
+            visitor.field_ids.append(map_var.value_field.field_id)
+            visitor.field_names.append(map_var.value_field.name)
+            try:
+                value_result = visit(map_var.value_type(), visitor)
+            except NotImplementedError:
+                # will remove it after missing functions are implemented.
+                pass
+            finally:
+                visitor.field_ids.pop()
+                visitor.field_names.pop()
+            return visitor.map(map_var, key_result, value_result)
         else:
             return visitor.primitive(arg.as_primitive_type())
     else:
@@ -385,7 +416,7 @@ class IndexById(SchemaVisitor):
             self.index[field.field_id] = field
 
     def map(self, map_var, key_result, value_result):
-        for field in map_var.fields:
+        for field in map_var.fields():
             self.index[field.field_id] = field
 
 

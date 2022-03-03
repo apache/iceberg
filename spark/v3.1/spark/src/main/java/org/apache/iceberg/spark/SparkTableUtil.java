@@ -56,8 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.TaskContext;
@@ -650,7 +650,7 @@ public class SparkTableUtil {
     private final String format;
 
     public SparkPartition(Map<String, String> values, String uri, String format) {
-      this.values = ImmutableMap.copyOf(values);
+      this.values = Maps.newHashMap(values);
       this.uri = uri;
       this.format = format;
     }

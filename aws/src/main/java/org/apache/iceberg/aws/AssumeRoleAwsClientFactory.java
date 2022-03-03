@@ -25,7 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
-import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -38,16 +37,18 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
-  private static final SdkHttpClient HTTP_CLIENT_DEFAULT = UrlConnectionHttpClient.create();
-
   private String roleArn;
   private String externalId;
   private int timeout;
   private String region;
+  private String s3Endpoint;
 
   @Override
   public S3Client s3() {
-    return S3Client.builder().applyMutation(this::configure).build();
+    return S3Client.builder()
+        .applyMutation(this::configure)
+        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
+        .build();
   }
 
   @Override
@@ -76,6 +77,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     region = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_REGION);
     Preconditions.checkNotNull(region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
+
+    this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
   }
 
   private <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
@@ -88,12 +91,12 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(StsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build())
+            .stsClient(StsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build())
             .refreshRequest(request)
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClient(HTTP_CLIENT_DEFAULT);
+    clientBuilder.httpClientBuilder(UrlConnectionHttpClient.builder());
 
     return clientBuilder;
   }

@@ -21,7 +21,6 @@ package org.apache.iceberg.orc;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +54,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile;
@@ -80,7 +80,7 @@ public class ORC {
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private Map<String, byte[]> metadata = new HashMap<>();
+    private Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
 
     private WriteBuilder(OutputFile file) {

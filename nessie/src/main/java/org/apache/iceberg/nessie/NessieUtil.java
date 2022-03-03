@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,17 +29,20 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.projectnessie.model.CommitMeta;
-import org.projectnessie.model.ContentsKey;
+import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.EntriesResponse;
 import org.projectnessie.model.ImmutableCommitMeta;
 
 public final class NessieUtil {
 
+  public static final String NESSIE_CONFIG_PREFIX = "nessie.";
+  public static final String CONFIG_CLIENT_BUILDER_IMPL = NESSIE_CONFIG_PREFIX + "client-builder-impl";
+
   static final String APPLICATION_TYPE = "application-type";
 
   private NessieUtil() {
-
   }
 
   static Predicate<EntriesResponse.Entry> namespacePredicate(Namespace ns) {
@@ -80,27 +82,29 @@ public final class NessieUtil {
     return to;
   }
 
-  static ContentsKey toKey(TableIdentifier tableIdentifier) {
-    List<String> identifiers = new ArrayList<>();
+  static ContentKey toKey(TableIdentifier tableIdentifier) {
+    List<String> identifiers = Lists.newArrayList();
     if (tableIdentifier.hasNamespace()) {
       identifiers.addAll(Arrays.asList(tableIdentifier.namespace().levels()));
     }
     identifiers.add(tableIdentifier.name());
 
-    ContentsKey key = ContentsKey.of(identifiers);
-    return key;
+    return ContentKey.of(identifiers);
   }
 
   static CommitMeta buildCommitMetadata(String commitMsg, Map<String, String> catalogOptions) {
-    Preconditions.checkArgument(null != catalogOptions, "catalogOptions must not be null");
-    ImmutableCommitMeta.Builder cm = CommitMeta.builder().message(commitMsg)
-        .author(NessieUtil.commitAuthor(catalogOptions));
-    cm.putProperties(APPLICATION_TYPE, "iceberg");
-    if (catalogOptions.containsKey(CatalogProperties.APP_ID)) {
-      cm.putProperties(CatalogProperties.APP_ID, catalogOptions.get(CatalogProperties.APP_ID));
-    }
+    return catalogOptions(CommitMeta.builder().message(commitMsg), catalogOptions).build();
+  }
 
-    return cm.build();
+  static ImmutableCommitMeta.Builder catalogOptions(ImmutableCommitMeta.Builder commitMetaBuilder,
+      Map<String, String> catalogOptions) {
+    Preconditions.checkArgument(null != catalogOptions, "catalogOptions must not be null");
+    commitMetaBuilder.author(NessieUtil.commitAuthor(catalogOptions));
+    commitMetaBuilder.putProperties(APPLICATION_TYPE, "iceberg");
+    if (catalogOptions.containsKey(CatalogProperties.APP_ID)) {
+      commitMetaBuilder.putProperties(CatalogProperties.APP_ID, catalogOptions.get(CatalogProperties.APP_ID));
+    }
+    return commitMetaBuilder;
   }
 
   /**

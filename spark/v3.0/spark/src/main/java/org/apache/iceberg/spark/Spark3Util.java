@@ -22,7 +22,6 @@ package org.apache.iceberg.spark;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
@@ -94,7 +94,7 @@ import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 public class Spark3Util {
@@ -337,7 +337,7 @@ public class Spark3Util {
 
   public static DistributionMode distributionModeFor(org.apache.iceberg.Table table) {
     boolean isSortedTable = !table.sortOrder().isUnsorted();
-    String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_DEFAULT;
+    String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_NONE;
     String modeName = table.properties().getOrDefault(WRITE_DISTRIBUTION_MODE, defaultModeName);
     return DistributionMode.fromName(modeName);
   }
@@ -649,6 +649,8 @@ public class Spark3Util {
           return pred.ref().name() + " != " + sqlString(pred.literal());
         case STARTS_WITH:
           return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
+        case NOT_STARTS_WITH:
+          return pred.ref().name() + " NOT LIKE '" + pred.literal() + "%'";
         case IN:
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
@@ -842,12 +844,12 @@ public class Spark3Util {
         .asJava()
         .stream()
         .map(partition -> {
-          Map<String, String> values = new HashMap<>();
+          Map<String, String> values = Maps.newHashMap();
           JavaConverters.asJavaIterableConverter(schema).asJava().forEach(field -> {
             int fieldIndex = schema.fieldIndex(field.name());
             Object catalystValue = partition.values().get(fieldIndex, field.dataType());
             Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-            values.put(field.name(), value.toString());
+            values.put(field.name(), String.valueOf(value));
           });
           return new SparkPartition(values, partition.path().toString(), format);
         }).collect(Collectors.toList());

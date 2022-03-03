@@ -1,6 +1,7 @@
 version.txt
 versions.lock
 versions.props
+.java-version
 books.json
 new-books.json
 build
@@ -23,3 +24,5 @@ gradle/*
 package-list
 sitemap.xml
 derby.log
+.python-version
+.*_index.md

@@ -26,10 +26,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -160,6 +163,13 @@ public class TypeUtil {
     return indexer.byId();
   }
 
+  public static Map<Integer, String> indexQuotedNameById(Types.StructType struct,
+                                                         Function<String, String> quotingFunc) {
+    IndexByName indexer = new IndexByName(quotingFunc);
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
     indexByName(struct).forEach((name, integer) ->
@@ -265,7 +275,13 @@ public class TypeUtil {
    * @throws IllegalArgumentException if a field cannot be found (by name) in the source schema
    */
   public static Schema reassignIds(Schema schema, Schema idSourceSchema) {
-    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema)).asStructType();
+    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema, null)).asStructType();
+    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
+  }
+
+  public static Schema reassignOrRefreshIds(Schema schema, Schema idSourceSchema) {
+    AtomicInteger highest = new AtomicInteger(schema.highestFieldId());
+    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema, highest::incrementAndGet)).asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
@@ -311,20 +327,45 @@ public class TypeUtil {
    */
   public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
                                          Boolean checkNullability, Boolean checkOrdering) {
+    String errMsg = "Cannot write incompatible dataset to table with schema:";
+    checkSchemaCompatibility(errMsg, tableSchema, writeSchema, checkNullability, checkOrdering);
+  }
+
+  /**
+   * Validates whether the provided schema is compatible with the expected schema.
+   *
+   * @param context the schema context (e.g. row ID)
+   * @param expectedSchema the expected schema
+   * @param providedSchema the provided schema
+   * @param checkNullability whether to check field nullability
+   * @param checkOrdering whether to check field ordering
+   */
+  public static void validateSchema(String context, Schema expectedSchema, Schema providedSchema,
+                                    boolean checkNullability, boolean checkOrdering) {
+    String errMsg = String.format("Provided %s schema is incompatible with expected schema:", context);
+    checkSchemaCompatibility(errMsg, expectedSchema, providedSchema, checkNullability, checkOrdering);
+  }
+
+  private static void checkSchemaCompatibility(String errMsg, Schema schema, Schema providedSchema,
+                                               boolean checkNullability, boolean checkOrdering) {
     List<String> errors;
     if (checkNullability) {
-      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+      errors = CheckCompatibility.writeCompatibilityErrors(schema, providedSchema, checkOrdering);
     } else {
-      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+      errors = CheckCompatibility.typeCompatibilityErrors(schema, providedSchema, checkOrdering);
     }
 
     if (!errors.isEmpty()) {
       StringBuilder sb = new StringBuilder();
-      sb.append("Cannot write incompatible dataset to table with schema:\n")
-          .append(tableSchema)
-          .append("\nwrite schema:")
-          .append(writeSchema)
-          .append("\nProblems:");
+      sb.append(errMsg)
+          .append("\n")
+          .append(schema)
+          .append("\n")
+          .append("Provided schema:")
+          .append("\n")
+          .append(providedSchema)
+          .append("\n")
+          .append("Problems:");
       for (String error : errors) {
         sb.append("\n* ").append(error);
       }
@@ -595,6 +636,23 @@ public class TypeUtil {
         throw new IllegalStateException(
             "Could not find required length for precision " + precision);
       }
+    }
+  }
+
+  /**
+   * Check the if the schemas are compatible.
+   * Throws {@link ValidationException} when incompatible
+   * @param importSchema the schema of file being imported
+   * @param tableSchema schema of the table to which file is to be imported
+   */
+  public static void canImportSchema(Schema importSchema, Schema tableSchema) {
+    // Assigning ids by name look up, required for checking compatibility
+    Schema schemaWithIds = TypeUtil.assignFreshIds(importSchema, tableSchema, new AtomicInteger(1000)::incrementAndGet);
+    List<String> errors = ImportCompatibilityChecker.importCompatibilityErrors(tableSchema, schemaWithIds, false);
+    if (!errors.isEmpty()) {
+      String errorString = Joiner.on("\n\t").join(errors);
+      throw new ValidationException("Imported file's schema not compatible with table's schema." +
+          " Errors : %s", errorString);
     }
   }
 }

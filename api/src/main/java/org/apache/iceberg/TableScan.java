@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -160,6 +161,15 @@ public interface TableScan {
   TableScan appendsAfter(long fromSnapshotId);
 
   /**
+   * Create a new {@link TableScan} to use a particular executor to plan. The default worker pool will be
+   * used by default.
+   *
+   * @param executorService the provided executor
+   * @return a table scan that uses the provided executor to access manifests
+   */
+  TableScan planWith(ExecutorService executorService);
+
+  /**
    * Plan the {@link FileScanTask files} that will be read by this scan.
    * <p>
    * Each file has a residual expression that should be applied to filter the file's rows.
@@ -213,4 +223,14 @@ public interface TableScan {
    * Returns the target split size for this scan.
    */
   long targetSplitSize();
+
+  /**
+   * Returns the split lookback for this scan.
+   */
+  int splitLookback();
+
+  /**
+   * Returns the split open file cost for this scan.
+   */
+  long splitOpenFileCost();
 }

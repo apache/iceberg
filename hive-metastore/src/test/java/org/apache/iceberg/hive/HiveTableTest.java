@@ -22,7 +22,6 @@ package org.apache.iceberg.hive;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -48,6 +47,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
@@ -66,6 +66,7 @@ import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
+import static org.apache.iceberg.BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -324,8 +325,14 @@ public class HiveTableTest extends HiveTableBaseTest {
     org.apache.hadoop.hive.metastore.api.Table hiveTable = createHiveTable(hiveTableName);
     metastoreClient.createTable(hiveTable);
 
+    catalog.setListAllTables(false);
     List<TableIdentifier> tableIdents1 = catalog.listTables(TABLE_IDENTIFIER.namespace());
     Assert.assertEquals("should only 1 iceberg table .", 1, tableIdents1.size());
+
+    catalog.setListAllTables(true);
+    List<TableIdentifier> tableIdents2 = catalog.listTables(TABLE_IDENTIFIER.namespace());
+    Assert.assertEquals("should be 2 tables in namespace .", 2, tableIdents2.size());
+
     Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
     metastoreClient.dropTable(DB_NAME, hiveTableName);
   }
@@ -372,6 +379,51 @@ public class HiveTableTest extends HiveTableBaseTest {
   }
 
   @Test
+  public void testRegisterTable() throws TException {
+    org.apache.hadoop.hive.metastore.api.Table originalTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Map<String, String> originalParams = originalTable.getParameters();
+    Assert.assertNotNull(originalParams);
+    Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(originalParams.get(TABLE_TYPE_PROP)));
+    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(originalTable.getTableType()));
+
+    catalog.dropTable(TABLE_IDENTIFIER, false);
+    Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
+
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assert.assertEquals(1, metadataVersionFiles.size());
+
+    catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0));
+
+    org.apache.hadoop.hive.metastore.api.Table newTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Map<String, String> newTableParameters = newTable.getParameters();
+    Assert.assertNull(newTableParameters.get(PREVIOUS_METADATA_LOCATION_PROP));
+    Assert.assertEquals(originalParams.get(TABLE_TYPE_PROP), newTableParameters.get(TABLE_TYPE_PROP));
+    Assert.assertEquals(originalParams.get(METADATA_LOCATION_PROP), newTableParameters.get(METADATA_LOCATION_PROP));
+    Assert.assertEquals(originalTable.getSd(), newTable.getSd());
+  }
+
+  @Test
+  public void testRegisterExistingTable() throws TException {
+    org.apache.hadoop.hive.metastore.api.Table originalTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Map<String, String> originalParams = originalTable.getParameters();
+    Assert.assertNotNull(originalParams);
+    Assert.assertTrue(ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(originalParams.get(TABLE_TYPE_PROP)));
+    Assert.assertTrue("EXTERNAL_TABLE".equalsIgnoreCase(originalTable.getTableType()));
+
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assert.assertEquals(1, metadataVersionFiles.size());
+
+    // Try to register an existing table
+    AssertHelpers.assertThrows(
+        "Should complain that the table already exists", AlreadyExistsException.class,
+        "Table already exists",
+        () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)));
+  }
+
+  @Test
   public void testEngineHiveEnabledDefault() throws TException {
     // Drop the previously created table to make place for the new one
     catalog.dropTable(TABLE_IDENTIFIER);
@@ -415,7 +467,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     catalog.dropTable(TABLE_IDENTIFIER);
 
     // Enabled by table property - also check that the hive-conf is ignored
-    Map<String, String> tableProperties = new HashMap<>();
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "false");
 

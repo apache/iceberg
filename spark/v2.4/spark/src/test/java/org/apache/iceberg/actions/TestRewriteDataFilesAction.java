@@ -354,7 +354,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .splitOpenFileCost(1)
         .execute();
 
-    Assert.assertEquals("Action should delete 4 data files", 4, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should delete 3 data files", 3, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFiles().size());
 
     spark.read().format("iceberg").load(tableLocation).createTempView("postRewrite");

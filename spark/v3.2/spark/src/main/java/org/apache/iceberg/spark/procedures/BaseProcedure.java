@@ -19,9 +19,14 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
-import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -49,6 +54,7 @@ abstract class BaseProcedure implements Procedure {
   private final TableCatalog tableCatalog;
 
   private SparkActions actions;
+  private ExecutorService executorService = null;
 
   protected BaseProcedure(TableCatalog tableCatalog) {
     this.spark = SparkSession.active();
@@ -71,11 +77,19 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
-    return execute(ident, true, func);
+    try {
+      return execute(ident, true, func);
+    } finally {
+      closeService();
+    }
   }
 
   protected <T> T withIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
-    return execute(ident, false, func);
+    try {
+      return execute(ident, false, func);
+    } finally {
+      closeService();
+    }
   }
 
   private <T> T execute(Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
@@ -150,5 +164,38 @@ abstract class BaseProcedure implements Procedure {
     TableCatalog tableCatalog() {
       return tableCatalog;
     }
+  }
+
+  /**
+   * Closes this procedure's executor service if a new one was created with {@link #executorService(int, String)}. Does
+   * not block for any remaining tasks.
+   */
+  protected void closeService() {
+    if (executorService != null) {
+      executorService.shutdown();
+    }
+  }
+
+  /**
+   * Starts a new executor service which can be used by this procedure in its work. The pool will be automatically
+   * shut down if {@link #withIcebergTable(Identifier, Function)} or {@link #modifyIcebergTable(Identifier, Function)}
+   * are called. If these methods are not used then the service can be shut down with {@link #closeService()} or left
+   * to be closed when this class is finalized.
+   * @param threadPoolSize number of threads in the service
+   * @param nameFormat name prefix for threads created in this service
+   * @return the new executor service owned by this procedure
+   */
+  protected ExecutorService executorService(int threadPoolSize, String nameFormat) {
+    Preconditions.checkArgument(executorService == null, "Cannot create a new executor service, one already exists.");
+    Preconditions.checkArgument(nameFormat != null, "Cannot create a service with null nameFormat arg");
+    this.executorService = MoreExecutors.getExitingExecutorService(
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(
+            threadPoolSize,
+            new ThreadFactoryBuilder()
+                .setDaemon(true)
+                .setNameFormat(nameFormat + "-%d")
+                .build()));
+
+    return executorService;
   }
 }

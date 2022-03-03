@@ -40,6 +40,7 @@ configure(sparkProjects) {
 
 project(':iceberg-spark:iceberg-spark3') {
   apply plugin: 'scala'
+  apply plugin: 'com.github.alisiikh.scalastyle'
 
   sourceSets {
     main {
@@ -57,13 +58,13 @@ project(':iceberg-spark:iceberg-spark3') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.roaringbitmap'
     }
 
     implementation("org.apache.orc:orc-core::nohive") {
@@ -83,6 +84,7 @@ project(':iceberg-spark:iceberg-spark3') {
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -106,6 +108,7 @@ project(':iceberg-spark:iceberg-spark3') {
 project(":iceberg-spark:iceberg-spark3-extensions") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
+  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'antlr'
 
   configurations {
@@ -130,12 +133,13 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
     compileOnly project(':iceberg-orc')
     compileOnly project(':iceberg-common')
     compileOnly project(':iceberg-spark:iceberg-spark3')
-    compileOnly project(':iceberg-hive-metastore')
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.roaringbitmap'
     }
 
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
@@ -147,7 +151,6 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
     testImplementation "org.apache.avro:avro"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
-    // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
     runtimeOnly "org.antlr:antlr4-runtime:4.7.1"
     antlr "org.antlr:antlr4:4.7.1"
   }
@@ -185,8 +188,7 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
       exclude group: 'com.ibm.icu'
       exclude group: 'org.glassfish'
       exclude group: 'org.abego.treelayout'
-      exclude group: 'org.antlr', module: 'ST4'
-      exclude group: 'org.antlr', module: 'antlr4'
+      exclude group: 'org.antlr'
     }
   }
 
@@ -195,6 +197,12 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     implementation project(':iceberg-spark:iceberg-spark3')
     implementation project(':iceberg-spark:iceberg-spark3-extensions')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -240,8 +248,7 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
     relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-    // relocate Antlr runtime and related deps to shade Iceberg specific version
-    relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
+    relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
     classifier null
   }

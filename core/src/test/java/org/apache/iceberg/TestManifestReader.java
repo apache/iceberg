@@ -128,6 +128,7 @@ public class TestManifestReader extends TableTestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
+        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(17));
         expectedPos += 1;
       }
     }
@@ -141,6 +142,7 @@ public class TestManifestReader extends TableTestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
+        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(17));
         expectedPos += 1;
       }
     }
