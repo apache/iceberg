@@ -319,7 +319,7 @@ public class TableMetadataParser {
     return fromJson(io, file.location(), node);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
