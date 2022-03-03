@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -50,8 +51,11 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -144,13 +148,14 @@ public class FlinkSink {
                                             MapFunction<T, RowData> mapper,
                                             TypeInformation<RowData> outputType) {
       this.inputCreator = newUidPrefix -> {
+        // Input stream order is crucial for some situation(e.g. in cdc case). Therefore, we need to set the parallelism
+        // of map operator same as its input to keep map operator chaining its input, and avoid rebalanced by default.
+        SingleOutputStreamOperator<RowData> inputStream = input.map(mapper, outputType)
+            .setParallelism(input.getParallelism());
         if (newUidPrefix != null) {
-          return input.map(mapper, outputType)
-              .name(operatorName(newUidPrefix))
-              .uid(newUidPrefix + "-mapper");
-        } else {
-          return input.map(mapper, outputType);
+          inputStream.name(operatorName(newUidPrefix)).uid(newUidPrefix + "-mapper");
         }
+        return inputStream;
       };
       return this;
     }
@@ -283,15 +288,19 @@ public class FlinkSink {
         }
       }
 
+      // Find out the equality field id list based on the user-provided equality field column names.
+      List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
+
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
-      // Distribute the records from input data stream based on the write.distribution-mode.
+      // Distribute the records from input data stream based on the write.distribution-mode and equality fields.
       DataStream<RowData> distributeStream = distributeDataStream(
-          rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
+          rowDataInput, table.properties(), equalityFieldIds, table.spec(), table.schema(), flinkRowType);
 
       // Add parallel writers that append rows to files
-      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType);
+      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType,
+          equalityFieldIds);
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
@@ -326,6 +335,28 @@ public class FlinkSink {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
+    @VisibleForTesting
+    List<Integer> checkAndGetEqualityFieldIds() {
+      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
+      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
+        for (String column : equalityFieldColumns) {
+          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
+          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
+              column, table.schema());
+          equalityFieldSet.add(field.fieldId());
+        }
+
+        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
+          LOG.warn("The configured equality field column IDs {} are not matched with the schema identifier field IDs" +
+                  " {}, use job specified equality field columns as the equality fields by default.",
+              equalityFieldSet, table.schema().identifierFieldIds());
+        }
+        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
+      }
+      return equalityFieldIds;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> DataStreamSink<T> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
       DataStreamSink<T> resultStream = committerStream
@@ -350,17 +381,8 @@ public class FlinkSink {
       return committerStream;
     }
 
-    private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType) {
-      // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = Lists.newArrayList();
-      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
-        for (String column : equalityFieldColumns) {
-          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
-              column, table.schema());
-          equalityFieldIds.add(field.fieldId());
-        }
-      }
+    private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType,
+                                                                 List<Integer> equalityFieldIds) {
 
       // Fallback to use upsert mode parsed from table properties if don't specify in job level.
       boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(table.properties(),
@@ -395,6 +417,7 @@ public class FlinkSink {
 
     private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
                                                      Map<String, String> properties,
+                                                     List<Integer> equalityFieldIds,
                                                      PartitionSpec partitionSpec,
                                                      Schema iSchema,
                                                      RowType flinkRowType) {
@@ -410,24 +433,53 @@ public class FlinkSink {
         writeMode = distributionMode;
       }
 
+      LOG.info("Write distribution mode is '{}'", writeMode.modeName());
       switch (writeMode) {
         case NONE:
-          return input;
-
-        case HASH:
-          if (partitionSpec.isUnpartitioned()) {
+          if (equalityFieldIds.isEmpty()) {
             return input;
           } else {
-            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            LOG.info("Distribute rows by equality fields, because there are equality fields set");
+            return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+          }
+
+        case HASH:
+          if (equalityFieldIds.isEmpty()) {
+            if (partitionSpec.isUnpartitioned()) {
+              LOG.warn("Fallback to use 'none' distribution mode, because there are no equality fields set " +
+                  "and table is unpartitioned");
+              return input;
+            } else {
+              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            }
+          } else {
+            if (partitionSpec.isUnpartitioned()) {
+              LOG.info("Distribute rows by equality fields, because there are equality fields set " +
+                  "and table is unpartitioned");
+              return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+            } else {
+              for (PartitionField partitionField : partitionSpec.fields()) {
+                Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+                    "In 'hash' distribution mode with equality fields set, partition field '%s' " +
+                        "should be included in equality fields: '%s'", partitionField, equalityFieldColumns);
+              }
+              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            }
           }
 
         case RANGE:
-          LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
-              WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
-          return input;
+          if (equalityFieldIds.isEmpty()) {
+            LOG.warn("Fallback to use 'none' distribution mode, because there are no equality fields set " +
+                "and {}=range is not supported yet in flink", WRITE_DISTRIBUTION_MODE);
+            return input;
+          } else {
+            LOG.info("Distribute rows by equality fields, because there are equality fields set " +
+                "and{}=range is not supported yet in flink", WRITE_DISTRIBUTION_MODE);
+            return input.keyBy(new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+          }
 
         default:
-          throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
+          throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);
       }
     }
   }
