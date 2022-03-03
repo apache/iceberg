@@ -29,6 +29,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,8 @@ public class S3FileIO implements FileIO {
   private transient S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+
+  private static final String S3 = "s3";
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -119,10 +122,20 @@ public class S3FileIO implements FileIO {
     // Report Hadoop metrics if Hadoop is available
     String metricsImpl = properties.getOrDefault(
             CatalogProperties.IO_METRICS_IMPL, CatalogProperties.IO_METRICS_IMPL_DEFAULT);
-    properties.put(CatalogProperties.IO_METRICS_SCHEME, properties.getOrDefault(
-            CatalogProperties.IO_METRICS_SCHEME, "s3"));
 
-    this.metrics = CatalogUtil.loadFileIOMetricsContext(metricsImpl, properties);
+    ImmutableMap<String, String> metricContextProperties;
+    if (properties.containsKey(CatalogProperties.IO_METRICS_SCHEME)) {
+      metricContextProperties = ImmutableMap.<String, String>builder()
+              .putAll(properties)
+              .build();
+    } else {
+      metricContextProperties = ImmutableMap.<String, String>builder()
+              .putAll(properties)
+              .put(CatalogProperties.IO_METRICS_SCHEME, S3)
+              .build();
+    }
+
+    this.metrics = CatalogUtil.loadFileIOMetricsContext(metricsImpl, metricContextProperties, null);
   }
 
   @Override

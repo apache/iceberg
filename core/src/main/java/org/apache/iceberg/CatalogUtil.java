@@ -278,7 +278,8 @@ public class CatalogUtil {
 
   public static MetricsContext loadFileIOMetricsContext(
       String impl,
-      Map<String, String> properties) {
+      Map<String, String> properties,
+      Object hadoopConf) {
     LOG.info("Loading custom MetricsContext implementation: {}", impl);
     MetricsContext metricsContext;
     try {
