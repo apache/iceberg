@@ -733,15 +733,17 @@ public class TableMetadata implements Serializable {
                                                        Map<Long, Snapshot> snapshotsById) {
     for (SnapshotRef ref : inputRefs.values()) {
       Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
-          "Snapshot reference %s does not exist in the existing snapshots list", ref);
+          "Snapshot for reference %s does not exist in the existing snapshots list", ref);
     }
 
+    SnapshotRef main = inputRefs.get(SnapshotRef.MAIN_BRANCH);
     if (currentSnapshotId != -1) {
-      SnapshotRef main = inputRefs.get(SnapshotRef.MAIN_BRANCH);
-      Preconditions.checkArgument(inputRefs.get(SnapshotRef.MAIN_BRANCH) != null,
-          "Current snapshot ID is set, but main branch is missing");
-      Preconditions.checkArgument(currentSnapshotId == main.snapshotId(),
-          "Current snapshot ID does not match main branch (%s != %s)", currentSnapshotId, main.snapshotId());
+      Preconditions.checkArgument(main == null || currentSnapshotId == main.snapshotId(),
+          "Current snapshot ID does not match main branch (%s != %s)",
+          currentSnapshotId, main != null ? main.snapshotId() : null);
+    } else {
+      Preconditions.checkArgument(main == null,
+          "Current snapshot is not set, but main branch exists: %s", main);
     }
 
     return inputRefs;

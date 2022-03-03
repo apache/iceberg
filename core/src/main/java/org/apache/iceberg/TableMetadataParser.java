@@ -428,22 +428,24 @@ public class TableMetadataParser {
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
     ImmutableMap.Builder<String, SnapshotRef> refsBuilder = ImmutableMap.builder();
-    JsonNode refMap = node.get(REFS);
-    Preconditions.checkArgument(refMap.isObject(), "Cannot parse refs from non-object: %s", refMap);
-    Iterator<String> refNames = refMap.fieldNames();
-    while (refNames.hasNext()) {
-      String refName = refNames.next();
-      JsonNode refNode = refMap.get(refName);
-      Preconditions.checkArgument(refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
-      SnapshotRef ref = SnapshotRef
-          .builderFor(
-              JsonUtil.getLong(SNAPSHOT_ID, refNode),
-              SnapshotRefType.valueOf(JsonUtil.getString(TYPE, refNode).toUpperCase(Locale.ROOT)))
-          .maxSnapshotAgeMs(JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, refNode))
-          .minSnapshotsToKeep(JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, refNode))
-          .maxRefAgeMs(JsonUtil.getLongOrNull(MAX_REF_AGE_MS, refNode))
-          .build();
-      refsBuilder.put(refName, ref);
+    if (node.has(REFS)) {
+      JsonNode refMap = node.get(REFS);
+      Preconditions.checkArgument(refMap.isObject(), "Cannot parse refs from non-object: %s", refMap);
+      Iterator<String> refNames = refMap.fieldNames();
+      while (refNames.hasNext()) {
+        String refName = refNames.next();
+        JsonNode refNode = refMap.get(refName);
+        Preconditions.checkArgument(refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
+        SnapshotRef ref = SnapshotRef
+            .builderFor(
+                JsonUtil.getLong(SNAPSHOT_ID, refNode),
+                SnapshotRefType.valueOf(JsonUtil.getString(TYPE, refNode).toUpperCase(Locale.ROOT)))
+            .maxSnapshotAgeMs(JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, refNode))
+            .minSnapshotsToKeep(JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, refNode))
+            .maxRefAgeMs(JsonUtil.getLongOrNull(MAX_REF_AGE_MS, refNode))
+            .build();
+        refsBuilder.put(refName, ref);
+      }
     }
 
     JsonNode snapshotArray = node.get(SNAPSHOTS);
