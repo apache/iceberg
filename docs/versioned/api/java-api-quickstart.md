@@ -39,7 +39,7 @@ You can initialize a Hive catalog with a name and some properties.
 ```java
 import org.apache.iceberg.hive.HiveCatalog;
 
-Catalog catalog = new HiveCatalog();
+HiveCatalog catalog = new HiveCatalog();
 catalog.setConf(spark.sparkContext().hadoopConfiguration());  // Configure using Spark's Hadoop configuration
 
 Map <String, String> properties = new HashMap<String, String>();
@@ -49,7 +49,7 @@ properties.put("uri", "...");
 catalog.initialize("hive", properties);
 ```
 
-The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`.
+The `Catalog` interface defines methods for working with tables, like `createTable`, `loadTable`, `renameTable`, and `dropTable`. `HiveCatalog` implements the `Catalog` interface.
 
 To create a table, pass an `Identifier` and a `Schema` along with other initial metadata:
 
