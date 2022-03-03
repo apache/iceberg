@@ -52,7 +52,7 @@ public class S3FileIO implements FileIO {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
-  private static final String S3 = "s3";
+  private static final String IO_METRICS_SCHEME_S3 = "s3";
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -123,15 +123,11 @@ public class S3FileIO implements FileIO {
     String metricsImpl = properties.getOrDefault(
             CatalogProperties.IO_METRICS_IMPL, CatalogProperties.IO_METRICS_IMPL_DEFAULT);
 
-    ImmutableMap<String, String> metricContextProperties;
-    if (properties.containsKey(CatalogProperties.IO_METRICS_SCHEME)) {
+    ImmutableMap<String, String> metricContextProperties = ImmutableMap.copyOf(properties);
+    if (!properties.containsKey(CatalogProperties.IO_METRICS_SCHEME)) {
       metricContextProperties = ImmutableMap.<String, String>builder()
               .putAll(properties)
-              .build();
-    } else {
-      metricContextProperties = ImmutableMap.<String, String>builder()
-              .putAll(properties)
-              .put(CatalogProperties.IO_METRICS_SCHEME, S3)
+              .put(CatalogProperties.IO_METRICS_SCHEME, IO_METRICS_SCHEME_S3)
               .build();
     }
 

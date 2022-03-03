@@ -26,10 +26,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -156,6 +159,17 @@ public class TestCatalogUtil {
         IllegalArgumentException.class,
         "does not implement FileIO",
         () -> CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null));
+  }
+
+  @Test public void loadFileIOMetricsContext() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.IO_METRICS_SCHEME, "testScheme");
+    MetricsContext metricsContext = CatalogUtil.loadFileIOMetricsContext(
+            TestFileIOMetricsContext.class.getName(), properties, null);
+    TestFileIOMetricsContext testMetricsContext = (TestFileIOMetricsContext) metricsContext;
+
+    Assertions.assertThat(metricsContext).isInstanceOf(TestFileIOMetricsContext.class);
+    Assert.assertEquals("testScheme", testMetricsContext.scheme());
   }
 
   @Test
@@ -400,6 +414,26 @@ public class TestCatalogUtil {
 
   public static class TestFileIONotImpl {
     public TestFileIONotImpl() {
+    }
+  }
+
+  public static class TestFileIOMetricsContext implements FileIOMetricsContext {
+    private String scheme;
+
+    public TestFileIOMetricsContext() {
+    }
+
+    @Override
+    public void initialize(Map<String, String> properties) {
+      // FileIO has no specific implementation class, but Hadoop will
+      // still track and report for the provided scheme.
+      this.scheme = properties.get(CatalogProperties.IO_METRICS_SCHEME);
+      ValidationException.check(this.scheme != null,
+              "Scheme is required for Hadoop FileSystem metrics reporting");
+    }
+
+    public String scheme() {
+      return this.scheme;
     }
   }
 }

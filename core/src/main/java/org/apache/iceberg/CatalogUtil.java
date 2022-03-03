@@ -291,6 +291,8 @@ public class CatalogUtil {
       return null;
     }
 
+    configureHadoopConf(metricsContext, hadoopConf);
+
     metricsContext.initialize(properties);
     return metricsContext;
   }
