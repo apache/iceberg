@@ -67,10 +67,12 @@ public class EcsCatalog extends BaseMetastoreCatalog
    * Suffix of table metadata object
    */
   private static final String TABLE_OBJECT_SUFFIX = ".table";
+
   /**
    * Suffix of namespace metadata object
    */
   private static final String NAMESPACE_OBJECT_SUFFIX = ".namespace";
+
   /**
    * Key of properties version in ECS object user metadata.
    */
@@ -133,7 +135,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new EcsTableOperations(catalogName + "." + tableIdentifier,
+    return new EcsTableOperations(String.format("%s.%s", catalogName, tableIdentifier),
         tableURI(tableIdentifier), fileIO, this);
   }
 
@@ -234,6 +236,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   private EcsURI tableURI(TableIdentifier id) {
     EcsURI prefix = namespacePrefix(id.namespace());
+    // The prefix has the delimiter at the tail.
     return new EcsURI(prefix.bucket(), prefix.name() + id.name() + TABLE_OBJECT_SUFFIX);
   }
 
