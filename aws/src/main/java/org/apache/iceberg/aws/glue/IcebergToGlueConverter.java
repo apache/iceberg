@@ -65,7 +65,7 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
-  private static final List<String> PROPERTIES_FOR_GLUE_ADDITIONAL_LOCATIONS = ImmutableList.of(
+  private static final List<String> ADDITIONAL_LOCATION_PROPERTIES = ImmutableList.of(
       TableProperties.WRITE_DATA_LOCATION,
       TableProperties.WRITE_METADATA_LOCATION,
       TableProperties.OBJECT_STORE_PATH,
@@ -198,7 +198,11 @@ class IcebergToGlueConverter {
     try {
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
       if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
-        SET_ADDITIONAL_LOCATIONS.invoke(storageDescriptor, getAdditionalLocations(metadata));
+        SET_ADDITIONAL_LOCATIONS.invoke(storageDescriptor,
+            ADDITIONAL_LOCATION_PROPERTIES.stream()
+            .map(metadata.properties()::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet()));
       }
 
       tableInputBuilder
@@ -297,12 +301,5 @@ class IcebergToGlueConverter {
           .build());
       dedupe.add(field.name());
     }
-  }
-
-  private static Set<String> getAdditionalLocations(TableMetadata tableMetadata) {
-    return PROPERTIES_FOR_GLUE_ADDITIONAL_LOCATIONS.stream()
-        .map(tableMetadata.properties()::get)
-        .filter(Objects::nonNull)
-        .collect(Collectors.toSet());
   }
 }
