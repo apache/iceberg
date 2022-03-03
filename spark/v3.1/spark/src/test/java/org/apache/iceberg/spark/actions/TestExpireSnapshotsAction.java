@@ -1028,17 +1028,17 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
   @Test
   public void testUseLocalIterator() {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
 
     table.newOverwrite()
-            .deleteFile(FILE_A)
-            .addFile(FILE_B)
-            .commit();
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .commit();
 
     table.newFastAppend()
-            .appendFile(FILE_C)
-            .commit();
+        .appendFile(FILE_C)
+        .commit();
 
     long end = rightAfterSnapshot();
 
@@ -1046,7 +1046,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
       ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(end)
-              .option("stream-results", "true").execute();
+          .option("stream-results", "true").execute();
 
       int jobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
       int jobsRunDuringStreamResults = jobsAfterStreamResults - jobsBeforeStreamResults;
@@ -1054,7 +1054,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
       checkExpirationResults(1L, 1L, 2L, results);
 
       Assert.assertEquals("Expected total number of jobs with stream-results should match the expected number",
-              5L, jobsRunDuringStreamResults);
+          5L, jobsRunDuringStreamResults);
     });
   }
 }
