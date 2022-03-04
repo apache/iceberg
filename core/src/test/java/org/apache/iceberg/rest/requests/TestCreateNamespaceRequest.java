@@ -21,11 +21,11 @@ package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -40,29 +40,25 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
   // Test cases that are JSON that can be created via the Builder
   public void testRoundTripSerDe() throws JsonProcessingException {
     String fullJson = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{\"owner\":\"Hank\"}}";
-    CreateNamespaceRequest req = CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE).setProperties(PROPERTIES).build();
+    CreateNamespaceRequest req = CreateNamespaceRequest.of(NAMESPACE, PROPERTIES);
     assertRoundTripSerializesEquallyFrom(fullJson, req);
 
     String jsonEmptyProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{}}";
-    CreateNamespaceRequest reqWithExplicitEmptyProperties = CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE).setProperties(EMPTY_PROPERTIES).build();
+    CreateNamespaceRequest reqWithExplicitEmptyProperties = CreateNamespaceRequest.of(NAMESPACE, EMPTY_PROPERTIES);
     assertRoundTripSerializesEquallyFrom(jsonEmptyProperties, reqWithExplicitEmptyProperties);
 
-    CreateNamespaceRequest reqWithImplicitEmptyProperties = CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE).build();
+    CreateNamespaceRequest reqWithImplicitEmptyProperties = CreateNamespaceRequest.of(NAMESPACE);
     assertRoundTripSerializesEquallyFrom(jsonEmptyProperties, reqWithImplicitEmptyProperties);
 
     String jsonWithEmptyNamespace = "{\"namespace\":[],\"properties\":{}}";
-    CreateNamespaceRequest reqUsingEmptyNamespace = CreateNamespaceRequest.builder()
-        .withNamespace(Namespace.empty()).build();
+    CreateNamespaceRequest reqUsingEmptyNamespace = CreateNamespaceRequest.of(Namespace.empty());
     assertRoundTripSerializesEquallyFrom(jsonWithEmptyNamespace, reqUsingEmptyNamespace);
   }
 
   @Test
   // Test cases that can't be constructed with our Builder class but that will parse correctly
   public void testCanDeserializeWithoutDefaultValues() throws JsonProcessingException {
-    CreateNamespaceRequest req = CreateNamespaceRequest.builder().withNamespace(NAMESPACE).build();
+    CreateNamespaceRequest req = CreateNamespaceRequest.of(NAMESPACE);
     String jsonWithNullProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":null}";
     assertEquals(deserialize(jsonWithNullProperties), req);
 
@@ -73,76 +69,57 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
   @Test
   public void testDeserializeInvalidRequest() {
     String jsonIncorrectTypeForNamespace = "{\"namespace\":\"accounting%00tax\",\"properties\":null}";
-    AssertHelpers.assertThrows(
-        "A JSON request with incorrect types for fields should fail to deserialize and validate",
-        JsonProcessingException.class,
-        "Cannot parse string array from non-array",
-        () -> deserialize(jsonIncorrectTypeForNamespace)
-    );
+    Assertions.assertThatThrownBy(() -> deserialize(jsonIncorrectTypeForNamespace))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse string array from non-array");
 
     String jsonIncorrectTypeForProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
-    AssertHelpers.assertThrows(
-        "A JSON request with incorrect types for fields should fail to parse and validate",
-        JsonProcessingException.class,
-        () -> deserialize(jsonIncorrectTypeForProperties)
-    );
+    Assertions.assertThatThrownBy(() -> deserialize(jsonIncorrectTypeForProperties))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot deserialize instance of");
 
-    String jsonMisspelledKeys = "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
-        JsonProcessingException.class, "Unrecognized field \"namepsace\"",
-        () -> deserialize(jsonMisspelledKeys)
-    );
+    String jsonMisspelledNamespace = "{\"namepsace\":[\"accounting\",\"tax\"],\"properties\":{\"owner\":\"Hank\"}}";
+    Assertions.assertThatThrownBy(() -> deserialize(jsonMisspelledNamespace))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Unrecognized field \"namepsace\"");
+
+    String jsonMisspelledProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
+    Assertions.assertThatThrownBy(() -> deserialize(jsonMisspelledProperties))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Unrecognized field \"propertiezzzz\"");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "An empty JSON object should not parse into a CreateNamespaceRequest instance that passes validation",
-        IllegalArgumentException.class,
-        "Invalid namespace: null",
-        () -> deserialize(emptyJson)
-    );
+    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot build CreateNamespaceRequest, " +
+                "some of required attributes are not set [namespace]");
 
-    AssertHelpers.assertThrows(
-        "An empty JSON request should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(null)
-    );
+    Assertions.assertThatThrownBy(() -> deserialize(null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null for the namespace",
-        NullPointerException.class,
-        "Invalid namespace: null",
-        () -> CreateNamespaceRequest.builder().withNamespace(null).build()
-    );
+    Assertions.assertThatThrownBy(() -> CreateNamespaceRequest.of(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("namespace");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null collection of properties",
-        NullPointerException.class,
-        "Invalid collection of properties: null",
-        () -> CreateNamespaceRequest.builder().setProperties(null).build()
-    );
+    Assertions.assertThat(CreateNamespaceRequest.of(NAMESPACE, null))
+        .extracting("properties")
+        .isEqualTo(ImmutableMap.of());
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid property: null",
-        () -> CreateNamespaceRequest.builder().setProperties(mapWithNullKey).build()
-    );
+    Assertions.assertThatThrownBy(() -> CreateNamespaceRequest.of(NAMESPACE, mapWithNullKey))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("properties key");
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
     mapWithMultipleNullValues.put("b", "b");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a value in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid value for properties [a]: null",
-        () -> CreateNamespaceRequest.builder().setProperties(mapWithMultipleNullValues).build()
-    );
+    Assertions.assertThatThrownBy(() -> CreateNamespaceRequest.of(NAMESPACE, mapWithMultipleNullValues))
+         .isInstanceOf(NullPointerException.class)
+         .hasMessage("properties value");
   }
 
   @Override
@@ -152,10 +129,7 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
 
   @Override
   public CreateNamespaceRequest createExampleInstance() {
-    return CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE)
-        .setProperties(PROPERTIES)
-        .build();
+    return CreateNamespaceRequest.of(NAMESPACE, PROPERTIES);
   }
 
   @Override
@@ -166,6 +140,6 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
 
   @Override
   public CreateNamespaceRequest deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, CreateNamespaceRequest.class).validate();
+    return mapper().readValue(json, CreateNamespaceRequest.class);
   }
 }

@@ -19,81 +19,47 @@
 
 package org.apache.iceberg.rest.requests;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.immutables.value.Value;
 
 /**
  * A REST request to create a namespace, with an optional set of properties.
+ *
+ * Note that Immutable classes by definition don't have a default no-arg constructor (which is required for Jackson),
+ * therefore the @{@link JsonSerialize}/@{@link JsonDeserialize} annotations on the class will generate what's
+ * necessary for Jackson-binding to properly work with this class.
  */
-public class CreateNamespaceRequest {
+@Value.Immutable
+@JsonSerialize(as = ImmutableCreateNamespaceRequest.class)
+@JsonDeserialize(as = ImmutableCreateNamespaceRequest.class)
+public abstract class CreateNamespaceRequest {
 
-  private Namespace namespace;
-  private Map<String, String> properties;
+  public abstract Namespace namespace();
 
-  public CreateNamespaceRequest() {
-    // Needed for Jackson Deserialization.
+  public abstract Map<String, String> properties();
+
+  public static CreateNamespaceRequest of(Namespace namespace) {
+    return ImmutableCreateNamespaceRequest.builder().namespace(namespace).build();
   }
 
-  private CreateNamespaceRequest(Namespace namespace, Map<String, String> properties) {
-    this.namespace = namespace;
-    this.properties = properties;
-    validate();
-  }
-
-  CreateNamespaceRequest validate() {
-    Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
-    return this;
-  }
-
-  public Namespace namespace() {
-    return namespace;
-  }
-
-  public Map<String, String> properties() {
-    return properties != null ? properties : ImmutableMap.of();
+  public static CreateNamespaceRequest of(Namespace namespace, Map<String, String> properties) {
+    Map<String, String> props = properties;
+    if (null == props) {
+      props = ImmutableMap.of();
+    }
+    return ImmutableCreateNamespaceRequest.builder().namespace(namespace).properties(props).build();
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("namespace", namespace)
-        .add("properties", properties)
+        .add("namespace", namespace())
+        .add("properties", properties())
         .toString();
-  }
-
-  public static Builder builder() {
-    return new Builder();
-  }
-
-  public static class Builder {
-    private Namespace namespace;
-    private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
-
-    private Builder() {
-    }
-
-    public Builder withNamespace(Namespace ns) {
-      Preconditions.checkNotNull(ns, "Invalid namespace: null");
-      this.namespace = ns;
-      return this;
-    }
-
-    public Builder setProperties(Map<String, String> props) {
-      Preconditions.checkNotNull(props, "Invalid collection of properties: null");
-      Preconditions.checkArgument(!props.containsKey(null), "Invalid property: null");
-      Preconditions.checkArgument(!props.containsValue(null),
-          "Invalid value for properties %s: null", Maps.filterValues(props, Objects::isNull).keySet());
-      properties.putAll(props);
-      return this;
-    }
-
-    public CreateNamespaceRequest build() {
-      return new CreateNamespaceRequest(namespace, properties.build());
-    }
   }
 }

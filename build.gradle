@@ -207,6 +207,8 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    annotationProcessor "org.immutables:value"
+    implementation "org.immutables:value"
 
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
