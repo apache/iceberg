@@ -43,16 +43,17 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final RowDataWrapper wrapper;
   private final boolean upsert;
 
-  BaseDeltaTaskWriter(PartitionSpec spec,
-                      FileFormat format,
-                      FileAppenderFactory<RowData> appenderFactory,
-                      OutputFileFactory fileFactory,
-                      FileIO io,
-                      long targetFileSize,
-                      Schema schema,
-                      RowType flinkSchema,
-                      List<Integer> equalityFieldIds,
-                      boolean upsert) {
+  BaseDeltaTaskWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<RowData> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      Schema schema,
+      RowType flinkSchema,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));

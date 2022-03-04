@@ -42,11 +42,11 @@ public interface PartitioningWriter<T, R> extends Closeable {
   /**
    * Writes a row to the provided spec/partition.
    *
-   * @param row a data or delete record
-   * @param spec a partition spec
+   * @param row       a data or delete record
+   * @param spec      a partition spec
    * @param partition a partition or null if the spec is unpartitioned
    */
-  void write(T row, PartitionSpec spec, StructLike partition);
+  PathOffset write(T row, PartitionSpec spec, StructLike partition);
 
   /**
    * Returns a result that contains information about written {@link DataFile}s or {@link DeleteFile}s.

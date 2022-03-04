@@ -55,6 +55,20 @@ public interface FileWriter<T, R> extends Closeable {
   void write(T row);
 
   /**
+   * Returns the file path that are currently opened.
+   *
+   * @return the current file path.
+   */
+  CharSequence location();
+
+  /**
+   * Returns the row offset that are currently writing, starting from 0.
+   *
+   * @return the current row offset.
+   */
+  long rowOffset();
+
+  /**
    * Returns the number of bytes that were currently written by this writer.
    *
    * @return the number of written bytes

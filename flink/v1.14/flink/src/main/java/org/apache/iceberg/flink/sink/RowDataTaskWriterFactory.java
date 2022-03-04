@@ -47,16 +47,17 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileFormat format;
   private final List<Integer> equalityFieldIds;
   private final boolean upsert;
-  private final FileAppenderFactory<RowData> appenderFactory;
+  private final FlinkFileWriterFactory fileWriterFactory;
 
   private transient OutputFileFactory outputFileFactory;
 
-  public RowDataTaskWriterFactory(Table table,
-                                  RowType flinkSchema,
-                                  long targetFileSizeBytes,
-                                  FileFormat format,
-                                  List<Integer> equalityFieldIds,
-                                  boolean upsert) {
+  public RowDataTaskWriterFactory(
+      Table table,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
     this.table = table;
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
@@ -67,13 +68,15 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.equalityFieldIds = equalityFieldIds;
     this.upsert = upsert;
 
-    if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
-    } else {
-      // TODO provide the ability to customize the equality-delete row schema.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
-          ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+    FlinkFileWriterFactory.Builder builder = FlinkFileWriterFactory.builderFor(table)
+        .dataFlinkType(flinkSchema);
+
+    if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
+      builder.equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+          .equalityDeleteRowSchema(schema);
     }
+
+    this.fileWriterFactory = builder.build();
   }
 
   @Override
@@ -83,7 +86,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public TaskWriter<RowData> create() {
-    Preconditions.checkNotNull(outputFileFactory,
+    Preconditions.checkNotNull(
+        outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
@@ -111,9 +115,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     private final PartitionKey partitionKey;
     private final RowDataWrapper rowDataWrapper;
 
-    RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                   RowType flinkSchema) {
+    RowDataPartitionedFanoutWriter(
+        PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
+        OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
+        RowType flinkSchema) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());

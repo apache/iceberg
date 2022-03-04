@@ -64,7 +64,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
   protected abstract R aggregatedResult();
 
   @Override
-  public void write(T row, PartitionSpec spec, StructLike partition) {
+  public PathOffset write(T row, PartitionSpec spec, StructLike partition) {
     if (!spec.equals(currentSpec)) {
       if (currentSpec != null) {
         closeCurrentWriter();
@@ -101,6 +101,8 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
     }
 
     currentWriter.write(row);
+
+    return PathOffset.of(currentWriter.location(), currentWriter.rowOffset());
   }
 
   @Override
