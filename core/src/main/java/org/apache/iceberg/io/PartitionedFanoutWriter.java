@@ -29,8 +29,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
 
-  protected PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                          OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+  protected PartitionedFanoutWriter(
+      PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
   }
 
