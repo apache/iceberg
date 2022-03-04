@@ -80,7 +80,7 @@ import scala.collection.Seq;
 public class Spark3ZOrderStrategy extends Spark3SortStrategy {
 
   private static final String Z_COLUMN = "ICEZVALUE";
-  private static final Schema Z_SCHEMA = new Schema(NestedField.required(0, Z_COLUMN, Types.BinaryType.get()));
+  private static final Schema Z_SCHEMA = new Schema(NestedField.required(0, Z_COLUMN, Types.LongType.get()));
   private static final org.apache.iceberg.SortOrder Z_SORT_ORDER = org.apache.iceberg.SortOrder.builderFor(Z_SCHEMA)
       .sortBy(Z_COLUMN, SortDirection.ASC, NullOrder.NULLS_LAST)
       .build();

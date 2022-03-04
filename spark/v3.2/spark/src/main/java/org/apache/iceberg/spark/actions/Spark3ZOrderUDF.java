@@ -39,7 +39,7 @@ import org.apache.spark.sql.types.TimestampType;
 import scala.collection.Seq;
 
 class SparkZOrder implements Serializable {
-    private final int STRING_KEY_LENGTH = 128;
+    private final int STRING_KEY_LENGTH = 8;
 
     private final byte[] TINY_EMPTY = new byte[Byte.BYTES];
     private final byte[] SHORT_EMPTY = new byte[Short.BYTES];
@@ -76,7 +76,7 @@ class SparkZOrder implements Serializable {
             // May over allocate on concurrent calls
             outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(size));
         }
-        return outputBuffer.get();
+        return outputBuffer.get().position(0);
     }
 
     private ByteBuffer inputBuffer(int position, int size){
@@ -87,10 +87,11 @@ class SparkZOrder implements Serializable {
         return inputBuffers[position].get();
     }
 
-    byte[] interleaveBits(Seq<byte[]> scalaBinary) {
+    long interleaveBits(Seq<byte[]> scalaBinary) {
         byte[][] columnsBinary = scala.collection.JavaConverters.seqAsJavaList(scalaBinary)
                 .toArray(inputHolder.get());
-        return ZOrderByteUtils.interleaveBits(columnsBinary, totalBytes, outputBuffer(totalBytes));
+        ZOrderByteUtils.interleaveBits(columnsBinary, 8, outputBuffer(8));
+        return outputBuffer(8).getLong();
     }
 
     private UserDefinedFunction tinyToOrderedBytesUDF() {
@@ -201,12 +202,12 @@ class SparkZOrder implements Serializable {
     }
 
     private final UserDefinedFunction INTERLEAVE_UDF =
-            functions.udf((Seq<byte[]> arrayBinary) -> interleaveBits(arrayBinary), DataTypes.BinaryType)
+            functions.udf((Seq<byte[]> arrayBinary) -> interleaveBits(arrayBinary), DataTypes.LongType)
                     .withName("INTERLEAVE_BYTES");
 
     Column interleaveBytes(Column arrayBinary) {
-                                             return INTERLEAVE_UDF.apply(arrayBinary);
-                                                                                      }
+        return INTERLEAVE_UDF.apply(arrayBinary);
+    }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     Column sortedLexicographically(Column column, DataType type) {
