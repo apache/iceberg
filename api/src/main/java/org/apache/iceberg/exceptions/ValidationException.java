@@ -22,13 +22,10 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Exception raised when validation checks fail.
- * This is used to catch arguments inconsistencies.
- * if we want to reject arguments that aren't allowed,
- * we can use {@link Preconditions} to throw {@link IllegalArgumentException}
+ * Exception raised when arguments inconsistencies checks fail.
+ * {@link IllegalArgumentException} raised when arguments aren't allowed.
  * <p>
  * For example, this is thrown when attempting to create a table with a {@link PartitionSpec} that
  * is not compatible with the table {@link Schema}
