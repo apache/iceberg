@@ -19,109 +19,35 @@
 
 package org.apache.iceberg.rest.requests;
 
-import java.util.Collection;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.immutables.value.Value;
 
 /**
  * A REST request to set and/or remove properties on a namespace.
+ *
+ * Note that Immutable classes by definition don't have a default no-arg constructor (which is required for Jackson),
+ *  therefore the @{@link JsonSerialize}/@{@link JsonDeserialize} annotations on the class will generate what's
+ *  necessary for Jackson-binding to properly work with this class.
  */
-public class UpdateNamespacePropertiesRequest {
+@Value.Immutable
+@JsonSerialize(as = ImmutableUpdateNamespacePropertiesRequest.class)
+@JsonDeserialize(as = ImmutableUpdateNamespacePropertiesRequest.class)
+public abstract class UpdateNamespacePropertiesRequest {
 
-  private List<String> removals;
-  private Map<String, String> updates;
+  public abstract List<String> removals();
 
-  public UpdateNamespacePropertiesRequest() {
-    // Required for Jackson deserialization.
-  }
-
-  private UpdateNamespacePropertiesRequest(List<String> removals, Map<String, String> updates) {
-    this.removals = removals;
-    this.updates = updates;
-    validate();
-  }
-
-  UpdateNamespacePropertiesRequest validate() {
-    return this;
-  }
-
-  public List<String> removals() {
-    return removals == null ? ImmutableList.of() : removals;
-  }
-
-  public Map<String, String> updates() {
-    return updates == null ? ImmutableMap.of() : updates;
-  }
+  public abstract Map<String, String> updates();
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("removals", removals)
-        .add("updates", updates)
+        .add("removals", removals())
+        .add("updates", updates())
         .toString();
-  }
-
-  public static Builder builder() {
-    return new Builder();
-  }
-
-  public static class Builder {
-    private final ImmutableSet.Builder<String> removalsBuilder = ImmutableSet.builder();
-    private final ImmutableMap.Builder<String, String> updatesBuilder = ImmutableMap.builder();
-
-    private Builder() {
-    }
-
-    public Builder remove(String removal) {
-      Preconditions.checkNotNull(removal,
-          "Invalid property to remove: null");
-      removalsBuilder.add(removal);
-      return this;
-    }
-
-    public Builder removeAll(Collection<String> removals) {
-      Preconditions.checkNotNull(removals,
-          "Invalid list of properties to remove: null");
-      Preconditions.checkArgument(!removals.contains(null),
-          "Invalid property to remove: null");
-      removalsBuilder.addAll(removals);
-      return this;
-    }
-
-    public Builder update(String key, String value) {
-      Preconditions.checkNotNull(key,
-          "Invalid property to update: null");
-      Preconditions.checkNotNull(value,
-          "Invalid value to update for key [%s]: null. Use remove instead", key);
-      updatesBuilder.put(key, value);
-      return this;
-    }
-
-    public Builder updateAll(Map<String, String> updates) {
-      Preconditions.checkNotNull(updates,
-          "Invalid collection of properties to update: null");
-      Preconditions.checkArgument(!updates.containsKey(null),
-          "Invalid property to update: null");
-      Preconditions.checkArgument(!updates.containsValue(null),
-          "Invalid value to update for properties %s: null. Use remove instead",
-          Maps.filterValues(updates, Objects::isNull).keySet());
-      updatesBuilder.putAll(updates);
-      return this;
-    }
-
-    public UpdateNamespacePropertiesRequest build() {
-      List<String> removals = removalsBuilder.build().asList();
-      Map<String, String> updates = updatesBuilder.build();
-
-      return new UpdateNamespacePropertiesRequest(removals, updates);
-    }
   }
 }
 
