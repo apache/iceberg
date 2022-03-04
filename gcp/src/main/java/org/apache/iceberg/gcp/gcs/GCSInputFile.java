@@ -24,14 +24,17 @@ import com.google.cloud.storage.Storage;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
 public class GCSInputFile extends BaseGCSFile implements InputFile {
-  public static GCSInputFile fromLocation(String location, Storage storage, GCPProperties gcpProperties) {
-    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties);
+
+  public static GCSInputFile fromLocation(String location, Storage storage,
+      GCPProperties gcpProperties, MetricsContext metrics) {
+    return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
   }
 
-  GCSInputFile(Storage storage, BlobId blobId, GCPProperties gcpProperties) {
-    super(storage, blobId, gcpProperties);
+  GCSInputFile(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+    super(storage, blobId, gcpProperties, metrics);
   }
 
   @Override
@@ -41,6 +44,6 @@ public class GCSInputFile extends BaseGCSFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new GCSInputStream(storage(), blobId(), gcpProperties());
+    return new GCSInputStream(storage(), blobId(), gcpProperties(), metrics());
   }
 }

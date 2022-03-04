@@ -28,14 +28,17 @@ import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
 public class GCSOutputFile extends BaseGCSFile implements OutputFile {
-  public static GCSOutputFile fromLocation(String location, Storage storage, GCPProperties gcpProperties) {
-    return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties);
+
+  public static GCSOutputFile fromLocation(String location, Storage storage,
+      GCPProperties gcpProperties, MetricsContext metrics) {
+    return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
   }
 
-  GCSOutputFile(Storage storage, BlobId blobId, GCPProperties gcpProperties) {
-    super(storage, blobId, gcpProperties);
+  GCSOutputFile(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+    super(storage, blobId, gcpProperties, metrics);
   }
 
   /**
@@ -56,7 +59,7 @@ public class GCSOutputFile extends BaseGCSFile implements OutputFile {
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new GCSOutputStream(storage(), blobId(), gcpProperties());
+      return new GCSOutputStream(storage(), blobId(), gcpProperties(), metrics());
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
     }
@@ -64,6 +67,6 @@ public class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new GCSInputFile(storage(), blobId(), gcpProperties());
+    return new GCSInputFile(storage(), blobId(), gcpProperties(), metrics());
   }
 }
