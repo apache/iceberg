@@ -50,7 +50,7 @@ public class ReaderUtil {
   }
 
   public static FileScanTask createFileTask(List<Record> records, File file, FileFormat fileFormat,
-                                      FileAppenderFactory<Record>  appenderFactory) throws IOException {
+                                            FileAppenderFactory<Record>  appenderFactory) throws IOException {
     try (FileAppender<Record> appender = appenderFactory.newAppender(Files.localOutput(file), fileFormat)) {
       appender.addAll(records);
     }
