@@ -288,7 +288,7 @@ public class CatalogUtil {
       metricsContext = ctor.newInstance();
     } catch (NoSuchMethodException | ClassCastException e) {
       LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", impl, e);
-      return null;
+      metricsContext = MetricsContext.nullMetrics();
     }
 
     configureHadoopConf(metricsContext, hadoopConf);
