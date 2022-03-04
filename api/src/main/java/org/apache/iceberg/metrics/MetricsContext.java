@@ -29,6 +29,21 @@ import java.util.Optional;
  * like thread safety and serialization.
  */
 public interface MetricsContext extends Serializable {
+  MetricsContext NULL_METRICS = new MetricsContext() {
+    @Override
+    public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
+      return new Counter<T>() {
+        @Override
+        public void increment() {
+        }
+
+        @Override
+        public void increment(T amount) {
+        }
+      };
+    }
+  };
+
   enum Unit {
     UNDEFINED("undefined"),
     BYTES("bytes"),
@@ -94,19 +109,6 @@ public interface MetricsContext extends Serializable {
    * @return a non-recording metrics context
    */
   static MetricsContext nullMetrics() {
-    return new MetricsContext() {
-      @Override
-      public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-        return new Counter<T>() {
-          @Override
-          public void increment() {
-          }
-
-          @Override
-          public void increment(T amount) {
-          }
-        };
-      }
-    };
+    return NULL_METRICS;
   }
 }

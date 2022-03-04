@@ -171,6 +171,15 @@ public class TestCatalogUtil {
     Assert.assertEquals("testScheme", testMetricsContext.scheme());
   }
 
+  @Test public void loadBadFileIOMetricsContext() {
+    Map<String, String> properties = Maps.newHashMap();
+    MetricsContext metricsContext = CatalogUtil.loadFileIOMetricsContext(
+            "BadMetricsContext", properties, null);
+
+    MetricsContext nullMetricsContext = MetricsContext.nullMetrics();
+    Assert.assertEquals(nullMetricsContext, metricsContext);
+  }
+
   @Test
   public void buildCustomCatalog_withTypeSet() {
     Map<String, String> options = Maps.newHashMap();
