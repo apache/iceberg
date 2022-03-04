@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.immutables.value.Value;
 
 /**
@@ -48,11 +47,7 @@ public abstract class CreateNamespaceRequest {
   }
 
   public static CreateNamespaceRequest of(Namespace namespace, Map<String, String> properties) {
-    Map<String, String> props = properties;
-    if (null == props) {
-      props = ImmutableMap.of();
-    }
-    return ImmutableCreateNamespaceRequest.builder().namespace(namespace).properties(props).build();
+    return ImmutableCreateNamespaceRequest.builder().namespace(namespace).properties(properties).build();
   }
 
   @Override

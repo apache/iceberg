@@ -104,9 +104,8 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
         .isInstanceOf(NullPointerException.class)
         .hasMessage("namespace");
 
-    Assertions.assertThat(CreateNamespaceRequest.of(NAMESPACE, null))
-        .extracting("properties")
-        .isEqualTo(ImmutableMap.of());
+    Assertions.assertThatThrownBy(() -> CreateNamespaceRequest.of(NAMESPACE, null))
+        .isInstanceOf(NullPointerException.class);
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
