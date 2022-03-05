@@ -55,7 +55,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
   }
 
-  abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
+  abstract static class BaseFilesTableScan<T extends BaseFile<?>> extends BaseMetadataTableScan {
     private final Schema fileSchema;
     private final MetadataTableType type;
 
@@ -104,7 +104,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(filtered, manifest ->
-          new ManifestReadTask(ops.io(), ops.current().specsById(),
+          new ManifestReadTask<T>(ops.io(), ops.current().specsById(),
               manifest, schema(), schemaString, specString, residuals));
     }
 
@@ -131,7 +131,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
   }
 
-  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+  static class ManifestReadTask<T extends BaseFile<?>> extends BaseFileScanTask implements DataTask {
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
     private final ManifestFile manifest;
@@ -148,7 +148,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      return CloseableIterable.transform(manifestEntries(), file -> (GenericDeleteFile) file);
+      return CloseableIterable.transform(manifestEntries(), file -> (T) file);
     }
 
     private CloseableIterable<? extends ContentFile<?>> manifestEntries() {

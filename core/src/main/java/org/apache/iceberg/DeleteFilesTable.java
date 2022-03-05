@@ -44,7 +44,7 @@ public class DeleteFilesTable extends BaseFilesTable {
     return MetadataTableType.DELETE_FILES;
   }
 
-  public static class DeleteFilesTableScan extends BaseFilesTableScan {
+  public static class DeleteFilesTableScan extends BaseFilesTableScan<GenericDeleteFile> {
 
     DeleteFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema, MetadataTableType.DELETE_FILES);
