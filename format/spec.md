@@ -444,6 +444,8 @@ Notes:
 
 1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.
 2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
+3. When a data file or delete file is marked as deleted in a manifest the writer of the new snapshot may not include a prexisting manifest that references the data file as EXISTING or ADDED. This implies that the manifest from the prior snapshot that including the newly deleted data file must not be in the new snapshot and that any files referenced by the manifest that are still part of the table must be written to a new
+manifest.
 
 #### Sequence Number Inheritance
 
@@ -549,7 +551,10 @@ For example, an `events` table with a timestamp column named `ts` that is partit
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
-Data files that match the query filter must be read by the scan.
+Data files that match the query filter must be read by the scan. Note that for any snapshot, all file paths
+may appear at most once across all manifest files in the snapshot. If a file path appears more then once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are
+not required to do so.
+
 
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
 
