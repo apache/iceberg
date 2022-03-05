@@ -495,10 +495,10 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasksAndEq = scanNoFilter.planFiles();
 
     Assert.assertEquals(4, Iterables.size(tasksAndEq));
-    validateDeleteFileScanTasks(tasksAndEq, 0);
-    validateDeleteFileScanTasks(tasksAndEq, 1);
-    validateDeleteFileScanTasks(tasksAndEq, 2);
-    validateDeleteFileScanTasks(tasksAndEq, 3);
+    validateFileScanTasks(tasksAndEq, 0);
+    validateFileScanTasks(tasksAndEq, 1);
+    validateFileScanTasks(tasksAndEq, 2);
+    validateFileScanTasks(tasksAndEq, 3);
   }
 
   @Test
@@ -515,7 +515,7 @@ public class TestMetadataTableScans extends TableTestBase {
     TableScan scanAndEq = deleteFilesTable.newScan().filter(andEquals);
     CloseableIterable<FileScanTask> tasksAndEq = scanAndEq.planFiles();
     Assert.assertEquals(1, Iterables.size(tasksAndEq));
-    validateDeleteFileScanTasks(tasksAndEq, 0);
+    validateFileScanTasks(tasksAndEq, 0);
   }
 
   @Test
@@ -532,7 +532,7 @@ public class TestMetadataTableScans extends TableTestBase {
     TableScan scanAndEq = deleteFilesTable.newScan().filter(andEquals);
     CloseableIterable<CombinedScanTask> tasksAndEq = scanAndEq.planTasks();
     Assert.assertEquals(1, Iterables.size(tasksAndEq));
-    validateDeleteFilesCombinedScanTasks(tasksAndEq, 0);
+    validateCombinedScanTasks(tasksAndEq, 0);
   }
 
   @Test
@@ -547,8 +547,8 @@ public class TestMetadataTableScans extends TableTestBase {
     TableScan scan = deleteFilesTable.newScan().filter(lt);
     CloseableIterable<FileScanTask> tasksLt = scan.planFiles();
     Assert.assertEquals(2, Iterables.size(tasksLt));
-    validateDeleteFileScanTasks(tasksLt, 0);
-    validateDeleteFileScanTasks(tasksLt, 1);
+    validateFileScanTasks(tasksLt, 0);
+    validateFileScanTasks(tasksLt, 1);
   }
 
   @Test
@@ -566,10 +566,10 @@ public class TestMetadataTableScans extends TableTestBase {
         .filter(or);
     CloseableIterable<FileScanTask> tasksOr = scan.planFiles();
     Assert.assertEquals(4, Iterables.size(tasksOr));
-    validateDeleteFileScanTasks(tasksOr, 0);
-    validateDeleteFileScanTasks(tasksOr, 1);
-    validateDeleteFileScanTasks(tasksOr, 2);
-    validateDeleteFileScanTasks(tasksOr, 3);
+    validateFileScanTasks(tasksOr, 0);
+    validateFileScanTasks(tasksOr, 1);
+    validateFileScanTasks(tasksOr, 2);
+    validateFileScanTasks(tasksOr, 3);
   }
 
   @Test
@@ -602,8 +602,8 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
     Assert.assertEquals(2, Iterables.size(tasksNot));
 
-    validateDeleteFileScanTasks(tasksNot, 2);
-    validateDeleteFileScanTasks(tasksNot, 3);
+    validateFileScanTasks(tasksNot, 2);
+    validateFileScanTasks(tasksNot, 3);
   }
 
   @Test
@@ -619,10 +619,10 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasksUnary = scan.planFiles();
     Assert.assertEquals(4, Iterables.size(tasksUnary));
 
-    validateDeleteFileScanTasks(tasksUnary, 0);
-    validateDeleteFileScanTasks(tasksUnary, 1);
-    validateDeleteFileScanTasks(tasksUnary, 2);
-    validateDeleteFileScanTasks(tasksUnary, 3);
+    validateFileScanTasks(tasksUnary, 0);
+    validateFileScanTasks(tasksUnary, 1);
+    validateFileScanTasks(tasksUnary, 2);
+    validateFileScanTasks(tasksUnary, 3);
   }
 
   @Test
@@ -791,28 +791,14 @@ public class TestMetadataTableScans extends TableTestBase {
   private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
     Assert.assertTrue("File scan tasks do not include correct file",
         StreamSupport.stream(fileScanTasks.spliterator(), false).anyMatch(t -> {
-          ManifestFile mf = ((DataFilesTable.ManifestReadTask) t).manifest();
+          ManifestFile mf = ((BaseFilesTable.ManifestReadTask) t).manifest();
           return manifestHasPartition(mf, partValue);
         }));
   }
 
   private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
     StreamSupport.stream(tasks.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).manifest()))
-        .anyMatch(m -> manifestHasPartition(m, partValue));
-  }
-
-  private void validateDeleteFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
-    Assert.assertTrue("File scan tasks do not include correct file",
-        StreamSupport.stream(fileScanTasks.spliterator(), false).anyMatch(t -> {
-          ManifestFile mf = ((DeleteFilesTable.DeleteManifestReadTask) t).manifest();
-          return manifestHasPartition(mf, partValue);
-        }));
-  }
-
-  private void validateDeleteFilesCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
-    StreamSupport.stream(tasks.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DeleteFilesTable.DeleteManifestReadTask) t).manifest()))
+        .flatMap(c -> c.files().stream().map(t -> ((BaseFilesTable.ManifestReadTask) t).manifest()))
         .anyMatch(m -> manifestHasPartition(m, partValue));
   }
 
