@@ -147,6 +147,14 @@ public class TableProperties {
   public static final String DELETE_ORC_WRITE_BATCH_SIZE = "write.delete.orc.vectorized.batch-size";
   public static final int ORC_WRITE_BATCH_SIZE_DEFAULT = 1024;
 
+  public static final String ORC_COMPRESSION = "write.orc.compression-codec";
+  public static final String DELETE_ORC_COMPRESSION = "write.delete.orc.compression-codec";
+  public static final String ORC_COMPRESSION_DEFAULT = "zlib";
+
+  public static final String ORC_COMPRESSION_STRATEGY = "write.orc.compression-strategy";
+  public static final String DELETE_ORC_COMPRESSION_STRATEGY = "write.delete.orc.compression-strategy";
+  public static final String ORC_COMPRESSION_STRATEGY_DEFAULT = "compression";
+
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
