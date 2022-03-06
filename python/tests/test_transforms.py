@@ -366,38 +366,26 @@ def test_identity_method(type_var):
     "type_var",
     [
         ListType(
+            1,
+            StructType(
+                NestedField(2, "optional_field", DecimalType(8, 2), is_optional=True),
+                NestedField(3, "required_field", LongType(), is_optional=False),
+            ),
+            False,
+        ),
+        MapType(1, DoubleType(), 2, UUIDType(), False),
+        StructType(
+            NestedField(1, "optional_field", IntegerType(), is_optional=True),
+            NestedField(2, "required_field", FixedType(5), is_optional=False),
             NestedField(
-                False,
-                1,
+                3,
                 "required_field",
                 StructType(
-                    [
-                        NestedField(True, 2, "optional_field", DecimalType(8, 2)),
-                        NestedField(False, 3, "required_field", LongType()),
-                    ]
+                    NestedField(4, "optional_field", DecimalType(8, 2), is_optional=True),
+                    NestedField(5, "required_field", LongType(), is_optional=False),
                 ),
-            )
-        ),
-        MapType(
-            NestedField(True, 1, "optional_field", DoubleType()),
-            NestedField(False, 2, "required_field", UUIDType()),
-        ),
-        StructType(
-            [
-                NestedField(True, 1, "optional_field", IntegerType()),
-                NestedField(False, 2, "required_field", FixedType(5)),
-                NestedField(
-                    False,
-                    3,
-                    "required_field",
-                    StructType(
-                        [
-                            NestedField(True, 4, "optional_field", DecimalType(8, 2)),
-                            NestedField(False, 5, "required_field", LongType()),
-                        ]
-                    ),
-                ),
-            ]
+                is_optional=False,
+            ),
         ),
     ],
 )

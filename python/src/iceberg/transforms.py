@@ -29,6 +29,7 @@ from iceberg.types import (
     DateType,
     DecimalType,
     FixedType,
+    IcebergType,
     IntegerType,
     LongType,
     StringType,
@@ -36,7 +37,6 @@ from iceberg.types import (
     TimestamptzType,
     TimeType,
     Truncatable,
-    Type,
     UUIDType,
 )
 from iceberg.utils import transform_util
@@ -69,10 +69,10 @@ class Transform:
     def apply(self, value):
         raise NotImplementedError()
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return False
 
-    def result_type(self, source: Type) -> Type:
+    def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
     def preserves_order(self) -> bool:
@@ -102,7 +102,7 @@ class BaseBucketTransform(Transform):
       num_buckets (int): The number of buckets.
     """
 
-    def __init__(self, source_type: Type, num_buckets: int):
+    def __init__(self, source_type: IcebergType, num_buckets: int):
         super().__init__(
             f"bucket[{num_buckets}]",
             f"transforms.bucket(source_type={repr(source_type)}, num_buckets={num_buckets})",
@@ -122,10 +122,10 @@ class BaseBucketTransform(Transform):
 
         return (self.hash(value) & IntegerType.max) % self._num_buckets
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         raise NotImplementedError()
 
-    def result_type(self, source: Type) -> Type:
+    def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
 
 
@@ -138,7 +138,7 @@ class BucketIntegerTransform(BaseBucketTransform):
         79
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return type(target) in {IntegerType, DateType}
 
     def hash(self, value) -> int:
@@ -155,7 +155,7 @@ class BucketLongTransform(BaseBucketTransform):
         59
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return type(target) in {LongType, TimeType, TimestampType, TimestamptzType}
 
     def hash(self, value) -> int:
@@ -186,7 +186,7 @@ class BucketDecimalTransform(BaseBucketTransform):
         59
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return isinstance(target, DecimalType)
 
     def hash(self, value: Decimal) -> int:
@@ -202,7 +202,7 @@ class BucketStringTransform(BaseBucketTransform):
         89
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return isinstance(target, StringType)
 
     def hash(self, value: str) -> int:
@@ -218,7 +218,7 @@ class BucketFixedTransform(BaseBucketTransform):
         32
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return isinstance(target, FixedType)
 
     def hash(self, value: bytearray) -> int:
@@ -234,7 +234,7 @@ class BucketBinaryTransform(BaseBucketTransform):
         57
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return isinstance(target, BinaryType)
 
     def hash(self, value: bytes) -> int:
@@ -250,7 +250,7 @@ class BucketUUIDTransform(BaseBucketTransform):
         40
     """
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return isinstance(target, UUIDType)
 
     def hash(self, value: UUID) -> int:
@@ -267,7 +267,7 @@ class DateTimeTransform(Transform):
     """Base transform class for transforms of DateType, TimestampType, and TimestamptzType."""
 
     class Granularity(Enum):
-        def __init__(self, order: int, result_type: Type, human_string: Callable[[int], str]):
+        def __init__(self, order: int, result_type: IcebergType, human_string: Callable[[int], str]):
             self.order = order
             self.result_type = result_type
             self.human_string = human_string
@@ -290,7 +290,7 @@ class DateTimeTransform(Transform):
         Granularity.HOUR: transform_util.hours_for_ts,
     }
 
-    def __init__(self, source_type: Type, name: str):
+    def __init__(self, source_type: IcebergType, name: str):
         super().__init__(name, f"transforms.{name}(source_type={repr(source_type)})")
 
         self._type = source_type
@@ -311,7 +311,7 @@ class DateTimeTransform(Transform):
             return self._type == other._type and self._granularity == other._granularity
         return False
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         if isinstance(self._type, DateType):
             return isinstance(target, DateType)
         else:  # self._type is either TimestampType or TimestamptzType
@@ -320,7 +320,7 @@ class DateTimeTransform(Transform):
     def apply(self, value: int) -> int:
         return self._apply(value)
 
-    def result_type(self, source_type: Type) -> Type:
+    def result_type(self, source_type: IcebergType) -> IcebergType:
         return self._granularity.result_type
 
     def preserves_order(self) -> bool:
@@ -345,7 +345,7 @@ class DateTimeTransform(Transform):
 
 
 class IdentityTransform(Transform):
-    def __init__(self, source_type: Type):
+    def __init__(self, source_type: IcebergType):
         super().__init__(
             "identity",
             f"transforms.identity(source_type={repr(source_type)})",
@@ -355,7 +355,7 @@ class IdentityTransform(Transform):
     def apply(self, value):
         return value
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return target.is_primitive
 
     def preserves_order(self) -> bool:
@@ -394,7 +394,7 @@ class TruncateTransform(Transform):
       ValueError: If a type is provided that is incompatible with a Truncate transform
     """
 
-    def __init__(self, source_type: Type, width: int):
+    def __init__(self, source_type: IcebergType, width: int):
         if not isinstance(source_type, Truncatable):
             raise ValueError(f"Cannot truncate type: {source_type}")
 
@@ -414,7 +414,7 @@ class TruncateTransform(Transform):
             return None
         return self._type.truncate(value, self._width)
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return self._type == target
 
     def preserves_order(self) -> bool:
@@ -448,7 +448,7 @@ class UnknownTransform(Transform):
       AttributeError: If the apply method is called.
     """
 
-    def __init__(self, source_type: Type, transform: str):
+    def __init__(self, source_type: IcebergType, transform: str):
         super().__init__(
             transform,
             f"UnknownTransform(source_type={repr(source_type)}, transform={repr(transform)})",
@@ -459,10 +459,10 @@ class UnknownTransform(Transform):
     def apply(self, value):
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return self._type == target
 
-    def result_type(self, source: Type) -> Type:
+    def result_type(self, source: IcebergType) -> IcebergType:
         return StringType()
 
 
@@ -482,7 +482,7 @@ class VoidTransform(Transform):
     def apply(self, value):
         return None
 
-    def can_transform(self, target: Type) -> bool:
+    def can_transform(self, target: IcebergType) -> bool:
         return True
 
     def to_human_string(self, value) -> str:
@@ -492,7 +492,7 @@ class VoidTransform(Transform):
 _HAS_WIDTH = re.compile("(\\w+)\\[(\\d+)\\]")
 
 
-def from_string(source_type: Type, transform: str) -> Transform:
+def from_string(source_type: IcebergType, transform: str) -> Transform:
     transform_lower = transform.lower()
     match = _HAS_WIDTH.match(transform_lower)
 
@@ -518,27 +518,27 @@ def from_string(source_type: Type, transform: str) -> Transform:
     return UnknownTransform(source_type, transform)
 
 
-def identity(source_type: Type) -> IdentityTransform:
+def identity(source_type: IcebergType) -> IdentityTransform:
     return IdentityTransform(source_type)
 
 
-def year(source_type: Type) -> Transform:
+def year(source_type: IcebergType) -> Transform:
     return DateTimeTransform(source_type, "year")
 
 
-def month(source_type: Type) -> Transform:
+def month(source_type: IcebergType) -> Transform:
     return DateTimeTransform(source_type, "month")
 
 
-def day(source_type: Type) -> Transform:
+def day(source_type: IcebergType) -> Transform:
     return DateTimeTransform(source_type, "day")
 
 
-def hour(source_type: Type) -> Transform:
+def hour(source_type: IcebergType) -> Transform:
     return DateTimeTransform(source_type, "hour")
 
 
-def bucket(source_type: Type, num_buckets: int) -> BaseBucketTransform:
+def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
     if isinstance(source_type, IntegerType):
         return BucketIntegerTransform(source_type, num_buckets)
     elif isinstance(source_type, DecimalType):
@@ -559,7 +559,7 @@ def bucket(source_type: Type, num_buckets: int) -> BaseBucketTransform:
         raise ValueError(f"Cannot bucket by type: {source_type}")
 
 
-def truncate(source_type: Type, width: int) -> TruncateTransform:
+def truncate(source_type: IcebergType, width: int) -> TruncateTransform:
     return TruncateTransform(source_type, width)
 
 

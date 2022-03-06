@@ -29,9 +29,10 @@ Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
 
-from typing import Dict, Optional, Tuple
+from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Optional
+from typing import Dict, Optional, Tuple
+
 from iceberg.utils import transform_util
 
 
@@ -44,9 +45,10 @@ class Singleton:
         return cls._instance
 
 
-class Truncatable:
+class Truncatable(ABC):
+    @abstractmethod
     def truncate(self, value, width: int):
-        raise ValueError(f"Cannot truncate type: {self}")
+        ...
 
 
 class IcebergType:
