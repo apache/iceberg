@@ -41,6 +41,8 @@ if (sparkVersions.contains("3.2")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_${scalaVersion}"))
 }
 
+jmhProjects.add(project(":iceberg-data"))
+
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
 

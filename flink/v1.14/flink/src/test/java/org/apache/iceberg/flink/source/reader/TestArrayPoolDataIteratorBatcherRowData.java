@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.flink.source.reader;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.configuration.Configuration;
@@ -28,30 +26,17 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderOptions;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.DataIterator;
-import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileAppender;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -76,39 +61,16 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     this.appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
   }
 
-  private FileScanTask createFileTask(List<Record> records) throws IOException {
-    File file = TEMPORARY_FOLDER.newFile();
-    try (FileAppender<Record> appender = appenderFactory.newAppender(Files.localOutput(file), fileFormat)) {
-      appender.addAll(records);
-    }
-
-    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withRecordCount(records.size())
-        .withFileSizeInBytes(file.length())
-        .withPath(file.toString())
-        .withFormat(fileFormat)
-        .build();
-
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
-    return new BaseFileScanTask(dataFile, null, SchemaParser.toJson(TestFixtures.SCHEMA),
-        PartitionSpecParser.toJson(PartitionSpec.unpartitioned()), residuals);
-  }
-
-  private DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
-    return new DataIterator<>(
-        new RowDataFileScanTaskReader(TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true),
-        combinedTask, new HadoopFileIO(new org.apache.hadoop.conf.Configuration()), new PlaintextEncryptionManager());
-  }
-
   /**
    * Read a CombinedScanTask that contains a single file with less than a full batch of records
    */
   @Test
   public void testSingleFileLessThanOneFullBatch() throws Exception {
     List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1);
-    FileScanTask fileTask = createFileTask(records);
+    FileScanTask fileTask = ReaderUtil.createFileTask(
+        records, TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
-    DataIterator<RowData> dataIterator = createDataIterator(combinedTask);
+    DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     String splitId = "someSplitId";
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> recordBatchIterator =
         batcher.batch(splitId, dataIterator);
@@ -147,9 +109,10 @@ public class TestArrayPoolDataIteratorBatcherRowData {
   @Test
   public void testSingleFileWithMultipleBatches() throws Exception {
     List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 5, 1);
-    FileScanTask fileTask = createFileTask(records);
+    FileScanTask fileTask = ReaderUtil.createFileTask(
+        records, TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
-    DataIterator<RowData> dataIterator = createDataIterator(combinedTask);
+    DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     String splitId = "someSplitId";
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> recordBatchIterator =
         batcher.batch(splitId, dataIterator);
@@ -252,14 +215,17 @@ public class TestArrayPoolDataIteratorBatcherRowData {
   @Test
   public void testMultipleFilesWithSeekPosition() throws Exception {
     List<Record> records0 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1);
-    FileScanTask fileTask0 = createFileTask(records0);
+    FileScanTask fileTask0 = ReaderUtil.createFileTask(
+        records0, TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
     List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 4, 2);
-    FileScanTask fileTask1 = createFileTask(records1);
+    FileScanTask fileTask1 = ReaderUtil.createFileTask(
+        records1, TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
     List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 3);
-    FileScanTask fileTask2 = createFileTask(records2);
+    FileScanTask fileTask2 = ReaderUtil.createFileTask(
+        records2, TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1, fileTask2));
 
-    DataIterator<RowData> dataIterator = createDataIterator(combinedTask);
+    DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     // seek to file1 and after record 1
     dataIterator.seek(1, 1);
 
