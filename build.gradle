@@ -615,6 +615,28 @@ project(':iceberg-dell') {
   }
 }
 
+project(':iceberg-azure') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+//    TODO check if this is required
+//    implementation project(':iceberg-common')
+//    implementation project(':iceberg-core')
+
+    implementation platform('com.azure:azure-sdk-bom')
+    implementation 'com.azure:azure-storage-blob'
+
+//    TODO check if this is required
+//    compileOnly("org.apache.hadoop:hadoop-common") {
+//      exclude group: 'org.apache.avro', module: 'avro'
+//      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+//    }
+
+//    TODO check if this is required
+//    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+}
+
 @Memoized
 boolean versionFileExists() {
   return file('version.txt').exists()
