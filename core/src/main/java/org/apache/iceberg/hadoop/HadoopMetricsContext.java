@@ -45,7 +45,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public void initialize(Map<String, String> properties) {
     // FileIO has no specific implementation class, but Hadoop will
     // still track and report for the provided scheme.
-    this.scheme = properties.get(CatalogProperties.IO_METRICS_SCHEME);
+    this.scheme = properties.get(CatalogProperties.IO_METRICS_NAMESPACE);
     ValidationException.check(this.scheme != null,
             "Scheme is required for Hadoop FileSystem metrics reporting");
 

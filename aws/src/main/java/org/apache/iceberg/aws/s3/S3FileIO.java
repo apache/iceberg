@@ -122,10 +122,10 @@ public class S3FileIO implements FileIO {
             CatalogProperties.IO_METRICS_IMPL, CatalogProperties.IO_METRICS_IMPL_DEFAULT);
 
     Map<String, String> metricContextProperties = properties;
-    if (!properties.containsKey(CatalogProperties.IO_METRICS_SCHEME)) {
+    if (!properties.containsKey(CatalogProperties.IO_METRICS_NAMESPACE)) {
       metricContextProperties = ImmutableMap.<String, String>builder()
               .putAll(properties)
-              .put(CatalogProperties.IO_METRICS_SCHEME, IO_METRICS_SCHEME_S3)
+              .put(CatalogProperties.IO_METRICS_NAMESPACE, IO_METRICS_SCHEME_S3)
               .build();
     }
 

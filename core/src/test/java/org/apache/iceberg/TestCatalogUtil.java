@@ -162,7 +162,7 @@ public class TestCatalogUtil {
 
   @Test public void loadFileIOMetricsContext() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.IO_METRICS_SCHEME, "testScheme");
+    properties.put(CatalogProperties.IO_METRICS_NAMESPACE, "testScheme");
     MetricsContext metricsContext = CatalogUtil.loadFileIOMetricsContext(
             TestFileIOMetricsContext.class.getName(), properties, null);
     TestFileIOMetricsContext testMetricsContext = (TestFileIOMetricsContext) metricsContext;
@@ -433,7 +433,7 @@ public class TestCatalogUtil {
 
     @Override
     public void initialize(Map<String, String> properties) {
-      this.scheme = properties.get(CatalogProperties.IO_METRICS_SCHEME);
+      this.scheme = properties.get(CatalogProperties.IO_METRICS_NAMESPACE);
     }
 
     public String scheme() {
