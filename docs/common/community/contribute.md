@@ -72,6 +72,15 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
+## Setting up IDE and Code Style
+
+### Configuring Code Formatter for IntelliJ IDEA
+
+In the **Settings/Preferences** dialog go to **Editor > Code Style > Java**. Click on the gear wheel and select **Import Scheme** to import IntelliJ IDEA XML code style settings.
+Point to [intellij-java-palantir-style.xml](https://github.com/apache/iceberg/blob/master/.baseline/idea/intellij-java-palantir-style.xml) and hit **OK** (you might need to enable **Show Hidden Files and Directories** in the dialog). The code itself can then be formatted via **Code > Reformat Code**.
+
+See also the IntelliJ [Code Style docs](https://www.jetbrains.com/help/idea/copying-code-style-settings.html) and [Reformat Code docs](https://www.jetbrains.com/help/idea/reformat-and-rearrange-code.html) for additional details.
+
 ## Iceberg Code Contribution Guidelines
 
 ### Style
@@ -162,6 +171,13 @@ When passing boolean arguments to existing or external methods, use inline comme
     * For example, preferred convection `access-key-id` rather than `access.key.id`
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
+
+## Running Benchmarks
+Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is 
+no "push a single button to get a performance comparison" solution available, therefore one has to run JMH performance tests on their local machine and
+post the results on the PR.
+
+See [Benchmarks](../benchmarks) for a summary of available benchmarks and how to run them.
 
 ## Website and Documentation Updates
 
