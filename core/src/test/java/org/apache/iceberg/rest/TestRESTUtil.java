@@ -77,7 +77,7 @@ public class TestRESTUtil {
   }
 
   @Test
-  public void testAsURLVariable() {
+  public void testNamespaceUrlEncodeDecode() {
     List<LevelsAndURLEncodedString> testCases = ImmutableList.of(
         new LevelsAndURLEncodedString(new String[] {"dogs"}, "dogs"),
         new LevelsAndURLEncodedString(new String[] {"dogs.named.hank"}, "dogs.named.hank"),
@@ -102,5 +102,16 @@ public class TestRESTUtil {
       Namespace asNamespace = RESTUtil.urlDecode(nsEncodedForURLVariable);
       Assertions.assertThat(asNamespace).isEqualTo(namespace);
     }
+  }
+
+  @Test
+  public void testNamespaceUrlDoesNotAllowNull() {
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> RESTUtil.urlEncode(null))
+        .withMessage("Invalid namespace: null");
+
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> RESTUtil.urlDecode(null))
+        .withMessage("Invalid namespace: null");
   }
 }

@@ -78,6 +78,7 @@ class RESTUtil {
    * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
    */
   public static String urlEncode(Namespace ns) {
+    Preconditions.checkArgument(ns != null, "Invalid namespace: null");
     String[] levels = ns.levels();
     String[] encodedLevels = new String[levels.length];
 
@@ -100,6 +101,7 @@ class RESTUtil {
    * See also {@link #urlEncode} for generating correctly formatted URLs.
    */
   public static Namespace urlDecode(String encodedNs) {
+    Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
     Iterable<String> encodedLevels = NULL_SPLITTER.split(encodedNs);
     String[] decodedLevels =
         Streams
