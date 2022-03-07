@@ -56,12 +56,12 @@ public class TestRESTUtil {
     return Stream.of(
         new String[] {"https://foo", "https://foo"},
         new String[] {"https://foo/", "https://foo"},
-        new String[] {"https://foo////", "https://foo///"},
+        new String[] {"https://foo////", "https://foo"},
         new String[] {null, null}
     );
   }
 
-  @DisplayName("Should remove at most one slash from the end of the input string")
+  @DisplayName("Should remove all slash characters from the end of the input string")
   @ParameterizedTest(name = "{index} => input={0}, expected={1}")
   @MethodSource("stripTrailingSlashTestCases")
   public void testStripTrailingSlash(String input, String expected) {

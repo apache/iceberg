@@ -29,6 +29,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
@@ -44,7 +45,11 @@ class RESTUtil {
       return null;
     }
 
-    return path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+    String result = path;
+    while (result.endsWith("/")) {
+      result = result.substring(0, result.length() - 1);
+    }
+    return result;
   }
 
   /**
@@ -102,21 +107,19 @@ class RESTUtil {
    */
   public static Namespace urlDecode(String encodedNs) {
     Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
-    Iterable<String> encodedLevels = NULL_SPLITTER.split(encodedNs);
-    String[] decodedLevels =
-        Streams
-            .stream(encodedLevels)
-            .map(encodedLevel -> {
-              try {
-                return URLDecoder.decode(encodedLevel, StandardCharsets.UTF_8.name());
-              } catch (UnsupportedEncodingException e) {
-                String exceptionMessage = String.format(
-                    "Failed to URL decode namespace '%s' as UTF-8 encoding is not supported", encodedNs);
-                throw new UncheckedIOException(exceptionMessage, e);
-              }
-            })
-            .toArray(String[]::new);
-    return Namespace.of(decodedLevels);
+    String[] levels = Iterables.toArray(NULL_SPLITTER.split(encodedNs), String.class);
+
+    // Decode levels in place
+    for (int i = 0; i < levels.length; i++) {
+      try {
+        levels[i] = URLDecoder.decode(levels[i], StandardCharsets.UTF_8.name());
+      } catch (UnsupportedEncodingException e) {
+        throw new UncheckedIOException(
+            String.format("Failed to URL decode namespace '%s' as UTF-8 encoding is not supported", encodedNs), e);
+      }
+    }
+
+    return Namespace.of(levels);
   }
 
 }
