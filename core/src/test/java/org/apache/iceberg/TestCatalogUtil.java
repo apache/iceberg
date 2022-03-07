@@ -440,7 +440,7 @@ public class TestCatalogUtil {
     private String name;
     public static final AtomicInteger NOTIFY_TIMES = new AtomicInteger();
 
-    public TestListener() {
+    public TestListener(Class<T> clazz) {
     }
 
     @Override
