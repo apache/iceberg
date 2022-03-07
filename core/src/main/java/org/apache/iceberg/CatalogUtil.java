@@ -21,23 +21,17 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.events.CreateSnapshotEvent;
-import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.events.Listeners;
-import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
@@ -45,7 +39,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -331,6 +324,7 @@ public class CatalogUtil {
   }
 
   @VisibleForTesting
+  @SuppressWarnings("GetClassOnClass")
   static <T> Listener<T> loadAndRegisterListener(
       String listenerClass,
       String listenerName,
@@ -338,7 +332,7 @@ public class CatalogUtil {
       Map<String, String> properties) {
     DynConstructors.Ctor<Listener<T>> ctor;
     try {
-      ctor = DynConstructors.builder(Listener.class).impl(listenerClass, eventType).buildChecked();
+      ctor = DynConstructors.builder(Listener.class).impl(listenerClass, eventType.getClass()).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
               "Cannot initialize Listener, missing no-arg constructor: %s", listenerClass), e);
@@ -346,7 +340,7 @@ public class CatalogUtil {
 
     Listener<T> listener;
     try {
-      listener = ctor.newInstance();
+      listener = ctor.newInstance(eventType);
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(String.format(
           "Cannot initialize Listener, %s does not implement org.apache.iceberg.events.Listener", listenerClass), e);

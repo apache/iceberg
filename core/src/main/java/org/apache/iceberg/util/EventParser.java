@@ -31,6 +31,8 @@ import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionParser;
 
 public class EventParser {
+  private static final String EVENT_TYPE = "event-type";
+
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PROJECTION = "projection";
@@ -65,6 +67,8 @@ public class EventParser {
 
   public static void toJson(ScanEvent event, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
+    generator.writeFieldName(EVENT_TYPE);
+    generator.writeString(event.getClass().getName());
     generator.writeFieldName(TABLE_NAME);
     generator.writeString(event.tableName());
     generator.writeFieldName(SNAPSHOT_ID);
@@ -78,6 +82,8 @@ public class EventParser {
 
   public static void toJson(CreateSnapshotEvent event, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
+    generator.writeFieldName(EVENT_TYPE);
+    generator.writeString(event.getClass().getName());
     generator.writeFieldName(TABLE_NAME);
     generator.writeString(event.tableName());
     generator.writeFieldName(OPERATION);
@@ -97,6 +103,8 @@ public class EventParser {
 
   public static void toJson(IncrementalScanEvent event, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
+    generator.writeFieldName(EVENT_TYPE);
+    generator.writeString(event.getClass().getName());
     generator.writeFieldName(TABLE_NAME);
     generator.writeString(event.tableName());
     generator.writeFieldName(FROM_SNAPSHOT_ID);
