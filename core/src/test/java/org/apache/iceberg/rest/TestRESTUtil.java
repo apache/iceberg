@@ -20,25 +20,21 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestRESTUtil {
 
   @Test
-  public void testFilterAndRemovePrefix() {
+  public void testExtractPrefixMap() {
     Map<String, String> input = ImmutableMap.of(
         "warehouse", "/tmp/warehouse",
         "rest.prefix", "/ws/ralphs_catalog",
         "rest.token", "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=",
         "rest.rest.uri", "https://localhost:1080/",
-        ".rest", "",
+        "doesnt_start_with_prefix.rest", "",
         "", "");
 
     Map<String, String> expected = ImmutableMap.of(
@@ -47,29 +43,31 @@ public class TestRESTUtil {
         "rest.uri", "https://localhost:1080/"
     );
 
-    Map<String, String> actual = RESTUtil.filterByPrefix(input, "rest.");
+    Map<String, String> actual = RESTUtil.extractPrefixMap(input, "rest.");
 
     Assertions.assertThat(actual).isEqualTo(expected);
   }
 
-  private static Stream<String[]> stripTrailingSlashTestCases() {
-    return Stream.of(
+  @Test
+  public void testStripTrailingSlash() {
+    String[][] testCases = new String[][] {
         new String[] {"https://foo", "https://foo"},
         new String[] {"https://foo/", "https://foo"},
         new String[] {"https://foo////", "https://foo"},
         new String[] {null, null}
-    );
+    };
+
+    for (String[] testCase : testCases) {
+      String input = testCase[0];
+      String expected = testCase[1];
+      Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected);
+    }
   }
 
-  @DisplayName("Should remove all slash characters from the end of the input string")
-  @ParameterizedTest(name = "{index} => input={0}, expected={1}")
-  @MethodSource("stripTrailingSlashTestCases")
-  public void testStripTrailingSlash(String input, String expected) {
-    Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected);
-  }
-
-  private static Stream<Object[]> roundTripUrlEncodeDecodeNamespaceTestCases() {
-    return Stream.of(
+  @Test
+  public void testRoundTripUrlEncodeDecodeNamespace() {
+    // Namespace levels and their expected url encoded form
+    Object[][] testCases = new Object[][] {
         new Object[] {new String[] {"dogs"}, "dogs"},
         new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
         new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
@@ -78,21 +76,22 @@ public class TestRESTUtil {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
             "dogs.and.cats\u0000named\u0000hank.or.james-westfall"
         }
-    );
-  }
+    };
 
-  @DisplayName("Url encoding and decoding a namespace should return an equal namespace")
-  @ParameterizedTest(name = "{index} => levels={0}, encodedNamespace={1}")
-  @MethodSource("roundTripUrlEncodeDecodeNamespaceTestCases")
-  public void testRoundTripUrlEncodeDecodeNamespace(String[] levels, String encodedNs) {
-    Namespace namespace = Namespace.of(levels);
-    // To be placed into a URL path as query parameter or path parameter
-    Assertions.assertThat(RESTUtil.urlEncode(namespace))
-        .isEqualTo(encodedNs);
+    for (Object[] namespaceWithEncoding : testCases) {
+      String[] levels = (String[]) namespaceWithEncoding[0];
+      String encodedNs = (String) namespaceWithEncoding[1];
 
-    // Decoded (after pulling as String) from URL
-    Namespace asNamespace = RESTUtil.urlDecode(encodedNs);
-    Assertions.assertThat(asNamespace).isEqualTo(namespace);
+      Namespace namespace = Namespace.of(levels);
+
+      // To be placed into a URL path as query parameter or path parameter
+      Assertions.assertThat(RESTUtil.urlEncode(namespace))
+          .isEqualTo(encodedNs);
+
+      // Decoded (after pulling as String) from URL
+      Namespace asNamespace = RESTUtil.urlDecode(encodedNs);
+      Assertions.assertThat(asNamespace).isEqualTo(namespace);
+    }
   }
 
   @Test

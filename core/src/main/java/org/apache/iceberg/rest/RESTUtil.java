@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 class RESTUtil {
   private static final Joiner NULL_JOINER = Joiner.on('\u0000');
@@ -53,14 +52,16 @@ class RESTUtil {
   }
 
   /**
-   * Takes in a map, and returns a copy with entries with keys beginning with the designated prefix
-   * with the prefix removed. Any entries whose keys don't begin with the prefix are not returned.
+   * Takes in a map, and returns a copy filtered on the entries with keys beginning with the designated prefix.
+   * The keys are returned with the prefix removed.
+   * <p>
+   * Any entries whose keys don't begin with the prefix are not returned.
    * <p>
    * This can be used to get a subset of the configuration related to the REST catalog, such as all
    * properties from a prefix of `spark.sql.catalog.my_catalog.rest.` to get REST catalog specific properties
    * from the spark configuration.
    */
-  public static Map<String, String> filterByPrefix(Map<String, String> properties, String prefix) {
+  public static Map<String, String> extractPrefixMap(Map<String, String> properties, String prefix) {
     Preconditions.checkNotNull(properties, "Invalid properties map: null");
     Map<String, String> result = Maps.newHashMap();
     properties.forEach((key, value) -> {
