@@ -59,7 +59,17 @@ class RESTUtil {
     return result;
   }
 
-  public static String asURLVariable(Namespace ns) {
+  /**
+   * Returns a String representation of a namespace that is suitable for use in a URL / URI.
+   * <p>
+   * This function needs to be called when a namespace is used as a path variable (or query parameter etc.),
+   * to format the namespace per the spec.
+   * <p>
+   * {@link #urlDecode} should be used to parse the namespace from a URL parameter.
+   * @param ns namespace to encode
+   * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
+   */
+  public static String urlEncode(Namespace ns) {
     String[] levels = ns.levels();
     String[] encodedLevels = new String[levels.length];
 
@@ -75,7 +85,13 @@ class RESTUtil {
     return NULL_JOINER.join(encodedLevels);
   }
 
-  public static Namespace fromURLVariable(String encodedNs) {
+  /**
+   * Takes in a string representation of a namespace as used for a URL parameter
+   * and returns the corresponding namespace.
+   * <p>
+   * See also {@link #urlEncode} for generating correctly formatted URLs.
+   */
+  public static Namespace urlDecode(String encodedNs) {
     Iterable<String> encodedLevels = NULL_SPLITTER.split(encodedNs);
     String[] decodedLevels =
         Streams

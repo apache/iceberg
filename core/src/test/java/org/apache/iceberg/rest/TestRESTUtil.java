@@ -95,11 +95,11 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path variable
-      Assertions.assertThat(RESTUtil.asURLVariable(namespace))
+      Assertions.assertThat(RESTUtil.urlEncode(namespace))
           .isEqualTo(nsEncodedForURLVariable);
 
       // Decoded (after pulling as String) from URL
-      Namespace asNamespace = RESTUtil.fromURLVariable(nsEncodedForURLVariable);
+      Namespace asNamespace = RESTUtil.urlDecode(nsEncodedForURLVariable);
       Assertions.assertThat(asNamespace).isEqualTo(namespace);
     }
   }
