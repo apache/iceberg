@@ -56,7 +56,6 @@ non_parameterized_types = [
 
 @pytest.mark.parametrize("input_index, input_type", non_parameterized_types)
 def test_repr_primitive_types(input_index, input_type):
-    assert input_type.is_primitive
     assert isinstance(eval(repr(input_type())), input_type)
 
 
@@ -98,7 +97,6 @@ def test_is_primitive(input_type, result):
 
 def test_fixed_type():
     type_var = FixedType(length=5)
-    assert type_var.is_primitive
     assert type_var.length == 5
     assert str(type_var) == "fixed[5]"
     assert repr(type_var) == "FixedType(length=5)"
@@ -109,7 +107,6 @@ def test_fixed_type():
 
 def test_decimal_type():
     type_var = DecimalType(precision=9, scale=2)
-    assert type_var.is_primitive
     assert type_var.precision == 9
     assert type_var.scale == 2
     assert str(type_var) == "decimal(9, 2)"
@@ -133,7 +130,6 @@ def test_struct_type():
             is_optional=False,
         ),
     )
-    assert not type_var.is_primitive
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
@@ -149,7 +145,6 @@ def test_list_type():
         ),
         False,
     )
-    assert not type_var.is_primitive
     assert isinstance(type_var.element.type, StructType)
     assert len(type_var.element.type.fields) == 2
     assert type_var.element.field_id == 1
@@ -197,7 +192,6 @@ def test_nested_field():
     assert field_var.is_optional
     assert not field_var.is_required
     assert field_var.field_id == 1
-    assert field_var.name == "optional_field1"
     assert isinstance(field_var.type, StructType)
     assert str(field_var) == str(eval(repr(field_var)))
 
