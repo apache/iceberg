@@ -48,8 +48,8 @@ class RESTUtil {
   }
 
   /**
-   * Takes in a set of properties, and returns all properties begin with the designated prefix with the prefix
-   * stripped off.
+   * Takes in a map, and returns a copy with entries with keys beginning with the designated prefix
+   * with the prefix removed. Any entries whose keys don't begin with the prefix are not returned.
    * <p>
    * This can be used to get a subset of the configuration related to the REST catalog, such as all
    * properties from a prefix of `spark.sql.catalog.my_catalog.rest.` to get REST catalog specific properties
@@ -59,7 +59,7 @@ class RESTUtil {
     Preconditions.checkNotNull(properties, "Invalid properties map: null");
     Map<String, String> result = Maps.newHashMap();
     properties.forEach((key, value) -> {
-      if (key.startsWith(prefix)) {
+      if (key != null && key.startsWith(prefix)) {
         result.put(key.substring(prefix.length()), value);
       }
     });
