@@ -203,6 +203,10 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
