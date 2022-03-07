@@ -58,8 +58,8 @@ public class GCSOutputStreamTest {
 
   @Test
   public void testMultipleClose() throws IOException {
-    GCSOutputStream stream = new GCSOutputStream(storage, randomBlobId(), properties, MetricsContext
-        .nullMetrics());
+    GCSOutputStream stream =
+        new GCSOutputStream(storage, randomBlobId(), properties, MetricsContext.nullMetrics());
     stream.close();
     stream.close();
   }
