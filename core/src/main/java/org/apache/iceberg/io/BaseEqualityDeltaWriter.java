@@ -32,19 +32,17 @@ import org.apache.iceberg.util.StructProjection;
 
 public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
 
-  private final PositionDelete<T> positionDelete = PositionDelete.create();
+  private final ThreadLocal<PositionDelete<T>> posDelete = ThreadLocal.withInitial(PositionDelete::create);
 
   private final PartitioningWriter<T, DataWriteResult> dataWriter;
   private final PartitioningWriter<T, DeleteWriteResult> equalityWriter;
   private final PartitioningWriter<PositionDelete<T>, DeleteWriteResult> positionWriter;
 
   private final Map<StructLike, PathOffset> insertedRowMap;
-  private final Schema schema;
-  private final Schema deleteSchema;
 
   private final Function<T, StructLike> asStructLike;
-  private Function<T, StructLike> keyRefFunc;
-  private Function<T, StructLike> keyCopyFunc;
+  private final Function<T, StructLike> keyRefFunc;
+  private final Function<T, StructLike> keyCopyFunc;
 
   private boolean closed = false;
 
@@ -60,8 +58,6 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
     this.positionWriter = positionWriter;
 
     this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
-    this.schema = schema;
-    this.deleteSchema = deleteSchema;
     this.asStructLike = asStructLike;
 
     StructProjection projection = StructProjection.create(schema, deleteSchema);
@@ -79,7 +75,7 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
     // Adding a pos-delete to replace the old path-offset.
     PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
     if (previous != null) {
-      positionWriter.write(positionDelete.set(previous.path(), previous.rowOffset(), null), spec, partition);
+      positionWriter.write(posDelete.get().set(previous.path(), previous.rowOffset(), null), spec, partition);
     }
   }
 
@@ -89,7 +85,7 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
   private boolean retireOldKey(StructLike key, PartitionSpec spec, StructLike partition) {
     PathOffset previous = insertedRowMap.remove(key);
     if (previous != null) {
-      positionWriter.write(positionDelete.set(previous.path(), previous.rowOffset(), null), spec, partition);
+      positionWriter.write(posDelete.get().set(previous.path(), previous.rowOffset(), null), spec, partition);
       return true;
     } else {
       return false;
