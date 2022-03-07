@@ -78,7 +78,7 @@ class RESTUtil {
         encodedLevels[i] = URLEncoder.encode(levels[i], StandardCharsets.UTF_8.name());
       } catch (UnsupportedEncodingException e) {
         throw new UncheckedIOException(
-            String.format("Failed to URL encode namespace as UTF-8 encoding is not supported: %s", ns), e);
+            String.format("Failed to URL encode namespace '%s' as UTF-8 encoding is not supported", ns), e);
       }
     }
 
@@ -100,8 +100,9 @@ class RESTUtil {
               try {
                 return URLDecoder.decode(encodedLevel, StandardCharsets.UTF_8.name());
               } catch (UnsupportedEncodingException e) {
-                throw new UncheckedIOException(
-                    String.format("Failed to decode namespace as UTF-8 encoding is not supported: %s", encodedNs), e);
+                String exceptionMessage = String.format(
+                    "Failed to URL decode namespace '%s' as UTF-8 encoding is not supported", encodedNs);
+                throw new UncheckedIOException(exceptionMessage, e);
               }
             })
             .toArray(String[]::new);
