@@ -43,9 +43,14 @@ class PyArrowFile(InputFile, OutputFile):
     Examples:
         >>> from iceberg.io.pyarrow import PyArrowFile
         >>> input_file = PyArrowFile("s3://foo/bar.txt")
-        >>> file_content = input_file.open().read()  # Read the contents of the PyArrowFile instance
+        >>> # Read the contents of the PyArrowFile instance
+        >>> # Make sure that you have permissions to read/write
+        >>> # file_content = input_file.open().read()
+
         >>> output_file = PyArrowFile("s3://baz/qux.txt")
-        >>> output_file.create().write(b'foobytes')  # Write bytes to the PyArrowFile instance
+        >>> # Write bytes to a file
+        >>> # Make sure that you have permissions to read/write
+        >>> # output_file.create().write(b'foobytes')
     """
 
     def __init__(self, location: str):
