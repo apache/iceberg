@@ -47,6 +47,14 @@ class RESTUtil {
     return path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
   }
 
+  /**
+   * Takes in a set of properties, and returns all properties begin with the designated prefix with the prefix
+   * stripped off.
+   * <p>
+   * This can be used to get a subset of the configuration related to the REST catalog, such as all
+   * properties from a prefix of `spark.sql.catalog.my_catalog.rest.` to get REST catalog specific properties
+   * from the spark configuration.
+   */
   public static Map<String, String> filterByPrefix(Map<String, String> properties, String prefix) {
     Preconditions.checkNotNull(properties, "Invalid properties map: null");
     Map<String, String> result = Maps.newHashMap();
