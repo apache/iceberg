@@ -19,25 +19,17 @@
 
 package org.apache.iceberg.rest;
 
-import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestRESTUtil {
-
-  static class LevelsAndURLEncodedString {
-    public String[] levels;
-    public String parameterEncodedForUrlUsage;
-
-    LevelsAndURLEncodedString(String[] levels, String parameterEncodedForUrlUsage) {
-      this.levels = levels;
-      this.parameterEncodedForUrlUsage = parameterEncodedForUrlUsage;
-    }
-  }
 
   @Test
   public void testFilterAndRemovePrefix() {
@@ -60,52 +52,51 @@ public class TestRESTUtil {
     Assertions.assertThat(actual).isEqualTo(expected);
   }
 
-  @Test
-  public void testStripTrailingSlash() {
-    Map<String, String> testCaseAndExpectedAnswer = ImmutableMap.of(
-        "", "",
-        "https://foo", "https://foo",
-        "https://foo/", "https://foo",
-        "https://foo////", "https://foo///"
+  private static Stream<String[]> stripTrailingSlashTestCases() {
+    return Stream.of(
+        new String[] {"https://foo", "https://foo"},
+        new String[] {"https://foo/", "https://foo"},
+        new String[] {"https://foo////", "https://foo///"},
+        new String[] {null, null}
     );
-
-    testCaseAndExpectedAnswer.forEach((input, expected) ->
-        Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected)
-    );
-
-    Assertions.assertThat(RESTUtil.stripTrailingSlash(null)).isNull();
   }
 
-  @Test
-  public void testNamespaceUrlEncodeDecode() {
-    List<LevelsAndURLEncodedString> testCases = ImmutableList.of(
-        new LevelsAndURLEncodedString(new String[] {"dogs"}, "dogs"),
-        new LevelsAndURLEncodedString(new String[] {"dogs.named.hank"}, "dogs.named.hank"),
-        new LevelsAndURLEncodedString(new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"),
-        new LevelsAndURLEncodedString(
-            new String[] {"dogs", "named", "hank"},
-            "dogs\u0000named\u0000hank"),
-        new LevelsAndURLEncodedString(
+  @DisplayName("Should remove at most one slash from the end of the input string")
+  @ParameterizedTest(name = "{index} => input={0}, expected={1}")
+  @MethodSource("stripTrailingSlashTestCases")
+  public void testStripTrailingSlash(String input, String expected) {
+    Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected);
+  }
+
+  private static Stream<Object[]> roundTripUrlEncodeDecodeNamespaceTestCases() {
+    return Stream.of(
+        new Object[] {new String[] {"dogs"}, "dogs"},
+        new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
+        new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
+        new Object[] {new String[] {"dogs", "named", "hank"}, "dogs\u0000named\u0000hank"},
+        new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats\u0000named\u0000hank.or.james-westfall"));
+            "dogs.and.cats\u0000named\u0000hank.or.james-westfall"
+        }
+    );
+  }
 
-    for (LevelsAndURLEncodedString testCase : testCases) {
-      String[] levels = testCase.levels;
-      String nsEncodedForURLVariable = testCase.parameterEncodedForUrlUsage;
-      Namespace namespace = Namespace.of(levels);
+  @DisplayName("Url encoding and decoding a namespace should return an equal namespace")
+  @ParameterizedTest(name = "{index} => levels={0}, encodedNamespace={1}")
+  @MethodSource("roundTripUrlEncodeDecodeNamespaceTestCases")
+  public void testRoundTripUrlEncodeDecodeNamespace(String[] levels, String encodedNs) {
+    Namespace namespace = Namespace.of(levels);
+    // To be placed into a URL path as query parameter or path parameter
+    Assertions.assertThat(RESTUtil.urlEncode(namespace))
+        .isEqualTo(encodedNs);
 
-      // To be placed into a URL path as query parameter or path variable
-      Assertions.assertThat(RESTUtil.urlEncode(namespace))
-          .isEqualTo(nsEncodedForURLVariable);
-
-      // Decoded (after pulling as String) from URL
-      Namespace asNamespace = RESTUtil.urlDecode(nsEncodedForURLVariable);
-      Assertions.assertThat(asNamespace).isEqualTo(namespace);
-    }
+    // Decoded (after pulling as String) from URL
+    Namespace asNamespace = RESTUtil.urlDecode(encodedNs);
+    Assertions.assertThat(asNamespace).isEqualTo(namespace);
   }
 
   @Test
-  public void testNamespaceUrlDoesNotAllowNull() {
+  public void testNamespaceUrlEncodeDecodeDoesNotAllowNull() {
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> RESTUtil.urlEncode(null))
         .withMessage("Invalid namespace: null");
