@@ -81,6 +81,23 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteFileThenMetadataDelete() {
+    createAndInitUnpartitionedTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+
+    // MOR mode: writes a delete file as null cannot be deleted by metadata
+    sql("DELETE FROM %s AS t WHERE t.id IS NULL", tableName);
+
+    // Metadata Delete
+    sql("DELETE FROM %s AS t WHERE t.id = 1", tableName);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void testDeleteWithFalseCondition() {
     createAndInitUnpartitionedTable();
 
