@@ -57,7 +57,6 @@ from iceberg.types import (
         (UUIDType(), "f79c3e09-677c-4bbd-a479-3f349cb785e7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
         (FixedType(3), "foo", bytearray(b"foo")),
         (BinaryType(), "foo", b"foo"),
-        (None, "__HIVE_DEFAULT_PARTITION__", None),
         (None, None, None),
     ],
 )

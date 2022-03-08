@@ -63,8 +63,6 @@ from iceberg.types import (
     UUIDType,
 )
 
-HIVE_NULL = "__HIVE_DEFAULT_PARTITION__"
-
 
 @singledispatch
 def from_partition_value_to_py(primitive_type, partition_value_as_str: str):
@@ -74,7 +72,7 @@ def from_partition_value_to_py(primitive_type, partition_value_as_str: str):
         primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
         partition_value_as_str(str): A string representation of a partition value
     """
-    if partition_value_as_str is None or partition_value_as_str == HIVE_NULL:
+    if partition_value_as_str is None:
         return None
     raise TypeError(
         f"Cannot convert partition string to python built-in, type {primitive_type} not supported: '{partition_value_as_str}'"
