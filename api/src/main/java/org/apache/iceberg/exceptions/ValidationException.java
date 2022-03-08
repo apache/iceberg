@@ -24,8 +24,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 
 /**
- * Exception raised when arguments inconsistencies checks fail.
- * {@link IllegalArgumentException} raised when arguments aren't allowed.
+ * Exception raised when the arguments are valid in isolation,
+ * but not in conjunction with other arguments or state.
+ * {@link IllegalArgumentException} raised when this argument value would never be appropriate.
  * <p>
  * For example, this is thrown when attempting to create a table with a {@link PartitionSpec} that
  * is not compatible with the table {@link Schema}
