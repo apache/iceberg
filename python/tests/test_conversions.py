@@ -72,6 +72,7 @@ def test_from_partition_value_to_py(primitive_type, partition_value_as_str, expe
         (BooleanType(), b"\x01", True),
         (IntegerType(), b"\xd2\x04\x00\x00", 1234),
         (LongType(), b"\xd2\x04\x00\x00\x00\x00\x00\x00", 1234),
+        (DoubleType(), b"\x8d\x97\x6e\x12\x83\xc0\xf3\x3f", 1.2345),
         (DateType(), b"\xd2\x04\x00\x00", 1234),
         (TimeType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
         (TimestamptzType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
@@ -94,7 +95,6 @@ def test_from_bytes(primitive_type, b, result):
     "primitive_type, b, approximate_result, approximation",
     [
         (FloatType(), b"\x19\x04\x9e?", 1.2345, 5),
-        (DoubleType(), b"\x8d\x97\x6e\x12\x83\xc0\xf3\x3f", 1.2345, 1e-6),
     ],
 )
 def test_from_bytes_approximately(primitive_type, b, approximate_result, approximation):
