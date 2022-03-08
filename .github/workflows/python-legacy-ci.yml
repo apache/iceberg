@@ -20,9 +20,10 @@
 name: "Python Legacy CI"
 on:
   push:
-    paths:
-    - '.github/workflows/python-legacy-ci.yml'
-    - 'python_legacy/**'
+    branches:
+    - 'master'
+    tags:
+    - '**'
   pull_request:
     paths:
     - '.github/workflows/python-legacy-ci.yml'
