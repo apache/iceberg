@@ -54,6 +54,7 @@ import org.apache.iceberg.util.Tasks;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Table table;
+  private final RowType flinkSchema;
   private final Schema schema;
   private final PartitionSpec spec;
   private final FileIO io;
@@ -67,9 +68,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FlinkFileWriterFactory fileWriterFactory;
   private transient OutputFileFactory outputFileFactory;
 
-  private final PartitionKey partitionKey;
-  private final RowDataWrapper rowDataWrapper;
-
   public RowDataTaskWriterFactory(
       Table table,
       RowType flinkSchema,
@@ -78,6 +76,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       List<Integer> equalityFieldIds,
       boolean upsert) {
     this.table = table;
+    this.flinkSchema = flinkSchema;
     this.schema = table.schema();
     this.spec = table.spec();
     this.io = table.io();
@@ -103,9 +102,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
       this.deleteSchema = null;
     }
-
-    this.partitionKey = new PartitionKey(spec, schema);
-    this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
   }
 
   @Override
@@ -149,7 +145,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
         case UPDATE_BEFORE:
           if (upsert) {
-            // UPDATE_BEFORE is not necessary for UPDATE, we do nothing to prevent delete one row twice
+            // Skip to write delete in upsert mode because UPDATE_AFTER will insert after delete.
             break;
           }
           delete(row);
@@ -222,10 +218,17 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   }
 
   private class InsertOnlyWriter extends FlinkBaseWriter {
+
+    private final PartitionKey partitionKey;
+    private final RowDataWrapper rowDataWrapper;
+
     private final PartitioningWriter<RowData, DataWriteResult> delegate;
     private boolean closed = false;
 
     private InsertOnlyWriter(boolean fanoutEnabled) {
+      this.partitionKey = new PartitionKey(spec, schema);
+      this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+
       this.delegate = newDataWriter(fanoutEnabled);
     }
 
@@ -247,10 +250,17 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   }
 
   private class DeltaFanoutWriter extends FlinkBaseWriter {
+
+    private final PartitionKey partitionKey;
+    private final RowDataWrapper rowDataWrapper;
+
     private final EqualityDeltaWriter<RowData> delegate;
     private boolean closed = false;
 
     private DeltaFanoutWriter(boolean fanoutEnabled) {
+      this.partitionKey = new PartitionKey(spec, schema);
+      this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+
       this.delegate = new BaseEqualityDeltaWriter<>(
           newDataWriter(fanoutEnabled),
           newEqualityWriter(fanoutEnabled),
