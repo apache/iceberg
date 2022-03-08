@@ -51,9 +51,11 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   @Override
   public PathOffset write(T row, PartitionSpec spec, StructLike partition) {
     FileWriter<T, R> writer = writer(spec, partition);
+
+    PathOffset pathOffset = PathOffset.of(writer.location(), writer.rowOffset());
     writer.write(row);
 
-    return PathOffset.of(writer.location(), writer.rowOffset());
+    return pathOffset;
   }
 
   private FileWriter<T, R> writer(PartitionSpec spec, StructLike partition) {
