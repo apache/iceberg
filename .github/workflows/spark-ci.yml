@@ -40,6 +40,8 @@ on:
     - 'python/**'
     - 'python_legacy/**'
     - 'docs/**'
+    - 'open-api/**'
+    - 'format/**'
     - '.gitattributes'
     - 'README.md'
     - 'CONTRIBUTING.md'
