@@ -55,6 +55,10 @@ on:
     - 'README.md'
     - 'CONTRIBUTING.md'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   hive2-tests:
     runs-on: ubuntu-latest
