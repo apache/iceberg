@@ -389,7 +389,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 
 | v1         | v2         | Field id, name           | Type                                                      | Description                                                                           |
 | ---------- | ---------- |--------------------------|-----------------------------------------------------------|---------------------------------------------------------------------------------------|
-| _required_ | _required_ | **`0  status`**          | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions                                                 |
+| _required_ | _required_ | **`0  status`**          | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Delitions are informational only and not used in scans.                                                 |
 | _required_ | _optional_ | **`1  snapshot_id`**     | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
 |            | _optional_ | **`3  sequence_number`** | `long`                                                    | Sequence number when the file was added. Inherited when null.                         |
 | _required_ | _required_ | **`2  data_file`**       | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ...                                              |
@@ -442,10 +442,10 @@ Iceberg v2 adds a sequence number to the entry and makes the snapshot id optiona
 
 Notes:
 
-1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.
+1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not
+recommended to add a deleted file back to a table as
+is can lead to edge cases when where incremental deletes break table snapshots.
 2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
-3. When a data file or delete file is marked as deleted in a manifest the writer of the new snapshot may not include a prexisting manifest that references the data file as EXISTING or ADDED. This implies that the manifest from the prior snapshot that including the newly deleted data file must not be in the new snapshot and that any files referenced by the manifest that are still part of the table must be written to a new
-manifest.
 
 #### Sequence Number Inheritance
 
@@ -539,7 +539,7 @@ Notes:
 
 #### Scan Planning
 
-Scans are planned by reading the manifest files for the current snapshot. Deleted entries in data and delete manifests are not used in a scan.
+Scans are planned by reading the manifest files for the current snapshot. Deleted entries in data and delete manifests (those marked with status "DELETED") are not used in a scan.
 
 Manifests that contain no matching files, determined using either file counts or partition summaries, may be skipped.
 
@@ -551,9 +551,7 @@ For example, an `events` table with a timestamp column named `ts` that is partit
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
-Data files that match the query filter must be read by the scan. Note that for any snapshot, all file paths
-may appear at most once across all manifest files in the snapshot. If a file path appears more then once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are
-not required to do so.
+Data files that match the query filter must be read by the scan. Note that for any snapshot, all file paths may appear at most once across all manifest files in the snapshot. If a file path appears more then once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
 
 
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
