@@ -40,7 +40,7 @@ from iceberg.types import (
 
 
 @pytest.mark.parametrize(
-    "type_, partition_value_as_str, expected_result",
+    "primitive_type, partition_value_as_str, expected_result",
     [
         (BooleanType(), "true", True),
         (BooleanType(), "false", False),
@@ -61,13 +61,13 @@ from iceberg.types import (
         (None, None, None),
     ],
 )
-def test_from_partition_value_to_py(type_, partition_value_as_str, expected_result):
+def test_from_partition_value_to_py(primitive_type, partition_value_as_str, expected_result):
     """Test converting a partition value to a python built-in"""
-    assert conversions.from_partition_value_to_py(type_, partition_value_as_str) == expected_result
+    assert conversions.from_partition_value_to_py(primitive_type, partition_value_as_str) == expected_result
 
 
 @pytest.mark.parametrize(
-    "type_, b, result",
+    "primitive_type, b, result",
     [
         (BooleanType(), b"\x00", False),
         (BooleanType(), b"\x01", True),
@@ -86,25 +86,25 @@ def test_from_partition_value_to_py(type_, partition_value_as_str, expected_resu
         (DecimalType(7, 4), b"\xff\xed\x29\x79", Decimal("-123.4567")),
     ],
 )
-def test_from_bytes(type_, b, result):
+def test_from_bytes(primitive_type, b, result):
     """Test converting from bytes"""
-    assert conversions.from_bytes(type_, b) == result
+    assert conversions.from_bytes(primitive_type, b) == result
 
 
 @pytest.mark.parametrize(
-    "type_, b, approximate_result, approximation",
+    "primitive_type, b, approximate_result, approximation",
     [
         (FloatType(), b"\x19\x04\x9e?", 1.2345, 5),
         (DoubleType(), b"\x8d\x97\x6e\x12\x83\xc0\xf3\x3f", 1.2345, 1e-6),
     ],
 )
-def test_from_bytes_approximately(type_, b, approximate_result, approximation):
+def test_from_bytes_approximately(primitive_type, b, approximate_result, approximation):
     """Test approximate equality when converting from bytes"""
-    assert conversions.from_bytes(type_, b) == pytest.approx(approximate_result, approximation)
+    assert conversions.from_bytes(primitive_type, b) == pytest.approx(approximate_result, approximation)
 
 
 @pytest.mark.parametrize(
-    "type_, b, result",
+    "primitive_type, b, result",
     [
         (BooleanType(), b"\x00", False),
         (BooleanType(), b"\x01", True),
@@ -124,17 +124,17 @@ def test_from_bytes_approximately(type_, b, approximate_result, approximation):
         (DecimalType(7, 4), bytes([237, 41, 121]), Decimal("-123.4567")),
     ],
 )
-def test_round_trip_conversion(type_, b, result):
+def test_round_trip_conversion(primitive_type, b, result):
     """Test round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
-    value_from_bytes = conversions.from_bytes(type_, b)
+    value_from_bytes = conversions.from_bytes(primitive_type, b)
     assert value_from_bytes == result
 
-    bytes_from_value = conversions.to_bytes(type_, value_from_bytes)
+    bytes_from_value = conversions.to_bytes(primitive_type, value_from_bytes)
     assert bytes_from_value == b
 
 
 @pytest.mark.parametrize(
-    "type_, b, result",
+    "primitive_type, b, result",
     [
         (
             DecimalType(38, 21),
@@ -204,28 +204,28 @@ def test_round_trip_conversion(type_, b, result):
         (DecimalType(31, 26), b"\x0f\x94\xec\xad\xa5C<]\xdePf\xd6N", Decimal("12345.12345678912345678912345678")),
     ],
 )
-def test_round_trip_conversion_large_decimals(type_, b, result):
+def test_round_trip_conversion_large_decimals(primitive_type, b, result):
     """Test round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
-    value_from_bytes = conversions.from_bytes(type_, b)
+    value_from_bytes = conversions.from_bytes(primitive_type, b)
     assert value_from_bytes == result
 
-    bytes_from_value = conversions.to_bytes(type_, value_from_bytes)
+    bytes_from_value = conversions.to_bytes(primitive_type, value_from_bytes)
     assert bytes_from_value == b
 
 
 @pytest.mark.parametrize(
-    "type_, b, result",
+    "primitive_type, b, result",
     [
         (FloatType(), b"\x19\x04\x9e?", 1.2345),
         (DoubleType(), b"\x8d\x97n\x12\x83\xc0\xf3?", 1.2345),
     ],
 )
-def test_round_trip_conversion_approximation(type_, b, result):
+def test_round_trip_conversion_approximation(primitive_type, b, result):
     """Test approximate round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
-    value_from_bytes = conversions.from_bytes(type_, b)
+    value_from_bytes = conversions.from_bytes(primitive_type, b)
     assert value_from_bytes == pytest.approx(result)
 
-    bytes_from_value = conversions.to_bytes(type_, value_from_bytes)
+    bytes_from_value = conversions.to_bytes(primitive_type, value_from_bytes)
     assert bytes_from_value == b
 
 
@@ -252,7 +252,7 @@ def test_raise_on_unregistered_type():
 
 
 @pytest.mark.parametrize(
-    "type_, value, expected_error_message",
+    "primitive_type, value, expected_error_message",
     [
         (DecimalType(7, 3), Decimal("123.4567"), "Cannot serialize value, scale of value does not match type decimal(7, 3): 4"),
         (
@@ -282,8 +282,8 @@ def test_raise_on_unregistered_type():
         ),
     ],
 )
-def test_raise_on_incorrect_precision_or_scale(type_, value, expected_error_message):
+def test_raise_on_incorrect_precision_or_scale(primitive_type, value, expected_error_message):
     with pytest.raises(ValueError) as exc_info:
-        conversions.to_bytes(type_, value)
+        conversions.to_bytes(primitive_type, value)
 
     assert expected_error_message in str(exc_info.value)
