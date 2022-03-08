@@ -266,18 +266,18 @@ def test_raise_on_unregistered_type():
         ),
         (
             DecimalType(7, 2),
-            Decimal("1234.56"),
-            "Cannot serialize value, precision of value does not match type decimal(7, 2): 6",
+            Decimal("1234567.89"),
+            "Cannot serialize value, precision of value is greater than precision of type decimal(7, 2): 9",
         ),
         (
             DecimalType(17, 9),
             Decimal("123456789.123456789"),
-            "Cannot serialize value, precision of value does not match type decimal(17, 9): 18",
+            "Cannot serialize value, precision of value is greater than precision of type decimal(17, 9): 18",
         ),
         (
-            DecimalType(37, 35),
+            DecimalType(35, 35),
             Decimal("1.23456789123456789123456789123456789"),
-            "Cannot serialize value, precision of value does not match type decimal(37, 35): 36",
+            "Cannot serialize value, precision of value is greater than precision of type decimal(35, 35): 36",
         ),
     ],
 )

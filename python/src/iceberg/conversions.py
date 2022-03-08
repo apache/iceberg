@@ -187,8 +187,10 @@ def _(primitive_type, value: Decimal) -> bytes:
 
     if value_scale != primitive_type.scale:
         raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {value_scale}")
-    elif value_precision != primitive_type.precision:
-        raise ValueError(f"Cannot serialize value, precision of value does not match type {primitive_type}: {value_precision}")
+    elif value_precision > primitive_type.precision:
+        raise ValueError(
+            f"Cannot serialize value, precision of value is greater than precision of type {primitive_type}: {value_precision}"
+        )
 
     with localcontext() as ctx:
         ctx.prec = primitive_type.precision
