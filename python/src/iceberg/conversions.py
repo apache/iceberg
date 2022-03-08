@@ -44,7 +44,6 @@ import struct
 import uuid
 from decimal import ROUND_HALF_DOWN, Decimal, localcontext
 from functools import singledispatch
-from typing import Any
 
 from iceberg.types import (
     BinaryType,
@@ -124,24 +123,25 @@ def _(primitive_type, partition_value_as_str: str):
 
 
 @singledispatch
-def to_bytes(primitive_type, value: Any) -> bytes:
+def to_bytes(primitive_type, value) -> bytes:
     """A generic function which converts a built-in python value to bytes
 
     Args:
         primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
-        value(Any): The value to convert to bytes
+        value: The value to convert to bytes (The type of this value depends on which dispatched function is
+            used--check dispatchable functions for typehints)
     """
     raise TypeError(f"Cannot serialize value, type {primitive_type} not supported: '{value}'")
 
 
 @to_bytes.register(BooleanType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: bool) -> bytes:
     return struct.pack("<?", 1 if value else 0)
 
 
 @to_bytes.register(IntegerType)
 @to_bytes.register(DateType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: int) -> bytes:
     return struct.pack("<i", value)
 
 
@@ -149,38 +149,38 @@ def _(primitive_type, value: Any) -> bytes:
 @to_bytes.register(TimeType)
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: int) -> bytes:
     return struct.pack("<q", value)
 
 
 @to_bytes.register(FloatType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: float) -> bytes:
     return struct.pack("<f", value)
 
 
 @to_bytes.register(DoubleType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: float) -> bytes:
     return struct.pack("<d", value)
 
 
 @to_bytes.register(StringType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: str) -> bytes:
     return value.encode("UTF-8")
 
 
 @to_bytes.register(UUIDType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: uuid.UUID) -> bytes:
     return struct.pack(">QQ", (value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
 
 
 @to_bytes.register(BinaryType)
 @to_bytes.register(FixedType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: bytes) -> bytes:
     return value
 
 
 @to_bytes.register(DecimalType)
-def _(primitive_type, value: Any) -> bytes:
+def _(primitive_type, value: Decimal) -> bytes:
     value_as_tuple = value.as_tuple()
     value_precision = len(value_as_tuple.digits)
     value_scale = -value_as_tuple.exponent
