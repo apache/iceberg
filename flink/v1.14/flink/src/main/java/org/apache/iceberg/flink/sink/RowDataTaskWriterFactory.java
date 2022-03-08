@@ -118,7 +118,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public TaskWriter<RowData> create() {
-    Preconditions.checkNotNull(outputFileFactory,
+    Preconditions.checkNotNull(
+        outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (deleteSchema != null) {
