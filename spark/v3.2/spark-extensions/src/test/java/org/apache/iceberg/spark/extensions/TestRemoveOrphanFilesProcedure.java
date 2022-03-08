@@ -60,8 +60,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
   @After
   public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS p", tableName);
+    sql("DROP TABLE IF EXISTS %s PURGE", tableName);
+    sql("DROP TABLE IF EXISTS p PURGE");
   }
 
   @Test
@@ -200,6 +200,9 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject call",
         ValidationException.class, "Cannot remove orphan files: GC is disabled",
         () -> sql("CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent));
+
+    // reset the property to enable the table purging in removeTable.
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, GC_ENABLED);
   }
 
   @Test

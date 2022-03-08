@@ -20,13 +20,18 @@
 name: "Python CI"
 on:
   push:
-    paths:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
+    branches:
+    - 'master'
+    tags:
+    - '**'
   pull_request:
     paths:
     - '.github/workflows/python-ci.yml'
     - 'python/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   tox:

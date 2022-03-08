@@ -98,6 +98,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final JavaSparkContext sparkContext;
+  private final SparkWriteConf writeConf;
   private final Table table;
   private final String queryId;
   private final FileFormat format;
@@ -118,6 +119,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
              Distribution requiredDistribution, SortOrder[] requiredOrdering) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.writeConf = writeConf;
     this.queryId = writeInfo.queryId();
     this.format = writeConf.dataFileFormat();
     this.applicationId = applicationId;
@@ -272,6 +274,22 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       }
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+      IsolationLevel isolationLevel = writeConf.isolationLevel();
+      Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
+
+      if (isolationLevel == SERIALIZABLE) {
+        if (validateFromSnapshotId != null) {
+          dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
+        }
+        dynamicOverwrite.validateNoConflictingData();
+        dynamicOverwrite.validateNoConflictingDeletes();
+
+      } else if (isolationLevel == SNAPSHOT) {
+        if (validateFromSnapshotId != null) {
+          dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
+        }
+        dynamicOverwrite.validateNoConflictingDeletes();
+      }
 
       int numFiles = 0;
       for (DataFile file : files) {
