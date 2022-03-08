@@ -86,19 +86,23 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.format = format;
     this.upsert = upsert;
 
-    FlinkFileWriterFactory.Builder builder = FlinkFileWriterFactory.builderFor(table)
-        .dataFlinkType(flinkSchema);
-
     if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
-      builder.equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
-          .equalityDeleteRowSchema(schema);
+      this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
+          .dataFlinkType(flinkSchema)
+          .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+          .equalityDeleteRowSchema(schema)
+          .build();
 
       this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     } else {
+      this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
+          .dataFlinkType(flinkSchema)
+          .build();
+
       this.deleteSchema = null;
     }
-
-    this.fileWriterFactory = builder.build();
 
     this.partitionKey = new PartitionKey(spec, schema);
     this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
@@ -111,7 +115,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public TaskWriter<RowData> create() {
-    Preconditions.checkNotNull(outputFileFactory,
+    Preconditions.checkNotNull(
+        outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (deleteSchema != null) {
