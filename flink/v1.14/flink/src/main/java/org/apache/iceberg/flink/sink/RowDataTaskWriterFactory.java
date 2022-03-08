@@ -119,7 +119,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (deleteSchema != null) {
-      return new DeltaFanoutWriter(spec.isPartitioned());
+      return new DeltaWriter(spec.isPartitioned());
     } else {
       return new InsertOnlyWriter(spec.isPartitioned());
     }
@@ -252,7 +252,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  private class DeltaFanoutWriter extends FlinkBaseWriter {
+  private class DeltaWriter extends FlinkBaseWriter {
 
     private final PartitionKey partitionKey;
     private final RowDataWrapper rowDataWrapper;
@@ -260,7 +260,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     private final EqualityDeltaWriter<RowData> delegate;
     private boolean closed = false;
 
-    private DeltaFanoutWriter(boolean fanoutEnabled) {
+    private DeltaWriter(boolean fanoutEnabled) {
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
 
