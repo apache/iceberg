@@ -194,31 +194,33 @@ Notes:
 For details on how to serialize a schema to JSON, see Appendix C.
 
 #### Default value
-For each top-level column or a nested field, there can be a default value set for it. This is mainly for reading data back that lack that column/field for schema evolution purposes. E.g. when a table is added a column with a default value, previously written data won't have that column, thus when a read with this new evolved table schema happens, it will read the old data using the default value for the column, instead of reading it as `null`.
+Default values can be assigned to top-level columns or nested fields. Default values are used during schema evolution when adding a new column. The default value is used to read rows belonging to the files that lack the column or nested field prior to the schema evolution.
 
-Default value should only be set once and shouldn't be changed later(except the user specifically set the `allowIncompatibleChanges` flag to update the default value), because although the way we implement the setting default value is by encoding (see below) it into the table schema, the default value may as well by materialized into the data files themselves when we rewrite the datafiles during compaction or merge. Thus, if we later change the default value again, some data files might already have the previous default value materialized and won't appear to be affected by the new default value change.
+Currently, when a default value for a column or nested field is set, it is considered an incompatible change to change it to another value. However, changing default values is allowed when calling the `allowIncompatibleChanges` API explicitly. Changing default values is discouraged since the occurrence of a rewrite may determine whether the new or old default value is returned during the read.
 
-What default value can be set for the field are dependent upon the type of that field, here is the mapping of types and their default value json encodings (we use json to encode default values because we also use json to encode table schema, and default value is treated as an attribute in the table schema, see JSON encoding in [Appendix C](#Appendix-C:-JSON-serialization)).
+Default values are encoded in JSON format. The representation depends on the type of the corresponding field. The mapping of types and their corresponding default value JSON representation is described in the following table.
 
-| type               | json type     | example                                |
-|--------------------|---------------|----------------------------------------|
-| **`boolean`**      | **`boolean`** | true                                   |
-| **`int`**          | **`number`**  | 1                                      |
-| **`long`**         | **`number`**  | 1                                      |
-| **`float`**        | **`number`**  | 1.1                                    |
-| **`double`**       | **`number`**  | 1.1                                    |
-| **`decimal(P,S)`** | **`string`**  | "0x3162"                               |
-| **`date`**         | **`number`**  | 19054                                  |
-| **`time`**         | **`number`**  | 36000000000                            |
-| **`timestamp`**    | **`number`**  | 1646277378000000                       |
-| **`timestamptz`**  | **`number`**  | 1646277378000000                       |
-| **`string`**       | **`string`**  | "foo"                                  |
-| **`uuid`**         | **`string`**  | "eb26bdb1-a1d8-4aa6-990e-da940875492c" |
-| **`fixed(L)`**     | **`string`**  | "0x3162"                               |
-| **`binary`**       | **`string`**  | "0x3162"                               |
-| **`struct`**       | **`object`**  | {"a": 1, "foo": bar}                   |
-| **`list`**         | **`array`**   | \[1, 2, 3\]                            |
-| **`map`**          | **`object`**  | {"a": 1, "b": 2}                       |
+| type               | json type     | example                                | note                                                                                                                                                                                                                                         |
+|--------------------|---------------|----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`boolean`**      | **`boolean`** | true                                   |                                                                                                                                                                                                                                              |
+| **`int`**          | **`number`**  | 1                                      |                                                                                                                                                                                                                                              |
+| **`long`**         | **`number`**  | 1                                      |                                                                                                                                                                                                                                              |
+| **`float`**        | **`number`**  | 1.1                                    |                                                                                                                                                                                                                                              |
+| **`double`**       | **`number`**  | 1.1                                    |                                                                                                                                                                                                                                              |
+| **`decimal(P,S)`** | **`string`**  | "0x3162"                               | we use hexadecimal byte literals to encode bytes, with prefix `0x`, the byte array contain the two's-complement representation of the `unscaled` integer value in big-endian byte order, the actual value will be `unscaled * 10 ^ (-scale)` |
+| **`date`**         | **`number`**  | 19054                                  |                                                                                                                                                                                                                                              |
+| **`time`**         | **`number`**  | 36000000000                            |                                                                                                                                                                                                                                              |
+| **`timestamp`**    | **`number`**  | 1646277378000000                       |                                                                                                                                                                                                                                              |
+| **`timestamptz`**  | **`number`**  | 1646277378000000                       |                                                                                                                                                                                                                                              |
+| **`string`**       | **`string`**  | "foo"                                  |                                                                                                                                                                                                                                              |
+| **`uuid`**         | **`string`**  | "eb26bdb1-a1d8-4aa6-990e-da940875492c" |                                                                                                                                                                                                                                              |
+| **`fixed(L)`**     | **`string`**  | "0x3162"                               | we use hexadecimal byte literals to encode bytes, with prefix `0x`                                                                                                                                                                           |
+| **`binary`**       | **`string`**  | "0x3162"                               | we use hexadecimal byte literals to encode bytes, with prefix `0x`                                                                                                                                                                           |
+| **`struct`**       | **`object`**  | {"a": 1, "foo": "bar"}                 | the keys are the nested fields' names in the struct schema, and the values should be corresponding value literals of the field's type                                                                                                        |
+| **`list`**         | **`array`**   | \[1, 2, 3\]                            | each value should be value literals of the corresponding element type of the list                                                                                                                                                            |
+| **`map`**          | **`object`**  | {"a": 1, "b": 2}                       | the key and value type correspond with the schema of the map, the key (json string) are parsed into the resulting key type of the map schema, an exception will be thrown if parsing fails.                                                  |
+
+Default value is treated as an attribute of a nested field in the table schema when the schema is serialized, see JSON encoding in [Appendix C](#Appendix-C:-JSON-serialization)).
 
 #### Schema Evolution
 
