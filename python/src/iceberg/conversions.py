@@ -42,7 +42,7 @@ Example (stacking registrations):
 """
 import struct
 import uuid
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_DOWN, Decimal, localcontext
 from functools import singledispatch
 from typing import Any
 
@@ -181,11 +181,20 @@ def _(type_, value: Any) -> bytes:
 
 @to_bytes.register(DecimalType)
 def _(type_, value: Any) -> bytes:
-    scale = abs(value.as_tuple().exponent)
-    quantized_value = value.quantize(Decimal("10") ** -scale)
-    unscaled_value = int((quantized_value * 10**scale).to_integral_value())
-    min_num_bytes = (unscaled_value.bit_length() + 7) // 8
-    return unscaled_value.to_bytes(min_num_bytes, "big", signed=True)
+    value_as_tuple = value.as_tuple()
+    value_precision = len(value_as_tuple.digits)
+    value_scale = -value_as_tuple.exponent
+
+    if value_scale != type_.scale:
+        raise ValueError(f"Cannot serialize value, scale of value does not match type {type_}: {value_scale}")
+    elif value_precision != type_.precision:
+        raise ValueError(f"Cannot serialize value, precision of value does not match type {type_}: {value_precision}")
+
+    with localcontext() as ctx:
+        ctx.prec = type_.precision
+        unscaled_value = int((value * 10**type_.scale).to_integral_value(rounding=ROUND_HALF_DOWN))
+        min_num_bytes = ((unscaled_value).bit_length() + 7) // 8
+        return unscaled_value.to_bytes(min_num_bytes, "big", signed=True)
 
 
 @singledispatch
@@ -246,6 +255,7 @@ def _(type_, b: bytes):
 
 @from_bytes.register(DecimalType)
 def _(type_, b: bytes):
-    return Decimal(int.from_bytes(b, "big", signed=True) * 10**-type_.scale).quantize(
-        Decimal("." + "".join(["0" for i in range(1, type_.scale)]) + "1"), rounding=ROUND_HALF_UP
-    )
+    integer_representation = int.from_bytes(b, "big", signed=True)
+    with localcontext() as ctx:
+        ctx.prec = type_.precision
+        return Decimal(integer_representation) * Decimal(10) ** Decimal(-type_.scale)
