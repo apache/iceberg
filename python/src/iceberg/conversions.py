@@ -258,4 +258,4 @@ def _(primitive_type, b: bytes):
     integer_representation = int.from_bytes(b, "big", signed=True)
     with localcontext() as ctx:
         ctx.prec = primitive_type.precision
-        return Decimal(integer_representation) * Decimal(10) ** Decimal(-primitive_type.scale)
+        return Decimal(integer_representation) * (Decimal(10) ** Decimal(-primitive_type.scale))
