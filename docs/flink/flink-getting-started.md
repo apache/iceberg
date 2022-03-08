@@ -559,32 +559,23 @@ The following options can be used to tune the performance of the query execution
 | table.exec.iceberg.fetch-batch-record-count   | 2048    | Int     | EThe target number of records for Iceberg reader fetch batch.                                                                    |
 
 Usage:
-
+When constructing Flink Iceberg source via Java API, configs can be set in Configuration passed to source builder. E.g.
 ```java
-// instantiate table environment
-TableEnvironment tEnv = ...
-    
-// access flink configuration
-Configuration configuration = tEnv.getConfig().getConfiguration();
-// set low-level key-value options
-configuration.setStriFlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM", "true");
-```
-
-```java
-StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
-    
-Configuration configuration = new Configuration();
-configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
-
-DataStream<RowData> source = FlinkSource.forRowData()
-    .env(env)
-    .tableLoader(tableLoader)
+configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+FlinkSource.forRowData()
     .flinkConf(configuration)
-    .streaming(true)
-    .build();
+    ...
 ```
 
+When using Flink SQL/table API, connector options can be set in Flink's TableEnvironment.
+```java
+TableEnvironment tEnv = createTableEnv();
+tEnv.getConfig()
+    .getConfiguration()
+    .setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+```
+
+When using Flink SQL Client, configs can be set via SET command.
 ```sql
 -- Enable this switch to expose split host information
 SET 'table.exec.iceberg.expose-split-locality-info'='true';
