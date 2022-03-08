@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * API for updating table properties.
@@ -40,6 +41,18 @@ public interface UpdateProperties extends PendingUpdate<Map<String, String>> {
    * @throws NullPointerException If either the key or value is null
    */
   UpdateProperties set(String key, String value);
+
+  /**
+   * Apply a transform to a table property based on the "current" value.
+   *
+   * If the key doesn't exit but transformFunc produces a non-null value, it will add the key/value
+   * to table property, so the transformFunc is expected to handle null as input.
+   *
+   * @param key a String key
+   * @return this for method chaining
+   * @throws NullPointerException If either the key or transformFunc is null
+   */
+  UpdateProperties transform(String key, Function<String, String> transformFunc);
 
   /**
    * Remove the given property key from the table.
