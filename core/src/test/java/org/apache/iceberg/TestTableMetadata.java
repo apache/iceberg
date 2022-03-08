@@ -249,12 +249,12 @@ public class TestTableMetadata {
   public void testInvalidMainBranch() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, 7, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, 7,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
@@ -283,8 +283,8 @@ public class TestTableMetadata {
   public void testMainWithoutCurrent() {
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot snapshot = new BaseSnapshot(
-        ops.io(), snapshotId, null, snapshotId, null, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        ops.io(), snapshotId, null, snapshotId, null, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
 
     Schema schema = new Schema(6,
         Types.NestedField.required(10, "x", Types.StringType.get()));
