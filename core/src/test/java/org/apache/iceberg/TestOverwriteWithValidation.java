@@ -748,6 +748,60 @@ public class TestOverwriteWithValidation extends TableTestBase {
   }
 
   @Test
+  public void testConcurrentConflictingDataFileDeleteOverwriteByFilter() {
+    Assert.assertNull("Should be empty table", table.currentSnapshot());
+
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .overwriteByRowFilter(EXPRESSION_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
+
+    table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Found conflicting deleted files",
+        overwrite::commit);
+  }
+
+  @Test
+  public void testConcurrentNonConflictingDataFileDeleteOverwriteByFilter() {
+    Assert.assertNull("Should be empty table", table.currentSnapshot());
+
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .overwriteByRowFilter(EXPRESSION_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
+
+    table.newOverwrite()
+        .deleteFile(FILE_DAY_1)
+        .commit();
+
+    overwrite.commit();
+
+    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+  }
+
+  @Test
   public void testConcurrentNonConflictingPositionDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
