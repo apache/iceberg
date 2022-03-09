@@ -63,7 +63,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testCreateTable() {
     String namespace = createNamespace();
     String tableName = getRandomName();
-    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
     // verify table exists in Glue
     GetTableResponse response = glue.getTable(GetTableRequest.builder()
         .databaseName(namespace).name(tableName).build());
@@ -74,6 +74,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertTrue(response.table().parameters().containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
     Assert.assertEquals(schema.columns().size(), response.table().storageDescriptor().columns().size());
     Assert.assertEquals(partitionSpec.fields().size(), response.table().partitionKeys().size());
+    Assert.assertEquals("additionalLocations should match", tableLocationProperties.values(),
+        response.table().storageDescriptor().additionalLocations());
     // verify metadata file exists in S3
     String metaLocation = response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     String key = metaLocation.split(testBucketName, -1)[1].substring(1);

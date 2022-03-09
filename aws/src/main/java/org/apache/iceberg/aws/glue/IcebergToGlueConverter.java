@@ -19,19 +19,24 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -60,6 +65,18 @@ class IcebergToGlueConverter {
   public static final String ICEBERG_FIELD_ID = "iceberg.field.id";
   public static final String ICEBERG_FIELD_OPTIONAL = "iceberg.field.optional";
   public static final String ICEBERG_FIELD_CURRENT = "iceberg.field.current";
+  private static final List<String> ADDITIONAL_LOCATION_PROPERTIES = ImmutableList.of(
+      TableProperties.WRITE_DATA_LOCATION,
+      TableProperties.WRITE_METADATA_LOCATION,
+      TableProperties.OBJECT_STORE_PATH,
+      TableProperties.WRITE_FOLDER_STORAGE_LOCATION
+  );
+
+  // Attempt to set additionalLocations if available on the given AWS SDK version
+  private static final DynMethods.UnboundMethod SET_ADDITIONAL_LOCATIONS = DynMethods.builder("additionalLocations")
+      .hiddenImpl("software.amazon.awssdk.services.glue.model.StorageDescriptor$Builder", Collection.class)
+      .orNoop()
+      .build();
 
   /**
    * A Glue database name cannot be longer than 252 characters.
@@ -179,8 +196,17 @@ class IcebergToGlueConverter {
    */
   static void setTableInputInformation(TableInput.Builder tableInputBuilder, TableMetadata metadata) {
     try {
+      StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
+      if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
+        SET_ADDITIONAL_LOCATIONS.invoke(storageDescriptor,
+            ADDITIONAL_LOCATION_PROPERTIES.stream()
+            .map(metadata.properties()::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet()));
+      }
+
       tableInputBuilder
-          .storageDescriptor(StorageDescriptor.builder()
+          .storageDescriptor(storageDescriptor
               .location(metadata.location())
               .columns(toColumns(metadata))
               .build());
