@@ -77,10 +77,10 @@ public class SchemaUtil {
       case LONG:      return DataType.LONG;
       case FLOAT:     return DataType.FLOAT;
       case DOUBLE:    return DataType.DOUBLE;
-      case TIMESTAMP: return DataType.CHARARRAY;
-      case DATE:      return DataType.CHARARRAY;
+      case TIMESTAMP:
+      case DATE:
       case STRING:    return DataType.CHARARRAY;
-      case FIXED:     return DataType.BYTEARRAY;
+      case FIXED:
       case BINARY:    return DataType.BYTEARRAY;
       case DECIMAL:   return DataType.BIGDECIMAL;
       case STRUCT:    return DataType.TUPLE;
