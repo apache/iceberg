@@ -30,9 +30,9 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
-public class GCSOutputFile extends BaseGCSFile implements OutputFile {
+class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
-  public static GCSOutputFile fromLocation(String location, Storage storage,
+  static GCSOutputFile fromLocation(String location, Storage storage,
       GCPProperties gcpProperties, MetricsContext metrics) {
     return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
   }

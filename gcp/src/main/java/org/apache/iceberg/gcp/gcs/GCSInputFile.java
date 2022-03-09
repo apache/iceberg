@@ -26,9 +26,9 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
-public class GCSInputFile extends BaseGCSFile implements InputFile {
+class GCSInputFile extends BaseGCSFile implements InputFile {
 
-  public static GCSInputFile fromLocation(String location, Storage storage,
+  static GCSInputFile fromLocation(String location, Storage storage,
       GCPProperties gcpProperties, MetricsContext metrics) {
     return new GCSInputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
   }
