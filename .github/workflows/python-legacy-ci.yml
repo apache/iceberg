@@ -22,8 +22,9 @@ on:
   push:
     branches:
     - 'master'
+    - '0.**'
     tags:
-    - '**'
+    - 'apache-iceberg-**'
   pull_request:
     paths:
     - '.github/workflows/python-legacy-ci.yml'
