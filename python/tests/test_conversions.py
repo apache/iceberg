@@ -228,6 +228,42 @@ def test_round_trip_conversion_approximation(primitive_type, b, result):
     assert bytes_from_value == b
 
 
+@pytest.mark.parametrize(
+    "primitive_type, expected_max_value",
+    [
+        (DecimalType(6, 2), Decimal("9999.99")),
+        (DecimalType(10, 10), Decimal(".9999999999")),
+        (DecimalType(2, 1), Decimal("9.9")),
+        (DecimalType(38, 37), Decimal("9.9999999999999999999999999999999999999")),
+        (DecimalType(20, 1), Decimal("9999999999999999999.9")),
+    ],
+)
+def test_max_value_round_trip_conversion(primitive_type, expected_max_value):
+    """Test round trip conversions of maximum DecimalType values"""
+    b = conversions.to_bytes(primitive_type, expected_max_value)
+    value_from_bytes = conversions.from_bytes(primitive_type, b)
+
+    assert value_from_bytes == expected_max_value
+
+
+@pytest.mark.parametrize(
+    "primitive_type, expected_max_value",
+    [
+        (DecimalType(6, 2), Decimal("-9999.99")),
+        (DecimalType(10, 10), Decimal("-.9999999999")),
+        (DecimalType(2, 1), Decimal("-9.9")),
+        (DecimalType(38, 37), Decimal("-9.9999999999999999999999999999999999999")),
+        (DecimalType(20, 1), Decimal("-9999999999999999999.9")),
+    ],
+)
+def test_min_value_round_trip_conversion(primitive_type, expected_max_value):
+    """Test round trip conversions of minimum DecimalType values"""
+    b = conversions.to_bytes(primitive_type, expected_max_value)
+    value_from_bytes = conversions.from_bytes(primitive_type, b)
+
+    assert value_from_bytes == expected_max_value
+
+
 def test_raise_on_unregistered_type():
     """Test raising when a conversion is attempted for a type that has no registered method"""
 
