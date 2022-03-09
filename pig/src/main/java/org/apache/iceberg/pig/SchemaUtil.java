@@ -72,20 +72,31 @@ public class SchemaUtil {
 
   private static byte convertType(Type type) throws IOException {
     switch (type.typeId()) {
-      case BOOLEAN:   return DataType.BOOLEAN;
-      case INTEGER:   return DataType.INTEGER;
-      case LONG:      return DataType.LONG;
-      case FLOAT:     return DataType.FLOAT;
-      case DOUBLE:    return DataType.DOUBLE;
+      case BOOLEAN:
+        return DataType.BOOLEAN;
+      case INTEGER:
+        return DataType.INTEGER;
+      case LONG:
+        return DataType.LONG;
+      case FLOAT:
+        return DataType.FLOAT;
+      case DOUBLE:
+        return DataType.DOUBLE;
       case TIMESTAMP:
       case DATE:
-      case STRING:    return DataType.CHARARRAY;
+      case STRING:
+        return DataType.CHARARRAY;
       case FIXED:
-      case BINARY:    return DataType.BYTEARRAY;
-      case DECIMAL:   return DataType.BIGDECIMAL;
-      case STRUCT:    return DataType.TUPLE;
-      case LIST:      return DataType.BAG;
-      case MAP:       return DataType.MAP;
+      case BINARY:
+        return DataType.BYTEARRAY;
+      case DECIMAL:
+        return DataType.BIGDECIMAL;
+      case STRUCT:
+        return DataType.TUPLE;
+      case LIST:
+        return DataType.BAG;
+      case MAP:
+        return DataType.MAP;
       default:
         throw new FrontendException("Unsupported primitive type:" + type);
     }
