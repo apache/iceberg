@@ -88,7 +88,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }
 
-  private <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
+  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
     AssumeRoleRequest request = AssumeRoleRequest.builder()
         .roleArn(roleArn)
         .roleSessionName(genSessionName())
@@ -107,6 +107,22 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     clientBuilder.httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType));
 
     return clientBuilder;
+  }
+
+  protected Set<Tag> tags() {
+    return tags;
+  }
+
+  protected String region() {
+    return region;
+  }
+
+  protected String s3Endpoint() {
+    return s3Endpoint;
+  }
+
+  protected String httpClientType() {
+    return httpClientType;
   }
 
   private StsClient sts() {

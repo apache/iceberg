@@ -127,7 +127,7 @@ public class AwsClientFactories {
     }
   }
 
-  static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
+  public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
     String clientType = httpClientType;
     if (Strings.isNullOrEmpty(clientType)) {
       clientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
@@ -142,7 +142,7 @@ public class AwsClientFactories {
     }
   }
 
-  static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
+  public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }

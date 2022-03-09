@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
+import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -88,6 +89,11 @@ public class AwsProperties implements Serializable {
   public static final String GLUE_CATALOG_ID = "glue.id";
 
   /**
+   * The account ID used in a Glue resource ARN, e.g. arn:aws:glue:us-east-1:1000000000000:table/db1/table1
+   */
+  public static final String GLUE_ACCOUNT_ID = "glue.account-id";
+
+  /**
    * If Glue should skip archiving an old table version when creating a new version in a commit.
    * By default Glue archives all old table versions after an UpdateTable call,
    * but Glue has a default max number of archived table versions (can be increased).
@@ -95,6 +101,15 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
+
+  /**
+   * If set, GlueCatalog will use Lake Formation for access control.
+   * For more credential vending details, see: https://docs.aws.amazon.com/lake-formation/latest/dg/api-overview.html.
+   * If enabled, the {@link AwsClientFactory} implementation must be {@link LakeFormationAwsClientFactory}
+   * or any class that extends it.
+   */
+  public static final String GLUE_LAKEFORMATION_ENABLED = "glue.lakeformation-enabled";
+  public static final boolean GLUE_LAKEFORMATION_ENABLED_DEFAULT = false;
 
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
@@ -282,6 +297,18 @@ public class AwsProperties implements Serializable {
   @Deprecated
   public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}.
+   * The table name used as part of lake formation credentials request.
+   */
+  public static final String LAKE_FORMATION_TABLE_NAME = "lakeformation.table-name";
+
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}.
+   * The database name used as part of lake formation credentials request.
+   */
+  public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -296,6 +323,7 @@ public class AwsProperties implements Serializable {
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
+  private boolean glueLakeFormationEnabled;
 
   private String dynamoDbTableName;
 
@@ -315,6 +343,7 @@ public class AwsProperties implements Serializable {
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
+    this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
 
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
   }
@@ -332,6 +361,9 @@ public class AwsProperties implements Serializable {
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive = PropertyUtil.propertyAsBoolean(properties,
         AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE, AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
+    this.glueLakeFormationEnabled = PropertyUtil.propertyAsBoolean(properties,
+        GLUE_LAKEFORMATION_ENABLED,
+        GLUE_LAKEFORMATION_ENABLED_DEFAULT);
 
     this.s3FileIoMultipartUploadThreads = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_UPLOAD_THREADS,
         Runtime.getRuntime().availableProcessors());
@@ -422,6 +454,14 @@ public class AwsProperties implements Serializable {
 
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
+  }
+
+  public boolean glueLakeFormationEnabled() {
+    return glueLakeFormationEnabled;
+  }
+
+  public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
+    this.glueLakeFormationEnabled = glueLakeFormationEnabled;
   }
 
   public int s3FileIoMultipartUploadThreads() {

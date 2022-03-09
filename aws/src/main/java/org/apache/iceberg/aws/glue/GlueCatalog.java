@@ -34,7 +34,9 @@ import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -49,9 +51,11 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LockManagers;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -87,6 +91,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private FileIO fileIO;
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
@@ -104,13 +109,36 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    AwsClientFactory awsClientFactory;
+    FileIO catalogFileIO;
+    if (PropertyUtil.propertyAsBoolean(
+        properties,
+        AwsProperties.GLUE_LAKEFORMATION_ENABLED,
+        AwsProperties.GLUE_LAKEFORMATION_ENABLED_DEFAULT)) {
+      String factoryImpl = PropertyUtil.propertyAsString(properties, AwsProperties.CLIENT_FACTORY, null);
+      ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder().putAll(properties);
+      if (factoryImpl == null) {
+        builder.put(AwsProperties.CLIENT_FACTORY, LakeFormationAwsClientFactory.class.getName());
+      }
+
+      this.catalogProperties = builder.build();
+      awsClientFactory = AwsClientFactories.from(catalogProperties);
+      Preconditions.checkArgument(awsClientFactory instanceof LakeFormationAwsClientFactory,
+          "Detected LakeFormation enabled for Glue catalog, should use a client factory that extends %s, but found %s",
+          LakeFormationAwsClientFactory.class.getName(), factoryImpl);
+      catalogFileIO = null;
+    } else {
+      awsClientFactory = AwsClientFactories.from(properties);
+      catalogFileIO = initializeFileIO(properties);
+    }
+
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
-        AwsClientFactories.from(properties).glue(),
+        awsClientFactory.glue(),
         initializeLockManager(properties),
-        initializeFileIO(properties));
+        catalogFileIO);
   }
 
   private LockManager initializeLockManager(Map<String, String> properties) {
@@ -162,6 +190,19 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    if (catalogProperties != null) {
+      Map<String, String> tableSpecificCatalogProperties = ImmutableMap.<String, String>builder()
+          .putAll(catalogProperties)
+          .put(AwsProperties.LAKE_FORMATION_DB_NAME,
+              IcebergToGlueConverter.getDatabaseName(tableIdentifier))
+          .put(AwsProperties.LAKE_FORMATION_TABLE_NAME,
+              IcebergToGlueConverter.getTableName(tableIdentifier))
+          .build();
+      // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is initialized each time
+      return new GlueTableOperations(glue, lockManager, catalogName, awsProperties,
+          initializeFileIO(tableSpecificCatalogProperties), tableIdentifier);
+    }
+
     return new GlueTableOperations(glue, lockManager, catalogName, awsProperties, fileIO, tableIdentifier);
   }
 
