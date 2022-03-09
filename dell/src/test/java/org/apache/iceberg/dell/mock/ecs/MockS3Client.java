@@ -84,8 +84,8 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Memorized s3 client used in tests.
@@ -97,7 +97,7 @@ public class MockS3Client implements S3Client {
    * <p>
    * Current {@link S3ObjectMetadata} only store the user metadata.
    */
-  private final Map<String, ObjectData> objectData = new ConcurrentHashMap<>();
+  private final Map<String, ObjectData> objectData = Maps.newConcurrentMap();
 
   private String createId(String bucket, String key) {
     return bucket + "/" + key;

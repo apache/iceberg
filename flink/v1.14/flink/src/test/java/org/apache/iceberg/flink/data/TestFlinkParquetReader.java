@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.data;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -43,6 +42,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -73,7 +73,7 @@ public class TestFlinkParquetReader extends DataTest {
         .build();
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
-    List<ByteBuffer> expectedByteList = new ArrayList();
+    List<ByteBuffer> expectedByteList = Lists.newArrayList();
     byte[] expectedByte = {0x00, 0x01};
     ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
     expectedByteList.add(expectedBinary);
