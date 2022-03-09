@@ -168,7 +168,9 @@ To inspect a table's history, snapshots, and other metadata, Iceberg supports me
 Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table.history`.
 
 {{< hint info >}}
-In Spark 3.0 and 3.1, the Spark session catalog (`spark_catalog`) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. To work around this, for querying metadata tables, configure a different catalog that uses the Iceberg `SparkCatalog` class, or use the Spark `DataFrameReader` API. From Spark 3.2 onwards, the session catalog supports table names with multipart identifiers.
+For Spark 2.4, use the `DataFrameReader` API to [inspect tables](#inspecting-with-dataframes).
+
+For Spark 3, prior to 3.2, the Spark session catalog (`spark_catalog`) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. To work around this, for querying metadata tables, configure a different catalog that uses the Iceberg `SparkCatalog` class, or use the Spark `DataFrameReader` API. From Spark 3.2 onwards, the session catalog supports table names with multipart identifiers.
 {{< /hint >}}
 
 ### History
