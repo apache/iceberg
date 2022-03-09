@@ -98,7 +98,12 @@ def test_from_bytes(primitive_type, b, result):
     ],
 )
 def test_from_bytes_approximately(primitive_type, b, approximate_result, approximation):
-    """Test approximate equality when converting from bytes"""
+    """Test approximate equality when converting from bytes
+
+    Note: This tests approximate equality because floating point numbers in python are implemented
+    using a double in C. Therefore a 32-bit (single precision) float is unpacked to 64-bit (double precision)
+    float in python which introduces some imprecision.
+    """
     assert conversions.from_bytes(primitive_type, b) == pytest.approx(approximate_result, approximation)
 
 
