@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackStrategy;
@@ -67,12 +68,19 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
           .load(table.name());
 
+      // All files within a file group are written with the same spec, so check the first
+      boolean requiresRepartition = !filesToRewrite.get(0).spec().equals(table.spec());
+
+      // Invoke a shuffle if the partition spec of the incoming partition does not match the table
+      String distributionMode = requiresRepartition ? DistributionMode.RANGE.modeName() :
+          DistributionMode.NONE.modeName();
+
       // write the packed data into new files where each split becomes a new file
       scanDF.write()
           .format("iceberg")
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
-          .option(SparkWriteOptions.DISTRIBUTION_MODE, "none")
+          .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode)
           .mode("append")
           .save(table.name());
 
