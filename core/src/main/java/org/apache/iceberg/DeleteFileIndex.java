@@ -476,7 +476,6 @@ class DeleteFileIndex {
           matchingManifests,
           manifest ->
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                  .filterRows(dataFilter)
                   .filterPartitions(partitionFilter)
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)

@@ -253,6 +253,35 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     }
   }
 
+
+  @Test
+  public void testInsertWithUpsertAndQueryNonEqualityField() {
+    Assume.assumeTrue(format == FileFormat.PARQUET);
+    String tableName = "test_insert";
+
+    Map<String, String> tableProps = ImmutableMap.of(
+            "write.format.default", format.name(),
+            TableProperties.FORMAT_VERSION, "2",
+            TableProperties.UPSERT_ENABLED, "true"
+    );
+
+    sql("CREATE TABLE %s(id INT NOT NULL, dt DATE, PRIMARY KEY (id) NOT ENFORCED) PARTITIONED BY (id) WITH %s",
+            tableName, toWithClause(tableProps));
+
+    // insert data set
+    sql("INSERT INTO %s VALUES " +
+                    "(1, to_date('2021-01-01','yyyy-MM-dd'))", tableName);
+
+    sql("INSERT INTO %s VALUES " +
+                    "(1, to_date('2022-01-01','yyyy-MM-dd'))", tableName);
+
+    List<Row> rows = sql("SELECT * FROM %s WHERE dt < '2022-01-01'", tableName);
+
+    Assert.assertEquals("rows should be 0", 0, rows.size());
+
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+  }
+
   @Test
   public void testHashDistributeMode() throws Exception {
     String tableName = "test_hash_distribution_mode";
