@@ -167,6 +167,9 @@ public class TableProperties {
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String INCLUDE_HIDDEN_PATHS = "read.fs.include-hidden-paths";
+  public static final boolean INCLUDE_HIDDEN_PATHS_DEFAULT = false;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
