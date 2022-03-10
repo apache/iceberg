@@ -19,28 +19,39 @@
 
 package org.apache.iceberg.azure.blob;
 
+import com.azure.storage.blob.BlobClient;
+import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
 public class AzureBlobOutputFile extends BaseAzureBlobFile implements OutputFile {
+
+  public AzureBlobOutputFile(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
+    super(azureURI, blobClient, azureProperties);
+  }
+
   @Override
   public PositionOutputStream create() {
-    return null;
+    if (!exists()) {
+      return createOrOverwrite();
+    } else {
+      throw new AlreadyExistsException("Azure Blob already exists: %s", azureURI.location());
+    }
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return null;
-  }
-
-  @Override
-  public String location() {
-    return null;
+    return new AzureBlobOutputStream(blobClient);
   }
 
   @Override
   public InputFile toInputFile() {
-    return null;
+    return AzureBlobInputFile.from(azureURI, blobClient, azureProperties);
+  }
+
+  public static AzureBlobOutputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
+    return new AzureBlobOutputFile(azureURI, blobClient, azureProperties);
   }
 }

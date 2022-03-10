@@ -19,18 +19,37 @@
 
 package org.apache.iceberg.azure.blob;
 
+import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.specialized.BlobInputStream;
 import java.io.IOException;
 import org.apache.iceberg.io.SeekableInputStream;
 
 public class AzureBlobInputStream extends SeekableInputStream {
+
+  private final BlobClient blobClient;
+  private final BlobInputStream inputStream;
+
+  private long pos;
+
+  public AzureBlobInputStream(BlobClient blobClient) {
+    this.blobClient = blobClient;
+    this.inputStream = blobClient.openInputStream();
+    this.pos = 0L;
+  }
+
   @Override
   public long getPos() throws IOException {
-    return 0;
+    return pos;
   }
 
   @Override
   public void seek(long newPos) throws IOException {
-
+    if (newPos == pos) {
+      return;
+    } else if (newPos > pos) {
+      final long bytesToSkip = newPos - pos;
+      inputStream.skip(bytesToSkip);
+    }
   }
 
   @Override

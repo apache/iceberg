@@ -19,27 +19,33 @@
 
 package org.apache.iceberg.azure.blob;
 
+import com.azure.storage.blob.BlobClient;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
 public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
+
+  private Long length; // lazy cache of file length
+
+  public AzureBlobInputFile(AzureURI uri, BlobClient blobClient, AzureProperties azureProperties) {
+    super(uri, blobClient, azureProperties);
+  }
+
   @Override
   public long getLength() {
-    return 0;
+    if (length == null) {
+      length = blobClient.getProperties().getBlobSize();
+    }
+    return length;
   }
 
   @Override
   public SeekableInputStream newStream() {
-    return null;
+    return new AzureBlobInputStream(blobClient);
   }
 
-  @Override
-  public String location() {
-    return null;
-  }
-
-  @Override
-  public boolean exists() {
-    return false;
+  public static AzureBlobInputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
+    return new AzureBlobInputFile(azureURI, blobClient, azureProperties);
   }
 }

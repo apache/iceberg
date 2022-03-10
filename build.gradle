@@ -626,6 +626,8 @@ project(':iceberg-azure') {
     implementation platform('com.azure:azure-sdk-bom')
     implementation 'com.azure:azure-storage-blob'
 
+// TODO shade netty
+
 //    TODO check if this is required
 //    compileOnly("org.apache.hadoop:hadoop-common") {
 //      exclude group: 'org.apache.avro', module: 'avro'

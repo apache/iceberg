@@ -19,26 +19,18 @@
 
 package org.apache.iceberg.azure.blob;
 
-import com.azure.storage.blob.BlobClient;
-import org.apache.iceberg.azure.AzureProperties;
+public class AzureURI {
+  private final String location;
 
-public abstract class BaseAzureBlobFile {
-
-  protected final AzureURI azureURI;
-  protected final BlobClient blobClient;
-  protected final AzureProperties azureProperties;
-
-  protected BaseAzureBlobFile(AzureURI uri, BlobClient blobClient, AzureProperties azureProperties) {
-    this.azureURI = uri;
-    this.blobClient = blobClient;
-    this.azureProperties = azureProperties;
+  public AzureURI(String location) {
+    this.location = location;
   }
 
   public String location() {
-    return azureURI.location();
+    return location;
   }
 
-  public boolean exists() {
-    return blobClient.exists();
+  public static AzureURI from(String location) {
+    return new AzureURI(location);
   }
 }

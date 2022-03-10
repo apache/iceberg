@@ -19,5 +19,10 @@
 
 package org.apache.iceberg.azure;
 
+import java.util.Map;
+
 public class AzureProperties {
+  public AzureProperties(Map<String, String> properties) {
+
+  }
 }

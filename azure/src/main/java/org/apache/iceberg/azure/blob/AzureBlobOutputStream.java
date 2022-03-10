@@ -19,10 +19,15 @@
 
 package org.apache.iceberg.azure.blob;
 
+import com.azure.storage.blob.BlobClient;
 import java.io.IOException;
 import org.apache.iceberg.io.PositionOutputStream;
 
 public class AzureBlobOutputStream extends PositionOutputStream {
+  public AzureBlobOutputStream(BlobClient blobClient) {
+
+  }
+
   @Override
   public long getPos() throws IOException {
     return 0;
