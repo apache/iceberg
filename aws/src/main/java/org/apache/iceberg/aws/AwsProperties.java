@@ -221,18 +221,6 @@ public class AwsProperties implements Serializable {
   @Deprecated
   public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
-  public static final String SQS_QUEUE_URL = "sqs.queue-url";
-  public static final String SQS_RETRY = "sqs.retry";
-  public static final String SQS_RETRY_INTERVAL_MS = "sqs.retryIntervalMs";
-  public static final Integer SQS_RETRY_DEFAULT = 3;
-  public static final Integer SQS_RETRY_INTERVAL_MS_DEFAULT = 1000;
-
-  public static final String SNS_TOPIC_ARN = "sns.topic-arn";
-  public static final String SNS_RETRY = "sns.retry";
-  public static final String SNS_RETRY_INTERVAL_MS = "sns.retryIntervalMs";
-  public static final Integer SNS_RETRY_DEFAULT = 3;
-  public static final Integer SNS_RETRY_INTERVAL_MS_DEFAULT = 1000;
-
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;

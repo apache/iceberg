@@ -20,30 +20,22 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.events.Listener;
-import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -281,74 +273,6 @@ public class CatalogUtil {
 
     fileIO.initialize(properties);
     return fileIO;
-  }
-
-  public static void initializeListeners(Map<String, String> properties) {
-    Map<String, Map<String, String>> propertiesSummary = Maps.newHashMap();
-    Map<String, String> commonProperties = Maps.newHashMap();
-    for (String key : properties.keySet()) {
-      Optional<Pair<String, String>> listenerInfo = CatalogProperties.parseListenerCatalogProperty(key);
-      if (listenerInfo.isPresent()) {
-        String name = listenerInfo.get().first();
-        String property = listenerInfo.get().second();
-        propertiesSummary.computeIfAbsent(name, k -> Maps.newHashMap());
-        propertiesSummary.get(name).put(property, properties.get(key));
-      } else {
-        commonProperties.put(key, properties.get(key));
-      }
-    }
-
-    // inherit all common properties during listener initialization
-    propertiesSummary.forEach((k, v) -> v.putAll(commonProperties));
-
-    for (String listenerName : propertiesSummary.keySet()) {
-      Map<String, String> listenerProperties = propertiesSummary.get(listenerName);
-      String listenerImpl = listenerProperties.get(CatalogProperties.LISTENER_PROPERTY_IMPL);
-      ValidationException.check(listenerImpl != null,
-          "Cannot initialize listener %s, missing %s property",
-          listenerName, CatalogProperties.LISTENER_PROPERTY_IMPL);
-
-      String eventTypesString = listenerProperties.get(CatalogProperties.LISTENER_PROPERTY_EVENT_TYPES);
-      Set<Class<?>> eventTypes = eventTypesString != null ? Arrays.stream(eventTypesString.split(","))
-          .map(s -> {
-            try {
-              return Class.forName(s);
-            } catch (ClassNotFoundException e) {
-              throw new ValidationException(e, "Cannot find listener event type class %s", s);
-            }
-          })
-          .collect(Collectors.toSet()) : CatalogProperties.LISTENER_EVENT_TYPES_DEFAULT;
-
-      eventTypes.forEach(t -> CatalogUtil.loadAndRegisterListener(listenerImpl, listenerName, t, listenerProperties));
-    }
-  }
-
-  @VisibleForTesting
-  @SuppressWarnings("GetClassOnClass")
-  static <T> Listener<T> loadAndRegisterListener(
-      String listenerClass,
-      String listenerName,
-      Class<T> eventType,
-      Map<String, String> properties) {
-    DynConstructors.Ctor<Listener<T>> ctor;
-    try {
-      ctor = DynConstructors.builder(Listener.class).impl(listenerClass, eventType.getClass()).buildChecked();
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(String.format(
-              "Cannot initialize Listener, missing no-arg constructor: %s", listenerClass), e);
-    }
-
-    Listener<T> listener;
-    try {
-      listener = ctor.newInstance(eventType);
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot initialize Listener, %s does not implement org.apache.iceberg.events.Listener", listenerClass), e);
-    }
-
-    listener.initialize(listenerName, properties);
-    Listeners.register(listener, eventType);
-    return listener;
   }
 
   /**

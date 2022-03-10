@@ -68,11 +68,6 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return new BaseMetastoreCatalogTableBuilder(identifier, schema);
   }
 
-  @Override
-  public void initialize(String name, Map<String, String> properties) {
-    CatalogUtil.initializeListeners(properties);
-  }
-
   private Table loadMetadataTable(TableIdentifier identifier) {
     String tableName = identifier.name();
     MetadataTableType type = MetadataTableType.from(tableName);
