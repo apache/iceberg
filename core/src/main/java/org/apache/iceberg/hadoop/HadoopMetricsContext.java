@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * FileIO Metrics implementation that delegates to Hadoop FileSystem
@@ -36,6 +37,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public static final String SCHEME = "io.metrics-scheme";
 
   private String scheme;
+  private SerializableSupplier<FileSystem.Statistics> statisticsSupplier;
   private transient FileSystem.Statistics statistics;
 
   public HadoopMetricsContext(String scheme) {
@@ -43,6 +45,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
         "Scheme is required for Hadoop FileSystem metrics reporting");
 
     this.scheme = scheme;
+    this.statisticsSupplier = () -> FileSystem.getStatistics(scheme, null);
   }
 
   @Override
@@ -50,7 +53,8 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     // FileIO has no specific implementation class, but Hadoop will
     // still track and report for the provided scheme.
     this.scheme = properties.getOrDefault(SCHEME, scheme);
-    this.statistics = FileSystem.getStatistics(scheme, null);
+    this.statisticsSupplier = () -> FileSystem.getStatistics(scheme, null);
+    this.statistics = statisticsSupplier.get();
   }
 
   /**
@@ -71,16 +75,16 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     switch (name) {
       case READ_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
-        return (Counter<T>) longCounter(statistics::incrementBytesRead);
+        return (Counter<T>) longCounter(statistics()::incrementBytesRead);
       case READ_OPERATIONS:
         ValidationException.check(type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics::incrementReadOps);
+        return (Counter<T>) integerCounter(statistics()::incrementReadOps);
       case WRITE_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
-        return (Counter<T>) longCounter(statistics::incrementBytesWritten);
+        return (Counter<T>) longCounter(statistics()::incrementBytesWritten);
       case WRITE_OPERATIONS:
         ValidationException.check(type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics::incrementWriteOps);
+        return (Counter<T>) integerCounter(statistics()::incrementWriteOps);
       default:
         throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
@@ -120,6 +124,14 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
 
   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
     in.defaultReadObject();
-    statistics = FileSystem.getStatistics(scheme, null);
+    statistics = statisticsSupplier.get();
+  }
+
+  private FileSystem.Statistics statistics() {
+    if (statistics == null) {
+      statistics = statisticsSupplier.get();
+    }
+
+    return statistics;
   }
 }
