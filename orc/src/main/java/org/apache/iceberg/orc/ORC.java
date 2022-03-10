@@ -67,6 +67,13 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
+
+  /**
+   * @deprecated use {@link org.apache.iceberg.TableProperties#ORC_VECTOR_ROW_BATCH_SIZE} instead
+   */
+  @Deprecated
+  private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
+
   private ORC() {
   }
 
@@ -164,6 +171,11 @@ public class ORC {
 
       for (Map.Entry<String, String> entry : config.entrySet()) {
         conf.set(entry.getKey(), entry.getValue());
+      }
+
+      // for compatibility
+      if (conf.get(VECTOR_ROW_BATCH_SIZE) != null && config.get(TableProperties.ORC_VECTOR_ROW_BATCH_SIZE) == null) {
+        config.put(TableProperties.ORC_VECTOR_ROW_BATCH_SIZE, conf.get(VECTOR_ROW_BATCH_SIZE));
       }
 
       // Map Iceberg properties to pass down to the ORC writer
