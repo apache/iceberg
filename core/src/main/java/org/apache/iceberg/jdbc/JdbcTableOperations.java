@@ -94,7 +94,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     try {
       Map<String, String> table = getTable();
 
-      if (!table.isEmpty()) {
+      if (base != null) {
         validateMetadataLocation(table, base);
         String oldMetadataLocation = base.metadataFileLocation();
         // Start atomic update
@@ -123,6 +123,9 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLWarning e) {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
+      if (e.getMessage().contains("constraint failed")) {
+        throw new CommitFailedException("Table already exists: %s", tableIdentifier);
+      }
       throw new UncheckedSQLException(e, "Unknown failure");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();

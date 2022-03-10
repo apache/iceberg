@@ -24,7 +24,6 @@ import java.util.Set;
 import org.apache.commons.compress.utils.Lists;
 import org.apache.commons.compress.utils.Sets;
 import org.apache.iceberg.MetadataUpdate;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -62,8 +61,18 @@ public class UpdateTableRequest {
         .toString();
   }
 
+  public static Builder builderForCreate() {
+    return new Builder(null, false).requireCreate();
+  }
+
+  public static Builder builderForReplace(TableMetadata base) {
+    Preconditions.checkNotNull(base, "Cannot create a builder from table metadata: null");
+    return new Builder(base, true).requireTableUUID(base.uuid());
+  }
+
   public static Builder builderFor(TableMetadata base) {
-    return new Builder(base);
+    Preconditions.checkNotNull(base, "Cannot create a builder from table metadata: null");
+    return new Builder(base, false).requireTableUUID(base.uuid());
   }
 
   public static class Builder {
@@ -71,20 +80,26 @@ public class UpdateTableRequest {
     private final ImmutableList.Builder<UpdateRequirement> requirements = ImmutableList.builder();
     private final List<MetadataUpdate> updates = Lists.newArrayList();
     private final Set<String> changedRefs = Sets.newHashSet();
-    private boolean changedSchema = false;
-    private boolean changedSpec = false;
-    private boolean changedOrder = false;
+    private final boolean isReplace;
+    private boolean addedSchema = false;
+    private boolean setSchemaId = false;
+    private boolean addedSpec = false;
+    private boolean setSpecId = false;
+    private boolean setOrderId = false;
 
-    public Builder(TableMetadata base) {
+    public Builder(TableMetadata base, boolean isReplace) {
       this.base = base;
-      requireTableUUID(base.uuid());
+      this.isReplace = isReplace;
     }
-
 
     private Builder require(UpdateRequirement requirement) {
       Preconditions.checkArgument(requirement != null, "Invalid requirement: null");
       requirements.add(requirement);
       return this;
+    }
+
+    private Builder requireCreate() {
+      return require(new UpdateRequirement.AssertTableDoesNotExist());
     }
 
     private Builder requireTableUUID(String uuid) {
@@ -96,8 +111,16 @@ public class UpdateTableRequest {
       return require(new UpdateRequirement.AssertRefSnapshotID(ref, snapshotId));
     }
 
+    private Builder requireLastAssignedFieldId(int fieldId) {
+      return require(new UpdateRequirement.AssertLastAssignedFieldId(fieldId));
+    }
+
     private Builder requireCurrentSchemaId(int schemaId) {
       return require(new UpdateRequirement.AssertCurrentSchemaID(schemaId));
+    }
+
+    private Builder requireLastAssignedPartitionId(int partitionId) {
+      return require(new UpdateRequirement.AssertLastAssignedPartitionId(partitionId));
     }
 
     private Builder requireDefaultSpecId(int specId) {
@@ -118,31 +141,54 @@ public class UpdateTableRequest {
         MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
         String name = setRef.name();
         // add returns true the first time the ref name is added
-        if (changedRefs.add(name)) {
+        boolean added = changedRefs.add(name);
+        if (added && base != null && !isReplace) {
           SnapshotRef baseRef = base.ref(name);
           // require that the ref does not exist (null) or is the same as the base snapshot
           requireRefSnapshotId(name, baseRef != null ? baseRef.snapshotId() : null);
         }
 
+      } else if (update instanceof MetadataUpdate.AddSchema) {
+        if (!addedSchema) {
+          if (base != null) {
+            requireLastAssignedFieldId(base.lastColumnId());
+          }
+          this.addedSchema = true;
+        }
+
       } else if (update instanceof MetadataUpdate.SetCurrentSchema) {
-        if (!changedSchema) {
-          // require that the current schema has not changed
-          requireCurrentSchemaId(base.currentSchemaId());
-          changedSchema = true;
+        if (!setSchemaId) {
+          if (base != null && !isReplace) {
+            // require that the current schema has not changed
+            requireCurrentSchemaId(base.currentSchemaId());
+          }
+          this.setSchemaId = true;
+        }
+
+      } else if (update instanceof MetadataUpdate.AddPartitionSpec) {
+        if (!addedSpec) {
+          if (base != null) {
+            requireLastAssignedPartitionId(base.lastAssignedPartitionId());
+          }
+          this.addedSpec = true;
         }
 
       } else if (update instanceof MetadataUpdate.SetDefaultPartitionSpec) {
-        if (!changedSpec) {
-          // require that the default spec has not changed
-          requireDefaultSpecId(base.defaultSpecId());
-          changedSpec = true;
+        if (!setSpecId) {
+          if (base != null && !isReplace) {
+            // require that the default spec has not changed
+            requireDefaultSpecId(base.defaultSpecId());
+          }
+          this.setSpecId = true;
         }
 
       } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
-        if (!changedOrder) {
-          // require that the default write order has not changed
-          requireDefaultSortOrderId(base.defaultSortOrderId());
-          changedOrder = true;
+        if (!setOrderId) {
+          if (base != null && !isReplace) {
+            // require that the default write order has not changed
+            requireDefaultSortOrderId(base.defaultSortOrderId());
+          }
+          this.setOrderId = true;
         }
       }
 
@@ -156,6 +202,18 @@ public class UpdateTableRequest {
 
   public interface UpdateRequirement {
     void validate(TableMetadata base);
+
+    class AssertTableDoesNotExist implements UpdateRequirement {
+      private AssertTableDoesNotExist() {
+      }
+
+      @Override
+      public void validate(TableMetadata base) {
+        if (base != null) {
+          throw new CommitFailedException("Requirement failed: table already exists");
+        }
+      }
+    }
 
     class AssertTableUUID implements UpdateRequirement {
       private final String uuid;
@@ -171,7 +229,8 @@ public class UpdateTableRequest {
       @Override
       public void validate(TableMetadata base) {
         if (!uuid.equalsIgnoreCase(base.uuid())) {
-          throw new CommitFailedException("Requirement failed: UUID does not match (%s != %s)", base.uuid(), uuid);
+          throw new CommitFailedException(
+              "Requirement failed: UUID does not match: expected %s != %s", base.uuid(), uuid);
         }
       }
     }
@@ -200,14 +259,37 @@ public class UpdateTableRequest {
           String type = ref.isBranch() ? "branch" : "tag";
           if (snapshotId == null) {
             // a null snapshot ID means the ref should not exist already
-            throw new CommitFailedException("Requirement failed: %s %s was created concurrently", type, name);
+            throw new CommitFailedException(
+                "Requirement failed: %s %s was created concurrently", type, name);
           } else if (snapshotId != ref.snapshotId()) {
             throw new CommitFailedException(
-                "Requirement failed: %s %s has changed (%s != %s)", type, name, snapshotId, ref.snapshotId());
+                "Requirement failed: %s %s has changed: expected id %s != %s",
+                type, name, snapshotId, ref.snapshotId());
           }
         } else if (snapshotId != null) {
           throw new CommitFailedException(
               "Requirement failed: branch or tag %s is missing, expected %s", name, snapshotId);
+        }
+      }
+    }
+
+    class AssertLastAssignedFieldId implements UpdateRequirement {
+      private final int lastAssignedFieldId;
+
+      public AssertLastAssignedFieldId(int lastAssignedFieldId) {
+        this.lastAssignedFieldId = lastAssignedFieldId;
+      }
+
+      public int lastAssignedFieldId() {
+        return lastAssignedFieldId;
+      }
+
+      @Override
+      public void validate(TableMetadata base) {
+        if (base != null && base.lastColumnId() != lastAssignedFieldId) {
+          throw new CommitFailedException(
+              "Requirement failed: last assigned field id changed: expected id %s != %s",
+              lastAssignedFieldId, base.lastColumnId());
         }
       }
     }
@@ -227,7 +309,29 @@ public class UpdateTableRequest {
       public void validate(TableMetadata base) {
         if (schemaId != base.currentSchemaId()) {
           throw new CommitFailedException(
-              "Requirement failed: current schema changed (id %s != %s)", schemaId, base.currentSchemaId());
+              "Requirement failed: current schema changed: expected id %s != %s",
+              schemaId, base.currentSchemaId());
+        }
+      }
+    }
+
+    class AssertLastAssignedPartitionId implements UpdateRequirement {
+      private final int lastAssignedPartitionId;
+
+      public AssertLastAssignedPartitionId(int lastAssignedPartitionId) {
+        this.lastAssignedPartitionId = lastAssignedPartitionId;
+      }
+
+      public int lastAssignedPartitionId() {
+        return lastAssignedPartitionId;
+      }
+
+      @Override
+      public void validate(TableMetadata base) {
+        if (base != null && base.lastAssignedPartitionId() != lastAssignedPartitionId) {
+          throw new CommitFailedException(
+              "Requirement failed: last assigned partition id changed: expected id %s != %s",
+              lastAssignedPartitionId, base.lastAssignedPartitionId());
         }
       }
     }
@@ -247,7 +351,8 @@ public class UpdateTableRequest {
       public void validate(TableMetadata base) {
         if (specId != base.defaultSpecId()) {
           throw new CommitFailedException(
-              "Requirement failed: default partition spec changed (id %s != %s)", specId, base.defaultSpecId());
+              "Requirement failed: default partition spec changed: expected id %s != %s",
+              specId, base.defaultSpecId());
         }
       }
     }
@@ -267,7 +372,8 @@ public class UpdateTableRequest {
       public void validate(TableMetadata base) {
         if (sortOrderId != base.defaultSortOrderId()) {
           throw new CommitFailedException(
-              "Requirement failed: default sort order changed (id %s != %s)", sortOrderId, base.defaultSortOrderId());
+              "Requirement failed: default sort order changed: expected id %s != %s",
+              sortOrderId, base.defaultSortOrderId());
         }
       }
     }

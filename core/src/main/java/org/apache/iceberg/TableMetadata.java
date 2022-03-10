@@ -409,7 +409,7 @@ public class TableMetadata implements Serializable {
     return specsById;
   }
 
-  int lastAssignedPartitionId() {
+  public int lastAssignedPartitionId() {
     return lastAssignedPartitionId;
   }
 
@@ -1146,6 +1146,7 @@ public class TableMetadata implements Serializable {
       boolean schemaFound = schemasById.containsKey(newSchemaId);
       if (schemaFound && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
+        this.lastAddedSchemaId = newSchemaId;
         return newSchemaId;
       }
 
@@ -1186,6 +1187,7 @@ public class TableMetadata implements Serializable {
     private int addPartitionSpecInternal(PartitionSpec spec) {
       int newSpecId = reuseOrCreateNewSpecId(spec);
       if (specsById.containsKey(newSpecId)) {
+        this.lastAddedSpecId = newSpecId;
         return newSpecId;
       }
 
@@ -1223,6 +1225,7 @@ public class TableMetadata implements Serializable {
     private int addSortOrderInternal(SortOrder order) {
       int newOrderId = reuseOrCreateNewSortOrderId(order);
       if (sortOrdersById.containsKey(newOrderId)) {
+        this.lastAddedOrderId = newOrderId;
         return newOrderId;
       }
 

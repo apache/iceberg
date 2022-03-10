@@ -21,8 +21,11 @@ package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Objects;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -30,6 +33,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 
@@ -40,21 +44,39 @@ class RESTTableOperations implements TableOperations {
     RESTSerializers.registerAll(MAPPER);
   }
 
+  enum UpdateType {
+    CREATE,
+    REPLACE,
+    SIMPLE
+  }
+
   private final RESTClient client;
   private final String path;
   private final FileIO io;
+  private final List<MetadataUpdate> createChanges;
+  private final TableMetadata replaceBase;
+  private UpdateType updateType;
   private TableMetadata current;
 
   RESTTableOperations(RESTClient client, String path, FileIO io, TableMetadata current) {
+    this(client, path, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
+  }
+
+  RESTTableOperations(RESTClient client, String path, FileIO io, UpdateType updateType,
+                      List<MetadataUpdate> createChanges, TableMetadata current) {
     this.client = client;
     this.path = path;
-    this.current = current;
     this.io = io;
+    this.updateType = updateType;
+    this.createChanges = createChanges;
+    this.replaceBase = current;
+    this.current = current;
   }
 
   @Override
   public TableMetadata current() {
-    return current;
+    // TODO: may be able to get rid of this by updating refresh() and passing null for create metadata
+    return updateType == UpdateType.CREATE ? null : current;
   }
 
   @Override
@@ -70,15 +92,33 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    // TODO: handle transactions
-    // REST validation for transactions can probably be done with requirements:
-    // Create table transaction: assert-table-not-exists
-    // Replace table transaction: assert-uuid-equals
-    // Create or replace transaction: no assert
+    UpdateTableRequest.Builder requestBuilder;
+    List<MetadataUpdate> baseChanges;
+    switch (updateType) {
+      case CREATE:
+        Preconditions.checkState(base == null, "Invalid base metadata for create transaction, expected null: %s", base);
+        requestBuilder = UpdateTableRequest.builderForCreate();
+        baseChanges = createChanges;
+        break;
 
-    Preconditions.checkState(base != null, "Invalid base metadata: null");
+      case REPLACE:
+        Preconditions.checkState(base != null, "Invalid base metadata: null");
+        // use the original replace base metadata because the transaction will refresh
+        requestBuilder = UpdateTableRequest.builderForReplace(replaceBase);
+        baseChanges = createChanges;
+        break;
 
-    UpdateTableRequest.Builder requestBuilder = UpdateTableRequest.builderFor(base);
+      case SIMPLE:
+        Preconditions.checkState(base != null, "Invalid base metadata: null");
+        requestBuilder = UpdateTableRequest.builderFor(base);
+        baseChanges = ImmutableList.of();
+        break;
+
+      default:
+        throw new UnsupportedOperationException(String.format("Update type %s is not supported", updateType));
+    }
+
+    baseChanges.forEach(requestBuilder::update);
     metadata.changes().forEach(requestBuilder::update);
     UpdateTableRequest request = requestBuilder.build();
 
@@ -86,6 +126,9 @@ class RESTTableOperations implements TableOperations {
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response = client.post(
         path, request, LoadTableResponse.class, ErrorHandlers.tableCommitHandler());
+
+    // all future commits should be simple commits
+    this.updateType = UpdateType.SIMPLE;
 
     this.current = response.tableMetadata();
   }

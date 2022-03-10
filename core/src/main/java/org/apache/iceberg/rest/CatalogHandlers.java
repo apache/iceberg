@@ -19,19 +19,29 @@
 
 package org.apache.iceberg.rest;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -53,12 +63,23 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 public class CatalogHandlers {
+  private static Schema EMPTY_SCHEMA = new Schema();
+
   private CatalogHandlers() {
   }
 
   static class UnprocessableEntityException extends RuntimeException {
     public UnprocessableEntityException(Set<String> commonKeys) {
       super(String.format("Invalid namespace update, cannot set and remove keys: %s", commonKeys));
+    }
+  }
+
+  private static class ValidationFailureException extends RuntimeException {
+    CommitFailedException wrapped;
+
+    public ValidationFailureException(CommitFailedException cause) {
+      super(cause);
+      this.wrapped = cause;
     }
   }
 
@@ -131,6 +152,30 @@ public class CatalogHandlers {
     return ListTablesResponse.builder().addAll(idents).build();
   }
 
+  public static LoadTableResponse stageTableCreate(Catalog catalog, Namespace namespace, CreateTableRequest request) {
+    request.validate();
+
+    TableIdentifier ident = TableIdentifier.of(namespace, request.name());
+    if (catalog.tableExists(ident)) {
+      throw new AlreadyExistsException("Table already exists: %s", ident);
+    }
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("created-at", OffsetDateTime.now().toString());
+    properties.putAll(request.properties());
+
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        request.schema(),
+        request.spec() != null ? request.spec() : PartitionSpec.unpartitioned(),
+        request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
+        request.location(),
+        properties);
+
+    return LoadTableResponse.builder()
+        .withTableMetadata(metadata)
+        .build();
+  }
+
   public static LoadTableResponse createTable(Catalog catalog, Namespace namespace, CreateTableRequest request) {
     request.validate();
 
@@ -168,65 +213,99 @@ public class CatalogHandlers {
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
   }
 
-  private static class ValidationFailureException extends RuntimeException {
-    CommitFailedException wrapped;
-
-    public ValidationFailureException(CommitFailedException cause) {
-      super(cause);
-      this.wrapped = cause;
-    }
-  }
-
   public static LoadTableResponse updateTable(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
-    Table table = catalog.loadTable(ident);
-
-    if (table instanceof BaseTable) {
-      TableOperations ops = ((BaseTable) table).operations();
-
-      AtomicBoolean isRetry = new AtomicBoolean(false);
-      try {
-        Tasks.foreach(ops)
-            .retry(COMMIT_NUM_RETRIES_DEFAULT)
-            .exponentialBackoff(
-                COMMIT_MIN_RETRY_WAIT_MS_DEFAULT, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-                COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT, 2.0 /* exponential */)
-            .onlyRetryOn(CommitFailedException.class)
-            .run(taskOps -> {
-              TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
-              isRetry.set(true);
-
-              // validate requirements
-              try {
-                request.requirements().forEach(requirement -> requirement.validate(base));
-              } catch (CommitFailedException e) {
-                // wrap and rethrow outside of tasks to avoid unnecessary retry
-                throw new ValidationFailureException(e);
-              }
-
-              // apply changes
-              TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
-              request.updates().forEach(update -> update.applyTo(metadataBuilder));
-
-              TableMetadata updated = metadataBuilder.build();
-              if (updated.changes().isEmpty()) {
-                // do not commit if the metadata has not changed
-                return;
-              }
-
-              // commit
-              taskOps.commit(base, updated);
-            });
-
-      } catch (ValidationFailureException e) {
-        throw e.wrapped;
+    TableMetadata finalMetadata;
+    if (isCreate(request)) {
+      // this is a hacky way to get TableOperations for an uncommitted table
+      Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
+      if (transaction instanceof BaseTransaction) {
+        BaseTransaction baseTransaction = (BaseTransaction) transaction;
+        finalMetadata = create(baseTransaction.underyingOps(), baseTransaction.startMetadata(), request);
+      } else {
+        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
       }
 
-      return LoadTableResponse.builder()
-          .withTableMetadata(ops.current())
-          .build();
+    } else {
+      Table table = catalog.loadTable(ident);
+      if (table instanceof BaseTable) {
+        TableOperations ops = ((BaseTable) table).operations();
+        finalMetadata = commit(ops, request);
+      } else {
+        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+      }
     }
 
-    throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+    return LoadTableResponse.builder()
+        .withTableMetadata(finalMetadata)
+        .build();
   }
 
+  private static boolean isCreate(UpdateTableRequest request) {
+    boolean isCreate = request.requirements().stream()
+        .anyMatch(UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
+
+    if (isCreate) {
+      List<UpdateTableRequest.UpdateRequirement> invalidRequirements = request.requirements().stream()
+          .filter(req -> !(req instanceof UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist))
+          .collect(Collectors.toList());
+      Preconditions.checkArgument(invalidRequirements.isEmpty(),
+          "Invalid create requirements: %s", invalidRequirements);
+    }
+
+    return isCreate;
+  }
+
+  private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
+
+    // the only valid requirement is that the table will be created
+    request.updates().forEach(update -> update.applyTo(builder));
+
+    // create transactions do not retry. if the table exists, retrying is not a solution
+    ops.commit(null, builder.build());
+
+    return ops.current();
+  }
+
+  private static TableMetadata commit(TableOperations ops, UpdateTableRequest request) {
+    AtomicBoolean isRetry = new AtomicBoolean(false);
+    try {
+      Tasks.foreach(ops)
+          .retry(COMMIT_NUM_RETRIES_DEFAULT)
+          .exponentialBackoff(
+              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT, 2.0 /* exponential */)
+          .onlyRetryOn(CommitFailedException.class)
+          .run(taskOps -> {
+            TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
+            isRetry.set(true);
+
+            // validate requirements
+            try {
+              request.requirements().forEach(requirement -> requirement.validate(base));
+            } catch (CommitFailedException e) {
+              // wrap and rethrow outside of tasks to avoid unnecessary retry
+              throw new ValidationFailureException(e);
+            }
+
+            // apply changes
+            TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
+            request.updates().forEach(update -> update.applyTo(metadataBuilder));
+
+            TableMetadata updated = metadataBuilder.build();
+            if (updated.changes().isEmpty()) {
+              // do not commit if the metadata has not changed
+              return;
+            }
+
+            // commit
+            taskOps.commit(base, updated);
+          });
+
+    } catch (ValidationFailureException e) {
+      throw e.wrapped;
+    }
+
+    return ops.current();
+  }
 }

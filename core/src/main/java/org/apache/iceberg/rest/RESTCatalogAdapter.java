@@ -92,6 +92,7 @@ public class RESTCatalogAdapter implements RESTClient {
     UPDATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces/{namespace}/properties"),
     LIST_TABLES(HTTPMethod.GET, "v1/namespaces/{namespace}/tables"),
     CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables"),
+    STAGE_CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/stageCreate"),
     LOAD_TABLE(HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}"),
     UPDATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables/{table}"),
     DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}");
@@ -199,6 +200,12 @@ public class RESTCatalogAdapter implements RESTClient {
         Namespace namespace = namespaceFromPathVars(vars);
         CreateTableRequest request = castRequest(CreateTableRequest.class, body);
         return castResponse(responseType, CatalogHandlers.createTable(catalog, namespace, request));
+      }
+
+      case STAGE_CREATE_TABLE: {
+        Namespace namespace = namespaceFromPathVars(vars);
+        CreateTableRequest request = castRequest(CreateTableRequest.class, body);
+        return castResponse(responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
       }
 
       case DROP_TABLE: {

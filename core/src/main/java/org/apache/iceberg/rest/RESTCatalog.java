@@ -26,21 +26,26 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -72,7 +77,6 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     this.properties = properties;
     String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
-
   }
 
   @Override
@@ -107,15 +111,19 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
   }
 
+  private LoadTableResponse loadInternal(TableIdentifier identifier) {
+    String tablePath = tablePath(identifier);
+    return client.get(tablePath, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+  }
+
   @Override
   public Table loadTable(TableIdentifier identifier) {
-    String tablePath = tablePath(identifier);
-    LoadTableResponse response = client.get(tablePath, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+    LoadTableResponse response = loadInternal(identifier);
 
     // TODO: pass a customized client
     FileIO tableIO = tableIO(response.config());
     return new BaseTable(
-        new RESTTableOperations(client, tablePath, tableIO, response.tableMetadata()),
+        new RESTTableOperations(client, tablePath(identifier), tableIO, response.tableMetadata()),
         fullTableName(identifier));
   }
 
@@ -249,6 +257,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
       String tablePath = tablePath(ident);
       FileIO tableIO = tableIO(response.config());
+
       return new BaseTable(
           new RESTTableOperations(client, tablePath, tableIO, response.tableMetadata()),
           fullTableName(ident));
@@ -256,18 +265,123 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
     @Override
     public Transaction createTransaction() {
-      throw new UnsupportedOperationException("Not implemented yet");
+      LoadTableResponse response = stageCreate();
+      String fullName = fullTableName(ident);
+
+      String tablePath = tablePath(ident);
+      FileIO tableIO = tableIO(response.config());
+      TableMetadata meta = response.tableMetadata();
+
+      return Transactions.createTableTransaction(
+          fullName,
+          new RESTTableOperations(
+              client, tablePath, tableIO, RESTTableOperations.UpdateType.CREATE, createChanges(meta), meta),
+          meta);
     }
 
     @Override
     public Transaction replaceTransaction() {
-      throw new UnsupportedOperationException("Not implemented yet");
+      LoadTableResponse response = loadInternal(ident);
+      String fullName = fullTableName(ident);
+
+      String tablePath = tablePath(ident);
+      FileIO tableIO = tableIO(response.config());
+      TableMetadata base = response.tableMetadata();
+
+      Map<String, String> properties = propertiesBuilder.build();
+      TableMetadata replacement = base.buildReplacement(
+          schema,
+          spec != null ? spec : PartitionSpec.unpartitioned(),
+          writeOrder != null ? writeOrder : SortOrder.unsorted(),
+          location != null ? location : base.location(),
+          properties);
+
+      ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
+
+      if (replacement.changes().stream().noneMatch(MetadataUpdate.SetCurrentSchema.class::isInstance)) {
+        // ensure there is a change to set the current schema
+        changes.add(new MetadataUpdate.SetCurrentSchema(replacement.currentSchemaId()));
+      }
+
+      if (replacement.changes().stream().noneMatch(MetadataUpdate.SetDefaultPartitionSpec.class::isInstance)) {
+        // ensure there is a change to set the default spec
+        changes.add(new MetadataUpdate.SetDefaultPartitionSpec(replacement.defaultSpecId()));
+      }
+
+      if (replacement.changes().stream().noneMatch(MetadataUpdate.SetDefaultSortOrder.class::isInstance)) {
+        // ensure there is a change to set the default sort order
+        changes.add(new MetadataUpdate.SetDefaultSortOrder(replacement.defaultSortOrderId()));
+      }
+
+      return Transactions.replaceTableTransaction(
+          fullName,
+          new RESTTableOperations(
+              client, tablePath, tableIO, RESTTableOperations.UpdateType.REPLACE, changes.build(), base),
+          replacement);
     }
 
     @Override
     public Transaction createOrReplaceTransaction() {
-      throw new UnsupportedOperationException("Not implemented yet");
+      // return a create or a replace transaction, depending on whether the table exists
+      // deciding whether to create or replace can't be determined on the service because schema field IDs are assigned
+      // at this point and then used in data and metadata files. because create and replace will assign different
+      // field IDs, they must be determined before any writes occur
+      try {
+        return replaceTransaction();
+      } catch (NoSuchTableException e) {
+        return createTransaction();
+      }
     }
+
+    private LoadTableResponse stageCreate() {
+      String ns = RESTUtil.urlEncode(ident.namespace());
+      Map<String, String> properties = propertiesBuilder.build();
+
+      CreateTableRequest request = CreateTableRequest.builder()
+          .withName(ident.name())
+          .withSchema(schema)
+          .withPartitionSpec(spec)
+          .withWriteOrder(writeOrder)
+          .withLocation(location)
+          .setProperties(properties)
+          .build();
+
+      // TODO: will this be a specific route or a modified create?
+      return client.post(
+          "v1/namespaces/" + ns + "/stageCreate", request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+    }
+  }
+
+  private static List<MetadataUpdate> createChanges(TableMetadata meta) {
+    ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
+
+    Schema schema = meta.schema();
+    changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
+    changes.add(new MetadataUpdate.SetCurrentSchema(-1));
+
+    PartitionSpec spec = meta.spec();
+    if (spec != null && spec.isPartitioned()) {
+      changes.add(new MetadataUpdate.AddPartitionSpec(spec));
+      changes.add(new MetadataUpdate.SetDefaultPartitionSpec(-1));
+    }
+
+    SortOrder order = meta.sortOrder();
+    if (order != null && order.isSorted()) {
+      changes.add(new MetadataUpdate.AddSortOrder(order));
+      changes.add(new MetadataUpdate.SetDefaultSortOrder(-1));
+    }
+
+    String location = meta.location();
+    if (location != null) {
+      changes.add(new MetadataUpdate.SetLocation(location));
+    }
+
+    Map<String, String> properties = meta.properties();
+    if (properties != null && !properties.isEmpty()) {
+      changes.add(new MetadataUpdate.SetProperties(properties));
+    }
+
+    return changes.build();
   }
 
   private String fullTableName(TableIdentifier ident) {
