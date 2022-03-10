@@ -44,7 +44,7 @@ public class DataFilesTable extends BaseFilesTable {
     return MetadataTableType.FILES;
   }
 
-  public static class DataFilesTableScan extends BaseFilesTableScan<GenericDataFile> {
+  public static class DataFilesTableScan extends BaseFilesTableScan {
 
     DataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema, MetadataTableType.FILES);

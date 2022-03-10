@@ -55,7 +55,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
   }
 
-  abstract static class BaseFilesTableScan<T extends BaseFile<?>> extends BaseMetadataTableScan {
+  abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
     private final Schema fileSchema;
     private final MetadataTableType type;
 
@@ -65,15 +65,15 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       this.type = type;
     }
 
-    protected Schema fileSchema() {
-      return fileSchema;
-    }
-
     protected BaseFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
                                  TableScanContext context, MetadataTableType type) {
       super(ops, table, schema, context);
       this.fileSchema = fileSchema;
       this.type = type;
+    }
+
+    protected Schema fileSchema() {
+      return fileSchema;
     }
 
     @Override
@@ -92,7 +92,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter,
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> filtered = filterManifests(rowFilter, caseSensitive);
+      CloseableIterable<ManifestFile> filtered = filterManifests(manifests(), rowFilter, caseSensitive);
 
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
@@ -104,7 +104,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(filtered, manifest ->
-          new ManifestReadTask<T>(ops.io(), ops.current().specsById(),
+          new ManifestReadTask(ops.io(), ops.current().specsById(),
               manifest, schema(), schemaString, specString, residuals));
     }
 
@@ -113,16 +113,14 @@ abstract class BaseFilesTable extends BaseMetadataTable {
      */
     protected abstract List<ManifestFile> manifests();
 
-    private CloseableIterable<ManifestFile> filterManifests(Expression rowFilter,
+    private CloseableIterable<ManifestFile> filterManifests(List<ManifestFile> manifests,
+                                                            Expression rowFilter,
                                                             boolean caseSensitive) {
-      CloseableIterable<ManifestFile> manifestIterable = CloseableIterable.withNoopClose(manifests());
+      CloseableIterable<ManifestFile> manifestIterable = CloseableIterable.withNoopClose(manifests);
 
       // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-      Expression partitionFilter = Projections
-          .inclusive(
-              transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX),
-              caseSensitive)
-          .project(rowFilter);
+      PartitionSpec spec = transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX);
+      Expression partitionFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
 
       ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
           partitionFilter, table().spec(), caseSensitive);
@@ -131,7 +129,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
   }
 
-  static class ManifestReadTask<T extends BaseFile<?>> extends BaseFileScanTask implements DataTask {
+  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
     private final ManifestFile manifest;
@@ -148,7 +146,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      return CloseableIterable.transform(manifestEntries(), file -> (T) file);
+      return CloseableIterable.transform(manifestEntries(), file -> (StructLike) file);
     }
 
     private CloseableIterable<? extends ContentFile<?>> manifestEntries() {

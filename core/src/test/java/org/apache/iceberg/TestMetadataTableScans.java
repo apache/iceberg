@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
+import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -791,14 +792,14 @@ public class TestMetadataTableScans extends TableTestBase {
   private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
     Assert.assertTrue("File scan tasks do not include correct file",
         StreamSupport.stream(fileScanTasks.spliterator(), false).anyMatch(t -> {
-          ManifestFile mf = ((BaseFilesTable.ManifestReadTask) t).manifest();
+          ManifestFile mf = ((ManifestReadTask) t).manifest();
           return manifestHasPartition(mf, partValue);
         }));
   }
 
   private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
     StreamSupport.stream(tasks.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((BaseFilesTable.ManifestReadTask) t).manifest()))
+        .flatMap(c -> c.files().stream().map(t -> ((ManifestReadTask) t).manifest()))
         .anyMatch(m -> manifestHasPartition(m, partValue));
   }
 

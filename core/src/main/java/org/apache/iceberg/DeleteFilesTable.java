@@ -44,14 +44,13 @@ public class DeleteFilesTable extends BaseFilesTable {
     return MetadataTableType.DELETE_FILES;
   }
 
-  public static class DeleteFilesTableScan extends BaseFilesTableScan<GenericDeleteFile> {
+  public static class DeleteFilesTableScan extends BaseFilesTableScan {
 
     DeleteFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema, MetadataTableType.DELETE_FILES);
     }
 
-    private DeleteFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
-                                 TableScanContext context) {
+    DeleteFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
       super(ops, table, schema, fileSchema, context, MetadataTableType.DELETE_FILES);
     }
 

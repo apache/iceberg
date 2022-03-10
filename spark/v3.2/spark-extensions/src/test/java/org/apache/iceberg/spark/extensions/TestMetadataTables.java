@@ -22,7 +22,7 @@ package org.apache.iceberg.spark.extensions;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
@@ -79,7 +79,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     List<Row> actual = spark.sql("SELECT * FROM " + tableName + ".delete_files").collectAsList();
 
-    List<GenericData.Record> expected = expectedEntries(table, entriesTableSchema, expectedManifests, null);
+    List<Record> expected = expectedEntries(table, entriesTableSchema, expectedManifests, null);
 
     Assert.assertEquals("Should be one delete file manifest entry", 1, expected.size());
     Assert.assertEquals("Metadata table should return one delete file", 1, actual.size());
@@ -126,7 +126,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".delete_files").schema();
 
-    List<GenericData.Record> expected = expectedEntries(table, entriesTableSchema, expectedManifests, "a");
+    List<Record> expected = expectedEntries(table, entriesTableSchema, expectedManifests, "a");
 
     Assert.assertEquals("Should be one delete file manifest entry", 1, expected.size());
     Assert.assertEquals("Metadata table should return one delete file", 1, actual.size());
@@ -141,17 +141,16 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
    * @param manifestsToExplore manifests to explore of the table
    * @param partValue partition value that manifest entries must match, or null to skip filtering
    */
-  private List<GenericData.Record> expectedEntries(Table table, Schema entriesTableSchema,
-                                                   List<ManifestFile> manifestsToExplore, String partValue)
-      throws IOException {
-    List<GenericData.Record> expected = Lists.newArrayList();
+  private List<Record> expectedEntries(Table table, Schema entriesTableSchema,
+                                       List<ManifestFile> manifestsToExplore, String partValue) throws IOException {
+    List<Record> expected = Lists.newArrayList();
     for (ManifestFile manifest : manifestsToExplore) {
       InputFile in = table.io().newInputFile(manifest.path());
-      try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(
+      try (CloseableIterable<Record> rows = Avro.read(in).project(
           entriesTableSchema).build()) {
-        for (GenericData.Record record : rows) {
+        for (Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
-            GenericData.Record file = (GenericData.Record) record.get("data_file");
+            Record file = (Record) record.get("data_file");
             if (partitionMatch(file, partValue)) {
               asDeleteRecords(file);
               expected.add(file);
@@ -164,16 +163,16 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   }
 
   // Populate certain fields derived in the metadata tables
-  private void asDeleteRecords(GenericData.Record file) {
+  private void asDeleteRecords(Record file) {
     file.put(0, FileContent.POSITION_DELETES.id());
     file.put(3, 0); // specId
   }
 
-  private boolean partitionMatch(GenericData.Record file, String partValue) {
+  private boolean partitionMatch(Record file, String partValue) {
     if (partValue == null) {
       return true;
     }
-    GenericData.Record partition = (GenericData.Record) file.get(4);
+    Record partition = (Record) file.get(4);
     return partValue.equals(partition.get(0).toString());
   }
 }
