@@ -89,34 +89,6 @@ class Literals {
         "Cannot create expression literal from %s: %s", value.getClass().getName(), value));
   }
 
-  static Type typeFromLiteralValue(Object value) {
-    if (value instanceof BooleanLiteral) {
-      return Types.BooleanType.get();
-    } else if (value instanceof IntegerLiteral) {
-      return Types.IntegerType.get();
-    } else if (value instanceof LongLiteral) {
-      return Types.LongType.get();
-    } else if (value instanceof FloatLiteral) {
-      return Types.FloatType.get();
-    } else if (value instanceof DoubleLiteral) {
-      return Types.DoubleType.get();
-    } else if (value instanceof StringLiteral) {
-      return Types.StringType.get();
-    } else if (value instanceof UUIDLiteral) {
-      return Types.UUIDType.get();
-    } else if (value instanceof FixedLiteral) {
-      return Types.FixedType.ofLength(
-              StandardCharsets.UTF_8.decode(((FixedLiteral) value).toByteBuffer()).length());
-    } else if (value instanceof BinaryLiteral) {
-      return Types.BinaryType.get();
-    } else if (value instanceof DecimalLiteral) {
-      return Types.DecimalType.of(
-              ((DecimalLiteral) value).value().precision(), ((DecimalLiteral) value).value().scale());
-    } else {
-      throw new IllegalArgumentException("Cannot find valid Literal Type for " + value + ".");
-    }
-  }
-
   @SuppressWarnings("unchecked")
   static <T> AboveMax<T> aboveMax() {
     return AboveMax.INSTANCE;

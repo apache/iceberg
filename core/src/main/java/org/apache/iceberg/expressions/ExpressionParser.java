@@ -25,14 +25,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -61,39 +66,12 @@ public class ExpressionParser {
           BOUNDED_UNARY_PREDICATE);
   private static final String NAMED_REFERENCE = "named-reference";
   private static final String BOUND_REFERENCE = "bound-reference";
-  private static final String ABOVE_MAX = "above-max";
-  private static final String BELOW_MIN = "below-min";
-
-  private static final String IS_NULL = "is";
-  private static final String NOT_NULL = "not_null";
-  private static final String IS_NAN = "is_nan";
-  private static final String NOT_NAN = "not_nan";
 
   private static final Set<Expression.Operation> ONE_INPUTS = ImmutableSet.of(
           Expression.Operation.IS_NULL,
           Expression.Operation.NOT_NULL,
           Expression.Operation.IS_NAN,
           Expression.Operation.NOT_NAN);
-
-  private static final Set<String> ONE_INPUTS_STRINGS = Sets.newHashSet(
-          Expression.Operation.IS_NULL.name().toLowerCase(),
-          Expression.Operation.NOT_NULL.name().toLowerCase(),
-          Expression.Operation.IS_NAN.name().toLowerCase(),
-          Expression.Operation.NOT_NAN.name().toLowerCase());
-
-  private static final String BOOLEAN = "boolean";
-  private static final String INTEGER = "int";
-  private static final String LONG = "long";
-  private static final String FLOAT = "float";
-  private static final String DOUBLE = "double";
-  private static final String DATE = "date";
-  private static final String TIME = "time";
-  private static final String TIMESTAMP = "timestamp";
-  private static final String STRING = "string";
-  private static final String UUID = "uuid";
-  private static final String FIXED = "fixed";
-  private static final String BINARY = "binary";
-  private static final String DECIMAL = "decimal";
 
   private ExpressionParser() {
   }
@@ -126,7 +104,7 @@ public class ExpressionParser {
     } else if (expression instanceof False) {
       toJson((False) expression, generator);
     } else if (expression instanceof Predicate) {
-      toJson((Predicate) expression, generator);
+      toJson((Predicate<?,?>) expression, generator);
     } else {
       throw new IllegalArgumentException("Invalid Operation Type");
     }
@@ -172,21 +150,15 @@ public class ExpressionParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(Predicate predicate, JsonGenerator generator) throws IOException {
+  public static void toJson(Predicate<?,?> predicate, JsonGenerator generator) throws IOException {
     if (predicate instanceof UnboundPredicate) {
-      toJson((UnboundPredicate) predicate, generator);
-    } else if (predicate instanceof BoundLiteralPredicate) {
-      toJson((BoundLiteralPredicate) predicate, generator);
-    } else if (predicate instanceof BoundSetPredicate) {
-      toJson((BoundSetPredicate) predicate, generator);
-    } else if (predicate instanceof BoundUnaryPredicate) {
-      toJson((BoundUnaryPredicate) predicate, generator);
+      toJson((UnboundPredicate<?>) predicate, generator);
     } else {
-      throw new IllegalArgumentException("Cannot find valid Predicate Type for " + predicate + ".");
+      throw new IllegalArgumentException("Cannot convert predicate " + predicate);
     }
   }
 
-  public static void toJson(UnboundPredicate predicate, JsonGenerator generator) throws IOException {
+  public static void toJson(UnboundPredicate<?> predicate, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeStringField(TYPE, UNBOUNDED_PREDICATE);
     generator.writeStringField(OPERATION, predicate.op().name().toLowerCase());
@@ -194,49 +166,32 @@ public class ExpressionParser {
     toJson(predicate.term(), generator);
     if (!(ONE_INPUTS.contains(predicate.op()))) {
       generator.writeFieldName(LITERALS);
-      toJson(predicate.literals(), generator);
+      generator.writeStartArray();
+      for (Literal<?> literal : predicate.literals()) {
+        toJson(literal, generator);
+      }
+      generator.writeEndArray();
     }
 
     generator.writeEndObject();
   }
 
-  public static void toJson(BoundLiteralPredicate predicate, JsonGenerator generator) {
-    throw new UnsupportedOperationException(
-            "Serialization of Predicate type BoundLiteralPredicate is not currently supported.");
-  }
-
-  public static void toJson(BoundSetPredicate predicate, JsonGenerator generator) {
-    throw new UnsupportedOperationException(
-            "Serialization of Predicate type BoundSetPredicate is not currently supported.");
-  }
-
-  public static void toJson(BoundUnaryPredicate predicate, JsonGenerator generator) {
-    throw new UnsupportedOperationException(
-            "Serialization of Predicate type BoundUnaryPredicate is not currently supported.");
-  }
-
   public static void toJson(Term term, JsonGenerator generator) throws IOException {
     if (term instanceof NamedReference) {
-      toJson((NamedReference) term, generator);
-    } else if (term instanceof BoundReference) {
-      toJson((BoundReference) term, generator); // Need to Implement
+      toJson((NamedReference<?>) term, generator);
     } else {
-      throw new IllegalArgumentException("Cannot find valid Term Type for " + term + ".");
+      throw new IllegalArgumentException("Cannot convert term " + term);
     }
   }
 
-  public static void toJson(NamedReference term, JsonGenerator generator) throws IOException {
+  public static void toJson(NamedReference<?> term, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeStringField(TYPE, NAMED_REFERENCE);
     generator.writeStringField(VALUE, term.name());
     generator.writeEndObject();
   }
 
-  public static void toJson(BoundReference term, JsonGenerator generator) {
-    throw new UnsupportedOperationException("Serialization of Term type BoundReference is not currently supported");
-  }
-
-  public static void toJson(List<Literal> literals, JsonGenerator generator) throws IOException {
+  public static void toJson(List<Literal<?>> literals, JsonGenerator generator) throws IOException {
     generator.writeStartArray();
     for (int i = 0; i < literals.size(); i++) {
       toJson(literals.get(i), generator);
@@ -244,17 +199,38 @@ public class ExpressionParser {
     generator.writeEndArray();
   }
 
-  public static void toJson(Literal literal, JsonGenerator generator) throws IOException {
+  public static void toJson(Literal<?> literal, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    if (literal instanceof Literals.AboveMax) {
-      generator.writeStringField(TYPE, ABOVE_MAX);
-    } else if (literal instanceof Literals.BelowMin) {
-      generator.writeStringField(TYPE, BELOW_MIN);
+
+    Object value = literal.value();
+    Type type;
+    if (value instanceof Boolean) {
+      type = Types.BooleanType.get();
+    } else if (value instanceof Integer) {
+      type = Types.IntegerType.get();
+    } else if (value instanceof Long) {
+      type = Types.LongType.get();
+    } else if (value instanceof Float) {
+      type = Types.FloatType.get();
+    } else if (value instanceof Double) {
+      type = Types.DoubleType.get();
+    } else if (value instanceof CharSequence) {
+      type = Types.StringType.get();
+    } else if (value instanceof UUID) {
+      type = Types.UUIDType.get();
+    } else if (value instanceof byte[]) {
+      type = Types.FixedType.ofLength(((byte[]) value).length);
+    } else if (value instanceof ByteBuffer) {
+      type = Types.BinaryType.get();
+    } else if (value instanceof BigDecimal) {
+      BigDecimal decimal = (BigDecimal) value;
+      type = Types.DecimalType.of(decimal.precision(), decimal.scale());
     } else {
-      generator.writeStringField(TYPE, Literals.typeFromLiteralValue(literal).toString());
-      generator.writeStringField(VALUE, StandardCharsets.UTF_8.decode(literal.toByteBuffer()).toString());
+      throw new IllegalArgumentException("Cannot find literal type for value class " + value.getClass().getName());
     }
 
+    generator.writeStringField(TYPE, type.toString());
+    generator.writeStringField(VALUE, StandardCharsets.UTF_8.decode(literal.toByteBuffer()).toString());
     generator.writeEndObject();
   }
 
@@ -268,7 +244,7 @@ public class ExpressionParser {
   }
 
   public static Expression fromJson(JsonNode json) {
-    String expressionType = JsonUtil.getString("type", json);
+    String expressionType = JsonUtil.getString(TYPE, json);
 
     if (AND.equals(expressionType)) {
       return new And(fromJson(json.get(LEFT_OPERAND)), fromJson(json.get(RIGHT_OPERAND)));
@@ -287,7 +263,7 @@ public class ExpressionParser {
     }
   }
 
-  public static Predicate fromJsonToPredicate(JsonNode json, String predicateType) {
+  public static Predicate<?,?> fromJsonToPredicate(JsonNode json, String predicateType) {
     if (UNBOUNDED_PREDICATE.equals(predicateType)) {
       return fromJsonUnboundPredicate(json);
     } else if (BOUNDED_LITERAL_PREDICATE.equals(predicateType)) {
@@ -305,86 +281,25 @@ public class ExpressionParser {
   }
 
   @SuppressWarnings("CyclomaticComplexity")
-  public static UnboundPredicate fromJsonUnboundPredicate(JsonNode json) {
-    String operation = json.get(OPERATION).textValue();
+  public static UnboundPredicate<?> fromJsonUnboundPredicate(JsonNode json) {
+    Expression.Operation operation = Expression.Operation.valueOf(
+        JsonUtil.getString(OPERATION, json).toUpperCase(Locale.ENGLISH));
 
-    if (ONE_INPUTS_STRINGS.contains(operation)) {
-      switch (operation) {
-        case IS_NULL:
-          return new UnboundPredicate(
-                  Expression.Operation.IS_NULL, fromJsonToTerm(json.get(TERM)));
-        case NOT_NULL:
-          return new UnboundPredicate(
-                  Expression.Operation.NOT_NULL, fromJsonToTerm(json.get(TERM)));
-        case IS_NAN:
-          return new UnboundPredicate(
-                  Expression.Operation.IS_NAN, fromJsonToTerm(json.get(TERM)));
-        case NOT_NAN:
-          return new UnboundPredicate(
-                  Expression.Operation.NOT_NAN, fromJsonToTerm(json.get(TERM)));
-        default:
-          throw new IllegalArgumentException("Cannot find valid Operation Type for " + operation + ".");
-      }
-
-    } else if (operation.equals(Expression.Operation.LT.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.LT,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.LT_EQ.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.LT_EQ,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.GT.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.GT, fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.GT_EQ.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.GT_EQ,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.EQ.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.EQ,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.NOT_EQ.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.NOT_EQ,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.IN.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.IN,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.NOT_IN.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.NOT_IN,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.STARTS_WITH.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.STARTS_WITH,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
-    } else if (operation.equals(Expression.Operation.NOT_STARTS_WITH.name().toLowerCase())) {
-      return new UnboundPredicate(
-              Expression.Operation.NOT_STARTS_WITH,
-              fromJsonToTerm(json.get(TERM)),
-              fromJsonToLiterals(json.get(LITERALS)));
+    if (ONE_INPUTS.contains(operation)) {
+      return new UnboundPredicate<>(operation, fromJsonToTerm(json.get(TERM)));
     } else {
-      throw new IllegalArgumentException("Cannot find valid Operation Type for " + operation + ".");
+      return new UnboundPredicate(
+          operation,
+          fromJsonToTerm(json.get(TERM)),
+          fromJsonToLiteralValues(json.get(LITERALS)));
     }
   }
 
-  public static UnboundTerm fromJsonToTerm(JsonNode json) {
+  public static UnboundTerm<?> fromJsonToTerm(JsonNode json) {
     String referenceType = json.get(TYPE).textValue();
 
     if (referenceType.equals(NAMED_REFERENCE)) {
-      return new NamedReference(json.get(VALUE).textValue());
+      return new NamedReference<>(json.get(VALUE).textValue());
     } else if (referenceType.equals(BOUND_REFERENCE)) {
       throw new UnsupportedOperationException(
               "Serialization of Predicate type BoundReference is not currently supported.");
@@ -393,14 +308,14 @@ public class ExpressionParser {
     }
   }
 
-  public static List<?> fromJsonToLiterals(JsonNode json) {
-    List<?> literals = Lists.newArrayList();
-    String literalType;
+  public static List<Object> fromJsonToLiteralValues(JsonNode json) {
+    List<Object> literals = Lists.newArrayList();
     for (int i = 0; i < json.size(); i++) {
-      literalType = json.get(i).get(TYPE).textValue();
-      literals.add(Conversions.fromByteBuffer(
-              Types.fromPrimitiveString(literalType),
-              StandardCharsets.UTF_8.encode(json.get(i).get(VALUE).textValue())));
+      String literalType = json.get(i).get(TYPE).textValue();
+      Object value = Conversions.fromByteBuffer(
+          Types.fromPrimitiveString(literalType),
+          StandardCharsets.UTF_8.encode(json.get(i).get(VALUE).textValue()));
+      literals.add(value);
     }
 
     return literals;
