@@ -232,7 +232,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
     long newSnapshotId = table.currentSnapshot().snapshotId();
     conflictingDf.writeTo(tableName)
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(newSnapshotId))
-        .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+        .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
         .overwrite(functions.col("id").equalTo(1));
   }
 
@@ -245,7 +245,7 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
         new SimpleRecord(1, "a"));
     spark.createDataFrame(records, SimpleRecord.class).writeTo(tableName).append();
 
-    // Validation should not find conflicting data file in snapshot isolation mode
+    // Validation should not fail due to conflicting data file in snapshot isolation mode
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
     conflictingDf.writeTo(tableName)
         .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
