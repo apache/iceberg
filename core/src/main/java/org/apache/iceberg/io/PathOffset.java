@@ -19,12 +19,20 @@
 
 package org.apache.iceberg.io;
 
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.types.Types;
 
-public class PathOffset {
+public class PathOffset implements StructLike {
 
-  private final CharSequence path;
-  private final long rowOffset;
+  private static final Schema PATH_OFFSET_SCHEMA = new Schema(
+      Types.NestedField.required(0, "path", Types.StringType.get()),
+      Types.NestedField.required(1, "row_offset", Types.LongType.get())
+  );
+
+  private CharSequence path;
+  private long rowOffset;
 
   private PathOffset(CharSequence path, long rowOffset) {
     this.path = path;
@@ -33,6 +41,10 @@ public class PathOffset {
 
   public static PathOffset of(CharSequence path, long rowOffset) {
     return new PathOffset(path, rowOffset);
+  }
+
+  public static Schema schema() {
+    return PATH_OFFSET_SCHEMA;
   }
 
   public CharSequence path() {
@@ -49,5 +61,36 @@ public class PathOffset {
         .add("path", path)
         .add("row_offset", rowOffset)
         .toString();
+  }
+
+  @Override
+  public int size() {
+    return 2;
+  }
+
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    switch (pos) {
+      case 0:
+        return javaClass.cast(path);
+      case 1:
+        return javaClass.cast(rowOffset);
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    }
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    switch (pos) {
+      case 0:
+        this.path = (CharSequence) value;
+        break;
+      case 1:
+        this.rowOffset = (long) value;
+        break;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    }
   }
 }

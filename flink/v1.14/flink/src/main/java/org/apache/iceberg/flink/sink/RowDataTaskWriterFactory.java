@@ -265,7 +265,9 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
           newDataWriter(fanoutEnabled),
           newEqualityWriter(fanoutEnabled),
           newPositionWriter(fanoutEnabled),
-          schema, deleteSchema, rowDataWrapper::wrap);
+          schema, deleteSchema,
+          table.properties(),
+          rowDataWrapper::wrap);
     }
 
     protected void delete(RowData row) {

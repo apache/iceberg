@@ -42,9 +42,10 @@ public class StructLikeMapUtil {
   private StructLikeMapUtil() {
   }
 
-  public static Map<StructLike, StructLike> load(Types.StructType keyType,
-                                                 Types.StructType valType,
-                                                 Map<String, String> properties) {
+  public static Map<StructLike, StructLike> load(
+      Types.StructType keyType,
+      Types.StructType valType,
+      Map<String, String> properties) {
     String impl = properties.getOrDefault(IMPL, IN_MEMORY_MAP);
     LOG.info("Loading StructLikeMap implementation: {}", impl);
 

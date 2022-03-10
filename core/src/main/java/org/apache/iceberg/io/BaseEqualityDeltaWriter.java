@@ -27,7 +27,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeMapUtil;
 import org.apache.iceberg.util.StructProjection;
 
 public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
@@ -38,7 +38,7 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
   private final PartitioningWriter<T, DeleteWriteResult> equalityWriter;
   private final PartitioningWriter<PositionDelete<T>, DeleteWriteResult> positionWriter;
 
-  private final Map<StructLike, PathOffset> insertedRowMap;
+  private final Map<StructLike, StructLike> insertedRowMap;
 
   private final Function<T, StructLike> asStructLike;
   private final Function<T, StructLike> keyRefFunc;
@@ -52,17 +52,27 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
       PartitioningWriter<PositionDelete<T>, DeleteWriteResult> positionWriter,
       Schema schema,
       Schema deleteSchema,
+      Map<String, String> tableProperties,
       Function<T, StructLike> asStructLike) {
     this.dataWriter = dataWriter;
     this.equalityWriter = equalityWriter;
     this.positionWriter = positionWriter;
 
-    this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+    this.insertedRowMap = StructLikeMapUtil.load(
+        deleteSchema.asStruct(),
+        PathOffset.schema().asStruct(),
+        tableProperties);
     this.asStructLike = asStructLike;
 
     StructProjection projection = StructProjection.create(schema, deleteSchema);
     this.keyRefFunc = row -> projection.wrap(asStructLike.apply(row));
     this.keyCopyFunc = row -> StructCopy.copy(keyRefFunc.apply(row));
+  }
+
+  private PositionDelete<T> wrap(StructLike structLike) {
+    CharSequence path = structLike.get(0, CharSequence.class);
+    long offset = structLike.get(1, Long.class);
+    return posDelete.get().set(path, offset, null);
   }
 
   @Override
@@ -73,9 +83,9 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
     StructLike copiedKey = keyCopyFunc.apply(row);
 
     // Adding a pos-delete to replace the old path-offset.
-    PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
+    StructLike previous = insertedRowMap.put(copiedKey, pathOffset);
     if (previous != null) {
-      positionWriter.write(posDelete.get().set(previous.path(), previous.rowOffset(), null), spec, partition);
+      positionWriter.write(wrap(previous), spec, partition);
     }
   }
 
@@ -83,9 +93,9 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
    * Retire the old key & position from insertedRowMap cache to position delete file.
    */
   private boolean retireOldKey(StructLike key, PartitionSpec spec, StructLike partition) {
-    PathOffset previous = insertedRowMap.remove(key);
+    StructLike previous = insertedRowMap.remove(key);
     if (previous != null) {
-      positionWriter.write(posDelete.get().set(previous.path(), previous.rowOffset(), null), spec, partition);
+      positionWriter.write(wrap(previous), spec, partition);
       return true;
     } else {
       return false;
