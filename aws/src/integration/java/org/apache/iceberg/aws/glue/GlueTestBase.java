@@ -73,7 +73,7 @@ public class GlueTestBase {
       TableProperties.WRITE_METADATA_LOCATION, "s3://" + testBucketName + "/writeMetaDataLoc",
       TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "s3://" + testBucketName + "/writeFolderStorageLoc");
 
-@BeforeClass
+  @BeforeClass
   public static void beforeClass() {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
