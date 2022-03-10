@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.expressions;
 
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,7 +37,7 @@ public class TestExpressionParser {
             "    \"value\" : \"Column-Name\"\n" +
             "  },\n" +
             "  \"literals\" : [ {\n" +
-            "    \"type\" : \"integer\",\n" +
+            "    \"type\" : \"int\",\n" +
             "    \"value\" : \"2\\u0000\\u0000\\u0000\"\n" +
             "  } ]\n" +
             "}";
@@ -46,6 +50,7 @@ public class TestExpressionParser {
     String actual = ExpressionParser.toJson(inPredicate, true);
     Assert.assertEquals(expected, actual);
   }
+
   @Test
   public void testAnd() {
     String expected = "{\n" +
@@ -58,7 +63,7 @@ public class TestExpressionParser {
             "      \"value\" : \"Column1-Name\"\n" +
             "    },\n" +
             "    \"literals\" : [ {\n" +
-            "      \"type\" : \"integer\",\n" +
+            "      \"type\" : \"int\",\n" +
             "      \"value\" : \"2\\u0000\\u0000\\u0000\"\n" +
             "    } ]\n" +
             "  },\n" +
@@ -87,6 +92,9 @@ public class TestExpressionParser {
             Literal.of("Check"));
 
     And andExpression = new And(gtEqPredicate, inPredicate);
+
+    Expression test = ExpressionParser.fromJson(expected);
+
     String actual = ExpressionParser.toJson(andExpression, true);
     Assert.assertEquals(expected, actual);
   }
@@ -103,7 +111,7 @@ public class TestExpressionParser {
             "      \"value\" : \"Column1-Name\"\n" +
             "    },\n" +
             "    \"literals\" : [ {\n" +
-            "      \"type\" : \"integer\",\n" +
+            "      \"type\" : \"int\",\n" +
             "      \"value\" : \"2\\u0000\\u0000\\u0000\"\n" +
             "    } ]\n" +
             "  },\n" +
@@ -143,7 +151,7 @@ public class TestExpressionParser {
             "      \"value\" : \"Column1-Name\"\n" +
             "    },\n" +
             "    \"literals\" : [ {\n" +
-            "      \"type\" : \"integer\",\n" +
+            "      \"type\" : \"int\",\n" +
             "      \"value\" : \"2\\u0000\\u0000\\u0000\"\n" +
             "    } ]\n" +
             "  }\n" +
@@ -173,7 +181,7 @@ public class TestExpressionParser {
             "        \"value\" : \"Column1-Name\"\n" +
             "      },\n" +
             "      \"literals\" : [ {\n" +
-            "        \"type\" : \"integer\",\n" +
+            "        \"type\" : \"int\",\n" +
             "        \"value\" : \"2\\u0000\\u0000\\u0000\"\n" +
             "      } ]\n" +
             "    },\n" +
@@ -221,45 +229,98 @@ public class TestExpressionParser {
   }
 
   @Test
-  public void aboveMaxAndBelowMinTest() {
+  public void testParserBothWays() {
     String expected = "{\n" +
-            "  \"type\" : \"and\",\n" +
+            "  \"type\" : \"or\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
-            "    \"operation\" : \"lt\",\n" +
-            "    \"term\" : {\n" +
-            "      \"type\" : \"named-reference\",\n" +
-            "      \"value\" : \"Column1-Name\"\n" +
+            "    \"type\" : \"and\",\n" +
+            "    \"left-operand\" : {\n" +
+            "      \"type\" : \"unbounded-predicate\",\n" +
+            "      \"operation\" : \"in\",\n" +
+            "      \"term\" : {\n" +
+            "        \"type\" : \"named-reference\",\n" +
+            "        \"value\" : \"Column1-Name\"\n" +
+            "      },\n" +
+            "      \"literals\" : [ {\n" +
+            "        \"type\" : \"int\",\n" +
+            "        \"value\" : \"2\\u0000\\u0000\\u0000\"\n" +
+            "      } ]\n" +
             "    },\n" +
-            "    \"literals\" : [ {\n" +
-            "      \"type\" : \"above-max\"\n" +
-            "    } ]\n" +
+            "    \"right-operand\" : {\n" +
+            "      \"type\" : \"unbounded-predicate\",\n" +
+            "      \"operation\" : \"eq\",\n" +
+            "      \"term\" : {\n" +
+            "        \"type\" : \"named-reference\",\n" +
+            "        \"value\" : \"Column2-Name\"\n" +
+            "      },\n" +
+            "      \"literals\" : [ {\n" +
+            "        \"type\" : \"string\",\n" +
+            "        \"value\" : \"Test\"\n" +
+            "      } ]\n" +
+            "    }\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
             "    \"type\" : \"unbounded-predicate\",\n" +
-            "    \"operation\" : \"gt_eq\",\n" +
+            "    \"operation\" : \"is_nan\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
-            "      \"value\" : \"Column2-Name\"\n" +
-            "    },\n" +
-            "    \"literals\" : [ {\n" +
-            "      \"type\" : \"below-min\"\n" +
-            "    } ]\n" +
+            "      \"value\" : \"Column3-Name\"\n" +
+            "    }\n" +
             "  }\n" +
             "}";
 
-    UnboundPredicate aboveMaxPredicate = new UnboundPredicate(
-            Expression.Operation.LT,
-            new NamedReference("Column1-Name"),
-            new Literals.AboveMax());
+    Expression actualExpression = ExpressionParser.fromJson(expected);
+    String actualJsonExpression = ExpressionParser.toJson(actualExpression, true);
 
-    UnboundPredicate belowMinPredicate = new UnboundPredicate(
-            Expression.Operation.GT_EQ,
-            new NamedReference("Column2-Name"),
-            new Literals.BelowMin<>());
+    Assert.assertEquals(expected, actualJsonExpression);
+  }
 
-    And andExpression = new And(aboveMaxPredicate, belowMinPredicate);
-    String actual = ExpressionParser.toJson(andExpression, true);
-    Assert.assertEquals(expected, actual);
+  @Test
+  public void testFixedLiteral() {
+    String expected = "";
+    String testString = "2\\u0000\\u0000\\u0000";
+    ByteBuffer testByteBuffer = StandardCharsets.UTF_8.encode(testString);
+
+    byte[] testByteArray = new byte[testByteBuffer.remaining()];
+    testByteBuffer.get(testByteArray);
+
+    Literal testLiteral = Literals.from(testByteArray);
+    System.out.println(StandardCharsets.UTF_8.decode(testLiteral.toByteBuffer()).toString());
+
+    UnboundPredicate expectedExpression = new UnboundPredicate(
+            Expression.Operation.EQ,
+            new NamedReference("Column-Name"),
+            Lists.newArrayList(testByteArray));
+    System.out.println(ExpressionParser.toJson(expectedExpression, true));
+  }
+
+  @Test
+  public void testDecimalLiteral() {
+    String expected = "{\n" +
+            "  \"type\" : \"unbounded-predicate\",\n" +
+            "  \"operation\" : \"in\",\n" +
+            "  \"term\" : {\n" +
+            "    \"type\" : \"named-reference\",\n" +
+            "    \"value\" : \"Column-Name\"\n" +
+            "  },\n" +
+            "  \"literals\" : [ {\n" +
+            "    \"type\" : \"decimal(3, 2)\",\n" +
+            "    \"value\" : \"\\u0001:\"\n" +
+            "  } ]\n" +
+            "}";
+
+    UnboundPredicate expectedExpression = new UnboundPredicate(
+            Expression.Operation.IN,
+            new NamedReference("Column-Name"),
+            Lists.newArrayList(new BigDecimal("3.14")));
+
+    String actualJsonExpression = ExpressionParser.toJson(ExpressionParser.fromJson(expected), true);
+    Expression actualExpression = ExpressionParser.fromJson(expected);
+
+    Assert.assertEquals(expected, ExpressionParser.toJson(expectedExpression, true));
+    Assert.assertEquals(expected, actualJsonExpression);
+    Assert.assertEquals(
+            ((UnboundPredicate) actualExpression).literals().get(0).toString(),
+            expectedExpression.literals().get(0).toString());
   }
 }
