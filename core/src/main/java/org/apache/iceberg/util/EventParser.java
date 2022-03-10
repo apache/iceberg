@@ -20,14 +20,19 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 
 public class EventParser {
@@ -47,9 +52,16 @@ public class EventParser {
   }
 
   public static String toJson(Object event) {
+    return toJson(event, false);
+  }
+
+  public static String toJson(Object event, boolean pretty) {
     try {
       StringWriter writer = new StringWriter();
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
       if (event instanceof ScanEvent) {
         toJson((ScanEvent) event, generator);
       } else if (event instanceof CreateSnapshotEvent) {
@@ -116,5 +128,53 @@ public class EventParser {
     generator.writeFieldName(PROJECTION);
     SchemaParser.toJson(event.projection(), generator);
     generator.writeEndObject();
+  }
+
+  public static Object fromJson(String json) {
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      return fromJson(mapper.readTree(json));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
+  public static Object fromJson(JsonNode json) {
+    String eventType = JsonUtil.getString(EVENT_TYPE, json);
+    if (eventType.equals(ScanEvent.class.getName())) {
+      return fromJsonToScanEvent(json);
+    } else if (eventType.equals(CreateSnapshotEvent.class.getName())) {
+      return fromJsonToCreateSnapshotEvent(json);
+    } else if (eventType.equals(IncrementalScanEvent.class.getName())) {
+      return fromJsonToIncrementalScanEvent(json);
+    } else {
+      throw new IllegalArgumentException("Invalid Event Type");
+    }
+  }
+
+  public static ScanEvent fromJsonToScanEvent(JsonNode json) {
+    String tableName = JsonUtil.getString(TABLE_NAME, json);
+    Long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
+    Expression filter = ExpressionParser.fromJson(json.get(EXPRESSION));
+    Schema schema = SchemaParser.fromJson(json.get(PROJECTION));
+    return new ScanEvent(tableName, snapshotId, filter, schema);
+  }
+
+  public static CreateSnapshotEvent fromJsonToCreateSnapshotEvent(JsonNode json) {
+    String tableName = JsonUtil.getString(TABLE_NAME, json);
+    String operation = JsonUtil.getString(OPERATION, json);
+    Long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
+    Long sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, json);
+    Map<String, String> summary = JsonUtil.getStringMap(SUMMARY, json);
+    return new CreateSnapshotEvent(tableName, operation, snapshotId, sequenceNumber, summary);
+  }
+
+  public static IncrementalScanEvent fromJsonToIncrementalScanEvent(JsonNode json) {
+    String tableName = JsonUtil.getString(TABLE_NAME, json);
+    Long fromSnapshotId = JsonUtil.getLong(FROM_SNAPSHOT_ID, json);
+    Long toSnapshotId = JsonUtil.getLong(TO_SNAPSHOT_ID, json);
+    Expression filter = ExpressionParser.fromJson(json.get(EXPRESSION));
+    Schema schema = SchemaParser.fromJson(json.get(PROJECTION));
+    return new IncrementalScanEvent(tableName, fromSnapshotId, toSnapshotId, filter, schema);
   }
 }
