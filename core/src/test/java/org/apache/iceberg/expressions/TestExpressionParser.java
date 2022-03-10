@@ -277,21 +277,37 @@ public class TestExpressionParser {
 
   @Test
   public void testFixedLiteral() {
-    String expected = "";
-    String testString = "2\\u0000\\u0000\\u0000";
+    String expected = "{\n" +
+            "  \"type\" : \"unbounded-predicate\",\n" +
+            "  \"operation\" : \"eq\",\n" +
+            "  \"term\" : {\n" +
+            "    \"type\" : \"named-reference\",\n" +
+            "    \"value\" : \"Column-Name\"\n" +
+            "  },\n" +
+            "  \"literals\" : [ {\n" +
+            "    \"type\" : \"fixed[10]\",\n" +
+            "    \"value\" : \"testString\"\n" +
+            "  } ]\n" +
+            "}";
+    String testString = "testString";
     ByteBuffer testByteBuffer = StandardCharsets.UTF_8.encode(testString);
 
     byte[] testByteArray = new byte[testByteBuffer.remaining()];
     testByteBuffer.get(testByteArray);
 
     Literal testLiteral = Literals.from(testByteArray);
-    System.out.println(StandardCharsets.UTF_8.decode(testLiteral.toByteBuffer()).toString());
 
     UnboundPredicate expectedExpression = new UnboundPredicate(
             Expression.Operation.EQ,
             new NamedReference("Column-Name"),
             Lists.newArrayList(testByteArray));
-    System.out.println(ExpressionParser.toJson(expectedExpression, true));
+
+    String actualJsonExpression = ExpressionParser.toJson(expectedExpression, true);
+    Expression actualExpression = ExpressionParser.fromJson(actualJsonExpression);
+    String newActualJsonExpression = ExpressionParser.toJson(actualExpression, true);
+
+    Assert.assertEquals(expected, actualJsonExpression);
+    Assert.assertEquals(actualJsonExpression, newActualJsonExpression);
   }
 
   @Test

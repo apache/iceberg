@@ -23,7 +23,6 @@ import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -99,7 +98,7 @@ class Literals {
     return BelowMin.INSTANCE;
   }
 
-  private abstract static class BaseLiteral<T> implements Literal<T> {
+  protected abstract static class BaseLiteral<T> implements Literal<T> {
     private final T value;
     private transient volatile ByteBuffer byteBuffer = null;
 

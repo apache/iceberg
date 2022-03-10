@@ -67,6 +67,8 @@ public class ExpressionParser {
   private static final String NAMED_REFERENCE = "named-reference";
   private static final String BOUND_REFERENCE = "bound-reference";
 
+  private static final String FIXED = "fixed";
+
   private static final Set<Expression.Operation> ONE_INPUTS = ImmutableSet.of(
           Expression.Operation.IS_NULL,
           Expression.Operation.NOT_NULL,
@@ -104,7 +106,7 @@ public class ExpressionParser {
     } else if (expression instanceof False) {
       toJson((False) expression, generator);
     } else if (expression instanceof Predicate) {
-      toJson((Predicate<?,?>) expression, generator);
+      toJson((Predicate<?, ?>) expression, generator);
     } else {
       throw new IllegalArgumentException("Invalid Operation Type");
     }
@@ -150,7 +152,7 @@ public class ExpressionParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(Predicate<?,?> predicate, JsonGenerator generator) throws IOException {
+  public static void toJson(Predicate<?, ?> predicate, JsonGenerator generator) throws IOException {
     if (predicate instanceof UnboundPredicate) {
       toJson((UnboundPredicate<?>) predicate, generator);
     } else {
@@ -221,7 +223,11 @@ public class ExpressionParser {
     } else if (value instanceof byte[]) {
       type = Types.FixedType.ofLength(((byte[]) value).length);
     } else if (value instanceof ByteBuffer) {
-      type = Types.BinaryType.get();
+      if (((Literals.BaseLiteral) literal).typeId() == Type.TypeID.FIXED) {
+        type = Types.FixedType.ofLength(((ByteBuffer) value).remaining());
+      } else {
+        type = Types.BinaryType.get();
+      }
     } else if (value instanceof BigDecimal) {
       BigDecimal decimal = (BigDecimal) value;
       type = Types.DecimalType.of(decimal.precision(), decimal.scale());
@@ -263,7 +269,7 @@ public class ExpressionParser {
     }
   }
 
-  public static Predicate<?,?> fromJsonToPredicate(JsonNode json, String predicateType) {
+  public static Predicate<?, ?> fromJsonToPredicate(JsonNode json, String predicateType) {
     if (UNBOUNDED_PREDICATE.equals(predicateType)) {
       return fromJsonUnboundPredicate(json);
     } else if (BOUNDED_LITERAL_PREDICATE.equals(predicateType)) {
@@ -313,8 +319,13 @@ public class ExpressionParser {
     for (int i = 0; i < json.size(); i++) {
       String literalType = json.get(i).get(TYPE).textValue();
       Object value = Conversions.fromByteBuffer(
-          Types.fromPrimitiveString(literalType),
-          StandardCharsets.UTF_8.encode(json.get(i).get(VALUE).textValue()));
+              Types.fromPrimitiveString(literalType),
+              StandardCharsets.UTF_8.encode(json.get(i).get(VALUE).textValue()));
+      if (literalType.startsWith(FIXED)) {
+        byte[] valueByteArray = new byte[((ByteBuffer) value).remaining()];
+        ((ByteBuffer) value).get(valueByteArray);
+        value = valueByteArray;
+      }
       literals.add(value);
     }
 
