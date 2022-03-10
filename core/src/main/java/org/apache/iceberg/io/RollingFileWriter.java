@@ -68,14 +68,6 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
     return partition;
   }
 
-  public CharSequence currentFilePath() {
-    return currentFile.encryptingOutputFile().location();
-  }
-
-  public long currentFileRows() {
-    return currentFileRows;
-  }
-
   @Override
   public long length() {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement length");
@@ -90,6 +82,16 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
       closeCurrentWriter();
       openCurrentWriter();
     }
+  }
+
+  @Override
+  public CharSequence location() {
+    return currentFile.encryptingOutputFile().location();
+  }
+
+  @Override
+  public long rowOffset() {
+    return currentFileRows;
   }
 
   private boolean shouldRollToNewFile() {

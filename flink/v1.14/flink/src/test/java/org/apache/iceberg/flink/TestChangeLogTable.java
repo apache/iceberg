@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
@@ -38,7 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.StructLikeMapUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.After;
 import org.junit.Assert;
@@ -63,17 +66,21 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   private static String warehouse;
 
   private final boolean partitioned;
+  private final String spillDiskImpl;
 
-  @Parameterized.Parameters(name = "PartitionedTable={0}")
+  @Parameterized.Parameters(name = "PartitionedTable={0}, SpillDiskImpl={1}")
   public static Iterable<Object[]> parameters() {
     return ImmutableList.of(
-        new Object[] {true},
-        new Object[] {false}
+        new Object[] {true, StructLikeMapUtil.IN_MEMORY_MAP},
+        new Object[] {true, StructLikeMapUtil.ROCKSDB_MAP},
+        new Object[] {false, StructLikeMapUtil.IN_MEMORY_MAP},
+        new Object[] {false, StructLikeMapUtil.ROCKSDB_MAP}
     );
   }
 
-  public TestChangeLogTable(boolean partitioned) {
+  public TestChangeLogTable(boolean partitioned, String spillDiskImpl) {
     this.partitioned = partitioned;
+    this.spillDiskImpl = spillDiskImpl;
   }
 
   @BeforeClass
@@ -244,8 +251,11 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
 
   private Table createTable(String tableName, List<String> key, boolean isPartitioned) {
     String partitionByCause = isPartitioned ? "PARTITIONED BY (data)" : "";
-    sql("CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s",
-        tableName, Joiner.on(',').join(key), partitionByCause);
+    Map<String, String> props = Maps.newHashMap();
+    props.put(StructLikeMapUtil.IMPL, spillDiskImpl);
+
+    sql("CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s WITH %s",
+        tableName, Joiner.on(',').join(key), partitionByCause, FlinkCatalogTestBase.toWithClause(props));
 
     // Upgrade the iceberg table to format v2.
     CatalogLoader loader = CatalogLoader.hadoop("my_catalog", CONF, ImmutableMap.of(

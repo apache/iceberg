@@ -83,6 +83,16 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
     delete(payload.path(), payload.pos(), payload.row());
   }
 
+  @Override
+  public CharSequence location() {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement location.");
+  }
+
+  @Override
+  public long rowOffset() {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rowOffset.");
+  }
+
   public void delete(CharSequence path, long pos) {
     delete(path, pos, null);
   }

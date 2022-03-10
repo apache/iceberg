@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -49,6 +50,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.StructLikeMapUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -62,6 +64,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024L;
 
   private final FileFormat format;
+  private final String structLikeMap;
   private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
   private final GenericRecord posRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
 
@@ -69,18 +72,22 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   private int idFieldId;
   private int dataFieldId;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, StructLikeMap = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {"avro"},
-        {"orc"},
-        {"parquet"}
+        {"avro", StructLikeMapUtil.IN_MEMORY_MAP},
+        {"avro", StructLikeMapUtil.ROCKSDB_MAP},
+        {"orc", StructLikeMapUtil.IN_MEMORY_MAP},
+        {"orc", StructLikeMapUtil.ROCKSDB_MAP},
+        {"parquet", StructLikeMapUtil.IN_MEMORY_MAP},
+        {"parquet", StructLikeMapUtil.ROCKSDB_MAP}
     };
   }
 
-  public TestTaskEqualityDeltaWriter(String fileFormat) {
+  public TestTaskEqualityDeltaWriter(String fileFormat, String structLikeMap) {
     super(FORMAT_V2);
     this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
+    this.structLikeMap = structLikeMap;
   }
 
   @Override
@@ -99,6 +106,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
 
     table.updateProperties()
         .defaultFormat(format)
+        .set(StructLikeMapUtil.IMPL, structLikeMap)
         .commit();
   }
 
@@ -439,7 +447,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Schema deleteSchema = table.schema().select(columns);
 
     return new GenericTaskDeltaWriter(table.schema(), deleteSchema, table.spec(), format, appenderFactory,
-        fileFactory, table.io(), TARGET_FILE_SIZE);
+        fileFactory, table.io(), TARGET_FILE_SIZE, table.properties());
   }
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
@@ -447,7 +455,8 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
 
     private GenericTaskDeltaWriter(Schema schema, Schema deleteSchema, PartitionSpec spec, FileFormat format,
                                    FileAppenderFactory<Record> appenderFactory,
-                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                   Map<String, String> properties) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       this.deltaWriter = new GenericEqualityDeltaWriter(null, schema, deleteSchema);
     }

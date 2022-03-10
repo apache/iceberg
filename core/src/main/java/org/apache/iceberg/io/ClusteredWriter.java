@@ -64,7 +64,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
   protected abstract R aggregatedResult();
 
   @Override
-  public void write(T row, PartitionSpec spec, StructLike partition) {
+  public PathOffset write(T row, PartitionSpec spec, StructLike partition) {
     if (!spec.equals(currentSpec)) {
       if (currentSpec != null) {
         closeCurrentWriter();
@@ -85,7 +85,6 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       // copy the partition key as the key object may be reused
       this.currentPartition = StructCopy.copy(partition);
       this.currentWriter = newWriter(currentSpec, currentPartition);
-
     } else if (partition != currentPartition && partitionComparator.compare(partition, currentPartition) != 0) {
       closeCurrentWriter();
       completedPartitions.add(currentPartition);
@@ -100,7 +99,10 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       this.currentWriter = newWriter(currentSpec, currentPartition);
     }
 
+    PathOffset pathOffset = PathOffset.of(currentWriter.location(), currentWriter.rowOffset());
     currentWriter.write(row);
+
+    return pathOffset;
   }
 
   @Override
