@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
  * FileIO implementation backed by Azure Blob Storage.
  */
 // TODO check all the Interfaces and their contracts
+// TODO add logging traces
 public class AzureBlobFileIO implements FileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(AzureBlobFileIO.class);
