@@ -98,7 +98,7 @@ class Literals {
     return BelowMin.INSTANCE;
   }
 
-  protected abstract static class BaseLiteral<T> implements Literal<T> {
+  private abstract static class BaseLiteral<T> implements Literal<T> {
     private final T value;
     private transient volatile ByteBuffer byteBuffer = null;
 

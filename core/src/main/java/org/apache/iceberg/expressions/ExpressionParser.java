@@ -67,8 +67,6 @@ public class ExpressionParser {
   private static final String NAMED_REFERENCE = "named-reference";
   private static final String BOUND_REFERENCE = "bound-reference";
 
-  private static final String FIXED = "fixed";
-
   private static final Set<Expression.Operation> ONE_INPUTS = ImmutableSet.of(
           Expression.Operation.IS_NULL,
           Expression.Operation.NOT_NULL,
@@ -223,7 +221,7 @@ public class ExpressionParser {
     } else if (value instanceof byte[]) {
       type = Types.FixedType.ofLength(((byte[]) value).length);
     } else if (value instanceof ByteBuffer) {
-      if (((Literals.BaseLiteral) literal).typeId() == Type.TypeID.FIXED) {
+      if (literal instanceof Literals.FixedLiteral) {
         type = Types.FixedType.ofLength(((ByteBuffer) value).remaining());
       } else {
         type = Types.BinaryType.get();
@@ -318,14 +316,16 @@ public class ExpressionParser {
     List<Object> literals = Lists.newArrayList();
     for (int i = 0; i < json.size(); i++) {
       String literalType = json.get(i).get(TYPE).textValue();
+      Type primitiveType = Types.fromPrimitiveString(literalType);
       Object value = Conversions.fromByteBuffer(
-              Types.fromPrimitiveString(literalType),
+              primitiveType,
               StandardCharsets.UTF_8.encode(json.get(i).get(VALUE).textValue()));
-      if (literalType.startsWith(FIXED)) {
+      if (primitiveType.typeId() == Type.TypeID.FIXED) {
         byte[] valueByteArray = new byte[((ByteBuffer) value).remaining()];
         ((ByteBuffer) value).get(valueByteArray);
         value = valueByteArray;
       }
+
       literals.add(value);
     }
 

@@ -295,8 +295,6 @@ public class TestExpressionParser {
     byte[] testByteArray = new byte[testByteBuffer.remaining()];
     testByteBuffer.get(testByteArray);
 
-    Literal testLiteral = Literals.from(testByteArray);
-
     UnboundPredicate expectedExpression = new UnboundPredicate(
             Expression.Operation.EQ,
             new NamedReference("Column-Name"),
