@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.dell.ecs;
 
-import java.io.Serializable;
 import java.net.URI;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -29,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 /**
  * An immutable record class of ECS location
  */
-public class EcsURI implements Serializable {
+class EcsURI {
 
   private static final Set<String> VALID_SCHEME = ImmutableSet.of("ecs", "s3", "s3a", "s3n");
 
@@ -37,7 +36,7 @@ public class EcsURI implements Serializable {
   private final String bucket;
   private final String name;
 
-  public EcsURI(String location) {
+  EcsURI(String location) {
     Preconditions.checkNotNull(location == null, "Location %s can not be null", location);
 
     this.location = location;
@@ -51,7 +50,7 @@ public class EcsURI implements Serializable {
     this.name = uri.getPath().replaceAll("^/*", "");
   }
 
-  public EcsURI(String bucket, String name) {
+  EcsURI(String bucket, String name) {
     this.location = String.format("ecs://%s/%s", bucket, name);
     this.bucket = bucket;
     this.name = name;
