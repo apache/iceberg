@@ -56,7 +56,7 @@ public class DataFilesTable extends BaseFilesTable {
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DataFilesTableScan(ops, table, schema, this.fileSchema(), context);
+      return new DataFilesTableScan(ops, table, schema, fileSchema(), context);
     }
 
     @Override

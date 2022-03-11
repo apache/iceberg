@@ -72,7 +72,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     List<ManifestFile> expectedManifests = TestHelpers.deleteManifests(table);
-    Assert.assertEquals("Should have 1 delete file", 1, expectedManifests.size());
+    Assert.assertEquals("Should have 1 delete manifest", 1, expectedManifests.size());
 
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".delete_files").schema();
@@ -146,8 +146,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<Record> expected = Lists.newArrayList();
     for (ManifestFile manifest : manifestsToExplore) {
       InputFile in = table.io().newInputFile(manifest.path());
-      try (CloseableIterable<Record> rows = Avro.read(in).project(
-          entriesTableSchema).build()) {
+      try (CloseableIterable<Record> rows = Avro.read(in).project(entriesTableSchema).build()) {
         for (Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             Record file = (Record) record.get("data_file");

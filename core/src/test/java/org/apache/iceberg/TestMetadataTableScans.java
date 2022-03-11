@@ -493,13 +493,13 @@ public class TestMetadataTableScans extends TableTestBase {
 
     TableScan scanNoFilter = deleteFilesTable.newScan().select("partition.data_bucket");
     Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
-    CloseableIterable<FileScanTask> tasksAndEq = scanNoFilter.planFiles();
+    CloseableIterable<FileScanTask> tasks = scanNoFilter.planFiles();
 
-    Assert.assertEquals(4, Iterables.size(tasksAndEq));
-    validateFileScanTasks(tasksAndEq, 0);
-    validateFileScanTasks(tasksAndEq, 1);
-    validateFileScanTasks(tasksAndEq, 2);
-    validateFileScanTasks(tasksAndEq, 3);
+    Assert.assertEquals(4, Iterables.size(tasks));
+    validateFileScanTasks(tasks, 0);
+    validateFileScanTasks(tasks, 1);
+    validateFileScanTasks(tasks, 2);
+    validateFileScanTasks(tasks, 3);
   }
 
   @Test
@@ -513,10 +513,10 @@ public class TestMetadataTableScans extends TableTestBase {
     Expression andEquals = Expressions.and(
         Expressions.equal("partition.data_bucket", 0),
         Expressions.greaterThan("record_count", 0));
-    TableScan scanAndEq = deleteFilesTable.newScan().filter(andEquals);
-    CloseableIterable<FileScanTask> tasksAndEq = scanAndEq.planFiles();
-    Assert.assertEquals(1, Iterables.size(tasksAndEq));
-    validateFileScanTasks(tasksAndEq, 0);
+    TableScan scan = deleteFilesTable.newScan().filter(andEquals);
+    CloseableIterable<FileScanTask> tasks = scan.planFiles();
+    Assert.assertEquals(1, Iterables.size(tasks));
+    validateFileScanTasks(tasks, 0);
   }
 
   @Test
@@ -530,10 +530,10 @@ public class TestMetadataTableScans extends TableTestBase {
     Expression andEquals = Expressions.and(
         Expressions.equal("partition.data_bucket", 0),
         Expressions.greaterThan("record_count", 0));
-    TableScan scanAndEq = deleteFilesTable.newScan().filter(andEquals);
-    CloseableIterable<CombinedScanTask> tasksAndEq = scanAndEq.planTasks();
-    Assert.assertEquals(1, Iterables.size(tasksAndEq));
-    validateCombinedScanTasks(tasksAndEq, 0);
+    TableScan scan = deleteFilesTable.newScan().filter(andEquals);
+    CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
+    Assert.assertEquals(1, Iterables.size(tasks));
+    validateCombinedScanTasks(tasks, 0);
   }
 
   @Test
@@ -600,11 +600,11 @@ public class TestMetadataTableScans extends TableTestBase {
     Expression set = Expressions.in("partition.data_bucket", 2, 3);
     TableScan scan = deleteFilesTable.newScan()
         .filter(set);
-    CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
-    Assert.assertEquals(2, Iterables.size(tasksNot));
+    CloseableIterable<FileScanTask> tasksIn = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksIn));
 
-    validateFileScanTasks(tasksNot, 2);
-    validateFileScanTasks(tasksNot, 3);
+    validateFileScanTasks(tasksIn, 2);
+    validateFileScanTasks(tasksIn, 3);
   }
 
   @Test
@@ -614,16 +614,16 @@ public class TestMetadataTableScans extends TableTestBase {
     preparePartitionedTable();
 
     Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
-    Expression unary = Expressions.notNull("partition.data_bucket");
+    Expression notNull = Expressions.notNull("partition.data_bucket");
     TableScan scan = deleteFilesTable.newScan()
-        .filter(unary);
-    CloseableIterable<FileScanTask> tasksUnary = scan.planFiles();
-    Assert.assertEquals(4, Iterables.size(tasksUnary));
+        .filter(notNull);
+    CloseableIterable<FileScanTask> tasksNotNull = scan.planFiles();
+    Assert.assertEquals(4, Iterables.size(tasksNotNull));
 
-    validateFileScanTasks(tasksUnary, 0);
-    validateFileScanTasks(tasksUnary, 1);
-    validateFileScanTasks(tasksUnary, 2);
-    validateFileScanTasks(tasksUnary, 3);
+    validateFileScanTasks(tasksNotNull, 0);
+    validateFileScanTasks(tasksNotNull, 1);
+    validateFileScanTasks(tasksNotNull, 2);
+    validateFileScanTasks(tasksNotNull, 3);
   }
 
   @Test

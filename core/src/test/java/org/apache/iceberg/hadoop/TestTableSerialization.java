@@ -148,7 +148,6 @@ public class TestTableSerialization extends HadoopTableTestBase {
         .commit();
 
     for (MetadataTableType type : MetadataTableType.values()) {
-
       // Collect the deserialized data
       Set<CharSequence> deserializedFiles = getFiles(deserializeFromBytes(serialized.get(type)));
 
