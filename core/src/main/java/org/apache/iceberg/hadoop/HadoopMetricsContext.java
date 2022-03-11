@@ -112,17 +112,14 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   }
 
   private FileSystem.Statistics statistics() {
-    FileSystem.Statistics localStatisticsRef = statistics;
-    if (localStatisticsRef == null) {
+    if (statistics == null) {
       synchronized (this) {
-        localStatisticsRef = statistics;
-        if (localStatisticsRef == null) {
-          localStatisticsRef = FileSystem.getStatistics(scheme, null);
-          statistics = localStatisticsRef;
+        if (statistics == null) {
+          this.statistics = FileSystem.getStatistics(scheme, null);
         }
       }
     }
 
-    return localStatisticsRef;
+    return statistics;
   }
 }
