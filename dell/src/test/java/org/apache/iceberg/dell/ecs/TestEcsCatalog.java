@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.dell.ecs;
 
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -57,14 +57,13 @@ public class TestEcsCatalog {
   public void before() {
     ecsCatalog = new EcsCatalog();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(DellProperties.ECS_CATALOG_PREFIX, new EcsURI(rule.bucket(), "catalog").location());
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, new EcsURI(rule.bucket(), "").location());
     properties.putAll(rule.clientProperties());
     ecsCatalog.initialize("test", properties);
   }
 
   @After
-  public void after() {
+  public void after() throws IOException {
     ecsCatalog.close();
   }
 

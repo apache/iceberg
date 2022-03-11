@@ -48,12 +48,12 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.dell.DellClientFactories;
-import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -83,13 +83,13 @@ public class EcsCatalog extends BaseMetastoreCatalog
   private S3Client client;
   private Object hadoopConf;
   private String catalogName;
+
   /**
    * Warehouse is unified with other catalog that without delimiter.
    */
-  private String warehouseLocation;
-  private DellProperties dellProperties;
-  private PropertiesSerDes propertiesSerDes;
+  private EcsURI warehouseLocation;
   private FileIO fileIO;
+  private CloseableGroup closeableGroup;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -102,24 +102,14 @@ public class EcsCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> properties) {
     this.catalogName = name;
-    this.dellProperties = new DellProperties(properties);
-    this.warehouseLocation =
-        cleanWarehouse(properties.get(CatalogProperties.WAREHOUSE_LOCATION), dellProperties.ecsCatalogDelimiter());
+    this.warehouseLocation = new EcsURI(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     this.client = DellClientFactories.from(properties).ecsS3();
-    this.propertiesSerDes = PropertiesSerDes.current();
     this.fileIO = initializeFileIO(properties);
-  }
 
-  private String cleanWarehouse(String path, String delimiter) {
-    Preconditions.checkArgument(
-        path != null && path.length() > 0,
-        "Cannot initialize EcsCatalog because warehousePath must not be null");
-    int len = path.length();
-    if (path.endsWith(delimiter)) {
-      return path.substring(0, len - delimiter.length());
-    } else {
-      return path;
-    }
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(client::destroy);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   private FileIO initializeFileIO(Map<String, String> properties) {
@@ -141,16 +131,16 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    StringBuilder builder = new StringBuilder();
-    builder.append(warehouseLocation);
-    for (String level : tableIdentifier.namespace().levels()) {
-      builder.append(dellProperties.ecsCatalogDelimiter());
-      builder.append(level);
-    }
+    String tableName = tableIdentifier.name();
+    StringBuilder sb = new StringBuilder();
 
-    builder.append(dellProperties.ecsCatalogDelimiter());
-    builder.append(tableIdentifier.name());
-    return builder.toString();
+    sb.append(warehouseLocation).append('/');
+    for (String level : tableIdentifier.namespace().levels()) {
+      sb.append(level).append('/');
+    }
+    sb.append(tableName);
+
+    return sb.toString();
   }
 
   /**
@@ -168,7 +158,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     do {
       ListObjectsResult listObjectsResult = client.listObjects(
           new ListObjectsRequest(prefix.bucket())
-              .withDelimiter(dellProperties.ecsCatalogDelimiter())
+              .withDelimiter("/")
               .withPrefix(prefix.name())
               .withMarker(marker));
       marker = listObjectsResult.getNextMarker();
@@ -188,14 +178,13 @@ public class EcsCatalog extends BaseMetastoreCatalog
   private EcsURI namespacePrefix(Namespace namespace) {
     String prefix;
     if (namespace.isEmpty()) {
-      prefix = dellProperties.ecsCatalogPrefix().name();
+      prefix = warehouseLocation.name();
     } else {
-      prefix = dellProperties.ecsCatalogPrefix().name() +
-          String.join(dellProperties.ecsCatalogDelimiter(), namespace.levels()) +
-          dellProperties.ecsCatalogDelimiter();
+      prefix = String.format("%s%s/", warehouseLocation.name(),
+          String.join("/", namespace.levels()));
     }
 
-    return new EcsURI(dellProperties.ecsCatalogPrefix().bucket(), prefix);
+    return new EcsURI(warehouseLocation.bucket(), prefix);
   }
 
   private TableIdentifier parseTableId(Namespace namespace, EcsURI prefix, S3Object s3Object) {
@@ -283,10 +272,9 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   private EcsURI namespaceURI(Namespace namespace) {
     return new EcsURI(
-        dellProperties.ecsCatalogPrefix().bucket(),
-        dellProperties.ecsCatalogPrefix().name() +
-            String.join(dellProperties.ecsCatalogDelimiter(), namespace.levels()) +
-            NAMESPACE_OBJECT_SUFFIX);
+        warehouseLocation.bucket(),
+        String.format("%s%s%s", warehouseLocation.name(), String.join("/", namespace.levels()),
+            NAMESPACE_OBJECT_SUFFIX));
   }
 
   @Override
@@ -301,7 +289,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     do {
       ListObjectsResult listObjectsResult = client.listObjects(
           new ListObjectsRequest(prefix.bucket())
-              .withDelimiter(dellProperties.ecsCatalogDelimiter())
+              .withDelimiter("/")
               .withPrefix(prefix.name())
               .withMarker(marker));
       marker = listObjectsResult.getNextMarker();
@@ -394,10 +382,12 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   private void checkURI(EcsURI uri) {
-    Preconditions.checkArgument(uri.bucket().equals(dellProperties.ecsCatalogPrefix().bucket()),
-        "Properties object %s should be in same bucket", uri.location());
-    Preconditions.checkArgument(uri.name().startsWith(dellProperties.ecsCatalogPrefix().name()),
-        "Properties object %s should have prefix", uri.location());
+    Preconditions.checkArgument(uri.bucket().equals(warehouseLocation.bucket()),
+        "Properties object %s should be in same bucket %s",
+        uri.location(), warehouseLocation.bucket());
+    Preconditions.checkArgument(uri.name().startsWith(warehouseLocation.name()),
+        "Properties object %s should have the expected prefix %s",
+        uri.location(), warehouseLocation.name());
   }
 
   /**
@@ -447,7 +437,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     String version = objectMetadata.getUserMetadata(PROPERTIES_VERSION_USER_METADATA_KEY);
     Map<String, String> content;
     try (InputStream input = result.getObject()) {
-      content = propertiesSerDes.read(input, version);
+      content = PropertiesSerDesUtil.read(input, version);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -460,10 +450,10 @@ public class EcsCatalog extends BaseMetastoreCatalog
    */
   boolean putNewProperties(EcsURI uri, Map<String, String> properties) {
     checkURI(uri);
-    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.name(), propertiesSerDes.toBytes(properties));
+    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.name(), PropertiesSerDesUtil.toBytes(properties));
     request.setObjectMetadata(new S3ObjectMetadata().addUserMetadata(
             PROPERTIES_VERSION_USER_METADATA_KEY,
-            propertiesSerDes.currentVersion()));
+            PropertiesSerDesUtil.currentVersion()));
     request.setIfNoneMatch("*");
     try {
       client.putObject(request);
@@ -486,10 +476,11 @@ public class EcsCatalog extends BaseMetastoreCatalog
     Map<String, String> newProperties = new LinkedHashMap<>(properties);
 
     // Replace properties object
-    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.name(), propertiesSerDes.toBytes(newProperties));
+    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.name(),
+            PropertiesSerDesUtil.toBytes(newProperties));
     request.setObjectMetadata(new S3ObjectMetadata().addUserMetadata(
             PROPERTIES_VERSION_USER_METADATA_KEY,
-            propertiesSerDes.currentVersion()));
+            PropertiesSerDesUtil.currentVersion()));
     request.setIfMatch(eTag);
     try {
       client.putObject(request);
@@ -509,8 +500,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void close() {
-    client.destroy();
+  public void close() throws IOException {
+    closeableGroup.close();
   }
 
   @Override

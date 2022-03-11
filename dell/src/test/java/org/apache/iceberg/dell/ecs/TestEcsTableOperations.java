@@ -28,7 +28,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -76,7 +75,6 @@ public class TestEcsTableOperations {
   public EcsCatalog createCatalog(String name) {
     EcsCatalog ecsCatalog = new EcsCatalog();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(DellProperties.ECS_CATALOG_PREFIX, new EcsURI(rule.bucket(), "catalog").location());
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, new EcsURI(rule.bucket(), "").location());
     properties.putAll(rule.clientProperties());
     ecsCatalog.initialize(name, properties);
