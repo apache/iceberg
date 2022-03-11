@@ -253,9 +253,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     }
   }
 
-
   @Test
-  public void testInsertWithUpsertAndQueryNonEqualityField() {
+  public void testInsertWithUpsertAndScanFilterWithNonEqualityField() {
     Assume.assumeTrue(format == FileFormat.PARQUET);
     String tableName = "test_insert";
 
