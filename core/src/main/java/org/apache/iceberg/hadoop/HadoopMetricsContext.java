@@ -19,15 +19,11 @@
 
 package org.apache.iceberg.hadoop;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
-import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * FileIO Metrics implementation that delegates to Hadoop FileSystem
@@ -37,7 +33,6 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public static final String SCHEME = "io.metrics-scheme";
 
   private String scheme;
-  private SerializableSupplier<FileSystem.Statistics> statisticsSupplier;
   private transient FileSystem.Statistics statistics;
 
   public HadoopMetricsContext(String scheme) {
@@ -45,7 +40,6 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
         "Scheme is required for Hadoop FileSystem metrics reporting");
 
     this.scheme = scheme;
-    this.statisticsSupplier = () -> FileSystem.getStatistics(scheme, null);
   }
 
   @Override
@@ -53,8 +47,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     // FileIO has no specific implementation class, but Hadoop will
     // still track and report for the provided scheme.
     this.scheme = properties.getOrDefault(SCHEME, scheme);
-    this.statisticsSupplier = () -> FileSystem.getStatistics(scheme, null);
-    this.statistics = statisticsSupplier.get();
+    this.statistics = FileSystem.getStatistics(scheme, null);
   }
 
   /**
@@ -118,22 +111,13 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     };
   }
 
-  private void writeObject(ObjectOutputStream out) throws IOException {
-    out.defaultWriteObject();
-  }
-
-  private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
-    in.defaultReadObject();
-    statistics = statisticsSupplier.get();
-  }
-
   private FileSystem.Statistics statistics() {
     FileSystem.Statistics localStatisticsRef = statistics;
     if (localStatisticsRef == null) {
       synchronized (this) {
         localStatisticsRef = statistics;
         if (localStatisticsRef == null) {
-          localStatisticsRef = statisticsSupplier.get();
+          localStatisticsRef = FileSystem.getStatistics(scheme, null);
           statistics = localStatisticsRef;
         }
       }
