@@ -24,6 +24,7 @@ import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * When constructing Flink Iceberg source via Java API,
@@ -74,4 +75,10 @@ public class FlinkConfigOptions {
       .intType()
       .defaultValue(2048)
       .withDescription("The target number of records for Iceberg reader fetch batch.");
+
+  public static final ConfigOption<Integer> TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE =
+      ConfigOptions.key("table.exec.iceberg.worker-pool-size")
+          .intType()
+          .defaultValue(ThreadPools.WORKER_THREAD_POOL_SIZE)
+          .withDescription("The size of workers pool used to plan or scan manifests.");
 }

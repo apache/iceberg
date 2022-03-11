@@ -35,6 +35,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
@@ -72,7 +73,8 @@ public class SplitHelpers {
       }
 
       final ScanContext scanContext = ScanContext.builder().build();
-      final List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext);
+      final List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(
+          table, scanContext, ThreadPools.getWorkerPool());
       return splits.stream()
           .flatMap(split -> {
             List<List<FileScanTask>> filesList = Lists.partition(
