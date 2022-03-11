@@ -96,6 +96,23 @@ public class TestOverwriteWithValidation extends TableTestBase {
       ))
       .build();
 
+
+  private static final DataFile FILE_DAY_2_ANOTHER_RANGE = DataFiles
+          .builder(PARTITION_SPEC)
+          .withPath("/path/to/data-3.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("date=2018-06-09")
+          .withMetrics(new Metrics(5L,
+                  null, // no column sizes
+                  ImmutableMap.of(1, 5L, 2, 3L), // value count
+                  ImmutableMap.of(1, 0L, 2, 2L), // null count
+                  null,
+                  ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
+                  ImmutableMap.of(1, longToBuffer(14L)) // upper bounds
+          ))
+          .build();
+
+
   private static final DeleteFile FILE_DAY_2_EQ_DELETES = FileMetadata.deleteFileBuilder(PARTITION_SPEC)
       .ofEqualityDeletes()
       .withPath("/path/to/data-2-eq-deletes.parquet")
@@ -124,21 +141,6 @@ public class TestOverwriteWithValidation extends TableTestBase {
           null,
           ImmutableMap.of(1, longToBuffer(5L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(9L)) // upper bounds
-      ))
-      .build();
-
-  private static final DataFile FILE_DAY_2_ANOTHER_RANGE = DataFiles
-      .builder(PARTITION_SPEC)
-      .withPath("/path/to/data-3.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("date=2018-06-09")
-      .withMetrics(new Metrics(5L,
-          null, // no column sizes
-          ImmutableMap.of(1, 5L, 2, 3L), // value count
-          ImmutableMap.of(1, 0L, 2, 2L), // null count
-          null,
-          ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
-          ImmutableMap.of(1, longToBuffer(14L)) // upper bounds
       ))
       .build();
 
@@ -891,37 +893,6 @@ public class TestOverwriteWithValidation extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit",
         ValidationException.class, "found new delete",
         overwrite::commit);
-  }
-
-  @Test
-  public void testConcurrentNonConflictingEqualityDeletes() {
-    Assume.assumeTrue(formatVersion == 2);
-
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
-
-    table.newAppend()
-        .appendFile(FILE_DAY_2)
-        .appendFile(FILE_DAY_2_ANOTHER_RANGE)
-        .commit();
-
-    Snapshot firstSnapshot = table.currentSnapshot();
-
-    OverwriteFiles overwrite = table.newOverwrite()
-        .deleteFile(FILE_DAY_2)
-        .addFile(FILE_DAY_2_MODIFIED)
-        .validateFromSnapshot(firstSnapshot.snapshotId())
-        .conflictDetectionFilter(EXPRESSION_DAY_2_ID_RANGE)
-        .validateNoConflictingData()
-        .validateNoConflictingDeletes();
-
-    table.newRowDelta()
-        .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES)
-        .commit();
-
-    overwrite.commit();
-
-    validateTableFiles(table, FILE_DAY_2_ANOTHER_RANGE, FILE_DAY_2_MODIFIED);
-    validateTableDeleteFiles(table, FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES);
   }
 
   @Test
