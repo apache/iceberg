@@ -128,19 +128,19 @@ public class TestOverwriteWithValidation extends TableTestBase {
       .build();
 
   private static final DataFile FILE_DAY_2_ANOTHER_RANGE = DataFiles
-          .builder(PARTITION_SPEC)
-          .withPath("/path/to/data-3.parquet")
-          .withFileSizeInBytes(0)
-          .withPartitionPath("date=2018-06-09")
-          .withMetrics(new Metrics(5L,
-                  null, // no column sizes
-                  ImmutableMap.of(1, 5L, 2, 3L), // value count
-                  ImmutableMap.of(1, 0L, 2, 2L), // null count
-                  null,
-                  ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
-                  ImmutableMap.of(1, longToBuffer(14L)) // upper bounds
-          ))
-          .build();
+      .builder(PARTITION_SPEC)
+      .withPath("/path/to/data-3.parquet")
+      .withFileSizeInBytes(0)
+      .withPartitionPath("date=2018-06-09")
+      .withMetrics(new Metrics(5L,
+          null, // no column sizes
+          ImmutableMap.of(1, 5L, 2, 3L), // value count
+          ImmutableMap.of(1, 0L, 2, 2L), // null count
+          null,
+          ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
+          ImmutableMap.of(1, longToBuffer(14L)) // upper bounds
+      ))
+      .build();
 
   private static final DeleteFile FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES = FileMetadata.deleteFileBuilder(PARTITION_SPEC)
       .ofEqualityDeletes()
