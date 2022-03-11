@@ -32,17 +32,18 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 
 public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
-
+  private static final String CATALOG_DEFAULT = "metastore.catalog.default";
   private static Cache<String, HiveClientPool> clientPoolCache;
 
   private final Configuration conf;
-  private final String metastoreUri;
+  private final String key;
   private final int clientPoolSize;
   private final long evictionInterval;
 
   CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
-    this.metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
+    this.key =
+        conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + conf.get(CATALOG_DEFAULT, "");
     this.clientPoolSize =
         PropertyUtil.propertyAsInt(
             properties,
@@ -58,7 +59,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   @VisibleForTesting
   HiveClientPool clientPool() {
-    return clientPoolCache.get(metastoreUri, k -> new HiveClientPool(clientPoolSize, conf));
+    return clientPoolCache.get(key, k -> new HiveClientPool(clientPoolSize, conf));
   }
 
   private synchronized void init() {
