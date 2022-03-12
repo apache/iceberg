@@ -69,7 +69,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public class ORC {
 
   /**
-   * @deprecated use {@link org.apache.iceberg.TableProperties#ORC_VECTOR_ROW_BATCH_SIZE} instead
+   * @deprecated use {@link TableProperties#ORC_VECTOR_ROW_BATCH_SIZE} instead
    */
   @Deprecated
   private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
