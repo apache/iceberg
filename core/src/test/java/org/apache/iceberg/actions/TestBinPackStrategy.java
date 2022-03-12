@@ -139,17 +139,35 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
-  public void testGroupingMinInputFilesNoop() {
+  public void testGroupingMinInputFilesAsOne() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-            BinPackStrategy.MIN_INPUT_FILES, Integer.toString(1)
+            BinPackStrategy.MIN_INPUT_FILES, Integer.toString(1),
+            BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(3 * MB),
+            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(2 * MB),
+            BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(MB),
+            BinPackStrategy.DELETE_FILE_THRESHOLD, Integer.toString(2)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize(1);
+    // single file within a group, with size within threshold and no deletes should be considered as NOOP.
+    Iterable<FileScanTask> testFiles1 = filesOfSize(1);
+    Iterable<List<FileScanTask>> grouped1 = strategy.planFileGroups(testFiles1);
 
+    Assert.assertEquals("Should plan 0 group, as 1 minInputFile with size within threshold and no deletes should be " +
+            "treated as NOOP",
+            0, Iterables.size(grouped1));
+
+    // single file with size > targetSize should be planed
+    Iterable<FileScanTask> testFiles2 = filesOfSize(4 * MB);
+    Iterable<List<FileScanTask>> grouped2 = strategy.planFileGroups(testFiles2);
+
+    Assert.assertEquals("Should plan 1 group", 1, Iterables.size(grouped2));
+
+    // single file with a delete should be planned, even when deletedFileThreshold is 2
+    List<FileScanTask> testFiles = Lists.newArrayList();
+    testFiles.add(MockFileScanTask.mockTaskWithDeletes(4 * MB, 1));
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
-    Assert.assertEquals("Should plan 0 groups, as 1 minInputFile should be treated as NOOP",
-            0, Iterables.size(grouped));
+    Assert.assertEquals("Should plan 1 group", 1, Iterables.size(grouped));
   }
 
   @Test

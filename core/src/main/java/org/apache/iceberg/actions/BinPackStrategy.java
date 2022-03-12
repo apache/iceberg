@@ -20,7 +20,6 @@
 package org.apache.iceberg.actions;
 
 import java.math.RoundingMode;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -156,10 +155,12 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   public Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> dataFiles) {
     ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
-    // single file should not be sufficient condition
+
     return potentialGroups.stream().filter(group ->
-            (group.size() >= minInputFiles && group.size() > 1) || sizeOfInputFiles(group) > targetFileSize ||
-              group.stream().anyMatch(this::taskHasTooManyDeletes)
+            (group.size() >= minInputFiles && group.size() > 1) ||
+                sizeOfInputFiles(group) > targetFileSize ||
+                group.stream().anyMatch(this::taskHasTooManyDeletes) ||
+                (group.stream().anyMatch(this::taskHasDeletes) && group.size() == 1)
     ).collect(Collectors.toList());
   }
 
@@ -245,6 +246,10 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   private boolean taskHasTooManyDeletes(FileScanTask task) {
     return task.deletes() != null && task.deletes().size() >= deleteFileThreshold;
+  }
+
+  private boolean taskHasDeletes(FileScanTask task) {
+    return task.deletes() != null && task.deletes().size() >= 1;
   }
 
   private void validateOptions() {
