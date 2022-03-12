@@ -33,7 +33,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public static final String SCHEME = "io.metrics-scheme";
 
   private String scheme;
-  private transient FileSystem.Statistics statistics;
+  private transient volatile FileSystem.Statistics statistics;
 
   public HadoopMetricsContext(String scheme) {
     ValidationException.check(scheme != null,
