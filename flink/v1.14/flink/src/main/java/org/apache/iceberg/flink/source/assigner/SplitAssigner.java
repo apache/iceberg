@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.source.assigner;
 
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.Nullable;
@@ -41,7 +42,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
  * Enumerator should call the assigner APIs from the coordinator thread.
  * This is to simplify the thread safety for assigner implementation.
  */
-public interface SplitAssigner extends AutoCloseable {
+public interface SplitAssigner extends Closeable {
 
   /**
    * Some assigners may need to start background threads or perform other activity such as

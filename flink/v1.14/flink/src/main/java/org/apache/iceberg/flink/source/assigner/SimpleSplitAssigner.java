@@ -46,16 +46,18 @@ public class SimpleSplitAssigner implements SplitAssigner {
 
   public SimpleSplitAssigner(Collection<IcebergSourceSplitState> assignerState) {
     this.pendingSplits = new ArrayDeque<>(assignerState.size());
-    assignerState.stream().forEach(splitState -> pendingSplits.add(splitState.split()));
+    // Because simple assigner only tracks unassigned splits,
+    // there is no need to filter splits based on status (unassigned) here.
+    assignerState.forEach(splitState -> pendingSplits.add(splitState.split()));
   }
 
   @Override
   public GetSplitResult getNext(@Nullable String hostname) {
     if (pendingSplits.isEmpty()) {
-      return new GetSplitResult(GetSplitResult.Status.UNAVAILABLE);
+      return GetSplitResult.unavailable();
     } else {
       IcebergSourceSplit split = pendingSplits.poll();
-      return new GetSplitResult(GetSplitResult.Status.AVAILABLE, split);
+      return GetSplitResult.forSplit(split);
     }
   }
 

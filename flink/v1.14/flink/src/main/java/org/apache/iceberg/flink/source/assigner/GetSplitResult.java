@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.flink.source.assigner;
 
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
 @Internal
@@ -43,18 +43,16 @@ public class GetSplitResult {
   }
 
   private final Status status;
-  @Nullable
   private final IcebergSourceSplit split;
 
-  public GetSplitResult(Status status) {
-    this(status, null);
+  private GetSplitResult(Status status) {
+    this.status = status;
+    this.split = null;
   }
 
-  public GetSplitResult(Status status, @Nullable IcebergSourceSplit split) {
-    if (null == split && status == Status.AVAILABLE) {
-      throw new IllegalArgumentException("Available status must have a non-null split");
-    }
-    this.status = status;
+  private GetSplitResult(IcebergSourceSplit split) {
+    Preconditions.checkNotNull(split, "Split cannot be null");
+    this.status = Status.AVAILABLE;
     this.split = split;
   }
 
@@ -67,14 +65,17 @@ public class GetSplitResult {
   }
 
   private static final GetSplitResult UNAVAILABLE = new GetSplitResult(Status.UNAVAILABLE);
+  private static final GetSplitResult CONSTRAINED = new GetSplitResult(Status.CONSTRAINED);
 
   public static GetSplitResult unavailable() {
     return UNAVAILABLE;
   }
 
-  private static final GetSplitResult CONSTRAINED = new GetSplitResult(Status.CONSTRAINED);
-
   public static GetSplitResult constrained() {
     return CONSTRAINED;
+  }
+
+  public static GetSplitResult forSplit(IcebergSourceSplit split) {
+    return new GetSplitResult(split);
   }
 }
