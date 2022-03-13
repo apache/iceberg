@@ -18,7 +18,7 @@
 from enum import Enum, auto
 from typing import Iterable
 
-from iceberg.types import NestedField, StructType
+from iceberg.types import IcebergType, NestedField, StructType
 
 
 class FIELD_IDENTIFIER_TYPES(Enum):
@@ -70,7 +70,7 @@ class Schema:
     def struct(self):
         return self._struct
 
-    def _get_field_identifier_by_name(self, field_identifier: str, case_sensitive: bool):
+    def _get_field_identifier_by_name(self, field_identifier: str, case_sensitive: bool) -> int:
         """Get a field ID for a given field name
 
         Args:
@@ -90,7 +90,7 @@ class Schema:
                     return field.field_id
         raise ValueError(f"Cannot get field ID, name not found: {field_identifier}")
 
-    def _get_field_identifier_by_alias(self, field_identifier: str, case_sensitive: bool):
+    def _get_field_identifier_by_alias(self, field_identifier: str, case_sensitive: bool) -> int:
         """Get a field ID for a given field alias
 
         Args:
@@ -163,7 +163,7 @@ class Schema:
                 return field
         raise ValueError(f"Cannot get field, ID does not exist: {field_id}")
 
-    def get_type(self, field_id: int):
+    def get_type(self, field_id: int) -> IcebergType:
         """Get the type of a field by field ID
 
         Args:
