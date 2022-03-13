@@ -18,11 +18,6 @@
 from enum import Enum, auto
 from typing import Iterable
 
-try:
-    from typing import Literal
-except ImportError:  # pragma: no cover
-    from typing_extensions import Literal  # type: ignore
-
 from iceberg.types import NestedField, StructType
 
 
@@ -124,7 +119,7 @@ class Schema:
     def get_field_id(
         self,
         field_identifier: str,
-        field_identifier_type: Literal[FIELD_IDENTIFIER_TYPES.NAME, FIELD_IDENTIFIER_TYPES.ALIAS],
+        field_identifier_type: FIELD_IDENTIFIER_TYPES = FIELD_IDENTIFIER_TYPES.NAME,
         case_sensitive: bool = True,
     ) -> int:
         """Get a field ID for a given NAME or ALIAS
@@ -143,9 +138,11 @@ class Schema:
             int: The field ID for the given field identifier
         """
         if field_identifier_type == FIELD_IDENTIFIER_TYPES.NAME:
-            return self._get_field_identifier_by_name(field_identifier=field_identifier, case_sensitive=case_sensitive)
+            field_id = self._get_field_identifier_by_name(field_identifier=field_identifier, case_sensitive=case_sensitive)
         elif field_identifier_type == FIELD_IDENTIFIER_TYPES.ALIAS:
-            return self._get_field_identifier_by_alias(field_identifier=field_identifier, case_sensitive=case_sensitive)
+            field_id = self._get_field_identifier_by_alias(field_identifier=field_identifier, case_sensitive=case_sensitive)
+
+        return field_id
 
     def get_field(self, field_id: int) -> NestedField:
         """Get a field object for a given field ID

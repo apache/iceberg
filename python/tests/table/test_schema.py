@@ -82,24 +82,9 @@ def test_schema_get_field_id_case_sensitive():
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
-    assert (
-        table_schema.get_field_id(
-            field_identifier="foo", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=True
-        )
-        == 1
-    )
-    assert (
-        table_schema.get_field_id(
-            field_identifier="bar", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=True
-        )
-        == 2
-    )
-    assert (
-        table_schema.get_field_id(
-            field_identifier="baz", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=True
-        )
-        == 3
-    )
+    assert table_schema.get_field_id(field_identifier="foo", case_sensitive=True) == 1
+    assert table_schema.get_field_id(field_identifier="bar", case_sensitive=True) == 2
+    assert table_schema.get_field_id(field_identifier="baz", case_sensitive=True) == 3
     assert (
         table_schema.get_field_id(
             field_identifier="qux", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=True
@@ -122,24 +107,9 @@ def test_schema_get_field_id_case_insensitive():
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
-    assert (
-        table_schema.get_field_id(
-            field_identifier="fOO", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=False
-        )
-        == 1
-    )
-    assert (
-        table_schema.get_field_id(
-            field_identifier="BAr", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=False
-        )
-        == 2
-    )
-    assert (
-        table_schema.get_field_id(
-            field_identifier="BaZ", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=False
-        )
-        == 3
-    )
+    assert table_schema.get_field_id(field_identifier="fOO", case_sensitive=False) == 1
+    assert table_schema.get_field_id(field_identifier="BAr", case_sensitive=False) == 2
+    assert table_schema.get_field_id(field_identifier="BaZ", case_sensitive=False) == 3
     assert (
         table_schema.get_field_id(
             field_identifier="qUx", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=False
@@ -164,14 +134,12 @@ def test_schema_get_field_id_raise_on_not_found():
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(field_identifier="name1", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME)
+        table_schema.get_field_id(field_identifier="name1")
 
     assert "Cannot get field ID, name not found: name1" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(
-            field_identifier="name2", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME, case_sensitive=False_
-        )
+        table_schema.get_field_id(field_identifier="name2", case_sensitive=False_)
 
     assert "Cannot get field ID, name not found: name2" in str(exc_info.value)
 
@@ -185,9 +153,7 @@ def test_schema_get_field_id_raise_on_not_found():
     assert "Cannot get field ID, name not found: case_insensitive_name1" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(
-            field_identifier="case_insensitive_name2", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME
-        )
+        table_schema.get_field_id(field_identifier="case_insensitive_name2")
 
     assert "Cannot get field ID, name not found: case_insensitive_name2" in str(exc_info.value)
 
