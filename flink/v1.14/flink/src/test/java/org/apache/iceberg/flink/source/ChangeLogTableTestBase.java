@@ -52,7 +52,6 @@ public class ChangeLogTableTestBase extends FlinkTestBase {
         if (tEnv == null) {
           EnvironmentSettings settings = EnvironmentSettings
               .newInstance()
-              .useBlinkPlanner()
               .inStreamingMode()
               .build();
 
