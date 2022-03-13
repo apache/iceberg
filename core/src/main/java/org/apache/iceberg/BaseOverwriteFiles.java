@@ -35,7 +35,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
   private boolean validateNewDataFiles = false;
-  private boolean validateNewDeleteFiles = false;
+  private boolean validateNewDeletes = false;
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -98,7 +98,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
   @Override
   public OverwriteFiles validateNoConflictingDeletes() {
-    this.validateNewDeleteFiles = true;
+    this.validateNewDeletes = true;
     failMissingDeletePaths();
     return this;
   }
@@ -134,10 +134,11 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
     }
 
-    if (validateNewDeleteFiles) {
+    if (validateNewDeletes) {
       if (rowFilter() != Expressions.alwaysFalse()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
         validateNoNewDeleteFiles(base, startingSnapshotId, filter);
+        validateDeletedDataFiles(base, startingSnapshotId, filter);
       }
 
       if (deletedDataFiles.size() > 0) {

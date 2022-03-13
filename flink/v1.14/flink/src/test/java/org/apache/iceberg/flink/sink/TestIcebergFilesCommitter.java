@@ -58,6 +58,7 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -826,7 +827,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
       IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false,
-          Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()));
+          Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
+          ThreadPools.WORKER_THREAD_POOL_SIZE);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

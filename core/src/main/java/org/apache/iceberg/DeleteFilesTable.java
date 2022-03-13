@@ -22,46 +22,46 @@ package org.apache.iceberg;
 import java.util.List;
 
 /**
- * A {@link Table} implementation that exposes a table's data files as rows.
+ * A {@link Table} implementation that exposes a table's delete files as rows.
  */
-public class DataFilesTable extends BaseFilesTable {
+public class DeleteFilesTable extends BaseFilesTable {
 
-  DataFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".files");
+  DeleteFilesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".delete_files");
   }
 
-  DataFilesTable(TableOperations ops, Table table, String name) {
+  DeleteFilesTable(TableOperations ops, Table table, String name) {
     super(ops, table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new DataFilesTableScan(operations(), table(), schema());
+    return new DeleteFilesTableScan(operations(), table(), schema());
   }
 
   @Override
   MetadataTableType metadataTableType() {
-    return MetadataTableType.FILES;
+    return MetadataTableType.DELETE_FILES;
   }
 
-  public static class DataFilesTableScan extends BaseFilesTableScan {
+  public static class DeleteFilesTableScan extends BaseFilesTableScan {
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.FILES);
+    DeleteFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
+      super(ops, table, fileSchema, MetadataTableType.DELETE_FILES);
     }
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
-      super(ops, table, schema, fileSchema, context, MetadataTableType.FILES);
+    DeleteFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
+      super(ops, table, schema, fileSchema, context, MetadataTableType.DELETE_FILES);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DataFilesTableScan(ops, table, schema, fileSchema(), context);
+      return new DeleteFilesTableScan(ops, table, schema, fileSchema(), context);
     }
 
     @Override
     protected List<ManifestFile> manifests() {
-      return snapshot().dataManifests();
+      return snapshot().deleteManifests();
     }
   }
 }
