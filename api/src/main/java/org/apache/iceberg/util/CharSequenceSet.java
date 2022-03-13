@@ -20,7 +20,6 @@
 package org.apache.iceberg.util;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
