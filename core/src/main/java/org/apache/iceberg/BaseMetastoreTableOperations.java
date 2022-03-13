@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
@@ -115,7 +116,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
-      throw new CommitFailedException("Cannot commit: stale table metadata");
+      if (base != null) {
+        throw new CommitFailedException("Cannot commit: stale table metadata");
+      } else {
+        throw new AlreadyExistsException("Table already exists: %s", tableName());
+      }
     }
     // if the metadata is not changed, return early
     if (base == metadata) {
