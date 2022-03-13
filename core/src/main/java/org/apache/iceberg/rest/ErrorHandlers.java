@@ -22,6 +22,7 @@ package org.apache.iceberg.rest;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -45,6 +46,21 @@ public class ErrorHandlers {
 
   public static Consumer<ErrorResponse> tableErrorHandler() {
     return baseTableErrorHandler().andThen(defaultErrorHandler());
+  }
+
+  public static Consumer<ErrorResponse> tableCommitHandler() {
+    return baseCommitErrorHandler().andThen(defaultErrorHandler());
+  }
+
+  private static Consumer<ErrorResponse> baseCommitErrorHandler() {
+    return error -> {
+      switch (error.code()) {
+        case 404:
+          throw new NoSuchTableException("%s", error.message());
+        case 409:
+          throw new CommitFailedException("Commit failed: %s", error.message());
+      }
+    };
   }
 
   /**
@@ -102,7 +118,7 @@ public class ErrorHandlers {
         case 501:
           throw new UnsupportedOperationException(error.message());
         case 500:
-          throw new ServiceFailureException("Server error: %s", error.message());
+          throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
       }
 
       throw new RESTException("Unable to process: %s", error.message());
