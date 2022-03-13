@@ -827,8 +827,8 @@ public class TableMetadata implements Serializable {
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
     }
 
-    public Builder withMetadataLocation(String location) {
-      this.metadataLocation = location;
+    public Builder withMetadataLocation(String newMetadataLocation) {
+      this.metadataLocation = newMetadataLocation;
       this.discardChanges = true;
       return this;
     }
