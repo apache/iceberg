@@ -67,12 +67,6 @@ public class RecordAndPosition<T> {
     this.recordOffset = newRecordOffset;
   }
 
-  /** Sets the position without setting a record. */
-  public void position(int newFileOffset, long newRecordOffset) {
-    this.fileOffset = newFileOffset;
-    this.recordOffset = newRecordOffset;
-  }
-
   /** Sets the next record of a sequence. This increments the {@code recordOffset} by one. */
   public void record(T nextRecord) {
     this.record = nextRecord;

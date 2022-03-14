@@ -24,8 +24,8 @@ import java.util.Collections;
 import java.util.Map;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.SingleThreadMultiplexSourceReaderBase;
-import org.apache.iceberg.flink.source.IcebergSourceEvents;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class IcebergSourceReader<T> extends
@@ -34,7 +34,7 @@ public class IcebergSourceReader<T> extends
   public IcebergSourceReader(
       ReaderFunction<T> readerFunction,
       SourceReaderContext context,
-      IcebergSourceReaderMetrics metrics) {
+      ReaderMetricsContext metrics) {
     super(
         () -> new IcebergSourceSplitReader<>(readerFunction, context, metrics),
         new IcebergSourceRecordEmitter<>(),
@@ -49,9 +49,7 @@ public class IcebergSourceReader<T> extends
 
   @Override
   protected void onSplitFinished(Map<String, IcebergSourceSplit> finishedSplitIds) {
-    if (!finishedSplitIds.isEmpty()) {
-      requestSplit(Lists.newArrayList(finishedSplitIds.keySet()));
-    }
+    requestSplit(Lists.newArrayList(finishedSplitIds.keySet()));
   }
 
   @Override
@@ -60,13 +58,11 @@ public class IcebergSourceReader<T> extends
   }
 
   @Override
-  protected IcebergSourceSplit toSplitType(
-      String splitId,
-      IcebergSourceSplit splitState) {
+  protected IcebergSourceSplit toSplitType(String splitId, IcebergSourceSplit splitState) {
     return splitState;
   }
 
   private void requestSplit(Collection<String> finishedSplitIds) {
-    context.sendSourceEventToCoordinator(new IcebergSourceEvents.SplitRequestEvent(finishedSplitIds));
+    context.sendSourceEventToCoordinator(new SplitRequestEvent(finishedSplitIds));
   }
 }

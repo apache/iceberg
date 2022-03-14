@@ -25,10 +25,14 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
+import org.apache.flink.connector.base.source.reader.fetcher.SplitFetcher;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
+import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,8 +41,13 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
   private final ReaderFunction<T> readerFunction;
   private final int indexOfSubtask;
-  private final IcebergSourceReaderMetrics metrics;
   private final Queue<IcebergSourceSplit> splits;
+
+  private final Counter<Long> assignedSplits;
+  private final Counter<Long> assignedBytes;
+  private final Counter<Long> finishedSplits;
+  private final Counter<Long> finishedBytes;
+  private final Counter<Long> splitReaderFetchCalls;
 
   private CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> currentReader;
   private IcebergSourceSplit currentSplit;
@@ -46,16 +55,21 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
   IcebergSourceSplitReader(ReaderFunction<T> readerFunction,
                            SourceReaderContext context,
-                           IcebergSourceReaderMetrics metrics) {
+                           ReaderMetricsContext metrics) {
     this.readerFunction = readerFunction;
     this.indexOfSubtask = context.getIndexOfSubtask();
-    this.metrics = metrics;
     this.splits = new ArrayDeque<>();
+
+    this.assignedSplits = metrics.counter(ReaderMetricsContext.ASSIGNED_SPLITS, Long.class, Unit.COUNT);
+    this.assignedBytes = metrics.counter(ReaderMetricsContext.ASSIGNED_BYTES, Long.class, Unit.COUNT);
+    this.finishedSplits = metrics.counter(ReaderMetricsContext.FINISHED_SPLITS, Long.class, Unit.COUNT);
+    this.finishedBytes = metrics.counter(ReaderMetricsContext.FINISHED_BYTES, Long.class, Unit.COUNT);
+    this.splitReaderFetchCalls = metrics.counter(ReaderMetricsContext.SPLIT_READER_FETCH_CALLS, Long.class, Unit.COUNT);
   }
 
   @Override
   public RecordsWithSplitIds<RecordAndPosition<T>> fetch() throws IOException {
-    metrics.incrementSplitReaderFetchCalls();
+    splitReaderFetchCalls.increment();
     checkSplitOrStartNext();
 
     if (currentReader.hasNext()) {
@@ -72,11 +86,16 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   }
 
   @Override
-  public void handleSplitsChanges(SplitsChange<IcebergSourceSplit> splitsChanges) {
-    LOG.info("Add splits to reader: {}", splitsChanges.splits());
-    splits.addAll(splitsChanges.splits());
-    metrics.incrementAssignedSplits(splitsChanges.splits().size());
-    metrics.incrementAssignedBytes(calculateBytes(splitsChanges));
+  public void handleSplitsChanges(SplitsChange<IcebergSourceSplit> splitsChange) {
+    if (!(splitsChange instanceof SplitsAddition)) {
+      throw new UnsupportedOperationException(String.format(
+          "The SplitChange type of %s is not supported.", splitsChange.getClass()));
+    }
+
+    LOG.info("Add splits to reader: {}", splitsChange.splits());
+    splits.addAll(splitsChange.splits());
+    assignedSplits.increment(Long.valueOf(splitsChange.splits().size()));
+    assignedBytes.increment(calculateBytes(splitsChange));
   }
 
   @Override
@@ -103,6 +122,14 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
         .reduce(0L, Long::sum);
   }
 
+  /**
+   * @throws IOException when current split is done and there is no more splits available.
+   * It will be propagated by caller of {@code FetchTask#run()}. That will cause
+   * {@link SplitFetcher} to exit. When new split is assigned, a new {@code SplitFetcher}
+   * will be created to handle it. This behavior is a little odd.
+   * Right now, we are copying the same behavior from Flink file source.
+   * We can work with Flink community and potentially improve this behavior.
+   */
   private void checkSplitOrStartNext() throws IOException {
     if (currentReader != null) {
       return;
@@ -126,8 +153,8 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
     ArrayBatchRecords<T> finishRecords = ArrayBatchRecords.finishedSplit(currentSplitId);
     LOG.info("Split reader {} finished split: {}", indexOfSubtask, currentSplitId);
-    metrics.incrementFinishedSplits(1L);
-    metrics.incrementFinishedBytes(calculateBytes(currentSplit));
+    finishedSplits.increment(1L);
+    finishedBytes.increment(calculateBytes(currentSplit));
     currentSplitId = null;
     return finishRecords;
   }
