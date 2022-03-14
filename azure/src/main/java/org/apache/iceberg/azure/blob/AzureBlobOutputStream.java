@@ -20,21 +20,90 @@
 package org.apache.iceberg.azure.blob;
 
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.models.ParallelTransferOptions;
+import com.azure.storage.blob.options.BlockBlobOutputStreamOptions;
+import com.azure.storage.blob.specialized.BlobOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AzureBlobOutputStream extends PositionOutputStream {
-  public AzureBlobOutputStream(BlobClient blobClient) {
 
+  private static final Logger LOG = LoggerFactory.getLogger(AzureBlobOutputStream.class);
+  private static final Joiner TRACE_JOINER = Joiner.on("\n\t");
+
+  private final StackTraceElement[] createStack;
+  private final BlobClient blobClient;
+  private final AzureProperties azureProperties;
+
+  private BlobOutputStream stream;
+  private long pos = 0;
+  private boolean closed = false;
+
+  public AzureBlobOutputStream(BlobClient blobClient, AzureProperties azureProperties) {
+    this.createStack = Thread.currentThread().getStackTrace();
+    this.blobClient = blobClient;
+    this.azureProperties = azureProperties;
+    openStream();
   }
 
   @Override
-  public long getPos() throws IOException {
-    return 0;
+  public long getPos() {
+    return pos;
   }
 
   @Override
-  public void write(int b) throws IOException {
+  public void write(int b) {
+    Preconditions.checkState(!closed, "Cannot write: stream already closed");
+    pos++;
+  }
 
+  @Override
+  public void write(byte[] b, int off, int len) {
+    Preconditions.checkState(!closed, "Cannot write: stream already closed");
+    stream.write(b, off, len);
+    pos += len;
+  }
+
+  @Override
+  public void flush() throws IOException {
+    Preconditions.checkState(!closed, "Cannot flush: stream already closed");
+    super.flush();
+    stream.flush();
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (closed) {
+      return;
+    }
+
+    this.flush();
+
+    super.close();
+    stream.close();
+    closed = true;
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (!closed) {
+      close(); // releasing resources is more important than printing the warning
+      String trace = TRACE_JOINER.join(Arrays.copyOfRange(createStack, 1, createStack.length));
+      LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+    }
+  }
+
+  private void openStream() {
+    final BlockBlobOutputStreamOptions options =
+        new BlockBlobOutputStreamOptions().setParallelTransferOptions(new ParallelTransferOptions());
+    this.stream = blobClient.getBlockBlobClient().getBlobOutputStream(options);
   }
 }

@@ -96,9 +96,13 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
   @Override
   public void close() throws IOException {
-    closed = true;
+    if (closed) {
+      return;
+    }
+
     super.close();
     stream.close();
+    closed = true;
   }
 
   @SuppressWarnings("checkstyle:NoFinalizer")

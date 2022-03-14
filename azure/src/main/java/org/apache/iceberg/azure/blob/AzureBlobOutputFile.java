@@ -43,7 +43,7 @@ public class AzureBlobOutputFile extends BaseAzureBlobFile implements OutputFile
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return new AzureBlobOutputStream(blobClient);
+    return new AzureBlobOutputStream(blobClient, azureProperties);
   }
 
   @Override
