@@ -37,18 +37,18 @@ public class AzureBlobOutputFile extends BaseAzureBlobFile implements OutputFile
     if (!exists()) {
       return createOrOverwrite();
     } else {
-      throw new AlreadyExistsException("Azure Blob already exists: %s", azureURI.location());
+      throw new AlreadyExistsException("Azure Blob already exists: %s", azureURI().location());
     }
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return new AzureBlobOutputStream(blobClient, azureProperties);
+    return new AzureBlobOutputStream(blobClient(), azureProperties());
   }
 
   @Override
   public InputFile toInputFile() {
-    return AzureBlobInputFile.from(azureURI, blobClient, azureProperties);
+    return AzureBlobInputFile.from(azureURI(), blobClient(), azureProperties());
   }
 
   public static AzureBlobOutputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {

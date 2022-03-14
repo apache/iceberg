@@ -59,7 +59,7 @@ public class TestAzureURI {
   public void testInvalidScheme() {
     final String[] invalidSchemeURIs = {"abf://testContainer@testStorageAccount.dfs.core.windows.net/dir1/test.txt",
                                         "testContainer@testStorageAccount.dfs.core.windows.net/dir1/test.txt"};
-    for(final String invalidSchemeURI: invalidSchemeURIs) {
+    for (final String invalidSchemeURI : invalidSchemeURIs) {
       AssertHelpers.assertThrows(
           "Should not allow invalid scheme",
           ValidationException.class,

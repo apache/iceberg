@@ -24,14 +24,26 @@ import org.apache.iceberg.azure.AzureProperties;
 
 public abstract class BaseAzureBlobFile {
 
-  protected final AzureURI azureURI;
-  protected final BlobClient blobClient;
-  protected final AzureProperties azureProperties;
+  private final AzureURI azureURI;
+  private final BlobClient blobClient;
+  private final AzureProperties azureProperties;
 
   protected BaseAzureBlobFile(AzureURI uri, BlobClient blobClient, AzureProperties azureProperties) {
     this.azureURI = uri;
     this.blobClient = blobClient;
     this.azureProperties = azureProperties;
+  }
+
+  protected AzureURI azureURI() {
+    return azureURI;
+  }
+
+  protected BlobClient blobClient() {
+    return blobClient;
+  }
+
+  protected AzureProperties azureProperties() {
+    return azureProperties;
   }
 
   public String location() {

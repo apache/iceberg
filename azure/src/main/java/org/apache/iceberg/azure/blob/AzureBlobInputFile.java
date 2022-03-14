@@ -35,14 +35,14 @@ public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
   @Override
   public long getLength() {
     if (length == null) {
-      length = blobClient.getProperties().getBlobSize();
+      length = blobClient().getProperties().getBlobSize();
     }
     return length;
   }
 
   @Override
   public SeekableInputStream newStream() {
-    return new AzureBlobInputStream(blobClient);
+    return new AzureBlobInputStream(blobClient());
   }
 
   public static AzureBlobInputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {

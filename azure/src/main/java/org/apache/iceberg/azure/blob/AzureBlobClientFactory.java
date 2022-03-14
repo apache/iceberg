@@ -23,6 +23,10 @@ import com.azure.storage.blob.BlobClient;
 import org.apache.iceberg.azure.AzureProperties;
 
 public class AzureBlobClientFactory {
+
+  private AzureBlobClientFactory() {
+  }
+
   public static BlobClient createBlobClient(AzureURI azureURI, AzureProperties azureProperties) {
     return null;
   }

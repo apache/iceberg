@@ -102,6 +102,7 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   }
 
   private void openStream() {
+    // TODO fetch this config from properties
     final BlockBlobOutputStreamOptions options =
         new BlockBlobOutputStreamOptions().setParallelTransferOptions(new ParallelTransferOptions());
     this.stream = blobClient.getBlockBlobClient().getBlobOutputStream(options);
