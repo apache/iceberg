@@ -20,11 +20,13 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.ThreadPools;
@@ -83,8 +85,8 @@ public class PartitionsTable extends BaseMetadataTable {
       return StaticDataTask.of(
           io().newInputFile(ops.current().metadataFileLocation()),
           schema(), scan.schema(), partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount, root.deleteFileCount,
-              root.equalityDeleteCount, root.positionDeleteCount)
+          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount, root.getDeleteFileCount(),
+              root.getEqualityDeleteCount(), root.getPositionDeleteCount())
       );
     } else {
       return StaticDataTask.of(
@@ -96,8 +98,8 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
-    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount, partition.deleteFileCount,
-        partition.equalityDeleteCount, partition.positionDeleteCount);
+    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount,
+        partition.getDeleteFileCount(), partition.getEqualityDeleteCount(), partition.getPositionDeleteCount());
   }
 
   private static Iterable<Partition> partitions(StaticTableScan scan) {
@@ -175,30 +177,41 @@ public class PartitionsTable extends BaseMetadataTable {
     private final StructLike key;
     private long recordCount;
     private int fileCount;
-    private int deleteFileCount;
-    private long equalityDeleteCount;
-    private long positionDeleteCount;
+    private final Set<DeleteFile> equalityDeleteFiles = Sets.newHashSet();
+    private final Set<DeleteFile> positionDeleteFiles = Sets.newHashSet();
 
     Partition(StructLike key) {
       this.key = key;
       this.recordCount = 0;
       this.fileCount = 0;
-      this.deleteFileCount = 0;
-      this.equalityDeleteCount = 0L;
-      this.positionDeleteCount = 0L;
     }
 
     void update(FileScanTask task) {
       this.recordCount += task.file().recordCount();
       this.fileCount += 1;
-      this.deleteFileCount += task.deletes().size();
       for (DeleteFile deleteFile : task.deletes()) {
         if (FileContent.EQUALITY_DELETES == deleteFile.content()) {
-          this.equalityDeleteCount += deleteFile.recordCount();
+          this.equalityDeleteFiles.add(deleteFile);
         } else if (FileContent.POSITION_DELETES == deleteFile.content()) {
-          this.positionDeleteCount += deleteFile.recordCount();
+          this.positionDeleteFiles.add(deleteFile);
         }
       }
+    }
+
+    int getDeleteFileCount() {
+      return equalityDeleteFiles.size() + positionDeleteFiles.size();
+    }
+
+    long getEqualityDeleteCount() {
+      return equalityDeleteFiles.stream()
+          .mapToLong(ContentFile::recordCount)
+          .sum();
+    }
+
+    long getPositionDeleteCount() {
+      return positionDeleteFiles.stream()
+          .mapToLong(ContentFile::recordCount)
+          .sum();
     }
   }
 }

@@ -21,15 +21,21 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -514,6 +520,101 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasksAndEq = PartitionsTable.planFiles((StaticTableScan) scanAndEq);
     Assert.assertEquals(1, Iterators.size(tasksAndEq.iterator()));
     validateIncludesPartitionScan(tasksAndEq, 0);
+  }
+
+  @Test
+  public void testPartitionsTableScanWithDeleteFilesInFilter() throws IOException {
+    Assume.assumeTrue(formatVersion == 2);
+    Configuration conf = new Configuration();
+    HadoopTables tables = new HadoopTables(conf);
+    File tableLocation = new File(temp.newFolder(), "table");
+    Table table = tables.create(
+        SCHEMA,
+        PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build(),
+        tableLocation.toString());
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addRows(FILE_A2)
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+    table.newRowDelta()
+        .addDeletes(FILE_A2_DELETES)
+        .commit();
+    table.newRowDelta()
+        .addRows(FILE_B)
+        .addDeletes(FILE_B_DELETES)
+        .commit();
+
+    PartitionsTable partitionsTable = (PartitionsTable) tables.load(table.location() + "#partitions");
+
+    // filter bucket = 0
+    Expression set = Expressions.equal("partition.data_bucket", 0);
+    StaticTableScan staticTableScan = (StaticTableScan) partitionsTable.newScan().filter(set);
+    DataTask task = partitionsTable.task(staticTableScan);
+
+    List<StructLike> rows = Lists.newArrayList(task.rows());
+    Assert.assertEquals("Should have one record", 1, rows.size());
+
+    StructLike record = rows.get(0);
+    Assert.assertEquals(
+        "Should have correct bucket partition",
+        0,
+        record.get(0, StructProjection.class).get(0, Integer.class).intValue());
+    Assert.assertEquals(
+        "Should have correct records",
+        FILE_A.recordCount() + FILE_A2.recordCount(),
+        record.get(1, Long.class).longValue());
+    Assert.assertEquals("Should have correct file counts",
+        2,
+        record.get(2, Integer.class).intValue());
+    Assert.assertEquals("Should have correct delete file count",
+        2,
+        record.get(3, Integer.class).intValue());
+    Assert.assertEquals("Should have correct equality delete count",
+        FILE_A_DELETES.recordCount(),
+        record.get(4, Long.class).intValue());
+    Assert.assertEquals("Should have correct position delete count",
+        FILE_A2_DELETES.recordCount(),
+        record.get(5, Long.class).intValue());
+  }
+
+  @Test
+  public void testPartitionsTableScanWithoutDeleteFilesInFilter() throws IOException {
+    Configuration conf = new Configuration();
+    HadoopTables tables = new HadoopTables(conf);
+    File tableLocation = new File(temp.newFolder(), "table");
+    Table table = tables.create(
+        SCHEMA,
+        PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build(),
+        tableLocation.toString());
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    PartitionsTable partitionsTable = (PartitionsTable) tables.load(table.location() + "#partitions");
+
+    Expression set = Expressions.equal("partition.data_bucket", 0);
+    StaticTableScan staticTableScan = (StaticTableScan) partitionsTable.newScan().filter(set);
+    DataTask task = partitionsTable.task(staticTableScan);
+
+    List<StructLike> rows = Lists.newArrayList(task.rows());
+    Assert.assertEquals("Should have 1 records", 1, rows.size());
+
+    StructLike record = rows.get(0);
+    Assert.assertEquals(
+        "Should have correct bucket partition",
+        0,
+        record.get(0, StructProjection.class).get(0, Integer.class).intValue());
+    Assert.assertEquals("Should have correct records", FILE_A.recordCount(),
+        record.get(1, Long.class).longValue());
+    Assert.assertEquals("Should have correct file counts", 1,
+        record.get(2, Integer.class).intValue());
+    Assert.assertEquals("Should have correct delete file count", 0,
+        record.get(3, Integer.class).intValue());
+    Assert.assertEquals("Should have correct equality delete count", 0L,
+        record.get(4, Long.class).intValue());
+    Assert.assertEquals("Should have correct position delete count", 0L,
+        record.get(5, Long.class).intValue());
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {
