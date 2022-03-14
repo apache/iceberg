@@ -69,7 +69,7 @@ public class AzureBlobInputStream extends SeekableInputStream {
       final long bytesToSkip = newPos - pos;
       // BlobInputStream#skip only repositions the internal pointers,
       // the actual bytes are skipped when BlobInputStream#read is invoked.
-      stream.skip(bytesToSkip);
+      final long bytesSkipped = stream.skip(bytesToSkip);
     } else {
       // Seeking backward.
       stream.close();

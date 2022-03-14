@@ -634,8 +634,7 @@ project(':iceberg-azure') {
 //      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
 //    }
 
-//    TODO check if this is required
-//    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 }
 
