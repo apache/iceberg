@@ -17,27 +17,10 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.flink.source.split;
 
-import java.util.Locale;
-
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DELETE_FILES,
-  HISTORY,
-  SNAPSHOTS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES;
-
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
-  }
+public enum IcebergSourceSplitStatus {
+  UNASSIGNED,
+  ASSIGNED,
+  COMPLETED
 }

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
+import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -32,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -53,17 +55,32 @@ public class TestMetadataTableScans extends TableTestBase {
 
   private void preparePartitionedTable() {
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
+        .appendFile(FILE_A)
         .commit();
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
+        .appendFile(FILE_C)
         .commit();
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
+        .appendFile(FILE_D)
         .commit();
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
+        .appendFile(FILE_B)
         .commit();
+
+    if (formatVersion == 2) {
+      table.newRowDelta()
+          .addDeletes(FILE_A_DELETES)
+          .commit();
+      table.newRowDelta()
+          .addDeletes(FILE_B_DELETES)
+          .commit();
+      table.newRowDelta()
+          .addDeletes(FILE_C2_DELETES)
+          .commit();
+      table.newRowDelta()
+          .addDeletes(FILE_D2_DELETES)
+          .commit();
+    }
   }
 
   @Test
@@ -463,6 +480,180 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testDeleteFilesTableScanNoFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+    Types.StructType expected = new Schema(
+        required(102, "partition", Types.StructType.of(
+            optional(1000, "data_bucket", Types.IntegerType.get())),
+            "Partition data tuple, schema based on the partition spec")).asStruct();
+
+    TableScan scanNoFilter = deleteFilesTable.newScan().select("partition.data_bucket");
+    Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
+    CloseableIterable<FileScanTask> tasks = scanNoFilter.planFiles();
+
+    Assert.assertEquals(4, Iterables.size(tasks));
+    validateFileScanTasks(tasks, 0);
+    validateFileScanTasks(tasks, 1);
+    validateFileScanTasks(tasks, 2);
+    validateFileScanTasks(tasks, 3);
+  }
+
+  @Test
+  public void testDeleteFilesTableScanAndFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    Expression andEquals = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scan = deleteFilesTable.newScan().filter(andEquals);
+    CloseableIterable<FileScanTask> tasks = scan.planFiles();
+    Assert.assertEquals(1, Iterables.size(tasks));
+    validateFileScanTasks(tasks, 0);
+  }
+
+  @Test
+  public void testDeleteFilesTableScanAndFilterWithPlanTasks() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    Expression andEquals = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scan = deleteFilesTable.newScan().filter(andEquals);
+    CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
+    Assert.assertEquals(1, Iterables.size(tasks));
+    validateCombinedScanTasks(tasks, 0);
+  }
+
+  @Test
+  public void testDeleteFilesTableScanLtFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    Expression lt = Expressions.lessThan("partition.data_bucket", 2);
+    TableScan scan = deleteFilesTable.newScan().filter(lt);
+    CloseableIterable<FileScanTask> tasksLt = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksLt));
+    validateFileScanTasks(tasksLt, 0);
+    validateFileScanTasks(tasksLt, 1);
+  }
+
+  @Test
+  public void testDeleteFilesTableScanOrFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    Expression or = Expressions.or(
+        Expressions.equal("partition.data_bucket", 2),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scan = deleteFilesTable.newScan()
+        .filter(or);
+    CloseableIterable<FileScanTask> tasksOr = scan.planFiles();
+    Assert.assertEquals(4, Iterables.size(tasksOr));
+    validateFileScanTasks(tasksOr, 0);
+    validateFileScanTasks(tasksOr, 1);
+    validateFileScanTasks(tasksOr, 2);
+    validateFileScanTasks(tasksOr, 3);
+  }
+
+  @Test
+  public void testDeleteFilesScanNotFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+    Table deleteFilesTable = new DataFilesTable(table.ops(), table);
+
+    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
+    TableScan scan = deleteFilesTable.newScan()
+        .filter(not);
+    CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksNot));
+    validateFileScanTasks(tasksNot, 2);
+    validateFileScanTasks(tasksNot, 3);
+  }
+
+  @Test
+  public void testDeleteFilesTableScanInFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    Expression set = Expressions.in("partition.data_bucket", 2, 3);
+    TableScan scan = deleteFilesTable.newScan()
+        .filter(set);
+    CloseableIterable<FileScanTask> tasksIn = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksIn));
+
+    validateFileScanTasks(tasksIn, 2);
+    validateFileScanTasks(tasksIn, 3);
+  }
+
+  @Test
+  public void testDeleteFilesTableScanNotNullFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+    Expression notNull = Expressions.notNull("partition.data_bucket");
+    TableScan scan = deleteFilesTable.newScan()
+        .filter(notNull);
+    CloseableIterable<FileScanTask> tasksNotNull = scan.planFiles();
+    Assert.assertEquals(4, Iterables.size(tasksNotNull));
+
+    validateFileScanTasks(tasksNotNull, 0);
+    validateFileScanTasks(tasksNotNull, 1);
+    validateFileScanTasks(tasksNotNull, 2);
+    validateFileScanTasks(tasksNotNull, 3);
+  }
+
+  @Test
+  public void testDeleteFilesTableSelection() throws IOException {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_A2_DELETES)
+        .commit();
+
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    TableScan scan = deleteFilesTable.newScan()
+        .filter(Expressions.equal("record_count", 1))
+        .select("content", "record_count");
+    validateTaskScanResiduals(scan, false);
+    Types.StructType expected = new Schema(
+        optional(134, "content", Types.IntegerType.get(),
+            "Contents of the file: 0=data, 1=position deletes, 2=equality deletes"),
+        required(103, "record_count", Types.LongType.get(), "Number of records in the file")
+    ).asStruct();
+    Assert.assertEquals(expected, scan.schema().asStruct());
+  }
+
+  @Test
   public void testPartitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
     this.tableDir = temp.newFolder();
@@ -601,14 +792,14 @@ public class TestMetadataTableScans extends TableTestBase {
   private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
     Assert.assertTrue("File scan tasks do not include correct file",
         StreamSupport.stream(fileScanTasks.spliterator(), false).anyMatch(t -> {
-          ManifestFile mf = ((DataFilesTable.ManifestReadTask) t).manifest();
+          ManifestFile mf = ((ManifestReadTask) t).manifest();
           return manifestHasPartition(mf, partValue);
         }));
   }
 
   private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
     StreamSupport.stream(tasks.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).manifest()))
+        .flatMap(c -> c.files().stream().map(t -> ((ManifestReadTask) t).manifest()))
         .anyMatch(m -> manifestHasPartition(m, partValue));
   }
 

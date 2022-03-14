@@ -17,27 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.flink.source.assigner;
 
-import java.util.Locale;
+import java.io.Serializable;
+import java.util.Collection;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DELETE_FILES,
-  HISTORY,
-  SNAPSHOTS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES;
+public interface SplitAssignerFactory extends Serializable {
 
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
-  }
+  SplitAssigner createAssigner();
+
+  SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState);
 }

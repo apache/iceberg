@@ -17,27 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.flink.source.assigner;
 
-import java.util.Locale;
+import java.util.Collection;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DELETE_FILES,
-  HISTORY,
-  SNAPSHOTS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES;
+/**
+ * Create simple assigner that hands out splits without any guarantee in order or locality.
+ */
+public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
 
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+  @Override
+  public SimpleSplitAssigner createAssigner() {
+    return new SimpleSplitAssigner();
+  }
+
+  @Override
+  public SimpleSplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
+    return new SimpleSplitAssigner(assignerState);
   }
 }

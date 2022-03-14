@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
@@ -96,14 +95,11 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   protected TableEnvironment getTableEnv() {
     if (tEnv == null) {
       synchronized (this) {
-        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-            .newInstance()
-            .useBlinkPlanner();
+        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings.newInstance();
         if (isStreamingJob) {
           settingsBuilder.inStreamingMode();
           StreamExecutionEnvironment env = StreamExecutionEnvironment
               .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
-          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
           env.enableCheckpointing(400);
           env.setMaxParallelism(2);
           env.setParallelism(2);

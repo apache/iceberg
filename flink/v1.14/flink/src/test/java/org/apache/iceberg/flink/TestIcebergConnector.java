@@ -189,9 +189,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-              .newInstance()
-              .useBlinkPlanner();
+          EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings.newInstance();
           if (isStreaming) {
             settingsBuilder.inStreamingMode();
             StreamExecutionEnvironment env = StreamExecutionEnvironment
