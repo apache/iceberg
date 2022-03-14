@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.hadoop.fs.FileSystem;
@@ -36,7 +33,7 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   public static final String SCHEME = "io.metrics-scheme";
 
   private String scheme;
-  private transient FileSystem.Statistics statistics;
+  private transient volatile FileSystem.Statistics statistics;
 
   public HadoopMetricsContext(String scheme) {
     ValidationException.check(scheme != null,
@@ -71,16 +68,16 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     switch (name) {
       case READ_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
-        return (Counter<T>) longCounter(statistics::incrementBytesRead);
+        return (Counter<T>) longCounter(statistics()::incrementBytesRead);
       case READ_OPERATIONS:
         ValidationException.check(type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics::incrementReadOps);
+        return (Counter<T>) integerCounter(statistics()::incrementReadOps);
       case WRITE_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
-        return (Counter<T>) longCounter(statistics::incrementBytesWritten);
+        return (Counter<T>) longCounter(statistics()::incrementBytesWritten);
       case WRITE_OPERATIONS:
         ValidationException.check(type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics::incrementWriteOps);
+        return (Counter<T>) integerCounter(statistics()::incrementWriteOps);
       default:
         throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
@@ -114,12 +111,15 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
     };
   }
 
-  private void writeObject(ObjectOutputStream out) throws IOException {
-    out.defaultWriteObject();
-  }
+  private FileSystem.Statistics statistics() {
+    if (statistics == null) {
+      synchronized (this) {
+        if (statistics == null) {
+          this.statistics = FileSystem.getStatistics(scheme, null);
+        }
+      }
+    }
 
-  private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
-    in.defaultReadObject();
-    statistics = FileSystem.getStatistics(scheme, null);
+    return statistics;
   }
 }
