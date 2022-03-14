@@ -122,7 +122,7 @@ public class TestSparkOrcReadMetadataColumns {
         .createWriterFunc(SparkOrcWriter::new)
         .schema(DATA_SCHEMA)
         // write in such a way that the file contains 10 stripes each with 100 rows
-        .set(TableProperties.ORC_VECTOR_ROW_BATCH_SIZE, "100")
+        .set(TableProperties.ORC_WRITE_BATCH_SIZE, "100")
         .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "100")
         .set(TableProperties.ORC_STRIPE_SIZE_BYTES, "1")
         .build()) {

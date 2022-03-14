@@ -69,7 +69,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public class ORC {
 
   /**
-   * @deprecated use {@link TableProperties#ORC_VECTOR_ROW_BATCH_SIZE} instead
+   * @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead
    */
   @Deprecated
   private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
@@ -174,8 +174,8 @@ public class ORC {
       }
 
       // for compatibility
-      if (conf.get(VECTOR_ROW_BATCH_SIZE) != null && config.get(TableProperties.ORC_VECTOR_ROW_BATCH_SIZE) == null) {
-        config.put(TableProperties.ORC_VECTOR_ROW_BATCH_SIZE, conf.get(VECTOR_ROW_BATCH_SIZE));
+      if (conf.get(VECTOR_ROW_BATCH_SIZE) != null && config.get(TableProperties.ORC_WRITE_BATCH_SIZE) == null) {
+        config.put(TableProperties.ORC_WRITE_BATCH_SIZE, conf.get(VECTOR_ROW_BATCH_SIZE));
       }
 
       // Map Iceberg properties to pass down to the ORC writer
@@ -223,7 +223,7 @@ public class ORC {
         Preconditions.checkArgument(blockSize > 0, "Block size must be > 0");
 
         int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,
-            TableProperties.ORC_VECTOR_ROW_BATCH_SIZE, TableProperties.ORC_VECTOR_ROW_BATCH_SIZE_DEFAULT);
+            TableProperties.ORC_WRITE_BATCH_SIZE, TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT);
         Preconditions.checkArgument(vectorizedRowBatchSize > 0, "VectorizedRow batch size must be > 0");
 
         return new Context(stripeSize, blockSize, vectorizedRowBatchSize);
@@ -239,7 +239,7 @@ public class ORC {
             TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES, dataContext.blockSize());
 
         int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,
-            TableProperties.DELETE_ORC_VECTOR_ROW_BATCH_SIZE, dataContext.vectorizedRowBatchSize());
+            TableProperties.DELETE_ORC_WRITE_BATCH_SIZE, dataContext.vectorizedRowBatchSize());
 
         return new Context(stripeSize, blockSize, vectorizedRowBatchSize);
       }
