@@ -19,7 +19,15 @@ import pytest
 from numpy import False_
 
 from iceberg.table import schema
-from iceberg.types import BooleanType, IntegerType, NestedField, StringType, StructType
+from iceberg.types import (
+    BooleanType,
+    IntegerType,
+    ListType,
+    MapType,
+    NestedField,
+    StringType,
+    StructType,
+)
 
 
 def test_schema_init():
@@ -74,57 +82,50 @@ def test_schema_repr(schema, expected_repr):
     assert repr(schema) == expected_repr
 
 
-def test_schema_get_field_id_case_sensitive():
-    """Test case-sensitive retrieval of a field ID using the `get_field_id` method"""
+def test_schema_find_field_id_case_sensitive():
+    """Test case-sensitive retrieval of a field ID using the `find_field_id` method"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
-    assert table_schema.get_field_id(field_identifier="foo", case_sensitive=True) == 1
-    assert table_schema.get_field_id(field_identifier="bar", case_sensitive=True) == 2
-    assert table_schema.get_field_id(field_identifier="baz", case_sensitive=True) == 3
-    assert (
-        table_schema.get_field_id(
-            field_identifier="qux", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=True
-        )
-        == 1
-    )
-    assert (
-        table_schema.get_field_id(
-            field_identifier="foobar", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=True
-        )
-        == 2
-    )
+    assert table_schema.find_field_id_by_name(field_name="foo", case_sensitive=True) == 1
+    assert table_schema.find_field_id_by_name(field_name="bar", case_sensitive=True) == 2
+    assert table_schema.find_field_id_by_name(field_name="baz", case_sensitive=True) == 3
+    assert table_schema.find_field_id_by_alias(field_alias="qux", case_sensitive=True) == 1
+    assert table_schema.find_field_id_by_alias(field_alias="foobar", case_sensitive=True) == 2
 
 
-def test_schema_get_field_id_case_insensitive():
-    """Test case-insensitive retrieval of a field ID using the `get_field_id` method"""
+def test_schema_find_field_id_case_insensitive():
+    """Test case-insensitive retrieval of a field ID using the `find_field_id_by_name` and `find_field_id_by_alias methods"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
-    assert table_schema.get_field_id(field_identifier="fOO", case_sensitive=False) == 1
-    assert table_schema.get_field_id(field_identifier="BAr", case_sensitive=False) == 2
-    assert table_schema.get_field_id(field_identifier="BaZ", case_sensitive=False) == 3
-    assert (
-        table_schema.get_field_id(
-            field_identifier="qUx", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=False
-        )
-        == 1
-    )
-    assert (
-        table_schema.get_field_id(
-            field_identifier="fooBAR", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=False
-        )
-        == 2
-    )
+    assert table_schema.find_field_id_by_name(field_name="fOO", case_sensitive=False) == 1
+    assert table_schema.find_field_id_by_name(field_name="BAr", case_sensitive=False) == 2
+    assert table_schema.find_field_id_by_name(field_name="BaZ", case_sensitive=False) == 3
+    assert table_schema.find_field_id_by_alias(field_alias="qUx", case_sensitive=False) == 1
+    assert table_schema.find_field_id_by_alias(field_alias="fooBAR", case_sensitive=False) == 2
 
 
-def test_schema_get_field_id_raise_on_not_found():
+def test_schema_find_field_name_by_field_id():
+    """Test finding a field name using a field ID"""
+    fields = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+    ]
+    table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
+    assert table_schema.find_field_name_by_field_id(field_id=1) == "foo"
+    assert table_schema.find_field_name_by_field_id(field_id=2) == "bar"
+    assert table_schema.find_field_name_by_field_id(field_id=3) == "baz"
+
+
+def test_schema_find_field_id_raise_on_not_found():
     """Test raising when the field ID for a given name or alias cannot be found"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -134,59 +135,56 @@ def test_schema_get_field_id_raise_on_not_found():
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(field_identifier="name1")
+        table_schema.find_field_id_by_name(field_name="name1")
 
     assert "Cannot get field ID, name not found: name1" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(field_identifier="name2", case_sensitive=False_)
+        table_schema.find_field_id_by_name(field_name="name2", case_sensitive=False_)
 
     assert "Cannot get field ID, name not found: name2" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(
-            field_identifier="case_insensitive_name1",
-            field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.NAME,
+        table_schema.find_field_id_by_name(
+            field_name="case_insensitive_name1",
             case_sensitive=False,
         )
 
     assert "Cannot get field ID, name not found: case_insensitive_name1" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(field_identifier="case_insensitive_name2")
+        table_schema.find_field_id_by_name(field_name="case_insensitive_name2")
 
     assert "Cannot get field ID, name not found: case_insensitive_name2" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(field_identifier="alias1", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS)
+        table_schema.find_field_id_by_alias(field_alias="alias1")
 
     assert "Cannot get field ID, alias not found: alias1" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(field_identifier="alias2", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS)
+        table_schema.find_field_id_by_alias(field_alias="alias2")
 
     assert "Cannot get field ID, alias not found: alias2" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(
-            field_identifier="case_insensitive_alias1",
-            field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS,
+        table_schema.find_field_id_by_alias(
+            field_alias="case_insensitive_alias1",
             case_sensitive=False,
         )
 
     assert "Cannot get field ID, alias not found: case_insensitive_alias1" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(
-            field_identifier="case_insensitive_alias2",
-            field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS,
+        table_schema.find_field_id_by_alias(
+            field_alias="case_insensitive_alias2",
             case_sensitive=False,
         )
 
     assert "Cannot get field ID, alias not found: case_insensitive_alias2" in str(exc_info.value)
 
 
-def test_schema_get_field_id_raise_on_multiple_case_insensitive_alias_match():
+def test_schema_find_field_id_raise_on_multiple_case_insensitive_alias_match():
     """Test raising when a case-insensitive alias search returns multiple aliases"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -196,14 +194,27 @@ def test_schema_get_field_id_raise_on_multiple_case_insensitive_alias_match():
     table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "QUX": 2})
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field_id(
-            field_identifier="qux", field_identifier_type=schema.FIELD_IDENTIFIER_TYPES.ALIAS, case_sensitive=False
-        )
+        table_schema.find_field_id_by_alias(field_alias="qux", case_sensitive=False)
 
     assert "Cannot get field ID, case-insensitive alias returns multiple results: qux" in str(exc_info.value)
 
 
-def test_schema_get_field():
+def test_schema_find_field_name_by_field_id_raise_on_unknown_field_id():
+    """Test raising when the the field ID cannot be found while finding a field name"""
+    fields = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+    ]
+    table_schema = schema.Schema(fields=fields, schema_id=1, aliases={"qux": 1, "foobar": 2})
+
+    with pytest.raises(ValueError) as exc_info:
+        table_schema.find_field_name_by_field_id(field_id=4)
+
+    assert "Cannot get field name, field ID not found: 4" in str(exc_info.value)
+
+
+def test_schema_find_field_by_id():
     """Test retrieving a field using the field's ID"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -211,9 +222,9 @@ def test_schema_get_field():
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1)
-    field1 = table_schema.get_field(field_id=1)
-    field2 = table_schema.get_field(field_id=2)
-    field3 = table_schema.get_field(field_id=3)
+    field1 = table_schema.find_field_by_id(field_id=1)
+    field2 = table_schema.find_field_by_id(field_id=2)
+    field3 = table_schema.find_field_by_id(field_id=3)
 
     assert isinstance(field1, NestedField)
     assert field1.field_id == 1
@@ -229,7 +240,7 @@ def test_schema_get_field():
     assert field3.is_optional == False
 
 
-def test_schema_get_field_raise_on_unknown_field():
+def test_schema_find_field_by_id_raise_on_unknown_field():
     """Test raising when the field ID is not found"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -239,12 +250,12 @@ def test_schema_get_field_raise_on_unknown_field():
     table_schema = schema.Schema(fields=fields, schema_id=1)
 
     with pytest.raises(ValueError) as exc_info:
-        table_schema.get_field(field_id=4)
+        table_schema.find_field_by_id(field_id=4)
 
     assert "Cannot get field, ID does not exist: 4" in str(exc_info.value)
 
 
-def test_schema_get_type():
+def test_schema_find_field_type():
     """Test retrieving a field's type using the field's ID"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -253,6 +264,78 @@ def test_schema_get_type():
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1)
 
-    assert table_schema.get_type(field_id=1) == StringType()
-    assert table_schema.get_type(field_id=2) == IntegerType()
-    assert table_schema.get_type(field_id=3) == BooleanType()
+    assert table_schema.find_field_type(field_id=1) == StringType()
+    assert table_schema.find_field_type(field_id=2) == IntegerType()
+    assert table_schema.find_field_type(field_id=3) == BooleanType()
+
+
+def test_index_by_id_schema_visitor():
+    """Test retrieving a field id to field name map using an IndexById schema visitor"""
+    fields = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
+            is_optional=False,
+        ),
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(key_id=7, key_type=StringType(), value_id=8, value_type=IntegerType(), value_is_optional=True),
+            is_optional=False,
+        ),
+    ]
+    table_schema = schema.Schema(fields=fields, schema_id=1)
+    visitor = schema.IndexById()
+    visitor.visit(table_schema)
+
+    assert visitor.result == {1: "foo", 2: "bar", 3: "baz", 4: "qux", 5: "qux.element", 6: "quux", 7: "quux.key", 8: "quux.value"}
+
+
+def test_index_by_name_schema_visitor():
+    """Test retrieving a field name to field id map using an IndexByName schema visitor"""
+    fields = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
+            is_optional=False,
+        ),
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(key_id=7, key_type=StringType(), value_id=8, value_type=IntegerType(), value_is_optional=True),
+            is_optional=False,
+        ),
+    ]
+    table_schema = schema.Schema(fields=fields, schema_id=1)
+    visitor = schema.IndexByName()
+    visitor.visit(table_schema)
+
+    assert visitor.result == {"bar": 2, "baz": 3, "foo": 1, "qux": 4, "qux.element": 5, "quux": 6, "quux.key": 7, "quux.value": 8}
+
+
+def test_index_by_id_schema_visitor_raise_on_unregistered_type():
+    """Test raising a NotImplementedError when a type with no registered visit operation is passed to an IndexById visitor"""
+
+    visitor = schema.IndexById()
+    with pytest.raises(NotImplementedError) as exc_info:
+        visitor.visit("foo")
+
+    assert "Cannot visit node, no IndexById operation implemented for node type: <class 'str'>" in str(exc_info.value)
+
+
+def test_index_by_name_schema_visitor_raise_on_unregistered_type():
+    """Test raising a NotImplementedError when a type with no registered visit operation is passed to an IndexByName visitor"""
+
+    visitor = schema.IndexByName()
+    with pytest.raises(NotImplementedError) as exc_info:
+        visitor.visit("foo")
+
+    assert "Cannot visit node, no IndexByName operation implemented for node type: <class 'str'>" in str(exc_info.value)
