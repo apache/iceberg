@@ -70,6 +70,8 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
  * For example, someone might point this action to the data folder to clean up only orphan data files.
  * In addition, there is a way to configure an alternative delete method via {@link #deleteWith(Consumer)}.
+ * If the location contains hidden paths, this action will by default ignore those paths. This behavior can be changed
+ * by setting the option {@link #IGNORE_HIDDEN_PATHS} to false.
  * <p>
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
