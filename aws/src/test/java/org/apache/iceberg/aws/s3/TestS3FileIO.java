@@ -23,44 +23,69 @@ import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.junit.MockitoJUnitRunner;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.Tag;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
+@RunWith(MockitoJUnitRunner.class)
 public class TestS3FileIO {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
   public SerializableSupplier<S3Client> s3 = S3_MOCK_RULE::createS3ClientV2;
+  private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
-
+  private final int numBucketsForBatchDeletion = 3;
+  private final String batchDeletionBucketPrefix = "batch-delete-";
+  private final int batchDeletionSize = 5;
   private S3FileIO s3FileIO;
   private final Map<String, String> properties = ImmutableMap.of(
-      "s3.write.tags.tagKey1", "TagValue1");
+      "s3.write.tags.tagKey1", "TagValue1",
+      "s3.delete.batch-size", Integer.toString(batchDeletionSize));
 
   @Before
   public void before() {
-    s3FileIO = new S3FileIO(s3);
+    s3FileIO = new S3FileIO(() -> s3mock);
     s3FileIO.initialize(properties);
     s3.get().createBucket(CreateBucketRequest.builder().bucket("bucket").build());
+    for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
+      s3.get().createBucket(CreateBucketRequest.builder().bucket(batchDeletionBucketPrefix + i).build());
+    }
   }
 
   @Test
@@ -92,6 +117,72 @@ public class TestS3FileIO {
   }
 
   @Test
+  public void testDeleteFilesMultipleBatches() {
+    testBatchDelete(batchDeletionSize * 2);
+  }
+
+  @Test
+  public void testDeleteFilesLessThanBatchSize() {
+    testBatchDelete(batchDeletionSize - 1);
+  }
+
+  @Test
+  public void testDeleteFilesSingleBatchWithRemainder() {
+    testBatchDelete(batchDeletionSize + 1);
+  }
+
+  @Test
+  public void testDeleteEmptyList() throws IOException {
+    String location = "s3://bucket/path/to/file.txt";
+    InputFile in = s3FileIO.newInputFile(location);
+    assertFalse(in.exists());
+    OutputFile out = s3FileIO.newOutputFile(location);
+    try (OutputStream os = out.createOrOverwrite()) {
+      IOUtils.write(new byte[1024 * 1024], os);
+    }
+
+    s3FileIO.deleteFiles(Lists.newArrayList());
+
+    Assert.assertTrue(s3FileIO.newInputFile(location).exists());
+    s3FileIO.deleteFile(in);
+    assertFalse(s3FileIO.newInputFile(location).exists());
+  }
+
+  @Test
+  public void testDeleteFilesS3ReturnsError() {
+    String location = "s3://bucket/path/to/file-to-delete.txt";
+    DeleteObjectsResponse deleteObjectsResponse = DeleteObjectsResponse.builder()
+        .errors(ImmutableList.of(S3Error.builder().key("path/to/file.txt").build()))
+        .build();
+    doReturn(deleteObjectsResponse).when(s3mock).deleteObjects((DeleteObjectsRequest) any());
+
+    AssertHelpers.assertThrows("A failure during S3 DeleteObjects call should result in FileIODeleteException",
+        BulkDeletionFailureException.class,
+        "Failed to delete 1 file",
+        () -> s3FileIO.deleteFiles(Lists.newArrayList(location)));
+  }
+
+  private void testBatchDelete(int numObjects) {
+    List<String> paths = Lists.newArrayList();
+    for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
+      String bucketName = batchDeletionBucketPrefix + i;
+      for (int j = 1; j <= numObjects; j++) {
+        String key = "object-" + j;
+        paths.add("s3://" + bucketName + "/" + key);
+      }
+    }
+    s3FileIO.deleteFiles(paths);
+
+    int expectedNumberOfBatchesPerBucket =
+        (numObjects / batchDeletionSize) + (numObjects % batchDeletionSize == 0 ? 0 : 1);
+    int expectedDeleteRequests = expectedNumberOfBatchesPerBucket * numBucketsForBatchDeletion;
+    verify(s3mock, times(expectedDeleteRequests)).deleteObjects((DeleteObjectsRequest) any());
+    for (String path : paths) {
+      Assert.assertFalse(s3FileIO.newInputFile(path).exists());
+    }
+  }
+
+  @Test
   public void testSerializeClient() {
     SerializableSupplier<S3Client> pre =
         () -> S3Client.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).region(Region.US_EAST_1).build();
@@ -120,7 +211,7 @@ public class TestS3FileIO {
 
     // Assert for writeTags
     assertTrue(((S3InputFile) in).writeTags().isEmpty());
-    assertEquals(((S3OutputFile) out).writeTags().size(), properties.size());
+    assertEquals(((S3OutputFile) out).writeTags().size(), 1);
     assertEquals(((S3OutputFile) out).writeTags(), ImmutableSet.of(
         Tag.builder().key("tagKey1").value("TagValue1").build()));
 
