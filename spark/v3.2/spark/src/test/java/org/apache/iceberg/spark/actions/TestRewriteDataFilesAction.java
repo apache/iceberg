@@ -196,6 +196,34 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testBinPackAfterPartitionChange() {
+    Table table = createTable();
+
+    writeRecords(20, SCALE, 20);
+    shouldHaveFiles(table, 20);
+    table.updateSpec().addField(Expressions.ref("c1")).commit();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .option(SortStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) + 1000))
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) + 1001))
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroup because all files were not correctly partitioned",
+        1, result.rewriteResults().size());
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveFiles(table, 20);
+  }
+
+  @Test
   public void testBinPackWithDeletes() throws Exception {
     Table table = createTablePartitioned(4, 2);
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
