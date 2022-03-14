@@ -23,11 +23,14 @@ import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -36,6 +39,7 @@ import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -49,10 +53,13 @@ public class TestS3FileIO {
   private final Random random = new Random(1);
 
   private S3FileIO s3FileIO;
+  private final Map<String, String> properties = ImmutableMap.of(
+      "s3.write.tags.tagKey1", "TagValue1");
 
   @Before
   public void before() {
     s3FileIO = new S3FileIO(s3);
+    s3FileIO.initialize(properties);
     s3.get().createBucket(CreateBucketRequest.builder().bucket("bucket").build());
   }
 
@@ -93,5 +100,31 @@ public class TestS3FileIO {
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
     assertEquals("s3", post.get().serviceName());
+  }
+
+  @Test
+  public void testWriteTags() throws IOException {
+    String location = "s3://bucket/path/to/file.txt";
+    byte[] expected = new byte[1024 * 1024];
+    random.nextBytes(expected);
+
+    InputFile in = s3FileIO.newInputFile(location);
+    assertFalse(in.exists());
+
+    OutputFile out = s3FileIO.newOutputFile(location);
+    try (OutputStream os = out.createOrOverwrite()) {
+      IOUtils.write(expected, os);
+    }
+
+    assertTrue(in.exists());
+
+    // Assert for writeTags
+    assertTrue(((S3InputFile) in).writeTags().isEmpty());
+    assertEquals(((S3OutputFile) out).writeTags().size(), properties.size());
+    assertEquals(((S3OutputFile) out).writeTags(), ImmutableSet.of(
+        Tag.builder().key("tagKey1").value("TagValue1").build()));
+
+    s3FileIO.deleteFile(in);
+    assertFalse(s3FileIO.newInputFile(location).exists());
   }
 }

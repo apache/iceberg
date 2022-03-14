@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -67,6 +68,8 @@ import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.BinaryUtils;
@@ -81,6 +84,7 @@ class S3OutputStream extends PositionOutputStream {
   private final S3Client s3;
   private final S3URI location;
   private final AwsProperties awsProperties;
+  private final Set<Tag> writeTags;
 
   private CountingOutputStream stream;
   private final List<FileAndDigest> stagingFiles = Lists.newArrayList();
@@ -101,7 +105,8 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) throws IOException {
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics, Set<Tag> writeTags)
+      throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
@@ -119,6 +124,7 @@ class S3OutputStream extends PositionOutputStream {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
+    this.writeTags = writeTags;
 
     this.createStack = Thread.currentThread().getStackTrace();
 
@@ -252,7 +258,12 @@ class S3OutputStream extends PositionOutputStream {
 
   private void initializeMultiPartUpload() {
     CreateMultipartUploadRequest.Builder requestBuilder = CreateMultipartUploadRequest.builder()
-        .bucket(location.bucket()).key(location.key());
+        .bucket(location.bucket())
+        .key(location.key());
+    if (!writeTags.isEmpty()) {
+      requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
+    }
+
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
     S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
@@ -366,6 +377,10 @@ class S3OutputStream extends PositionOutputStream {
       PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
           .bucket(location.bucket())
           .key(location.key());
+
+      if (!writeTags.isEmpty()) {
+        requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
+      }
 
       if (isChecksumEnabled) {
         requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
