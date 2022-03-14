@@ -218,9 +218,10 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
-   * Example in Spark: --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key=my_val
    * <p>
    * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   * <p>
+   * Example in Spark: --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key=my_val
    */
   public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 

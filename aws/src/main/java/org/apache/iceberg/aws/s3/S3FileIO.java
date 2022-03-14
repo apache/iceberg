@@ -115,8 +115,7 @@ public class S3FileIO implements FileIO {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
-    this.writeTags = toTags(
-        PropertyUtil.propertiesWithPrefix(properties, AwsProperties.S3_WRITE_TAGS_PREFIX));
+    this.writeTags = toTags(properties);
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
@@ -145,8 +144,9 @@ public class S3FileIO implements FileIO {
     }
   }
 
-  private Set<Tag> toTags(Map<String, String> tagKeyToTagValue) {
-    return tagKeyToTagValue.entrySet().stream()
+  private Set<Tag> toTags(Map<String, String> properties) {
+    return PropertyUtil.propertiesWithPrefix(properties, AwsProperties.S3_WRITE_TAGS_PREFIX)
+        .entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
         .collect(Collectors.toSet());
   }

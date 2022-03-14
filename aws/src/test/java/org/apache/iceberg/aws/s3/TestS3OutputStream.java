@@ -122,8 +122,8 @@ public class TestS3OutputStream {
   public void testAbortAfterFailedPartUpload() {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics(),
-        tags)) {
+    try (S3OutputStream stream = new S3OutputStream(
+        s3mock, randomURI(), properties, nullMetrics(), tags)) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -134,8 +134,8 @@ public class TestS3OutputStream {
   public void testAbortMultipart() {
     doThrow(new RuntimeException()).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics(),
-        tags)) {
+    try (S3OutputStream stream = new S3OutputStream(
+        s3mock, randomURI(), properties, nullMetrics(), tags)) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -153,8 +153,8 @@ public class TestS3OutputStream {
   public void testStagingDirectoryCreation() throws IOException {
     AwsProperties newStagingDirectoryAwsProperties = new AwsProperties(ImmutableMap.of(
         AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties,
-        nullMetrics(), tags);
+    S3OutputStream stream = new S3OutputStream(
+        s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics(), tags);
     stream.close();
   }
 
