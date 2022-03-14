@@ -419,6 +419,22 @@ If for any reason you have to use S3A, here are the instructions:
 To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`. 
 This is turned off by default.
 
+### S3 Tags
+
+Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing.
+For example, to write S3 tags with Spark 3.0, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key1=my_val1 \
+    --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key2=my_val2
+```
+For the above example, the objects in S3 will be saved with tags: `my_key1=my_val1` and `my_key2=my_val2`.
+
+For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
