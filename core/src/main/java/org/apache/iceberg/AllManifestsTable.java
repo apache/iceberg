@@ -31,6 +31,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 
@@ -119,7 +120,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Map<Integer, PartitionSpec> specs = table().specs();
+      Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
 
       return CloseableIterable.withNoopClose(Iterables.transform(ops.current().snapshots(), snap -> {
         if (snap.manifestListLocation() != null) {

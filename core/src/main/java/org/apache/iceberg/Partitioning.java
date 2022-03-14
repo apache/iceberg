@@ -225,7 +225,6 @@ public class Partitioning {
       for (PartitionField field : spec.fields()) {
         int fieldId = field.fieldId();
         NestedField structField = spec.partitionType().field(fieldId);
-
         PartitionField existingField = fieldMap.get(fieldId);
 
         if (existingField == null) {

@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 
@@ -71,7 +72,7 @@ public class ManifestsTable extends BaseMetadataTable {
   protected DataTask task(TableScan scan) {
     TableOperations ops = operations();
     String location = scan.snapshot().manifestListLocation();
-    Map<Integer, PartitionSpec> specs = table().specs();
+    Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
 
     return StaticDataTask.of(
         ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
