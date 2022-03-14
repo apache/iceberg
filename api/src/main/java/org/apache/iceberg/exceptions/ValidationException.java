@@ -24,7 +24,11 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 
 /**
- * Exception raised when validation checks fail.
+ * Exception which is raised when the arguments are valid in isolation, but not in conjunction with
+ * other arguments or state, as opposed to {@link IllegalArgumentException} which is raised when
+ * an argument value is always invalid.
+ * <p>
+ * A ValidationException will cause the operation to abort.
  * <p>
  * For example, this is thrown when attempting to create a table with a {@link PartitionSpec} that
  * is not compatible with the table {@link Schema}
