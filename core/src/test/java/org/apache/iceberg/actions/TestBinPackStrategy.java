@@ -156,18 +156,11 @@ public class TestBinPackStrategy extends TableTestBase {
             "treated as NOOP",
             0, Iterables.size(grouped1));
 
-    // single file with size > targetSize should be planed
+    // single file with size > maxFileSize should be planed
     Iterable<FileScanTask> testFiles2 = filesOfSize(4 * MB);
     Iterable<List<FileScanTask>> grouped2 = strategy.planFileGroups(testFiles2);
 
     Assert.assertEquals("Should plan 1 group", 1, Iterables.size(grouped2));
-
-    // single file with a delete should be planned, even when deletedFileThreshold is 2
-    List<FileScanTask> testFiles = Lists.newArrayList();
-    testFiles.add(MockFileScanTask.mockTaskWithDeletes(MB, 1));
-    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
-
-    Assert.assertEquals("Should plan 1 group", 1, Iterables.size(grouped));
   }
 
   @Test
@@ -219,10 +212,10 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testMaxGroupSize() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Long.toString(1000 * MB)
+        RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Long.toString(1300 * MB)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize(300, 300, 300, 300, 300, 300);
+    Iterable<FileScanTask> testFiles = filesOfSize(400, 400, 400, 400, 400, 400);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
