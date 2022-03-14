@@ -164,7 +164,7 @@ public class TestBinPackStrategy extends TableTestBase {
 
     // single file with a delete should be planned, even when deletedFileThreshold is 2
     List<FileScanTask> testFiles = Lists.newArrayList();
-    testFiles.add(MockFileScanTask.mockTaskWithDeletes(4 * MB, 1));
+    testFiles.add(MockFileScanTask.mockTaskWithDeletes(MB, 1));
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
     Assert.assertEquals("Should plan 1 group", 1, Iterables.size(grouped));
