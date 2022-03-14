@@ -30,6 +30,15 @@ import java.util.function.Consumer;
  * expensive.
  */
 public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrphanFiles.Result> {
+
+  /**
+   * Enable ignoring hidden paths when deleting orphan files.
+   * <p>
+   * The default is true, which ignores hidden paths.
+   */
+  String IGNORE_HIDDEN_PATHS = "ignore-hidden-paths";
+  boolean IGNORE_HIDDEN_PATHS_DEFAULT = true;
+
   /**
    * Passes a location which should be scanned for orphan files.
    * <p>

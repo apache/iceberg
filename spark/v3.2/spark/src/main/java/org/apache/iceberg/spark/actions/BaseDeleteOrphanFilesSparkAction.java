@@ -59,8 +59,6 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
-import static org.apache.iceberg.TableProperties.INCLUDE_HIDDEN_PATHS;
-import static org.apache.iceberg.TableProperties.INCLUDE_HIDDEN_PATHS_DEFAULT;
 
 /**
  * An action that removes orphan metadata, data and delete files by listing a given location and comparing
@@ -94,7 +92,6 @@ public class BaseDeleteOrphanFilesSparkAction
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
-  private final boolean includeHiddenPaths;
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
@@ -110,12 +107,10 @@ public class BaseDeleteOrphanFilesSparkAction
   public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
 
-    hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
-    partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
+    this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
+    this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
-    includeHiddenPaths = PropertyUtil.propertyAsBoolean(table.properties(), INCLUDE_HIDDEN_PATHS,
-        INCLUDE_HIDDEN_PATHS_DEFAULT);
-    location = table.location();
+    this.location = table.location();
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
@@ -129,25 +124,25 @@ public class BaseDeleteOrphanFilesSparkAction
 
   @Override
   public BaseDeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
-    deleteExecutorService = executorService;
+    this.deleteExecutorService = executorService;
     return this;
   }
 
   @Override
   public BaseDeleteOrphanFilesSparkAction location(String newLocation) {
-    location = newLocation;
+    this.location = newLocation;
     return this;
   }
 
   @Override
   public BaseDeleteOrphanFilesSparkAction olderThan(long newOlderThanTimestamp) {
-    olderThanTimestamp = newOlderThanTimestamp;
+    this.olderThanTimestamp = newOlderThanTimestamp;
     return this;
   }
 
   @Override
   public BaseDeleteOrphanFilesSparkAction deleteWith(Consumer<String> newDeleteFunc) {
-    deleteFunc = newDeleteFunc;
+    this.deleteFunc = newDeleteFunc;
     return this;
   }
 
@@ -196,10 +191,11 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> matchingFiles = Lists.newArrayList();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
+    boolean ignoreHiddenPaths = PropertyUtil.propertyAsBoolean(options(), IGNORE_HIDDEN_PATHS,
+        IGNORE_HIDDEN_PATHS_DEFAULT);
 
     // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
-    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, matchingFiles,
-        includeHiddenPaths);
+    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, ignoreHiddenPaths, matchingFiles);
 
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
@@ -212,7 +208,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     JavaRDD<String> matchingLeafFileRDD =
-        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, includeHiddenPaths));
+        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, ignoreHiddenPaths));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
@@ -220,8 +216,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
   private static void listDirRecursively(
       String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
-      int maxDirectSubDirs, List<String> remainingSubDirs, List<String> matchingFiles,
-      boolean includeHiddenPaths) {
+      int maxDirectSubDirs, List<String> remainingSubDirs, boolean ignoreHiddenPaths, List<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
@@ -235,8 +230,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
       List<String> subDirs = Lists.newArrayList();
 
-      FileStatus[] fileStatus =
-          (includeHiddenPaths) ? fs.listStatus(path) : fs.listStatus(path, HiddenPathFilter.get());
+      FileStatus[] fileStatus = ignoreHiddenPaths ? fs.listStatus(path, HiddenPathFilter.get()) : fs.listStatus(path);
 
       for (FileStatus file : fileStatus) {
         if (file.isDirectory()) {
@@ -253,8 +247,8 @@ public class BaseDeleteOrphanFilesSparkAction
       }
 
       for (String subDir : subDirs) {
-        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, matchingFiles,
-            includeHiddenPaths);
+        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, ignoreHiddenPaths,
+                matchingFiles);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -264,7 +258,7 @@ public class BaseDeleteOrphanFilesSparkAction
   private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
       Broadcast<SerializableConfiguration> conf,
       long olderThanTimestamp,
-      boolean includeHiddenPaths) {
+      boolean ignoreHiddenPaths) {
 
     return dirs -> {
       List<String> subDirs = Lists.newArrayList();
@@ -276,15 +270,8 @@ public class BaseDeleteOrphanFilesSparkAction
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
       dirs.forEachRemaining(dir -> {
-        listDirRecursively(
-            dir,
-            predicate,
-            conf.value().value(),
-            maxDepth,
-            maxDirectSubDirs,
-            subDirs,
-            files,
-            includeHiddenPaths);
+        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, ignoreHiddenPaths,
+            files);
       });
 
       if (!subDirs.isEmpty()) {

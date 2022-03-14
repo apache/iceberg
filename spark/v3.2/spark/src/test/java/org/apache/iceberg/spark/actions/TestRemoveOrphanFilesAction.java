@@ -551,6 +551,53 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
+  @Test
+  public void testIgnoreHiddenPathsOption() throws InterruptedException {
+    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    df.write().mode("append").parquet(tableLocation + "/data/.c2_trunc=AA/c3=AAAA");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
+
+    Thread.sleep(1000);
+
+    long timestamp = System.currentTimeMillis();
+
+    Thread.sleep(1000);
+
+    df.write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+        .olderThan(timestamp)
+        .execute();
+
+    Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFileLocations()));
+
+    result = actions.deleteOrphanFiles(table)
+        .option(DeleteOrphanFiles.IGNORE_HIDDEN_PATHS, "false")
+        .olderThan(timestamp)
+        .execute();
+
+    List<String> orphanFileLocations =
+        StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
+            .filter(location -> !location
+            .endsWith("_SUCCESS"))
+            .collect(Collectors.toList());
+    Assert.assertEquals("Should delete only 2 files", 2, orphanFileLocations.size());
+  }
+
   private List<String> snapshotFiles(long snapshotId) {
     return spark.read().format("iceberg")
         .option("snapshot-id", snapshotId)
