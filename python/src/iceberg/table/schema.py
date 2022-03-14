@@ -16,8 +16,7 @@
 # under the License.
 
 import sys
-from enum import Enum, auto
-from typing import Iterable
+from typing import Iterable, Tuple
 
 if sys.version_info >= (3, 8):  # pragma: no cover
     from typing import Protocol
@@ -30,11 +29,6 @@ else:  # pragma: no cover
     from singledispatch import singledispatchmethod  # type: ignore
 
 from iceberg.types import IcebergType, ListType, MapType, NestedField, StructType
-
-
-class FIELD_IDENTIFIER_TYPES(Enum):
-    NAME = auto()
-    ALIAS = auto()
 
 
 class SchemaVisitor(Protocol):
@@ -83,15 +77,15 @@ class Schema:
         return f"Schema(fields={repr(self.fields)}, schema_id={self.schema_id})"
 
     @property
-    def fields(self):
+    def fields(self) -> Tuple:
         return self._struct.fields
 
     @property
-    def schema_id(self):
+    def schema_id(self) -> int:
         return self._schema_id
 
     @property
-    def struct(self):
+    def struct(self) -> StructType:
         return self._struct
 
     def find_field_id_by_name(self, field_name: str, case_sensitive: bool = True) -> int:
@@ -144,7 +138,7 @@ class Schema:
             # If multiple IDs are returned for a case-insensitive alias lookup, raise
             raise ValueError(f"Cannot get field ID, case-insensitive alias returns multiple results: {field_alias}")
 
-    def find_field_name_by_field_id(self, field_id: int):
+    def find_field_name_by_field_id(self, field_id: int) -> str:
         """Find a field name for a given field ID
 
         Args:
@@ -161,7 +155,7 @@ class Schema:
                 return indexed_field_name
         raise ValueError(f"Cannot get field name, field ID not found: {field_id}")
 
-    def find_field_by_id(self, field_id: int):
+    def find_field_by_id(self, field_id: int) -> NestedField:
         """Find a field by it's field ID
 
         Args:
@@ -218,7 +212,7 @@ class IndexById(SchemaVisitor):
         self.result = {}
 
     @singledispatchmethod
-    def visit(self, node):
+    def visit(self, node) -> None:
         """A generic single dispatch visit method
 
         Raises:
@@ -227,22 +221,22 @@ class IndexById(SchemaVisitor):
         raise NotImplementedError(f"Cannot visit node, no IndexById operation implemented for node type: {type(node)}")
 
     @visit.register
-    def _(self, node: Schema):
+    def _(self, node: Schema) -> None:
         self.visit(node.struct)
 
     @visit.register
-    def _(self, node: StructType):
+    def _(self, node: StructType) -> None:
         for field in node.fields:
             self.visit(field)
 
     @visit.register
-    def _(self, node: NestedField):
+    def _(self, node: NestedField) -> None:
         self.result[node.field_id] = node.name
         if isinstance(node.type, (ListType, MapType)):
             self.visit(node.type, nested_field_name=node.name)
 
     @visit.register
-    def _(self, node: ListType, nested_field_name: str):
+    def _(self, node: ListType, nested_field_name: str) -> None:
         """Index a ListType node
 
         ListType nodes add one item to the index:
@@ -321,7 +315,7 @@ class IndexByName(SchemaVisitor):
             self.visit(node.type, nested_field_name=node.name)
 
     @visit.register
-    def _(self, node: ListType, nested_field_name: str):
+    def _(self, node: ListType, nested_field_name: str) -> None:
         """Index a ListType node
 
         ListType nodes add one item to the index:
