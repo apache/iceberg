@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.aws.s3;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,16 +28,27 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.Tag;
 
 /**
@@ -45,7 +58,7 @@ import software.amazon.awssdk.services.s3.model.Tag;
  * URIs with schemes s3a, s3n, https are also treated as s3 file paths.
  * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO implements FileIO {
+public class S3FileIO implements FileIO, SupportsBulkOperations {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
@@ -103,6 +116,68 @@ public class S3FileIO implements FileIO {
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
     client().deleteObject(deleteRequest);
+  }
+
+  /**
+   * Deletes the given paths in a batched manner.
+   * <p>
+   * The paths are grouped by bucket, and deletion is triggered when we either reach the configured batch size
+   * or have a final remainder batch for each bucket.
+   *
+   * @param paths paths to delete
+   */
+  @Override
+  public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
+    SetMultimap<String, String> bucketToObjects = Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
+    int numberOfFailedDeletions = 0;
+    for (String path : paths) {
+      S3URI location = new S3URI(path);
+      String bucket = location.bucket();
+      String objectKey = location.key();
+      Set<String> objectsInBucket = bucketToObjects.get(bucket);
+      if (objectsInBucket.size() == awsProperties.s3FileIoDeleteBatchSize()) {
+        List<String> failedDeletionsForBatch = deleteObjectsInBucket(bucket, objectsInBucket);
+        numberOfFailedDeletions += failedDeletionsForBatch.size();
+        failedDeletionsForBatch.forEach(failedPath -> LOG.warn("Failed to delete object at path {}", failedPath));
+        bucketToObjects.removeAll(bucket);
+      }
+      bucketToObjects.get(bucket).add(objectKey);
+    }
+
+    // Delete the remainder
+    for (Map.Entry<String, Collection<String>> bucketToObjectsEntry : bucketToObjects.asMap().entrySet()) {
+      final String bucket = bucketToObjectsEntry.getKey();
+      final Collection<String> objects = bucketToObjectsEntry.getValue();
+      List<String> failedDeletions = deleteObjectsInBucket(bucket, objects);
+      failedDeletions.forEach(failedPath -> LOG.warn("Failed to delete object at path {}", failedPath));
+      numberOfFailedDeletions += failedDeletions.size();
+    }
+
+    if (numberOfFailedDeletions > 0) {
+      throw new BulkDeletionFailureException(numberOfFailedDeletions);
+    }
+  }
+
+  private List<String> deleteObjectsInBucket(String bucket, Collection<String> objects) {
+    if (!objects.isEmpty()) {
+      List<ObjectIdentifier> objectIds = objects
+          .stream()
+          .map(objectKey -> ObjectIdentifier.builder().key(objectKey).build())
+          .collect(Collectors.toList());
+      DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
+          .bucket(bucket)
+          .delete(Delete.builder().objects(objectIds).build())
+          .build();
+      DeleteObjectsResponse response = client().deleteObjects(deleteObjectsRequest);
+      if (response.hasErrors()) {
+        return response.errors()
+            .stream()
+            .map(error -> String.format("s3://%s/%s", bucket, error.key()))
+            .collect(Collectors.toList());
+      }
+    }
+
+    return Lists.newArrayList();
   }
 
   private S3Client client() {
