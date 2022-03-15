@@ -756,6 +756,8 @@ public class TableMetadata implements Serializable {
   }
 
   public static class Builder {
+    private static final int LAST_ADDED = -1;
+
     private final TableMetadata base;
     private String metadataLocation;
     private int formatVersion;
@@ -829,7 +831,6 @@ public class TableMetadata implements Serializable {
 
     public Builder withMetadataLocation(String newMetadataLocation) {
       this.metadataLocation = newMetadataLocation;
-      this.discardChanges = true;
       return this;
     }
 
@@ -892,8 +893,7 @@ public class TableMetadata implements Serializable {
       this.currentSchemaId = schemaId;
 
       if (lastAddedSchemaId != null && lastAddedSchemaId == schemaId) {
-        // use -1 to signal that current was set to the last added schema
-        changes.add(new MetadataUpdate.SetCurrentSchema(-1));
+        changes.add(new MetadataUpdate.SetCurrentSchema(LAST_ADDED));
       } else {
         changes.add(new MetadataUpdate.SetCurrentSchema(schemaId));
       }
@@ -925,8 +925,7 @@ public class TableMetadata implements Serializable {
 
       this.defaultSpecId = specId;
       if (lastAddedSpecId != null && lastAddedSpecId == specId) {
-        // use -1 to signal that current was set to the last added schema
-        changes.add(new MetadataUpdate.SetDefaultPartitionSpec(-1));
+        changes.add(new MetadataUpdate.SetDefaultPartitionSpec(LAST_ADDED));
       } else {
         changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
       }
@@ -957,8 +956,7 @@ public class TableMetadata implements Serializable {
 
       this.defaultSortOrderId = sortOrderId;
       if (lastAddedOrderId != null && lastAddedOrderId == sortOrderId) {
-        // use -1 to signal that current was set to the last added schema
-        changes.add(new MetadataUpdate.SetDefaultSortOrder(-1));
+        changes.add(new MetadataUpdate.SetDefaultSortOrder(LAST_ADDED));
       } else {
         changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
       }
@@ -1104,6 +1102,12 @@ public class TableMetadata implements Serializable {
       if (lastUpdatedMillis == null) {
         this.lastUpdatedMillis = System.currentTimeMillis();
       }
+
+      // when associated with a metadata file, table metadata must have no changes so that the metadata matches exactly
+      // what is in the metadata file, which does not store changes. metadata location with changes is inconsistent.
+      Preconditions.checkArgument(
+          changes.size() == 0 || discardChanges || metadataLocation == null,
+          "Cannot set metadata location with changes to table metadata: %s changes", changes.size());
 
       Schema schema = schemasById.get(currentSchemaId);
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
