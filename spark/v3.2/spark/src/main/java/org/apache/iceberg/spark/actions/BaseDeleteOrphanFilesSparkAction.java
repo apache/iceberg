@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -31,12 +32,16 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
@@ -70,8 +75,6 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
  * For example, someone might point this action to the data folder to clean up only orphan data files.
  * In addition, there is a way to configure an alternative delete method via {@link #deleteWith(Consumer)}.
- * If the location contains hidden paths, this action will by default ignore those paths. This behavior can be changed
- * by setting the option {@link #IGNORE_HIDDEN_PATHS} to false.
  * <p>
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
@@ -193,11 +196,10 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> matchingFiles = Lists.newArrayList();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-    boolean ignoreHiddenPaths = PropertyUtil.propertyAsBoolean(options(), IGNORE_HIDDEN_PATHS,
-        IGNORE_HIDDEN_PATHS_DEFAULT);
+    PathFilter filter = pathFilter(table.spec());
 
     // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
-    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, ignoreHiddenPaths, matchingFiles);
+    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, filter, matchingFiles);
 
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
@@ -210,15 +212,26 @@ public class BaseDeleteOrphanFilesSparkAction
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     JavaRDD<String> matchingLeafFileRDD =
-        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, ignoreHiddenPaths));
+        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, filter));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
   }
 
+  private PathFilter pathFilter(PartitionSpec spec) {
+    List<String> partitionNames = Lists.newArrayList();
+    for (PartitionField field : spec.fields()) {
+      if (field.name().startsWith("_") || field.name().startsWith(".")) {
+        partitionNames.add(field.name());
+      }
+    }
+
+    return (partitionNames.isEmpty()) ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
+  }
+
   private static void listDirRecursively(
-      String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
-      int maxDirectSubDirs, List<String> remainingSubDirs, boolean ignoreHiddenPaths, List<String> matchingFiles) {
+          String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
+          int maxDirectSubDirs, List<String> remainingSubDirs, PathFilter filter, List<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
@@ -232,9 +245,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
       List<String> subDirs = Lists.newArrayList();
 
-      FileStatus[] fileStatus = ignoreHiddenPaths ? fs.listStatus(path, HiddenPathFilter.get()) : fs.listStatus(path);
-
-      for (FileStatus file : fileStatus) {
+      for (FileStatus file : fs.listStatus(path, filter)) {
         if (file.isDirectory()) {
           subDirs.add(file.getPath().toString());
         } else if (file.isFile() && predicate.test(file)) {
@@ -249,7 +260,7 @@ public class BaseDeleteOrphanFilesSparkAction
       }
 
       for (String subDir : subDirs) {
-        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, ignoreHiddenPaths,
+        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, filter,
                 matchingFiles);
       }
     } catch (IOException e) {
@@ -260,7 +271,7 @@ public class BaseDeleteOrphanFilesSparkAction
   private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
       Broadcast<SerializableConfiguration> conf,
       long olderThanTimestamp,
-      boolean ignoreHiddenPaths) {
+      PathFilter filter) {
 
     return dirs -> {
       List<String> subDirs = Lists.newArrayList();
@@ -272,8 +283,7 @@ public class BaseDeleteOrphanFilesSparkAction
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
       dirs.forEachRemaining(dir -> {
-        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, ignoreHiddenPaths,
-            files);
+        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, filter, files);
       });
 
       if (!subDirs.isEmpty()) {
@@ -282,5 +292,21 @@ public class BaseDeleteOrphanFilesSparkAction
 
       return files.iterator();
     };
+  }
+
+  @VisibleForTesting
+  static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
+
+    private final List<String> hiddenPathPartitionNames;
+
+    PartitionAwareHiddenPathFilter(List<String> hiddenPathPartitionNames) {
+      this.hiddenPathPartitionNames = hiddenPathPartitionNames;
+    }
+
+    @Override
+    public boolean accept(Path path) {
+      boolean isHiddenPartitionPath = hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
+      return isHiddenPartitionPath || HiddenPathFilter.get().accept(path);
+    }
   }
 }

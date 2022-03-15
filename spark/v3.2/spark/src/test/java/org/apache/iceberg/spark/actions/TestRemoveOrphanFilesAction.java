@@ -58,6 +58,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -552,50 +555,45 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testIgnoreHiddenPathsOption() throws InterruptedException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
-
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+  public void testHiddenPartitionPaths() throws InterruptedException {
+    Schema schema = new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "_c2", Types.StringType.get()),
+            optional(3, "c3", Types.StringType.get())
     );
-    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+            .truncate("_c2", 2)
+            .identity("c3")
+            .build();
+    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
 
-    df.select("c1", "c2", "c3")
+    StructType structType = new StructType()
+            .add("c1", DataTypes.IntegerType)
+            .add("_c2", DataTypes.StringType)
+            .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(
+        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+
+    df.select("c1", "_c2", "c3")
         .write()
         .format("iceberg")
         .mode("append")
         .save(tableLocation);
 
-    df.write().mode("append").parquet(tableLocation + "/data/.c2_trunc=AA/c3=AAAA");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
 
     Thread.sleep(1000);
 
-    long timestamp = System.currentTimeMillis();
-
-    Thread.sleep(1000);
-
-    df.write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
-
     SparkActions actions = SparkActions.get();
 
     DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(timestamp)
+        .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFileLocations()));
-
-    result = actions.deleteOrphanFiles(table)
-        .option(DeleteOrphanFiles.IGNORE_HIDDEN_PATHS, "false")
-        .olderThan(timestamp)
-        .execute();
-
-    List<String> orphanFileLocations =
-        StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
-            .filter(location -> !location
-            .endsWith("_SUCCESS"))
-            .collect(Collectors.toList());
-    Assert.assertEquals("Should delete only 2 files", 2, orphanFileLocations.size());
+    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
   }
 
   private List<String> snapshotFiles(long snapshotId) {
