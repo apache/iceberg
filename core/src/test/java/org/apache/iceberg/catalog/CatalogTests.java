@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -1024,8 +1025,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
+    Assertions.setMaxStackTraceElementsDisplayed(Integer.MAX_VALUE);
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        CommitFailedException.class, "Table already exists", create::commitTransaction);
+        AlreadyExistsException.class, "Table already exists", create::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);

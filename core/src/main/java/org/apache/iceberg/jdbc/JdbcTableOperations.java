@@ -123,8 +123,9 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLWarning e) {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
+      // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
       if (e.getMessage().contains("constraint failed")) {
-        throw new CommitFailedException("Table already exists: %s", tableIdentifier);
+        throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
       }
       throw new UncheckedSQLException(e, "Unknown failure");
     } catch (InterruptedException e) {
