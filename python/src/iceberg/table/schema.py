@@ -169,7 +169,7 @@ class Schema:
                 return field
         raise ValueError(f"Cannot get field, ID does not exist: {field_id}")
 
-    def find_field_type(self, field_id: int) -> IcebergType:
+    def find_field_type_by_id(self, field_id: int) -> IcebergType:
         """Find the type of a field by field ID
 
         Args:

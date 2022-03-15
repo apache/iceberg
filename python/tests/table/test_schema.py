@@ -255,7 +255,7 @@ def test_schema_find_field_by_id_raise_on_unknown_field():
     assert "Cannot get field, ID does not exist: 4" in str(exc_info.value)
 
 
-def test_schema_find_field_type():
+def test_schema_find_field_type_by_id():
     """Test retrieving a field's type using the field's ID"""
     fields = [
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -264,9 +264,9 @@ def test_schema_find_field_type():
     ]
     table_schema = schema.Schema(fields=fields, schema_id=1)
 
-    assert table_schema.find_field_type(field_id=1) == StringType()
-    assert table_schema.find_field_type(field_id=2) == IntegerType()
-    assert table_schema.find_field_type(field_id=3) == BooleanType()
+    assert table_schema.find_field_type_by_id(field_id=1) == StringType()
+    assert table_schema.find_field_type_by_id(field_id=2) == IntegerType()
+    assert table_schema.find_field_type_by_id(field_id=3) == BooleanType()
 
 
 def test_index_by_id_schema_visitor():
