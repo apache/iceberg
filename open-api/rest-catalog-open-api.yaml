@@ -1219,6 +1219,24 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
     TableRequirement:
+      description:
+        Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
+
+        - `assert-create` - the table must not already exist; used for create transactions
+        
+        - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
+
+        - assert-ref-snapshot-id - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+        
+        - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
+        
+        - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
+        
+        - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
+        
+        - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
+        
+        - `assert-default-write-order-id` - the table's default sort order id must match the requirement's `default-write-order-id`
       type: object
       required:
         - requirement
@@ -1226,32 +1244,53 @@ components:
         requirement:
           type: string
           enum:
+            - assert-create
+            - assert-table-uuid
             - assert-ref-snapshot-id
+            - assert-last-assigned-field-id
             - assert-current-schema-id
+            - assert-last-assigned-partition-id
             - assert-default-spec-id
-            - assert-default-sort-order-id
+            - assert-default-write-order-id
         ref:
+          type: string
+        uuid:
           type: string
         snapshot-id:
           type: integer
-        schema-id:
+        last-assigned-field-id:
+          type: integer
+        current-schema-id:
+          type: integer
+        last-assigned-partition-id:
           type: integer
         default-spec-id:
           type: integer
-        default-sort-order-id:
+        default-write-order-id:
           type: integer
 
     LoadTableResult:
+      description:
+        Result used when a table is successfully loaded.
+        
+        
+        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata must be returned in the `metadata-location` field. Clients can check whether metadata has changed by comparing metadata locations.
+        
+        
+        The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
       type: object
       required:
+        - metadata-location
         - metadata
       properties:
+        metadata-location:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
         config:
           type: object
           additionalProperties:
             type: string
-        metadata:
-          $ref: '#/components/schemas/TableMetadata'
 
     CommitTableRequest:
       type: object
@@ -1280,15 +1319,14 @@ components:
           type: string
         schema:
           $ref: '#/components/schemas/Schema'
+        partition-spec:
+          $ref: '#/components/schemas/PartitionSpec'
+        write-order:
+          $ref: '#/components/schemas/SortOrder'
         properties:
           type: object
           additionalProperties:
             type: string
-        partition-spec:
-          $ref: '#/components/schemas/PartitionSpec'
-        sort-order:
-          $ref: '#/components/schemas/SortOrder'
-
 
 
   #############################
@@ -1565,14 +1603,20 @@ components:
             $ref: '#/components/schemas/LoadTableResult'
 
     CommitTableResponse:
-      description: Table metadata result after committing updates to a table
+      description:
+        Response used when a table is successfully updated.
+
+        The table metadata JSON is returned in the metadata field. The corresponding file location of table metadata must be returned in the metadata-location field. Clients can check whether metadata has changed by comparing metadata locations.
       content:
         application/json:
           schema:
             type: object
             required:
+              - metadata-location
               - metadata
             properties:
+              metadata-location:
+                type: string
               metadata:
                 $ref: '#/components/schemas/TableMetadata'
 
