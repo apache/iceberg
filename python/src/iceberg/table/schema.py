@@ -64,6 +64,9 @@ class Schema:
         index_by_name_visitor.visit(self._struct)
         self._index_by_name = index_by_name_visitor.result
 
+    def __len__(self):
+        return len(self.struct.fields)
+
     def __str__(self):
         schema_str = ""
         for field in self.fields:

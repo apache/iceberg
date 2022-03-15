@@ -44,6 +44,7 @@ def test_schema_init():
     assert table_schema.fields[1] == fields[1]
     assert table_schema.fields[2] == fields[2]
     assert table_schema.schema_id == 1
+    assert len(table_schema) == 3
     assert isinstance(schema_struct, StructType)
 
 
