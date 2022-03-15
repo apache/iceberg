@@ -158,6 +158,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
     return potentialGroups.stream().filter(group ->
             (group.size() >= minInputFiles && group.size() > 1) ||
+                (sizeOfInputFiles(group) > targetFileSize && group.size() > 1) ||
                 sizeOfInputFiles(group) > maxFileSize ||
                 group.stream().anyMatch(this::taskHasTooManyDeletes)
     ).collect(Collectors.toList());
