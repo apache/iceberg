@@ -44,7 +44,11 @@ public class IcebergSourceReader<T> extends
 
   @Override
   public void start() {
-    requestSplit(Collections.emptyList());
+    // We request a split only if we did not get splits during the checkpoint restore.
+    // Otherwise, reader restarts will keep requesting more and more splits.
+    if (getNumberOfCurrentlyAssignedSplits() == 0) {
+      requestSplit(Collections.emptyList());
+    }
   }
 
   @Override
