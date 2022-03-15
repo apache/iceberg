@@ -37,6 +37,7 @@ import java.util.UUID;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
@@ -702,6 +703,16 @@ public class TestHelpers {
 
   public static List<ManifestFile> deleteManifests(Table table) {
     return table.currentSnapshot().deleteManifests();
+  }
+
+  public static Set<DataFile> dataFiles(Table table) {
+    Set<DataFile> dataFiles = Sets.newHashSet();
+
+    for (FileScanTask task : table.newScan().planFiles()) {
+      dataFiles.add(task.file());
+    }
+
+    return dataFiles;
   }
 
   public static Set<DeleteFile> deleteFiles(Table table) {
