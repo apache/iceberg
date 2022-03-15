@@ -42,6 +42,7 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   private final AzureProperties azureProperties;
   private final BlobClient blobClient;
 
+  // TODO replace with counting output stream
   private BlobOutputStream stream;
   private long pos = 0;
   private boolean closed = false;

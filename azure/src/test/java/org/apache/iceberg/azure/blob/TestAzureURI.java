@@ -21,9 +21,9 @@ package org.apache.iceberg.azure.blob;
 
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureURI {
 
@@ -38,10 +38,10 @@ public class TestAzureURI {
     final String expectedLocation =
         String.format("abfs://%s@%s.dfs.core.windows.net%s", expectedContainer, expectedStorageAccount, expectedPath);
     final AzureURI uri = AzureURI.from(expectedLocation);
-    assertEquals(expectedLocation, uri.location());
-    assertEquals(expectedContainer, uri.container());
-    assertEquals(expectedStorageAccount, uri.storageAccount());
-    assertEquals(expectedPath, uri.path());
+    assertThat(uri.location()).isEqualTo(expectedLocation);
+    assertThat(uri.container()).isEqualTo(expectedContainer);
+    assertThat(uri.storageAccount()).isEqualTo(expectedStorageAccount);
+    assertThat(uri.path()).isEqualTo(expectedPath);
   }
 
   @Test

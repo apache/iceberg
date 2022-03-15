@@ -22,6 +22,7 @@ package org.apache.iceberg.azure;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class AzureProperties {
 
@@ -45,7 +46,8 @@ public class AzureProperties {
   private final Map<String, String> properties;
 
   public AzureProperties(Map<String, String> properties) {
-    this.properties = properties;
+    Preconditions.checkNotNull(properties, "Properties map cannot be null");
+    this.properties = ImmutableMap.copyOf(properties);
   }
 
   public AuthType authType(String storageAccount) {
