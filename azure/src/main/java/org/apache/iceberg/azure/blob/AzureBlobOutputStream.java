@@ -38,17 +38,19 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   private static final Joiner TRACE_JOINER = Joiner.on("\n\t");
 
   private final StackTraceElement[] createStack;
-  private final BlobClient blobClient;
+  private final AzureURI azureURI;
   private final AzureProperties azureProperties;
+  private final BlobClient blobClient;
 
   private BlobOutputStream stream;
   private long pos = 0;
   private boolean closed = false;
 
-  public AzureBlobOutputStream(BlobClient blobClient, AzureProperties azureProperties) {
+  public AzureBlobOutputStream(AzureURI azureURI, AzureProperties azureProperties, BlobClient blobClient) {
     this.createStack = Thread.currentThread().getStackTrace();
-    this.blobClient = blobClient;
+    this.azureURI = azureURI;
     this.azureProperties = azureProperties;
+    this.blobClient = blobClient;
     openStream();
   }
 
@@ -102,9 +104,11 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   }
 
   private void openStream() {
-    // TODO fetch this config from properties
-    final BlockBlobOutputStreamOptions options =
-        new BlockBlobOutputStreamOptions().setParallelTransferOptions(new ParallelTransferOptions());
-    this.stream = blobClient.getBlockBlobClient().getBlobOutputStream(options);
+    final ParallelTransferOptions options = new ParallelTransferOptions()
+        .setBlockSizeLong(azureProperties.writeBlockSize(azureURI.storageAccount()))
+        .setMaxConcurrency(azureProperties.maxWriteConcurrency(azureURI.storageAccount()))
+        .setMaxSingleUploadSizeLong(azureProperties.maxSingleUploadSize(azureURI.storageAccount()));
+    this.stream = blobClient.getBlockBlobClient()
+        .getBlobOutputStream(new BlockBlobOutputStreamOptions().setParallelTransferOptions(options));
   }
 }

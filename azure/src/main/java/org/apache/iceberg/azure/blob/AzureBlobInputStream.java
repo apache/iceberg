@@ -21,10 +21,11 @@ package org.apache.iceberg.azure.blob;
 
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.models.BlobRange;
-import com.azure.storage.blob.models.BlobRequestConditions;
+import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.specialized.BlobInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,14 +38,18 @@ public class AzureBlobInputStream extends SeekableInputStream {
   private static final Joiner TRACE_JOINER = Joiner.on("\n\t");
 
   private final StackTraceElement[] createStack;
+  private final AzureURI azureURI;
+  private final AzureProperties azureProperties;
   private final BlobClient blobClient;
 
   private long pos = 0L;
   private boolean closed = false;
   private BlobInputStream stream;
 
-  public AzureBlobInputStream(BlobClient blobClient) {
+  public AzureBlobInputStream(AzureURI azureURI, AzureProperties azureProperties, BlobClient blobClient) {
     this.createStack = Thread.currentThread().getStackTrace();
+    this.azureURI = azureURI;
+    this.azureProperties = azureProperties;
     this.blobClient = blobClient;
     openStream(/* offset = */ 0);
   }
@@ -117,7 +122,9 @@ public class AzureBlobInputStream extends SeekableInputStream {
   }
 
   private void openStream(long offset) {
-    stream = blobClient.openInputStream(new BlobRange(offset), new BlobRequestConditions());
+    final BlobInputStreamOptions options = new BlobInputStreamOptions().setRange(new BlobRange(offset))
+        .setBlockSize(azureProperties.readBlockSize(azureURI.storageAccount()));
+    stream = blobClient.openInputStream(options);
     pos = offset;
   }
 }

@@ -42,7 +42,7 @@ public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new AzureBlobInputStream(blobClient());
+    return new AzureBlobInputStream(azureURI(), azureProperties(), blobClient());
   }
 
   public static AzureBlobInputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
