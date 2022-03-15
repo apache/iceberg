@@ -37,8 +37,7 @@ public class AzureBlobClientFactory {
 
   public static BlobClient createBlobClient(AzureURI azureURI, AzureProperties azureProperties) {
     final String storageAccount = azureURI.storageAccount();
-    final BlobClientBuilder builder =
-        new BlobClientBuilder().containerName(azureURI.container()).blobName(azureURI.path());
+    final BlobClientBuilder builder = new BlobClientBuilder();
 
     final Optional<String> connectionString = azureProperties.connectionString(storageAccount);
     // Connection string should contain storage endpoint and required auth properties.
@@ -51,7 +50,7 @@ public class AzureBlobClientFactory {
       setAuth(storageAccount, authType, azureProperties, builder);
     }
 
-    return builder.buildClient();
+    return builder.containerName(azureURI.container()).blobName(azureURI.path()).buildClient();
   }
 
   private static void setAuth(
