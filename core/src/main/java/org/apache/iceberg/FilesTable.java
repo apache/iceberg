@@ -22,46 +22,46 @@ package org.apache.iceberg;
 import java.util.List;
 
 /**
- * A {@link Table} implementation that exposes a table's data files as rows.
+ * A {@link Table} implementation that exposes a table's files as rows.
  */
-public class DataFilesTable extends BaseFilesTable {
+public class FilesTable extends BaseFilesTable {
 
-  DataFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".data_files");
+  FilesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".files");
   }
 
-  DataFilesTable(TableOperations ops, Table table, String name) {
+  FilesTable(TableOperations ops, Table table, String name) {
     super(ops, table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new DataFilesTableScan(operations(), table(), schema());
+    return new FilesTableScan(operations(), table(), schema());
   }
 
   @Override
   MetadataTableType metadataTableType() {
-    return MetadataTableType.DATA_FILES;
+    return MetadataTableType.FILES;
   }
 
-  public static class DataFilesTableScan extends BaseFilesTableScan {
+  public static class FilesTableScan extends BaseFilesTableScan {
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.DATA_FILES);
+    FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
+      super(ops, table, fileSchema, MetadataTableType.FILES);
     }
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
-      super(ops, table, schema, fileSchema, context, MetadataTableType.DATA_FILES);
+    FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
+      super(ops, table, schema, fileSchema, context, MetadataTableType.FILES);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DataFilesTableScan(ops, table, schema, fileSchema(), context);
+      return new FilesTableScan(ops, table, schema, fileSchema(), context);
     }
 
     @Override
     protected List<ManifestFile> manifests() {
-      return snapshot().dataManifests();
+      return snapshot().allManifests();
     }
   }
 }

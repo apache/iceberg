@@ -328,7 +328,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanNoFilter() {
+  public void testDataFilesTableScanNoFilter() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -349,7 +349,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanAndFilter() {
+  public void testDataFilesTableScanAndFilter() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -364,7 +364,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanAndFilterWithPlanTasks() {
+  public void testDataFilesTableScanAndFilterWithPlanTasks() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -379,7 +379,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanLtFilter() {
+  public void testDataFilesTableScanLtFilter() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -393,7 +393,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanOrFilter() {
+  public void testDataFilesTableScanOrFilter() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -412,7 +412,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesScanNotFilter() {
+  public void testDataFilesScanNotFilter() {
     preparePartitionedTable();
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
@@ -426,7 +426,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanInFilter() {
+  public void testDataFilesTableScanInFilter() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -442,7 +442,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanNotNullFilter() {
+  public void testDataFilesTableScanNotNullFilter() {
     preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
@@ -477,6 +477,23 @@ public class TestMetadataTableScans extends TableTestBase {
         required(103, "record_count", Types.LongType.get(), "Number of records in the file")
     ).asStruct();
     Assert.assertEquals(expected, scan.schema().asStruct());
+  }
+
+  @Test
+  public void testFilesTableScanAndFilter() {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+
+    preparePartitionedTable();
+
+    Table filesTable = new FilesTable(table.ops(), table);
+
+    Expression andEquals = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scan = filesTable.newScan().filter(andEquals);
+    CloseableIterable<FileScanTask> tasks = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasks));
+    validateFileScanTasks(tasks, 0);
   }
 
   @Test

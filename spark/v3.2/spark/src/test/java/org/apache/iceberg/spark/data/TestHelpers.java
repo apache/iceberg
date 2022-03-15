@@ -700,6 +700,10 @@ public class TestHelpers {
     }
   }
 
+  public static List<ManifestFile> dataManifests(Table table) {
+    return table.currentSnapshot().dataManifests();
+  }
+
   public static List<ManifestFile> deleteManifests(Table table) {
     return table.currentSnapshot().deleteManifests();
   }
