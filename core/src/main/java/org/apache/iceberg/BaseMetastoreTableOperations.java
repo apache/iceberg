@@ -119,6 +119,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       if (base != null) {
         throw new CommitFailedException("Cannot commit: stale table metadata");
       } else {
+        // when current is non-null, the table exists. but when base is null, the commit is trying to create the table
         throw new AlreadyExistsException("Table already exists: %s", tableName());
       }
     }
