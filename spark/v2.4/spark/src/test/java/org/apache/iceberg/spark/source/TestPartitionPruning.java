@@ -356,7 +356,7 @@ public class TestPartitionPruning {
   public static class CountOpenLocalFileSystem extends RawLocalFileSystem {
     public static String scheme = String.format("TestIdentityPartitionData%dfs",
         new Random().nextInt());
-    public static ConcurrentHashMap<String, Long> pathToNumOpenCalled = new ConcurrentHashMap<>();
+    public static Map<String, Long> pathToNumOpenCalled = Maps.newConcurrentMap();
 
     public static String convertPath(String absPath) {
       return scheme + "://" + absPath;
