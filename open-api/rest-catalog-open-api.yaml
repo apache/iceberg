@@ -432,7 +432,7 @@ paths:
         Commit updates to a table.
 
         Commits have two parts, requirements and updates. Requirements are assertions that will be validated
-        before attempting to make and commit changes. For example, assert-ref-snapshot-id will check that a
+        before attempting to make and commit changes. For example, `assert-ref-snapshot-id` will check that a
         named ref's snapshot ID has a certain value.
 
         Updates are changes to make to table metadata. For example, after asserting that the current main ref
@@ -1226,7 +1226,7 @@ components:
         
         - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
 
-        - assert-ref-snapshot-id - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+        - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
         
         - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
         
