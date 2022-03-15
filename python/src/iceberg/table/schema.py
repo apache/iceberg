@@ -19,13 +19,10 @@ import sys
 from typing import Iterable, Tuple
 
 if sys.version_info >= (3, 8):  # pragma: no cover
+    from functools import singledispatchmethod
     from typing import Protocol
 else:  # pragma: no cover
     from typing_extensions import Protocol  # type: ignore
-
-if sys.version_info >= (3, 8):  # pragma: no cover
-    from functools import singledispatchmethod
-else:  # pragma: no cover
     from singledispatch import singledispatchmethod  # type: ignore
 
 from iceberg.types import IcebergType, ListType, MapType, NestedField, StructType
