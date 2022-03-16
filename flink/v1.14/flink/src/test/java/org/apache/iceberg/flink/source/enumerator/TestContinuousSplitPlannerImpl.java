@@ -32,6 +32,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
+import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,9 +46,6 @@ public class TestContinuousSplitPlannerImpl {
   public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private static final FileFormat fileFormat = FileFormat.PARQUET;
-  private static final ScanContext scanContext = ScanContext.builder()
-      .project(TestFixtures.SCHEMA)
-      .build();
   private static final AtomicLong randomSeed = new AtomicLong();
 
   @Rule
@@ -69,12 +67,13 @@ public class TestContinuousSplitPlannerImpl {
 
   @Test
   public void testContinuousEnumerator() throws Exception {
-    IcebergEnumeratorConfig config = IcebergEnumeratorConfig.builder()
-        .splitDiscoveryInterval(Duration.ofMinutes(5L))
-        .startingStrategy(IcebergEnumeratorConfig.StartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+    ScanContext scanContext = ScanContext.builder()
+        .streaming(true)
+        .monitorInterval(Duration.ofMillis(10L))
+        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
         .build();
     ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
-        tableResource.table(), config, scanContext);
+        tableResource.table(), scanContext);
 
     ContinuousEnumerationResult result1 = splitPlanner.planSplits(null);
     Assert.assertEquals(snapshot1.snapshotId(), result1.position().endSnapshotId());

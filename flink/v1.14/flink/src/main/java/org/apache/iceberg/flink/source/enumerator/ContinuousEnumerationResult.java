@@ -23,7 +23,6 @@ import java.util.Collection;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
 class ContinuousEnumerationResult {
-
   private final Collection<IcebergSourceSplit> splits;
   private final IcebergEnumeratorPosition position;
 

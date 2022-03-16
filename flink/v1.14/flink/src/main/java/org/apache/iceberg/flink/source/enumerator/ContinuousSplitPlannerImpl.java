@@ -30,8 +30,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
+import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,29 +41,15 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(ContinuousSplitPlannerImpl.class);
 
   private final Table table;
-  private final IcebergEnumeratorConfig config;
   private final ScanContext scanContext;
   private final ExecutorService workerPool;
 
-  public ContinuousSplitPlannerImpl(Table table, IcebergEnumeratorConfig config, ScanContext scanContext) {
+  public ContinuousSplitPlannerImpl(Table table, ScanContext scanContext) {
     this.table = table;
-    this.config = config;
     this.scanContext = scanContext;
     // Within a JVM, table name should be unique across sources.
     // Hence it is used as worker pool thread name prefix.
     this.workerPool = ThreadPools.newWorkerPool("iceberg-worker-pool-" + table.name(), scanContext.planParallelism());
-    validate();
-  }
-
-  private void validate() {
-    Preconditions.checkArgument(scanContext.snapshotId() == null,
-        "Can't set snapshotId in ScanContext for continuous enumerator");
-    Preconditions.checkArgument(scanContext.asOfTimestamp() == null,
-        "Can't set asOfTimestamp in ScanContext for continuous enumerator");
-    Preconditions.checkArgument(scanContext.startSnapshotId() == null,
-        "Can't set startSnapshotId in ScanContext for continuous enumerator");
-    Preconditions.checkArgument(scanContext.endSnapshotId() == null,
-        "Can't set endSnapshotId in ScanContext for continuous enumerator");
   }
 
   @Override
@@ -103,15 +89,15 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   }
 
   /**
-   * Discovery initial set of splits based on {@link IcebergEnumeratorConfig.StartingStrategy}
+   * Discovery initial set of splits based on {@link StreamingStartingStrategy}
    */
   private ContinuousEnumerationResult discoverInitialSplits() {
-    HistoryEntry startSnapshotEntry = getStartSnapshot(table, config);
+    HistoryEntry startSnapshotEntry = getStartSnapshot(table, scanContext);
     LOG.info("get startSnapshotId {} based on starting strategy {}",
-        startSnapshotEntry.snapshotId(), config.startingStrategy());
+        startSnapshotEntry.snapshotId(), scanContext.startingStrategy());
     List<IcebergSourceSplit> splits;
-    if (config.startingStrategy() ==
-        IcebergEnumeratorConfig.StartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
+    if (scanContext.startingStrategy() ==
+        StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
       // do a full table scan first
       splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
       LOG.info("Discovered {} splits from initial full table scan with snapshotId {}",
@@ -128,10 +114,10 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   }
 
   @VisibleForTesting
-  static HistoryEntry getStartSnapshot(Table table, IcebergEnumeratorConfig enumeratorConfig) {
+  static HistoryEntry getStartSnapshot(Table table, ScanContext scanContext) {
     List<HistoryEntry> historyEntries = table.history();
     HistoryEntry startEntry;
-    switch (enumeratorConfig.startingStrategy()) {
+    switch (scanContext.startingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case LATEST_SNAPSHOT:
         startEntry = historyEntries.get(historyEntries.size() - 1);
@@ -141,29 +127,29 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
         break;
       case SPECIFIC_START_SNAPSHOT_ID:
         Optional<HistoryEntry> matchedEntry = historyEntries.stream()
-            .filter(entry -> entry.snapshotId() == enumeratorConfig.startSnapshotId())
+            .filter(entry -> entry.snapshotId() == scanContext.startSnapshotId())
             .findFirst();
         if (matchedEntry.isPresent()) {
           startEntry = matchedEntry.get();
         } else {
           throw new IllegalArgumentException(
-              "Snapshot id not found in history: {}" + enumeratorConfig.startSnapshotId());
+              "Snapshot id not found in history: {}" + scanContext.startSnapshotId());
         }
         break;
       case SPECIFIC_START_SNAPSHOT_TIMESTAMP:
         Optional<HistoryEntry> opt = findSnapshotHistoryEntryByTimestamp(
-            enumeratorConfig.startSnapshotTimeMs(), historyEntries);
+            scanContext.startSnapshotTimestamp(), historyEntries);
         if (opt.isPresent()) {
           startEntry = opt.get();
         } else {
           throw new IllegalArgumentException(
               "Failed to find a start snapshot in history using timestamp: " +
-                  enumeratorConfig.startSnapshotTimeMs());
+                  scanContext.startSnapshotTimestamp());
         }
         break;
       default:
         throw new IllegalArgumentException("Unknown starting strategy: " +
-            enumeratorConfig.startingStrategy());
+            scanContext.startingStrategy());
     }
 
     return startEntry;
