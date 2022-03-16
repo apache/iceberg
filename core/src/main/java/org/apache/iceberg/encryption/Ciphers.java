@@ -25,6 +25,7 @@ import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class Ciphers {
   private static final int NONCE_LENGTH = 12;
@@ -38,10 +39,8 @@ public class Ciphers {
 
     public AesGcmEncryptor(byte[] keyBytes) {
       int keyLength = keyBytes.length;
-      if (!(keyLength == 16 || keyLength == 24 || keyLength == 32)) {
-        throw new IllegalArgumentException("Cannot use a key of length " + keyLength +
-            " because AES only allows 16, 24 or 32 bytes");
-      }
+      Preconditions.checkArgument((keyLength == 16 || keyLength == 24 || keyLength == 32),
+          "Cannot use a key of length " + keyLength + " because AES only allows 16, 24 or 32 bytes");
       this.aesKey = new SecretKeySpec(keyBytes, "AES");
 
       try {
@@ -83,11 +82,8 @@ public class Ciphers {
 
     public AesGcmDecryptor(byte[] keyBytes) {
       int keyLength = keyBytes.length;
-      if (!(keyLength == 16 || keyLength == 24 || keyLength == 32)) {
-        throw new IllegalArgumentException("Cannot use a key of length " + keyLength +
-            " because AES only allows 16, 24 or 32 bytes");
-      }
-
+      Preconditions.checkArgument((keyLength == 16 || keyLength == 24 || keyLength == 32),
+          "Cannot use a key of length " + keyLength + " because AES only allows 16, 24 or 32 bytes");
       this.aesKey = new SecretKeySpec(keyBytes, "AES");
 
       try {
@@ -99,11 +95,10 @@ public class Ciphers {
 
     public byte[] decrypt(byte[] ciphertext, byte[] aad)  {
       int plainTextLength = ciphertext.length - GCM_TAG_LENGTH - NONCE_LENGTH;
-      if (plainTextLength < 1) {
-        throw new RuntimeException("Cannot decrypt cipher text of length " + ciphertext.length +
-            " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted" +
-            " with AES GCM cipher");
-      }
+      Preconditions.checkState(plainTextLength >= 1,
+          "Cannot decrypt cipher text of length " + ciphertext.length +
+          " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted" +
+          " with AES GCM cipher");
 
       // Get the nonce from ciphertext
       byte[] nonce = new byte[NONCE_LENGTH];

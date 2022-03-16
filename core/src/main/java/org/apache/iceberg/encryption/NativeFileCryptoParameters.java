@@ -29,9 +29,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public class NativeFileCryptoParameters {
   private ByteBuffer fileKey;
-  private String fileEncryptionAlgorithm;
+  private EncryptionAlgorithm fileEncryptionAlgorithm;
 
-  private NativeFileCryptoParameters(ByteBuffer fileKey, String fileEncryptionAlgorithm) {
+  private NativeFileCryptoParameters(ByteBuffer fileKey, EncryptionAlgorithm fileEncryptionAlgorithm) {
     Preconditions.checkState(fileKey != null, "File encryption key is not supplied");
     this.fileKey = fileKey;
     this.fileEncryptionAlgorithm = fileEncryptionAlgorithm;
@@ -48,13 +48,13 @@ public class NativeFileCryptoParameters {
 
   public static class Builder {
     private ByteBuffer fileKey;
-    private String fileEncryptionAlgorithm;
+    private EncryptionAlgorithm fileEncryptionAlgorithm;
 
     private Builder(ByteBuffer fileKey) {
       this.fileKey = fileKey;
     }
 
-    public Builder encryptionAlgorithm(String encryptionAlgorithm) {
+    public Builder encryptionAlgorithm(EncryptionAlgorithm encryptionAlgorithm) {
       this.fileEncryptionAlgorithm = encryptionAlgorithm;
       return this;
     }
@@ -62,17 +62,13 @@ public class NativeFileCryptoParameters {
     public NativeFileCryptoParameters build() {
       return new NativeFileCryptoParameters(fileKey, fileEncryptionAlgorithm);
     }
-
-    // TODO add back column encryption keys
-
-    // TODO add back AAD prefix (cryptographic file identity)
   }
 
   public ByteBuffer fileKey() {
     return fileKey;
   }
 
-  public String encryptionAlgorithm() {
+  public EncryptionAlgorithm encryptionAlgorithm() {
     return fileEncryptionAlgorithm;
   }
 }
