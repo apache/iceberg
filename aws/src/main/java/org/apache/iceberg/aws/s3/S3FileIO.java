@@ -67,7 +67,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
   private transient S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private Set<Tag> writeTags;
+  private Set<Tag> writeTags = Sets.newHashSet();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
