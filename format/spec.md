@@ -53,7 +53,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 * **Evolution** -- Tables will support full schema and partition spec evolution. Schema evolution supports safe column add, drop, reorder and rename, including in nested structures.
 * **Dependable types** -- Tables will provide well-defined and dependable support for a core set of types.
 * **Storage separation** -- Partitioning will be table configuration. Reads will be planned using predicates on data values, not partition values. Tables will support evolving partition schemes.
-* **Formats** -- Underlying data file formats will support identical schema evolution rules and types. Both read-optimized and write-optimized formats will be available.
+* **Formats** -- Underlying data file formats will support identical schema evolution rules and types. Both read- and write-optimized formats will be available.
 
 ## Overview
 
