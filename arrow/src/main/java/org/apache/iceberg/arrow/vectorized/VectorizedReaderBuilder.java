@@ -130,12 +130,12 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     if (desc.getMaxRepetitionLevel() > 0) {
       return null;
     }
-    Types.NestedField originalField = icebergSchema.findField(parquetFieldId);
-    if (originalField == null) {
+    Types.NestedField logicalType = icebergSchema.findField(parquetFieldId);
+    if (logicalType == null) {
       return null;
     }
 
-    Types.NestedField icebergField = originalField;
+    Types.NestedField physicalType = logicalType;
     PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
     if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
       org.apache.iceberg.types.Type type;
@@ -149,10 +149,10 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         // We use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
-      icebergField = Types.NestedField.of(
-          originalField.fieldId(), originalField.isOptional(), originalField.name(), type);
+      physicalType = Types.NestedField.of(
+          logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
     }
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(desc, icebergField, originalField, rootAllocator, setArrowValidityVector);
+    return new VectorizedArrowReader(desc, physicalType, logicalType, rootAllocator, setArrowValidityVector);
   }
 }

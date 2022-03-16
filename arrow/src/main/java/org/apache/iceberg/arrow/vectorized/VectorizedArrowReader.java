@@ -65,7 +65,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
   private final Types.NestedField icebergField;
-  private final Types.NestedField originalIcebergField;
+  private final Types.NestedField logicalTypeField;
   private final BufferAllocator rootAlloc;
 
   private int batchSize;
@@ -87,7 +87,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       BufferAllocator ra,
       boolean setArrowValidityVector) {
     this.icebergField = icebergField;
-    this.originalIcebergField = icebergField;
+    this.logicalTypeField = icebergField;
     this.columnDescriptor = desc;
     this.rootAlloc = ra;
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
@@ -96,11 +96,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public VectorizedArrowReader(
       ColumnDescriptor desc,
       Types.NestedField icebergField,
-      Types.NestedField originalIcebergField,
+      Types.NestedField logicalTypeField,
       BufferAllocator ra,
       boolean setArrowValidityVector) {
     this.icebergField = icebergField;
-    this.originalIcebergField = originalIcebergField;
+    this.logicalTypeField = logicalTypeField;
     this.columnDescriptor = desc;
     this.rootAlloc = ra;
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
@@ -108,7 +108,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private VectorizedArrowReader() {
     this.icebergField = null;
-    this.originalIcebergField = null;
+    this.logicalTypeField = null;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
     this.rootAlloc = null;
@@ -206,7 +206,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.getValueCount(),
         numValsToRead);
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type(), originalIcebergField.type());
+        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type(), logicalTypeField.type());
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {

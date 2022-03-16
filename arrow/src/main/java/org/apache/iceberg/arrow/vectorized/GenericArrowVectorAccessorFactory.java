@@ -114,7 +114,6 @@ public class GenericArrowVectorAccessorFactory<
           ColumnDescriptor desc,
           FieldVector vector,
           PrimitiveType primitive) {
-    Preconditions.checkState(primitive != null, "Primitive should not be null");
     Preconditions.checkState(
         vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
     if (primitive.getOriginalType() != null) {
