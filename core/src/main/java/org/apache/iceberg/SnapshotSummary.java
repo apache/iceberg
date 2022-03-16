@@ -54,6 +54,8 @@ public class SnapshotSummary {
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
   public static final String EXTRA_METADATA_PREFIX = "snapshot-property.";
+  public static final String FLINK_JOB_ID = "flink.job-id";
+  public static final String FLINK_MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
