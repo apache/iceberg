@@ -49,9 +49,9 @@ import static org.apache.spark.sql.functions.when;
  * Benchmark to compare performance of reading Parquet decimal data using vectorized Iceberg read path and
  * the built-in file source in Spark.
  * <p>
- * To run this benchmark for either spark-2 or spark-3:
+ * To run this benchmark for spark-3.2:
  * <code>
- *   ./gradlew :iceberg-spark[2|3]:jmh
+ *   ./gradlew :iceberg-spark-3.2_2.12:jmh
  *       -PjmhIncludeRegex=VectorizedReadParquetDecimalBenchmark
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>
