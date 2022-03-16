@@ -170,7 +170,7 @@ Metadata tables are identified by adding the metadata table name after the origi
 {{< hint info >}}
 For Spark 2.4, use the `DataFrameReader` API to [inspect tables](#inspecting-with-dataframes).
 
-For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#replacing-the-session-catalog) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. As a workaround, configure a catalog that uses `org.apache.iceberg.spark.SparkCatalog`, or use the Spark `DataFrameReader` API.
+For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#replacing-the-session-catalog) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. As a workaround, configure an `org.apache.iceberg.spark.SparkCatalog`, or use the Spark `DataFrameReader` API.
 {{< /hint >}}
 
 ### History
