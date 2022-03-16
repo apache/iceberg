@@ -379,7 +379,7 @@ abstract class BaseRewriteDataFilesSparkAction
         "Cannot set %s to %s, the value must be positive.",
         MAX_CONCURRENT_FILE_GROUP_REWRITES, maxConcurrentFileGroupRewrites);
 
-    Preconditions.checkArgument(!partialProgressEnabled || partialProgressEnabled && maxCommits > 0,
+    Preconditions.checkArgument(!partialProgressEnabled || maxCommits > 0,
         "Cannot set %s to %s, the value must be positive when %s is true",
         PARTIAL_PROGRESS_MAX_COMMITS, maxCommits, PARTIAL_PROGRESS_ENABLED);
   }

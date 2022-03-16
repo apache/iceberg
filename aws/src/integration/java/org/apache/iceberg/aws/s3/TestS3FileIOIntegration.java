@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -36,6 +37,7 @@ import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -67,6 +69,7 @@ public class TestS3FileIOIntegration {
   private static byte[] contentBytes;
   private static String content;
   private static String kmsKeyArn;
+  private static int deletionBatchSize;
   private String objectKey;
   private String objectUri;
 
@@ -78,6 +81,7 @@ public class TestS3FileIOIntegration {
     bucketName = AwsIntegTestUtil.testBucketName();
     prefix = UUID.randomUUID().toString();
     contentBytes = new byte[1024 * 1024 * 10];
+    deletionBatchSize = 3;
     content = new String(contentBytes, StandardCharsets.UTF_8);
     kmsKeyArn = kms.createKey().keyMetadata().arn();
   }
@@ -208,8 +212,49 @@ public class TestS3FileIOIntegration {
     validateRead(fileIO2);
   }
 
+  @Test
+  public void testDeleteFilesMultipleBatches() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    testDeleteFiles(deletionBatchSize * 2, s3FileIO);
+  }
+
+  @Test
+  public void testDeleteFilesLessThanBatchSize() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    testDeleteFiles(deletionBatchSize - 1, s3FileIO);
+  }
+
+  @Test
+  public void testDeleteFilesSingleBatchWithRemainder() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    testDeleteFiles(5, s3FileIO);
+  }
+
+  private AwsProperties getDeletionTestProperties() {
+    AwsProperties properties = new AwsProperties();
+    properties.setS3FileIoDeleteBatchSize(deletionBatchSize);
+    return properties;
+  }
+
+  private void testDeleteFiles(int numObjects, S3FileIO s3FileIO) throws Exception {
+    List<String> paths = Lists.newArrayList();
+    for (int i = 1; i <= numObjects; i++) {
+      String deletionKey = objectKey + "-deletion-" + i;
+      write(s3FileIO, String.format("s3://%s/%s", bucketName, deletionKey));
+      paths.add(String.format("s3://%s/%s", bucketName, deletionKey));
+    }
+    s3FileIO.deleteFiles(paths);
+    for (String path : paths) {
+      Assert.assertFalse(s3FileIO.newInputFile(path).exists());
+    }
+  }
+
   private void write(S3FileIO s3FileIO) throws Exception {
-    OutputFile outputFile = s3FileIO.newOutputFile(objectUri);
+    write(s3FileIO, objectUri);
+  }
+
+  private void write(S3FileIO s3FileIO, String uri) throws Exception {
+    OutputFile outputFile = s3FileIO.newOutputFile(uri);
     OutputStream outputStream = outputFile.create();
     IoUtils.copy(new ByteArrayInputStream(contentBytes), outputStream);
     outputStream.close();

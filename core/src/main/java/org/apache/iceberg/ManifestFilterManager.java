@@ -350,18 +350,25 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles || canContainDropBySeq;
   }
 
-  @SuppressWarnings("CollectionUndefinedEquality")
+  @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
   private boolean manifestHasDeletedFiles(PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
     boolean hasDeletedFiles = false;
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
-      boolean fileDelete = deletePaths.contains(file.path()) ||
+      boolean markedForDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
           (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
-      if (fileDelete || evaluator.rowsMightMatch(file)) {
+
+      boolean nonMatchingDeleteFile = !file.content().equals(FileContent.DATA) && !evaluator.rowsMustMatch(file);
+      if (!markedForDelete && nonMatchingDeleteFile) {
+        // not all DeleteFiles removal can be handled by metadata operation, skip in this case
+        continue;
+      }
+
+      if (markedForDelete || evaluator.rowsMightMatch(file)) {
         ValidationException.check(
-            fileDelete || evaluator.rowsMustMatch(file),
+            markedForDelete || evaluator.rowsMustMatch(file),
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 
