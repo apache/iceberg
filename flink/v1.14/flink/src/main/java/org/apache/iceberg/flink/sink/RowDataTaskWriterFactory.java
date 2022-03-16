@@ -20,9 +20,13 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -35,9 +39,16 @@ import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaTaskWriter.class);
+
   private final Table table;
   private final Schema schema;
   private final RowType flinkSchema;
@@ -51,6 +62,9 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private transient OutputFileFactory outputFileFactory;
 
+  // This is a good candidate to update. But I think there was a config backported to
+  // 0.14.3 that needs to be set to not materialize _only_ +I during upsert.
+  //
   public RowDataTaskWriterFactory(Table table,
                                   RowType flinkSchema,
                                   long targetFileSizeBytes,
@@ -67,13 +81,41 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.equalityFieldIds = equalityFieldIds;
     this.upsert = upsert;
 
+    // Check if the present partition spec is equivalent to the equality field ids (case that is currently failing).
+    Set<Integer> partitionFieldIds =
+          table.spec().fields().stream().map(PartitionField::sourceId).collect(Collectors.toSet());
+
+    // LOG.error("equalityFieldIds are: {}", ImmutableSet.copyOf(equalityFieldIds));
+    // LOG.error("partitionFieldIds are: {}", ImmutableSet.copyOf(partitionFieldIds));
+    // Schema eqDeleteRowSchema = null;
+    // if (Objects.equals(partitionFieldIds, equalityFieldIdsSet)) {
+    //   eqDeleteRowSchema = TypeUtil.select(schema, Sets.difference(equalityFieldIdsSet, partitionFieldIds));
+    // } else {
+    //   eqDeleteRowSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
+    // }
+
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
     } else {
-      // TODO provide the ability to customize the equality-delete row schema.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
-          ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+      if (table.spec().isPartitioned() && !equalityFieldsMatchTablePartitionFieldSources()) {
+        this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
+            ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
+      } else {
+        this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
+            ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+      }
     }
+  }
+
+  private boolean equalityFieldsMatchTablePartitionFieldSources() {
+    if (equalityFieldIds == null) {
+      return false; // Should maybe throw here instead.
+    }
+
+    Set<Integer> partitionFieldIds =
+        spec.fields().stream().map(PartitionField::sourceId).collect(Collectors.toSet());
+
+    return Objects.equals(partitionFieldIds, Sets.newHashSet(equalityFieldIds));
   }
 
   @Override

@@ -437,6 +437,7 @@ public class FlinkSink {
       return writerStream;
     }
 
+    // This might need to be updated.
     private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
                                                      Map<String, String> properties,
                                                      List<Integer> equalityFieldIds,

@@ -72,6 +72,8 @@ public class RowDataRewriter {
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
+    // TODO - Does this need to be updated to include equality-field-ids for rewrites?
+    //        I don't think so but I'm going to add a test.
     this.taskWriterFactory = new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table),
         flinkSchema,
