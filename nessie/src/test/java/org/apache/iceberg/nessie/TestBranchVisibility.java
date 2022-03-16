@@ -110,6 +110,19 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   @Test
+  public void testCatalogInitialHash() {
+    updateSchema(testCatalog, tableIdentifier2);
+    String hash = "f1234d75178d892a133a410355a5a990cf75d2f33eba25d575943d4df632f3a4";
+    NessieCatalog refCatalog = initCatalog("test", hash);
+    Assertions.assertThat(refCatalog.initialHash()).isEqualTo(hash);
+    Assertions.assertThat(refCatalog.currentHash()).isEqualTo(refCatalog.initialHash());
+    // reset initial hash
+    refCatalog = initCatalog("test", null);
+    Assertions.assertThat(refCatalog.initialHash()).isEqualTo(null);
+    Assertions.assertThat(refCatalog.currentHash()).isEqualTo(null);
+  }
+
+  @Test
   public void testCatalogWithTableNames() {
     updateSchema(testCatalog, tableIdentifier2);
 

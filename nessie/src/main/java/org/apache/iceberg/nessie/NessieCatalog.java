@@ -87,6 +87,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private String name;
   private FileIO fileIO;
   private Map<String, String> catalogOptions;
+  private String initialHash;
 
   public NessieCatalog() {
   }
@@ -127,7 +128,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
     final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
-    this.reference = loadReference(requestedRef, null);
+    initialHash = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
+    this.reference = loadReference(requestedRef, initialHash);
   }
 
   private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
@@ -161,7 +163,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
         "timestamp is not supported)");
     UpdateableReference newReference = this.reference;
     if (tr.getReference() != null) {
-      newReference = loadReference(tr.getReference(), tr.getHash());
+      // use the initialHash when hash is not specified.
+      String hash = tr.getHash() == null ? initialHash : tr.getHash();
+      newReference = loadReference(tr.getReference(), hash);
     }
     return new NessieTableOperations(
         ContentKey.of(org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()), tr.getName()),
@@ -356,6 +360,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   @VisibleForTesting
+  String initialHash() {
+    return initialHash;
+  }
+
+  @VisibleForTesting
   String currentRefName() {
     return reference.getName();
   }
@@ -379,12 +388,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     try {
       Reference ref = requestedRef == null ? api.getDefaultBranch()
           : api.getReference().refName(requestedRef).get();
-      if (hash != null) {
-        if (ref instanceof Branch) {
-          ref = Branch.of(ref.getName(), hash);
-        } else {
-          ref = Tag.of(ref.getName(), hash);
-        }
+      if (ref instanceof Branch) {
+        ref = Branch.of(ref.getName(), hash);
+      } else {
+        ref = Tag.of(ref.getName(), hash);
       }
       return new UpdateableReference(ref, hash != null);
     } catch (NessieNotFoundException ex) {
