@@ -74,4 +74,11 @@ public interface ActionsProvider {
   default DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement deleteReachableFiles");
   }
+
+  /**
+   * Instantiates an action to generate CDC records.
+   */
+  default Cdc generateCdcRecords(Table table) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement generateCdcRecords");
+  }
 }

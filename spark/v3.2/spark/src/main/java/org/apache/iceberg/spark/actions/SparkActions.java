@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.Cdc;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.DeleteReachableFiles;
 import org.apache.iceberg.actions.ExpireSnapshots;
@@ -94,5 +95,10 @@ public class SparkActions implements ActionsProvider {
   @Override
   public DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
     return new BaseDeleteReachableFilesSparkAction(spark, metadataLocation);
+  }
+
+  @Override
+  public Cdc generateCdcRecords(Table table) {
+    return new BaseCdcSparkAction(spark, table);
   }
 }

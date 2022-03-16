@@ -41,7 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 
-class ManifestGroup {
+public class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
 
   private final FileIO io;
@@ -55,6 +55,8 @@ class ManifestGroup {
   private Expression partitionFilter;
   private boolean ignoreDeleted;
   private boolean ignoreExisting;
+  private boolean ignoreAdded;
+  private boolean onlyWithDeletes;
   private boolean ignoreResiduals;
   private List<String> columns;
   private boolean caseSensitive;
@@ -66,7 +68,7 @@ class ManifestGroup {
         Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DELETES));
   }
 
-  ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests) {
+  public ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests) {
     this.io = io;
     this.dataManifests = Sets.newHashSet(dataManifests);
     this.deleteIndexBuilder = DeleteFileIndex.builderFor(io, deleteManifests);
@@ -75,6 +77,8 @@ class ManifestGroup {
     this.partitionFilter = Expressions.alwaysTrue();
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
+    this.ignoreAdded = false;
+    this.onlyWithDeletes = false;
     this.ignoreResiduals = false;
     this.columns = ManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
@@ -82,13 +86,13 @@ class ManifestGroup {
     this.manifestEntryPredicate = e -> true;
   }
 
-  ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
+  public ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
     this.specsById = newSpecsById;
     deleteIndexBuilder.specsById(newSpecsById);
     return this;
   }
 
-  ManifestGroup filterData(Expression newDataFilter) {
+  public ManifestGroup filterData(Expression newDataFilter) {
     this.dataFilter = Expressions.and(dataFilter, newDataFilter);
     deleteIndexBuilder.filterData(newDataFilter);
     return this;
@@ -122,6 +126,16 @@ class ManifestGroup {
 
   ManifestGroup ignoreExisting() {
     this.ignoreExisting = true;
+    return this;
+  }
+
+  public ManifestGroup ignoreAdded() {
+    this.ignoreAdded = true;
+    return this;
+  }
+
+  public ManifestGroup onlyWithDeletes() {
+    this.onlyWithDeletes = true;
     return this;
   }
 
@@ -180,7 +194,7 @@ class ManifestGroup {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
             e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       }
-    });
+    }, deleteFiles);
 
     if (executorService != null) {
       return new ParallelIterable<>(tasks, executorService);
@@ -198,11 +212,13 @@ class ManifestGroup {
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry<DataFile>> entries() {
-    return CloseableIterable.concat(entries((manifest, entries) -> entries));
+    return CloseableIterable.concat(entries((manifest, entries) -> entries, null));
   }
 
+  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   private <T> Iterable<CloseableIterable<T>> entries(
-      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
+      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn,
+      DeleteFileIndex deleteFiles) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
         null : Caffeine.newBuilder().build(specId -> {
           PartitionSpec spec = specsById.get(specId);
@@ -237,6 +253,12 @@ class ManifestGroup {
           manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
     }
 
+    if (ignoreAdded) {
+      // only scan manifests that have entries other than added
+      matchingManifests = Iterables.filter(matchingManifests,
+          manifest -> manifest.hasExistingFiles() || manifest.hasDeletedFiles());
+    }
+
     matchingManifests = Iterables.filter(matchingManifests, manifestPredicate::test);
 
     return Iterables.transform(
@@ -258,6 +280,16 @@ class ManifestGroup {
                 entry -> entry.status() != ManifestEntry.Status.EXISTING);
           }
 
+          if (ignoreAdded) {
+            entries = CloseableIterable.filter(entries,
+                entry -> entry.status() != ManifestEntry.Status.ADDED);
+          }
+
+          if (onlyWithDeletes) {
+            entries = CloseableIterable.filter(entries,
+                entry -> hasDeletes(entry, deleteFiles));
+          }
+
           if (evaluator != null) {
             entries = CloseableIterable.filter(entries,
                 entry -> evaluator.eval((GenericDataFile) entry.file()));
@@ -266,5 +298,10 @@ class ManifestGroup {
           entries = CloseableIterable.filter(entries, manifestEntryPredicate);
           return entryFn.apply(manifest, entries);
         });
+  }
+
+  private boolean hasDeletes(ManifestEntry<DataFile> entry, DeleteFileIndex deleteFiles) {
+    DeleteFile[] deleteFileArray = deleteFiles.forEntry(entry);
+    return deleteFileArray.length > 0;
   }
 }

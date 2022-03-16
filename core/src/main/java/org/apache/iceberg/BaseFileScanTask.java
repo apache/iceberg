@@ -47,6 +47,10 @@ public class BaseFileScanTask implements FileScanTask {
     this.residuals = residuals;
   }
 
+  public BaseFileScanTask cloneWithoutDeletes() {
+    return new BaseFileScanTask(file, null, schemaString, specString, residuals);
+  }
+
   @Override
   public DataFile file() {
     return file;

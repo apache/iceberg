@@ -153,10 +153,15 @@ public class IcebergArrowColumnVector extends ColumnVector {
     return accessor.childColumn(ordinal);
   }
 
-  static ColumnVector forHolder(VectorHolder holder, int numRows) {
-    return holder.isDummy() ?
-        new ConstantColumnVector(Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant()) :
-        new IcebergArrowColumnVector(holder);
+  static ColumnVector forHolder(VectorHolder holder, int numRows, boolean[] isDeleted) {
+    if (holder.isDummy()) {
+      if (holder instanceof VectorHolder.DeletedVectorHolder) {
+        return new DeletedMetaColumnVector(Types.BooleanType.get(), isDeleted);
+      }
+      return new ConstantColumnVector(Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant());
+    }
+
+    return new IcebergArrowColumnVector(holder);
   }
 
   public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> vectorAccessor() {
