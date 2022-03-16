@@ -115,6 +115,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      */
     protected abstract StructLike asStructLike(T data);
 
+    /**
+     * Projects onto only the equality delete columns (primary key columns)
+     * and wraps the resulting data as a {@link StructLike}
+     */
+    protected abstract StructLike asStructLikeKey(T data);
+
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
@@ -167,7 +173,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key is the projected data whose columns are the same as the equality fields.
      */
     public void deleteKey(T key) throws IOException {
-      if (!internalPosDelete(asStructLike(key))) {
+      if (!internalPosDelete(asStructLikeKey(key))) {
         eqDeleteWriter.write(key);
       }
     }

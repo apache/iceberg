@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -48,6 +49,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -444,12 +446,16 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
     private final GenericEqualityDeltaWriter deltaWriter;
+    private final List<String> eqDeleteColumns;
+    private final GenericRecord eqDeleteRecord;
 
     private GenericTaskDeltaWriter(Schema schema, Schema deleteSchema, PartitionSpec spec, FileFormat format,
                                    FileAppenderFactory<Record> appenderFactory,
                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       this.deltaWriter = new GenericEqualityDeltaWriter(null, schema, deleteSchema);
+      this.eqDeleteRecord = GenericRecord.create(deleteSchema);
+      this.eqDeleteColumns = deleteSchema.columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
     }
 
     @Override
@@ -462,7 +468,13 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     }
 
     public void deleteKey(Record key) throws IOException {
-      deltaWriter.deleteKey(key);
+      // Project onto just the equality delete schema.
+      GenericRecord keyProjection = eqDeleteRecord.copy();
+      for (String field : eqDeleteColumns) {
+        keyProjection.setField(field, key.getField(field));
+        keyProjection.setField(field, key.getField(field));
+      }
+      deltaWriter.deleteKey(keyProjection);
     }
 
     @Override
@@ -478,6 +490,11 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       @Override
       protected StructLike asStructLike(Record row) {
         return row;
+      }
+
+      @Override
+      protected StructLike asStructLikeKey(Record data) {
+        return data;
       }
     }
   }
