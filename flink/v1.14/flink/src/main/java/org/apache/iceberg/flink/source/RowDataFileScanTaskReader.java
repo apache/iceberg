@@ -191,5 +191,10 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     protected InputFile getInputFile(String location) {
       return inputFilesDecryptor.getInputFile(location);
     }
+
+    @Override
+    protected void markRowDeleted(RowData item) {
+      throw new UnsupportedOperationException("FlinkDeleteFilter.markRowDeleted() is not supported");
+    }
   }
 }

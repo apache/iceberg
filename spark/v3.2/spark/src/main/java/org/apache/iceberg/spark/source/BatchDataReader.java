@@ -154,5 +154,10 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     protected InputFile getInputFile(String location) {
       return BatchDataReader.this.getInputFile(location);
     }
+
+    @Override
+    protected void markRowDeleted(InternalRow item) {
+      throw new UnsupportedOperationException("SparkDeleteFilter.markRowDeleted() not supported");
+    }
   }
 }

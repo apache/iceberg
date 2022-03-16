@@ -21,14 +21,17 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -39,6 +42,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -46,9 +50,11 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -57,6 +63,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
+import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -65,6 +72,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
@@ -80,9 +88,9 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Parameterized.Parameters(name = "vectorized = {0}")
   public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] {false},
-        new Object[] {true}
+    return new Object[][]{
+        new Object[]{false},
+        new Object[]{true}
     };
   }
 
@@ -128,6 +136,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       table.updateProperties()
           .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true")
           .set(TableProperties.PARQUET_BATCH_SIZE, "4") // split 7 records to two batches to cover more code paths
+          .commit();
+    } else {
+      table.updateProperties()
+          .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
           .commit();
     }
     return table;
@@ -261,5 +273,192 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testPosDeletesWithDeletedColumn() throws IOException {
+    // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all deleted.
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 1L), // id = 43
+        Pair.of(dataFile.path(), 2L), // id = 61
+        Pair.of(dataFile.path(), 3L) // id = 89
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expected = expectedRowSet(29, 43, 61, 89);
+    StructLikeSet actual = rowSet(tableName, table, "id", "data", "_deleted");
+
+    validate(expected, actual);
+  }
+
+  @Test
+  public void testEqualityDeleteWithDeletedColumn() throws IOException {
+    String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .commit();
+
+    StructLikeSet actual = rowSet(tableName, table, "id", "data", "_deleted");
+    validate(expectedRowSet(29, 89, 122), actual);
+  }
+
+  @Test
+  public void testMixedPosAndEqDeletesWithDeletedColumn() throws IOException {
+    Schema dataSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(dataSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 3L), // id = 89
+        Pair.of(dataFile.path(), 5L) // id = 121
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expected = expectedRowSet(29, 89, 121, 122);
+    StructLikeSet actual = rowSet(tableName, table, "id", "data", "_deleted");
+
+    validate(expected, actual);
+  }
+
+  @Test
+  public void testFilterOnDeletedMetadataColumn() throws IOException {
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 1L), // id = 43
+        Pair.of(dataFile.path(), 2L), // id = 61
+        Pair.of(dataFile.path(), 3L) // id = 89
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    // get undeleted rows
+    StructLikeSet expected = expectedRowSet(true, false, 29, 43, 61, 89);
+
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .load(TableIdentifier.of("default", tableName).toString())
+        .select("id", "data", "_deleted")
+        .filter("_deleted = false");
+
+    Types.StructType projection = table.schema().select("id", "data", "_deleted").asStruct();
+    StructLikeSet actual = StructLikeSet.create(projection);
+    df.collectAsList().forEach(row -> {
+      SparkStructLike rowWrapper = new SparkStructLike(projection);
+      actual.add(rowWrapper.wrap(row));
+    });
+
+    validate(expected, actual);
+
+    // get deleted rows
+    expected = expectedRowSet(false, true, 29, 43, 61, 89);
+
+    df = spark.read()
+        .format("iceberg")
+        .load(TableIdentifier.of("default", tableName).toString())
+        .select("id", "data", "_deleted")
+        .filter("_deleted = true");
+
+    StructLikeSet actualDeleted = StructLikeSet.create(projection);
+    df.collectAsList().forEach(row -> {
+      SparkStructLike rowWrapper = new SparkStructLike(projection);
+      actualDeleted.add(rowWrapper.wrap(row));
+    });
+
+    validate(expected, actualDeleted);
+  }
+
+  private static final Schema PROJECTION_SCHEMA = new Schema(
+      required(100, "id", Types.LongType.get()),
+      required(101, "data", Types.StringType.get()),
+      MetadataColumns.IS_DELETED
+  );
+
+  private void validate(StructLikeSet expected, StructLikeSet actual) {
+    Assert.assertEquals("Table should contain the same number of rows", expected.size(), actual.size());
+    for (StructLike expectedRow : expected) {
+      Assert.assertTrue("Table should contain expected row", actual.contains(expectedRow));
+    }
+  }
+
+  protected static StructLikeSet expectedRowSet(int... idsToRemove) {
+    return expectedRowSet(false, false, idsToRemove);
+  }
+
+  protected static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeUndeleted, int... idsToRemove) {
+    List<Record> records = getRecordsWithDeletedColumn();
+
+    Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
+    StructLikeSet set = StructLikeSet.create(PROJECTION_SCHEMA.asStruct());
+    for (Record record : records) {
+      if (deletedIds.contains(record.getField("id"))) {
+        if (removeDeleted) {
+          continue;
+        } else {
+          record.setField(MetadataColumns.IS_DELETED.name(), true);
+        }
+      } else if (removeUndeleted) {
+        continue;
+      }
+
+      StructLike structLike = new InternalRecordWrapper(PROJECTION_SCHEMA.asStruct()).wrap(record);
+      set.add(structLike);
+    }
+    return set;
+  }
+
+  @NotNull
+  private static List getRecordsWithDeletedColumn() {
+    List records = Lists.newArrayList();
+
+    // records all use IDs that are in bucket id_bucket=0
+    GenericRecord record = GenericRecord.create(PROJECTION_SCHEMA);
+    records.add(record.copy("id", 29, "data", "a", "_deleted", false));
+    records.add(record.copy("id", 43, "data", "b", "_deleted", false));
+    records.add(record.copy("id", 61, "data", "c", "_deleted", false));
+    records.add(record.copy("id", 89, "data", "d", "_deleted", false));
+    records.add(record.copy("id", 100, "data", "e", "_deleted", false));
+    records.add(record.copy("id", 121, "data", "f", "_deleted", false));
+    records.add(record.copy("id", 122, "data", "g", "_deleted", false));
+    return records;
   }
 }

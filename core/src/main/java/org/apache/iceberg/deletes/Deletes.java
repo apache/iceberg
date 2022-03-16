@@ -22,6 +22,7 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
@@ -73,6 +74,16 @@ public class Deletes {
     return filter.filter(rows);
   }
 
+  public static <T> CloseableIterable<T> marker(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
+                                                PositionDeleteIndex deleteSet, Consumer<T> markDeleted) {
+    return CloseableIterable.transform(rows, row -> {
+      if (deleteSet.isDeleted(rowToPosition.apply(row))) {
+        markDeleted.accept(row);
+      }
+      return row;
+    });
+  }
+
   public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
     try (CloseableIterable<StructLike> deletes = eqDeletes) {
       StructLikeSet deleteSet = StructLikeSet.create(eqType);
@@ -105,6 +116,14 @@ public class Deletes {
                                                          Function<T, Long> rowToPosition,
                                                          CloseableIterable<Long> posDeletes) {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
+  }
+
+
+  public static <T> CloseableIterable<T> streamingMarker(CloseableIterable<T> rows,
+                                                         Function<T, Long> rowToPosition,
+                                                         CloseableIterable<Long> posDeletes,
+                                                         Consumer<T> markDeleted) {
+    return new PositionStreamDeleteMarker<>(rows, rowToPosition, posDeletes, markDeleted);
   }
 
   public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
@@ -170,7 +189,7 @@ public class Deletes {
 
       CloseableIterator<T> iter;
       if (deletePosIterator.hasNext()) {
-        iter = new PositionFilterIterator(rows.iterator(), deletePosIterator);
+        iter = createPosDeleteIterator(rows.iterator(), deletePosIterator);
       } else {
         iter = rows.iterator();
         try {
@@ -185,7 +204,12 @@ public class Deletes {
       return iter;
     }
 
-    private class PositionFilterIterator extends FilterIterator<T> {
+    protected PositionFilterIterator createPosDeleteIterator(CloseableIterator<T> items,
+                                                             CloseableIterator<Long> deletePosIterator) {
+      return new PositionFilterIterator(items, deletePosIterator);
+    }
+
+    protected class PositionFilterIterator extends FilterIterator<T> {
       private final CloseableIterator<Long> deletePosIterator;
       private long nextDeletePos;
 
@@ -223,6 +247,37 @@ public class Deletes {
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to close delete positions iterator", e);
         }
+      }
+    }
+  }
+
+  private static class PositionStreamDeleteMarker<T> extends PositionStreamDeleteFilter<T> {
+    private final Consumer<T> markDeleted;
+
+    private PositionStreamDeleteMarker(CloseableIterable<T> rows, Function<T, Long> extractPos,
+                                       CloseableIterable<Long> deletePositions, Consumer<T> markDeleted) {
+      super(rows, extractPos, deletePositions);
+      this.markDeleted = markDeleted;
+    }
+
+    @Override
+    protected PositionFilterIterator createPosDeleteIterator(CloseableIterator<T> items,
+                                                             CloseableIterator<Long> deletePosIterator) {
+      return new PositionDeleteMarkerIterator(items, deletePosIterator);
+    }
+
+    private class PositionDeleteMarkerIterator extends PositionFilterIterator {
+      private PositionDeleteMarkerIterator(CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
+        super(items, deletePositions);
+      }
+
+      @Override
+      protected boolean shouldKeep(T row) {
+        boolean isDeleted = !super.shouldKeep(row);
+        if (isDeleted) {
+          markDeleted.accept(row);
+        }
+        return true;
       }
     }
   }

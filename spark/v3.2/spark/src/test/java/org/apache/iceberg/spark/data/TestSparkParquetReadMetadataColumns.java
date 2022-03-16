@@ -174,10 +174,11 @@ public class TestSparkParquetReadMetadataColumns {
   @Test
   public void testReadRowNumbersWithDelete() throws IOException {
     if (vectorized) {
-      List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList(EXPECTED_ROWS);
+      List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList();
+      EXPECTED_ROWS.forEach(row -> expectedRowsAfterDelete.add(row.copy()));
       // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100, 200)
-      for (int i = 1; i <= 5; i++) {
-        expectedRowsAfterDelete.remove(98);
+      for (int i = 98; i <= 102; i++) {
+        expectedRowsAfterDelete.get(i).update(3, true);
       }
 
       Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
