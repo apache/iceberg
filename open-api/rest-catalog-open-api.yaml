@@ -510,16 +510,6 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
-        404:
-          description:
-            Not Found - NoSuchTableException, Table to drop does not exist
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-              examples:
-                TableToDeleteDoesNotExist:
-                  $ref: '#/components/examples/NoSuchTableError'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -1455,7 +1445,7 @@ components:
             properties:
               dropped:
                 type: boolean
-                description: true if the table was found and removed from the catalog
+                description: true if the table was found and removed from the catalog, false if the table did not exist
               purged:
                 type: boolean
                 description: whether the underlying data was purged or is being purged
