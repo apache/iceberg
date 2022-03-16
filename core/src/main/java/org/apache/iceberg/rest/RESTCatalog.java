@@ -75,12 +75,12 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public void initialize(String name, Map<String, String> properties) {
-    this.client = clientBuilder.apply(properties);
+  public void initialize(String name, Map<String, String> props) {
+    this.client = clientBuilder.apply(props);
     this.catalogName = name;
-    this.properties = properties;
-    String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
+    this.properties = props;
+    String ioImpl = props.get(CatalogProperties.FILE_IO_IMPL);
+    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), props, conf);
   }
 
   @Override
@@ -168,10 +168,10 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
+  public boolean setProperties(Namespace namespace, Map<String, String> props) throws NoSuchNamespaceException {
     String ns = RESTUtil.urlEncode(namespace);
     UpdateNamespacePropertiesRequest request = UpdateNamespacePropertiesRequest.builder()
-        .updateAll(properties)
+        .updateAll(props)
         .build();
 
     UpdateNamespacePropertiesResponse response = client.post(
@@ -182,10 +182,10 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
+  public boolean removeProperties(Namespace namespace, Set<String> props) throws NoSuchNamespaceException {
     String ns = RESTUtil.urlEncode(namespace);
     UpdateNamespacePropertiesRequest request = UpdateNamespacePropertiesRequest.builder()
-        .removeAll(properties)
+        .removeAll(props)
         .build();
 
     UpdateNamespacePropertiesResponse response = client.post(
@@ -226,14 +226,14 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     }
 
     @Override
-    public TableBuilder withLocation(String location) {
-      this.location = location;
+    public TableBuilder withLocation(String tableLocation) {
+      this.location = tableLocation;
       return this;
     }
 
     @Override
-    public TableBuilder withProperties(Map<String, String> properties) {
-      this.propertiesBuilder.putAll(properties);
+    public TableBuilder withProperties(Map<String, String> props) {
+      this.propertiesBuilder.putAll(props);
       return this;
     }
 
@@ -291,13 +291,13 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
       Pair<RESTClient, FileIO> clients = tableClients(response.config());
       TableMetadata base = response.tableMetadata();
 
-      Map<String, String> properties = propertiesBuilder.build();
+      Map<String, String> tableProperties = propertiesBuilder.build();
       TableMetadata replacement = base.buildReplacement(
           schema,
           spec != null ? spec : PartitionSpec.unpartitioned(),
           writeOrder != null ? writeOrder : SortOrder.unsorted(),
           location != null ? location : base.location(),
-          properties);
+          tableProperties);
 
       ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
 
@@ -338,7 +338,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
     private LoadTableResponse stageCreate() {
       String ns = RESTUtil.urlEncode(ident.namespace());
-      Map<String, String> properties = propertiesBuilder.build();
+      Map<String, String> tableProperties = propertiesBuilder.build();
 
       CreateTableRequest request = CreateTableRequest.builder()
           .withName(ident.name())
@@ -346,7 +346,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
           .withPartitionSpec(spec)
           .withWriteOrder(writeOrder)
           .withLocation(location)
-          .setProperties(properties)
+          .setProperties(tableProperties)
           .build();
 
       // TODO: will this be a specific route or a modified create?
@@ -395,18 +395,18 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     return "v1/namespaces/" + RESTUtil.urlEncode(ident.namespace()) + "/tables/" + ident.name();
   }
 
-  private Map<String, String> fullConf(Map<String, String> conf) {
+  private Map<String, String> fullConf(Map<String, String> config) {
     Map<String, String> fullConf = Maps.newHashMap(properties);
-    properties.putAll(conf);
+    properties.putAll(config);
     return fullConf;
   }
 
-  private Pair<RESTClient, FileIO> tableClients(Map<String, String> conf) {
-    if (conf.isEmpty()) {
+  private Pair<RESTClient, FileIO> tableClients(Map<String, String> config) {
+    if (config.isEmpty()) {
       return Pair.of(client, io); // reuse client and io since config is the same
     }
 
-    Map<String, String> fullConf = fullConf(conf);
+    Map<String, String> fullConf = fullConf(config);
     String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
     FileIO tableIO = CatalogUtil.loadFileIO(
         ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);

@@ -69,17 +69,21 @@ public class CatalogHandlers {
   }
 
   static class UnprocessableEntityException extends RuntimeException {
-    public UnprocessableEntityException(Set<String> commonKeys) {
+    UnprocessableEntityException(Set<String> commonKeys) {
       super(String.format("Invalid namespace update, cannot set and remove keys: %s", commonKeys));
     }
   }
 
   private static class ValidationFailureException extends RuntimeException {
-    CommitFailedException wrapped;
+    private final CommitFailedException wrapped;
 
-    public ValidationFailureException(CommitFailedException cause) {
+    private ValidationFailureException(CommitFailedException cause) {
       super(cause);
       this.wrapped = cause;
+    }
+
+    public CommitFailedException wrapped() {
+      return wrapped;
     }
   }
 
@@ -303,7 +307,7 @@ public class CatalogHandlers {
           });
 
     } catch (ValidationFailureException e) {
-      throw e.wrapped;
+      throw e.wrapped();
     }
 
     return ops.current();
