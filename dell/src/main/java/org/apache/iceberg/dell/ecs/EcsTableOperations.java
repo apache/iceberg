@@ -67,7 +67,8 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation;
     if (!catalog.objectMetadata(tableObject).isPresent()) {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException("Metadata object %s is absent", tableObject);
+        throw new NoSuchTableException("Metadata object %s is absent while refresh a loaded table. " +
+                "Maybe the table is deleted/moved.", tableObject);
       } else {
         metadataLocation = null;
       }
@@ -88,7 +89,7 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
     if (base == null) {
       // create a new table, the metadataKey should be absent
       if (!catalog.putNewProperties(tableObject, buildProperties(newMetadataLocation))) {
-        throw new CommitFailedException("Table is existed when create table %s", tableName());
+        throw new CommitFailedException("Table is existing when create table %s", tableName());
       }
     } else {
       String cachedETag = eTag;

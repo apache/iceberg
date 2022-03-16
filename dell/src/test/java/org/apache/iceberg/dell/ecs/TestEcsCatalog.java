@@ -78,7 +78,8 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t4"), SCHEMA);
     ecsCatalog.createTable(TableIdentifier.of("a", "b1", "t5"), SCHEMA);
 
-    Assert.assertEquals("List namespaces with empty namespace",
+    Assert.assertEquals(
+        "List namespaces with empty namespace",
         ImmutableList.of(Namespace.of("a")),
         ecsCatalog.listNamespaces());
     Assert.assertEquals(
@@ -119,28 +120,31 @@ public class TestEcsCatalog {
     ecsCatalog.createNamespace(Namespace.of("a", "b1"));
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
 
-    AssertHelpers.assertThrows("Drop an unknown namespace should throw exception",
-            NoSuchNamespaceException.class,
-            () -> ecsCatalog.dropNamespace(Namespace.of("unknown")));
+    AssertHelpers.assertThrows(
+        "Drop an unknown namespace should throw exception",
+        NoSuchNamespaceException.class,
+        () -> ecsCatalog.dropNamespace(Namespace.of("unknown")));
 
-    AssertHelpers.assertThrows("Drop not empty namespace should throw exception",
-            NamespaceNotEmptyException.class,
-            () -> ecsCatalog.dropNamespace(Namespace.of("a")));
+    AssertHelpers.assertThrows(
+        "Drop not empty namespace should throw exception",
+        NamespaceNotEmptyException.class,
+        () -> ecsCatalog.dropNamespace(Namespace.of("a")));
 
     Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
 
     Assert.assertFalse("The [a, b1] is absent", ecsCatalog.namespaceExists(Namespace.of("a", "b1")));
-    Assert.assertTrue("The [a, b1] is not in list result of [a]",
-            ecsCatalog.listNamespaces(Namespace.of("a")).isEmpty());
+    Assert.assertTrue(
+        "The [a, b1] is not in list result of [a]",
+        ecsCatalog.listNamespaces(Namespace.of("a")).isEmpty());
   }
 
   @Test
   public void testDropTable() {
     ecsCatalog.createTable(TableIdentifier.of("a"), SCHEMA);
 
-    AssertHelpers.assertThrows("Drop an unknown table should throw exception",
-            NoSuchTableException.class,
-            () -> ecsCatalog.dropTable(TableIdentifier.of("unknown")));
+    Assert.assertFalse(
+        "Drop an unknown table return false",
+        ecsCatalog.dropTable(TableIdentifier.of("unknown")));
 
     Assert.assertTrue("Drop a table", ecsCatalog.dropTable(TableIdentifier.of("a"), true));
   }
@@ -151,13 +155,15 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
     ecsCatalog.createNamespace(Namespace.of("b"));
 
-    AssertHelpers.assertThrows("Rename an unknown table should throw exception",
-            NoSuchTableException.class,
-            () -> ecsCatalog.renameTable(TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")));
+    AssertHelpers.assertThrows(
+        "Rename an unknown table should throw exception",
+        NoSuchTableException.class,
+        () -> ecsCatalog.renameTable(TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")));
 
-    AssertHelpers.assertThrows("Rename to an unknown namespace should throw exception",
-            NoSuchNamespaceException.class,
-            () -> ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")));
+    AssertHelpers.assertThrows(
+        "Rename to an unknown namespace should throw exception",
+        NoSuchNamespaceException.class,
+        () -> ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")));
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
 

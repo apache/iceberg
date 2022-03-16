@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.dell.ecs;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.Reader;
 import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
@@ -55,14 +57,14 @@ public class PropertiesSerDesUtil {
    *
    * @param version is the version of {@link PropertiesSerDesUtil}
    */
-  public static Map<String, String> read(InputStream input, String version) {
+  public static Map<String, String> read(byte[] content, String version) {
     Preconditions.checkArgument(version.equals(CURRENT_VERSION),
         "Properties version is not match", version);
     Properties jdkProperties = new Properties();
-    try {
-      jdkProperties.load(new InputStreamReader(input, StandardCharsets.UTF_8));
+    try (Reader reader = new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8)) {
+      jdkProperties.load(reader);
     } catch (IOException e) {
-      LOG.error("fail to read properties", e);
+      LOG.error("Fail to read properties", e);
       throw new UncheckedIOException(e);
     }
 
@@ -84,11 +86,12 @@ public class PropertiesSerDesUtil {
       jdkProperties.setProperty(entry.getKey(), entry.getValue());
     }
 
-    try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-      jdkProperties.store(new OutputStreamWriter(output, StandardCharsets.UTF_8), null);
+    try (ByteArrayOutputStream output = new ByteArrayOutputStream();
+         Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+      jdkProperties.store(writer, null);
       return output.toByteArray();
     } catch (IOException e) {
-      LOG.error("fail to store properties {} to file", value, e);
+      LOG.error("Fail to store properties {} to file", value, e);
       throw new UncheckedIOException(e);
     }
   }

@@ -57,6 +57,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,7 +103,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> properties) {
     this.catalogName = name;
-    this.warehouseLocation = new EcsURI(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    this.warehouseLocation = cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     this.client = DellClientFactories.from(properties).ecsS3();
     this.fileIO = initializeFileIO(properties);
 
@@ -110,6 +111,17 @@ public class EcsCatalog extends BaseMetastoreCatalog
     closeableGroup.addCloseable(client::destroy);
     closeableGroup.addCloseable(fileIO);
     closeableGroup.setSuppressCloseFailure(true);
+  }
+
+  private EcsURI cleanWarehousePath(String path) {
+    Preconditions.checkArgument(path != null && path.length() > 0,
+            "Cannot initialize EcsCatalog because warehousePath must not be null");
+    int len = path.length();
+    if (path.charAt(len - 1) == '/') {
+      return new EcsURI(path.substring(0, len - 1));
+    } else {
+      return new EcsURI(path);
+    }
   }
 
   private FileIO initializeFileIO(Map<String, String> properties) {
@@ -131,16 +143,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    String tableName = tableIdentifier.name();
-    StringBuilder sb = new StringBuilder();
-
-    sb.append(warehouseLocation).append('/');
-    for (String level : tableIdentifier.namespace().levels()) {
-      sb.append(level).append('/');
-    }
-    sb.append(tableName);
-
-    return sb.toString();
+    return String.format("%s/%s", namespacePrefix(tableIdentifier.namespace()), tableIdentifier.name());
   }
 
   /**
@@ -154,7 +157,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
     String marker = null;
     List<TableIdentifier> results = Lists.newArrayList();
-    EcsURI prefix = namespacePrefix(namespace);
+    // Add the end slash when delimiter listing
+    EcsURI prefix = new EcsURI(String.format("%s/", namespacePrefix(namespace)));
     do {
       ListObjectsResult listObjectsResult = client.listObjects(
           new ListObjectsRequest(prefix.bucket())
@@ -173,18 +177,16 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   /**
-   * Get object prefix of namespace.
+   * Get object prefix of namespace without the end slash.
    */
-  private EcsURI namespacePrefix(Namespace namespace) {
-    String prefix;
+  private String namespacePrefix(Namespace namespace) {
     if (namespace.isEmpty()) {
-      prefix = warehouseLocation.name();
+      return warehouseLocation.location();
     } else {
-      prefix = String.format("%s%s/", warehouseLocation.name(),
+      // If the warehouseLocation.name is empty, the leading slash will be ignored
+      return String.format("%s/%s", warehouseLocation.location(),
           String.join("/", namespace.levels()));
     }
-
-    return new EcsURI(warehouseLocation.bucket(), prefix);
   }
 
   private TableIdentifier parseTableId(Namespace namespace, EcsURI prefix, S3Object s3Object) {
@@ -204,7 +206,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     if (!tableExists(identifier)) {
-      throw new NoSuchTableException("Table %s does not exist", identifier);
+      return false;
     }
 
     EcsURI tableObjectURI = tableURI(identifier);
@@ -224,9 +226,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   private EcsURI tableURI(TableIdentifier id) {
-    EcsURI prefix = namespacePrefix(id.namespace());
-    // The prefix has the delimiter at the tail.
-    return new EcsURI(prefix.bucket(), prefix.name() + id.name() + TABLE_OBJECT_SUFFIX);
+    return new EcsURI(String.format("%s/%s%s", namespacePrefix(id.namespace()), id.name(), TABLE_OBJECT_SUFFIX));
   }
 
   /**
@@ -259,7 +259,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     }
 
     client.deleteObject(fromURI.bucket(), fromURI.name());
-    LOG.info("rename table {} to {}", from, to);
+    LOG.info("Rename table {} to {}", from, to);
   }
 
   @Override
@@ -271,10 +271,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   private EcsURI namespaceURI(Namespace namespace) {
-    return new EcsURI(
-        warehouseLocation.bucket(),
-        String.format("%s%s%s", warehouseLocation.name(), String.join("/", namespace.levels()),
-            NAMESPACE_OBJECT_SUFFIX));
+    return new EcsURI(String.format("%s%s", namespacePrefix(namespace), NAMESPACE_OBJECT_SUFFIX));
   }
 
   @Override
@@ -285,7 +282,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
     String marker = null;
     List<Namespace> results = Lists.newArrayList();
-    EcsURI prefix = namespacePrefix(namespace);
+    // Add the end slash when delimiter listing
+    EcsURI prefix = new EcsURI(String.format("%s/", namespacePrefix(namespace)));
     do {
       ListObjectsResult listObjectsResult = client.listObjects(
           new ListObjectsRequest(prefix.bucket())
@@ -437,7 +435,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
     String version = objectMetadata.getUserMetadata(PROPERTIES_VERSION_USER_METADATA_KEY);
     Map<String, String> content;
     try (InputStream input = result.getObject()) {
-      content = PropertiesSerDesUtil.read(input, version);
+      content = PropertiesSerDesUtil.read(ByteStreams.toByteArray(input), version);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
