@@ -101,10 +101,6 @@ public class TableMetadataParser {
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
   static final String REFS = "refs";
-  static final String TYPE = "type";
-  static final String MIN_SNAPSHOTS_TO_KEEP = "min-snapshots-to-keep";
-  static final String MAX_SNAPSHOT_AGE_MS = "max-snapshot-age-ms";
-  static final String MAX_REF_AGE_MS = "max-ref-age-ms";
   static final String SNAPSHOTS = "snapshots";
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
@@ -252,22 +248,8 @@ public class TableMetadataParser {
   private static void toJson(Map<String, SnapshotRef> refs, JsonGenerator generator) throws IOException {
     generator.writeObjectFieldStart(REFS);
     for (Map.Entry<String, SnapshotRef> refEntry : refs.entrySet()) {
-      generator.writeObjectFieldStart(refEntry.getKey());
-
-      SnapshotRef ref = refEntry.getValue();
-      generator.writeStringField(TYPE, ref.type().toString().toLowerCase(Locale.ROOT));
-      generator.writeNumberField(SNAPSHOT_ID, ref.snapshotId());
-      if (ref.maxRefAgeMs() != null) {
-        generator.writeNumberField(MAX_REF_AGE_MS, ref.maxRefAgeMs());
-      }
-      if (ref.maxSnapshotAgeMs() != null) {
-        generator.writeNumberField(MAX_SNAPSHOT_AGE_MS, ref.maxSnapshotAgeMs());
-      }
-      if (ref.minSnapshotsToKeep() != null) {
-        generator.writeNumberField(MIN_SNAPSHOTS_TO_KEEP, ref.minSnapshotsToKeep());
-      }
-
-      generator.writeEndObject();
+      generator.writeFieldName(refEntry.getKey());
+      SnapshotRefParser.toJson(refEntry.getValue(), generator);
     }
     generator.writeEndObject();
   }
@@ -484,14 +466,7 @@ public class TableMetadataParser {
       String refName = refNames.next();
       JsonNode refNode = refMap.get(refName);
       Preconditions.checkArgument(refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
-      SnapshotRef ref = SnapshotRef
-          .builderFor(
-              JsonUtil.getLong(SNAPSHOT_ID, refNode),
-              SnapshotRefType.valueOf(JsonUtil.getString(TYPE, refNode).toUpperCase(Locale.ROOT)))
-          .maxSnapshotAgeMs(JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, refNode))
-          .minSnapshotsToKeep(JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, refNode))
-          .maxRefAgeMs(JsonUtil.getLongOrNull(MAX_REF_AGE_MS, refNode))
-          .build();
+      SnapshotRef ref = SnapshotRefParser.fromJson(refNode);
       refsBuilder.put(refName, ref);
     }
 
