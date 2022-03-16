@@ -24,17 +24,21 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.io.DirectTaskWriter;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitioningWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -47,7 +51,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RowDataRewriter implements Serializable {
-
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
 
   private final Broadcast<Table> tableBroadcast;
@@ -80,35 +83,8 @@ public class RowDataRewriter implements Serializable {
     long taskId = context.taskAttemptId();
 
     Table table = tableBroadcast.value();
-    Schema schema = table.schema();
-    Map<String, String> properties = table.properties();
-
-    RowDataReader dataReader = new RowDataReader(task, table, schema, caseSensitive);
-
-    StructType structType = SparkSchemaUtil.convert(schema);
-    SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(table, schema, structType)
-        .spec(spec)
-        .build();
-    OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
-        .defaultSpec(spec)
-        .format(format)
-        .build();
-
-    TaskWriter<InternalRow> writer;
-    if (spec.isUnpartitioned()) {
-      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, table.io(),
-          Long.MAX_VALUE);
-    } else if (PropertyUtil.propertyAsBoolean(properties,
-        TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
-        TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
-      writer = new SparkPartitionedFanoutWriter(
-          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
-          structType);
-    } else {
-      writer = new SparkPartitionedWriter(
-          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
-          structType);
-    }
+    RowDataReader dataReader = new RowDataReader(task, table, table.schema(), caseSensitive);
+    TaskWriter<InternalRow> writer = newTaskWriter(table, partitionId, taskId);
 
     try {
       while (dataReader.next()) {
@@ -121,7 +97,6 @@ public class RowDataRewriter implements Serializable {
 
       writer.close();
       return Lists.newArrayList(writer.dataFiles());
-
     } catch (Throwable originalThrowable) {
       try {
         LOG.error("Aborting task", originalThrowable);
@@ -135,7 +110,6 @@ public class RowDataRewriter implements Serializable {
         writer.abort();
         LOG.error("Aborted commit for partition {} (task {}, attempt {}, stage {}.{})",
             partitionId, taskId, context.taskAttemptId(), context.stageId(), context.stageAttemptNumber());
-
       } catch (Throwable inner) {
         if (originalThrowable != inner) {
           originalThrowable.addSuppressed(inner);
@@ -149,5 +123,55 @@ public class RowDataRewriter implements Serializable {
         throw new RuntimeException(originalThrowable);
       }
     }
+  }
+
+  private TaskWriter<InternalRow> newTaskWriter(Table table, int partitionId, long taskId) {
+    Schema schema = table.schema();
+    Map<String, String> properties = table.properties();
+    StructType structType = SparkSchemaUtil.convert(schema);
+
+    OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
+        .defaultSpec(spec)
+        .format(format)
+        .build();
+
+    Function<InternalRow, StructLike> partitioner;
+    if (spec.isPartitioned()) {
+      partitioner = new Function<InternalRow, StructLike>() {
+        private final PartitionKey partitionKey = new PartitionKey(spec, schema);
+        private final InternalRowWrapper wrapper = new InternalRowWrapper(structType);
+
+        @Override
+        public StructLike apply(InternalRow row) {
+          partitionKey.partition(wrapper.wrap(row));
+          return partitionKey;
+        }
+      };
+    } else {
+      partitioner = DirectTaskWriter.unpartition();
+    }
+
+    SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table)
+        .dataSchema(schema)
+        .dataFileFormat(format)
+        .deleteFileFormat(format)
+        .build();
+
+    PartitioningWriterFactory.Builder<InternalRow> partitioningWriterFactoryBuilder =
+        PartitioningWriterFactory.builder(writerFactory)
+            .fileFactory(fileFactory)
+            .io(table.io())
+            .fileFormat(format)
+            .targetFileSizeInBytes(Long.MAX_VALUE);
+
+    PartitioningWriterFactory<InternalRow> partitioningWriterFactory =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
+            TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT
+        ) ? partitioningWriterFactoryBuilder.buildForFanoutPartition() :
+            partitioningWriterFactoryBuilder.buildForClusteredPartition();
+
+    return new DirectTaskWriter<>(partitioningWriterFactory, partitioner, spec, table.io());
   }
 }

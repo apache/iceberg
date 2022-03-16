@@ -49,9 +49,9 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   protected abstract R aggregatedResult();
 
   @Override
-  public void write(T row, PartitionSpec spec, StructLike partition) {
+  public PathOffset write(T row, PartitionSpec spec, StructLike partition) {
     FileWriter<T, R> writer = writer(spec, partition);
-    writer.write(row);
+    return writer.write(row);
   }
 
   private FileWriter<T, R> writer(PartitionSpec spec, StructLike partition) {
@@ -98,7 +98,8 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   }
 
   protected EncryptedOutputFile newOutputFile(OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
-    Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+    Preconditions.checkArgument(
+        spec.isUnpartitioned() || partition != null,
         "Partition must not be null when creating output file for partitioned spec");
     return partition == null ? fileFactory.newOutputFile() : fileFactory.newOutputFile(spec, partition);
   }

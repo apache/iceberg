@@ -51,8 +51,9 @@ public interface FileWriter<T, R> extends Closeable {
    * Writes a row to a predefined spec/partition.
    *
    * @param row a data or delete record
+   * @return PathOffset of written row
    */
-  void write(T row);
+  PathOffset write(T row);
 
   /**
    * Returns the number of bytes that were currently written by this writer.
