@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
+import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -67,7 +68,7 @@ public class RESTCatalogAdapter implements RESTClient {
       .put(UnsupportedOperationException.class, 406)
       .put(AlreadyExistsException.class, 409)
       .put(CommitFailedException.class, 409)
-      .put(CatalogHandlers.UnprocessableEntityException.class, 422)
+      .put(UnprocessableEntityException.class, 422)
       .put(CommitStateUnknownException.class, 500)
       .build();
 

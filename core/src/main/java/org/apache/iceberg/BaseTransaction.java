@@ -94,7 +94,7 @@ public class BaseTransaction implements Transaction {
     return current;
   }
 
-  public TableOperations underyingOps() {
+  public TableOperations underlyingOps() {
     return ops;
   }
 

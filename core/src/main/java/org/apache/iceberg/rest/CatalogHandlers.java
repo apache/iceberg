@@ -40,6 +40,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -68,12 +69,14 @@ public class CatalogHandlers {
   private CatalogHandlers() {
   }
 
-  static class UnprocessableEntityException extends RuntimeException {
-    UnprocessableEntityException(Set<String> commonKeys) {
-      super(String.format("Invalid namespace update, cannot set and remove keys: %s", commonKeys));
-    }
-  }
-
+  /**
+   * Exception used to avoid retrying commits when assertions fail.
+   * <p>
+   * When a REST assertion fails, it will throw CommitFailedException to send back to the client. But the assertion
+   * checks happen in the block that is retried if {@link TableOperations#commit(TableMetadata, TableMetadata)} throws
+   * CommitFailedException. This is used to avoid retries for assertion failures, which are unwrapped and rethrown
+   * outside of the commit loop.
+   */
   private static class ValidationFailureException extends RuntimeException {
     private final CommitFailedException wrapped;
 
@@ -129,7 +132,8 @@ public class CatalogHandlers {
 
     Set<String> commonKeys = Sets.intersection(updates.keySet(), removals);
     if (!commonKeys.isEmpty()) {
-      throw new UnprocessableEntityException(commonKeys);
+      throw new UnprocessableEntityException(
+          "Invalid namespace update, cannot simultaneously set and remove keys: %s", commonKeys);
     }
 
     Map<String, String> startProperties = catalog.loadNamespaceMetadata(namespace);
@@ -224,7 +228,7 @@ public class CatalogHandlers {
       Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
       if (transaction instanceof BaseTransaction) {
         BaseTransaction baseTransaction = (BaseTransaction) transaction;
-        finalMetadata = create(baseTransaction.underyingOps(), baseTransaction.startMetadata(), request);
+        finalMetadata = create(baseTransaction.underlyingOps(), baseTransaction.startMetadata(), request);
       } else {
         throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
       }

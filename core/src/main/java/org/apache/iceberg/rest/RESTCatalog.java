@@ -104,7 +104,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     String tablePath = tablePath(identifier);
-    // TODO: support purge flag
+    // TODO: support purge flagN
     DropTableResponse response = client.delete(
         tablePath, DropTableResponse.class, ErrorHandlers.tableErrorHandler());
     return response.isDropped();
