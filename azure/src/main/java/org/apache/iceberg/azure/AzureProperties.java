@@ -26,9 +26,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class AzureProperties {
 
-  public static final String STORAGE_AUTH_TYPE = "azure.storage.%s.auth-type";
   public static final String STORAGE_CONNECTION_STRING = "azure.storage.%s.connection-string";
+
+  public static final String STORAGE_AUTH_TYPE = "azure.storage.%s.auth-type";
+
   public static final String STORAGE_ACCOUNT_KEY = "azure.storage.%s.account-key";
+
   public static final String STORAGE_SHARED_ACCESS_SIGNATURE = "azure.storage.%s.shared-access-signature";
 
   public static final String STORAGE_READ_BLOCK_SIZE = "azure.storage.%s.read.block-size";

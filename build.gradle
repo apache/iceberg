@@ -17,6 +17,10 @@
  * under the License.
  */
 
+import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
+import com.bmuschko.gradle.docker.tasks.image.DockerPullImage
 import groovy.transform.Memoized
 import java.util.regex.Matcher
 import java.util.regex.Pattern
@@ -38,6 +42,9 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
+  // Since 7.x gradle-docker-plugin is compiled using JDK11, thus using the latest version will fail Java8 builds
+  // https://bmuschko.github.io/gradle-docker-plugin/current/user-guide/#change_log
+  id 'com.bmuschko.docker-remote-api' version '6.7.0'
 }
 
 try {
@@ -616,25 +623,79 @@ project(':iceberg-dell') {
 }
 
 project(':iceberg-azure') {
+  apply plugin: "com.bmuschko.docker-remote-api"
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
-//    TODO check if this is required
-//    implementation project(':iceberg-common')
-//    implementation project(':iceberg-core')
+    //    TODO check if this is required
+    //    implementation project(':iceberg-common')
+    //    implementation project(':iceberg-core')
 
     implementation platform('com.azure:azure-sdk-bom')
     implementation 'com.azure:azure-storage-blob'
 
-// TODO shade netty
+    // TODO shade netty
 
-//    TODO check if this is required
-//    compileOnly("org.apache.hadoop:hadoop-common") {
-//      exclude group: 'org.apache.avro', module: 'avro'
-//      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-//    }
+    //    TODO check if this is required
+    //    compileOnly("org.apache.hadoop:hadoop-common") {
+    //      exclude group: 'org.apache.avro', module: 'avro'
+    //      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    //    }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    sourceSets {
+      integration {
+        java.srcDir "$projectDir/src/integration/java"
+        resources.srcDir "$projectDir/src/integration/resources"
+        compileClasspath += main.output + test.output
+        runtimeClasspath += main.output + test.output
+      }
+    }
+
+    configurations {
+      integrationImplementation.extendsFrom testImplementation
+      integrationRuntime.extendsFrom testRuntimeOnly
+    }
+
+    task pullImage(type: DockerPullImage) {
+      image = 'mcr.microsoft.com/azure-storage/azurite:latest'
+    }
+
+    task createContainer(type: DockerCreateContainer) {
+      dependsOn pullImage
+      targetImageId pullImage.getImage()
+      withEnvVar("AZURITE_ACCOUNTS", "storageAccount1:storageAccount1-key;storageAccount2:storageAccount2-key;storageAccount3:storageAccount3-key")
+      hostConfig.portBindings = ['10000:10000']
+      hostConfig.autoRemove = true
+    }
+
+    task startContainer(type: DockerStartContainer) {
+      dependsOn createContainer
+      targetContainerId createContainer.getContainerId()
+    }
+
+    task stopContainer(type: DockerStopContainer) {
+      targetContainerId createContainer.getContainerId()
+    }
+
+    task integrationTest(type: Test) {
+      environment = ["STORAGE_ACCOUNT_1"    : "storageAccount1",
+                     "STORAGE_ACCOUNT_1_KEY": "storageAccount1-key",
+                     "STORAGE_ACCOUNT_2"    : "storageAccount2",
+                     "STORAGE_ACCOUNT_2_KEY": "storageAccount2-key",
+                     "STORAGE_ACCOUNT_3"    : "storageAccount3",
+                     "STORAGE_ACCOUNT_3_KEY": "storageAccount3-key"]
+      description = "Runs the AzureFileIO tests using Azurite emulator"
+      testClassesDirs = sourceSets.integration.output.classesDirs
+      classpath = sourceSets.integration.runtimeClasspath
+      mustRunAfter test
+      dependsOn startContainer
+      finalizedBy stopContainer
+    }
+
+    check.dependsOn integrationTest
   }
 }
 
