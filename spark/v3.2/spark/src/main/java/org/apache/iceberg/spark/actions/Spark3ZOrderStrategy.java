@@ -19,13 +19,8 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.io.IOException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -47,8 +42,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.SortOrderUtil;
-import org.apache.iceberg.util.ZOrderByteUtils;
-import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -57,25 +50,9 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.expressions.SortOrder;
-import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.types.BinaryType;
-import org.apache.spark.sql.types.BooleanType;
-import org.apache.spark.sql.types.ByteType;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.DateType;
-import org.apache.spark.sql.types.DoubleType;
-import org.apache.spark.sql.types.FloatType;
-import org.apache.spark.sql.types.IntegerType;
-import org.apache.spark.sql.types.LongType;
-import org.apache.spark.sql.types.ShortType;
-import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
-import org.apache.spark.sql.types.TimestampType;
-import org.sparkproject.jetty.server.Authentication;
-import scala.collection.Seq;
 
 public class Spark3ZOrderStrategy extends Spark3SortStrategy {
 
@@ -84,13 +61,12 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
   private static final org.apache.iceberg.SortOrder Z_SORT_ORDER = org.apache.iceberg.SortOrder.builderFor(Z_SCHEMA)
       .sortBy(Z_COLUMN, SortDirection.ASC, NullOrder.NULLS_LAST)
       .build();
-  private static final int STRING_KEY_LENGTH = 128;
 
   private final List<String> zOrderColNames;
   private transient FileScanTaskSetManager manager = FileScanTaskSetManager.get();
   private transient FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
-  private final SparkZOrder orderHelper;
+  private final Spark3ZOrderUDF orderHelper;
 
   public Spark3ZOrderStrategy(Table table, SparkSession spark, List<String> zOrderColNames) {
     super(table, spark);
@@ -107,7 +83,7 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
             "ZOrdering requested on %s",
         partZOrderCols);
 
-    this.orderHelper = new SparkZOrder(zOrderColNames.size());
+    this.orderHelper = new Spark3ZOrderUDF(zOrderColNames.size());
 
     this.zOrderColNames = zOrderColNames;
   }
@@ -119,7 +95,7 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
 
   @Override
   protected void validateOptions() {
-    // TODO implement Zorder Strategy in API Module
+    // TODO implement ZOrder Strategy in API Module
     return;
   }
 

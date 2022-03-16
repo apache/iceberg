@@ -42,6 +42,7 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.types.DataTypes;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -74,6 +75,7 @@ public class IcebergSortCompactionBenchmark {
   private static final Identifier IDENT = Identifier.of(NAMESPACE, NAME);
   private static final int NUM_FILES = 8;
   private static final long NUM_ROWS = 10000000L;
+  private static final long UNIQUE_VALUES = NUM_ROWS / 10;
 
 
   private final Configuration hadoopConf = initHadoopConf();
@@ -292,16 +294,23 @@ public class IcebergSortCompactionBenchmark {
 
   private void appendData() {
     Dataset<Row> df = spark().range(0, NUM_ROWS * NUM_FILES, 1, NUM_FILES)
-        .withColumnRenamed("id", "longCol")
-        .withColumn("intCol", expr("CAST(longCol AS INT)"))
-        .withColumn("intCol2", expr("CAST(longCol AS INT)"))
-        .withColumn("intCol3", expr("CAST(longCol AS INT)"))
-        .withColumn("intCol4", expr("CAST(longCol AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .drop("id")
+        .withColumn("longCol", new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply())
+        .withColumn("intCol",
+            new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
+        .withColumn("intCol2",
+            new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
+        .withColumn("intCol3",
+            new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
+        .withColumn("intCol4",
+            new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
+        .withColumn("floatCol",
+            new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.FloatType))
+        .withColumn("doubleCol",
+            new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.DoubleType))
         .withColumn("dateCol", date_add(current_date(), col("intCol").mod(NUM_FILES)))
         .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
+        .withColumn("stringCol", new RandomGeneratingUDF(UNIQUE_VALUES).randomString().apply());
     writeData(df);
   }
 

@@ -145,8 +145,8 @@ public class TestZOrderByteUtil {
 
   @Test
   public void testIntOrdering() {
-    ByteBuffer aBuffer = ByteBuffer.allocate(Integer.BYTES);
-    ByteBuffer bBuffer = ByteBuffer.allocate(Integer.BYTES);
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
       int aInt = random.nextInt();
       int bInt = random.nextInt();
@@ -164,8 +164,8 @@ public class TestZOrderByteUtil {
 
   @Test
   public void testLongOrdering() {
-    ByteBuffer aBuffer = ByteBuffer.allocate(Long.BYTES);
-    ByteBuffer bBuffer = ByteBuffer.allocate(Long.BYTES);
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
       long aLong = random.nextInt();
       long bLong = random.nextInt();
@@ -183,8 +183,8 @@ public class TestZOrderByteUtil {
 
   @Test
   public void testShortOrdering() {
-    ByteBuffer aBuffer = ByteBuffer.allocate(Short.BYTES);
-    ByteBuffer bBuffer = ByteBuffer.allocate(Short.BYTES);
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
       short aShort = (short) (random.nextInt() % (Short.MAX_VALUE + 1));
       short bShort = (short) (random.nextInt() % (Short.MAX_VALUE + 1));
@@ -202,8 +202,8 @@ public class TestZOrderByteUtil {
 
   @Test
   public void testTinyOrdering() {
-    ByteBuffer aBuffer = ByteBuffer.allocate(Byte.BYTES);
-    ByteBuffer bBuffer = ByteBuffer.allocate(Byte.BYTES);
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
       byte aByte = (byte) (random.nextInt() % (Byte.MAX_VALUE + 1));
       byte bByte = (byte) (random.nextInt() % (Byte.MAX_VALUE + 1));
@@ -221,8 +221,8 @@ public class TestZOrderByteUtil {
 
   @Test
   public void testFloatOrdering() {
-    ByteBuffer aBuffer = ByteBuffer.allocate(Float.BYTES);
-    ByteBuffer bBuffer = ByteBuffer.allocate(Float.BYTES);
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
       float aFloat = random.nextFloat();
       float bFloat = random.nextFloat();
@@ -240,8 +240,8 @@ public class TestZOrderByteUtil {
 
   @Test
   public void testDoubleOrdering() {
-    ByteBuffer aBuffer = ByteBuffer.allocate(Double.BYTES);
-    ByteBuffer bBuffer = ByteBuffer.allocate(Double.BYTES);
+    ByteBuffer aBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
+    ByteBuffer bBuffer = ZOrderByteUtils.allocatePrimitiveBuffer();
     for (int i = 0; i < NUM_TESTS; i++) {
       double aDouble = random.nextDouble();
       double bDouble = random.nextDouble();

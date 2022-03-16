@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetEncoder;
@@ -34,6 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * that are lexicographically ordered. Bytes produced should be compared lexicographically as
  * unsigned bytes, big-endian.
  * <p>
+ * All types except for String are stored within an 8 Byte Buffer
+ * <p>
  * Most of these techniques are derived from
  * https://aws.amazon.com/blogs/database/z-order-indexing-for-multifaceted-queries-in-amazon-dynamodb-part-2/
  * <p>
@@ -42,18 +43,23 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public class ZOrderByteUtils {
 
+  public static final int BUFFER_SIZE = 8;
+
   private ZOrderByteUtils() {
 
   }
 
+  static ByteBuffer allocatePrimitiveBuffer() {
+    return ByteBuffer.allocate(BUFFER_SIZE);
+  }
   /**
    * Signed ints do not have their bytes in magnitude order because of the sign bit.
    * To fix this, flip the sign bit so that all negatives are ordered before positives. This essentially
    * shifts the 0 value so that we don't break our ordering when we cross the new 0 value.
    */
   public static ByteBuffer intToOrderedBytes(int val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, Integer.BYTES);
-    bytes.putInt(val ^ 0x80000000);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    bytes.putLong(((long) val) ^ 0x8000000000000000L);
     return bytes;
   }
 
@@ -61,7 +67,7 @@ public class ZOrderByteUtils {
    * Signed longs are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
   public static ByteBuffer longToOrderedBytes(long val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, Long.BYTES);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
     bytes.putLong(val ^ 0x8000000000000000L);
     return bytes;
   }
@@ -70,8 +76,8 @@ public class ZOrderByteUtils {
    * Signed shorts are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
   public static ByteBuffer shortToOrderedBytes(short val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, Short.BYTES);
-    bytes.putShort((short) (val ^ (0x8000)));
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    bytes.putLong(((long) val) ^ 0x8000000000000000L);
     return bytes;
   }
 
@@ -79,8 +85,8 @@ public class ZOrderByteUtils {
    * Signed tiny ints are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
   public static ByteBuffer tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, Byte.BYTES);
-    bytes.put((byte) (val ^ (0x80)));
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    bytes.putLong(((long) val) ^ 0x8000000000000000L);
     return bytes;
   }
 
@@ -93,10 +99,10 @@ public class ZOrderByteUtils {
    * comparable bytes
    */
   public static ByteBuffer floatToOrderedBytes(float val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, Float.BYTES);
-    int ival = Float.floatToIntBits(val);
-    ival ^= ((ival >> (Integer.SIZE - 1)) | Integer.MIN_VALUE);
-    bytes.putInt(ival);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    long lval = Double.doubleToLongBits(val);
+    lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
+    bytes.putLong(lval);
     return bytes;
   }
 
@@ -104,10 +110,10 @@ public class ZOrderByteUtils {
    * Doubles are treated the same as floats in {@link #floatToOrderedBytes(float, ByteBuffer)}
    */
   public static ByteBuffer doubleToOrderedBytes(double val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, Double.BYTES);
-    long lng = Double.doubleToLongBits(val);
-    lng ^= ((lng >> (Long.SIZE - 1)) | Long.MIN_VALUE);
-    bytes.putLong(lng);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    long lval = Double.doubleToLongBits(val);
+    lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
+    bytes.putLong(lval);
     return bytes;
   }
 
