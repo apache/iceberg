@@ -127,14 +127,10 @@ public class CatalogHandlers {
 
   public static UpdateNamespacePropertiesResponse updateNamespaceProperties(
       SupportsNamespaces catalog, Namespace namespace, UpdateNamespacePropertiesRequest request) {
+    request.validate();
+
     Set<String> removals = Sets.newHashSet(request.removals());
     Map<String, String> updates = request.updates();
-
-    Set<String> commonKeys = Sets.intersection(updates.keySet(), removals);
-    if (!commonKeys.isEmpty()) {
-      throw new UnprocessableEntityException(
-          "Invalid namespace update, cannot simultaneously set and remove keys: %s", commonKeys);
-    }
 
     Map<String, String> startProperties = catalog.loadNamespaceMetadata(namespace);
     Set<String> missing = Sets.difference(removals, startProperties.keySet());
