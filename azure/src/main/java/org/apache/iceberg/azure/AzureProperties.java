@@ -28,6 +28,8 @@ public class AzureProperties {
 
   public static final String STORAGE_CONNECTION_STRING = "azure.storage.%s.connection-string";
 
+  public static final String STORAGE_ENDPOINT = "azure.storage.%s.endpoint";
+
   public static final String STORAGE_AUTH_TYPE = "azure.storage.%s.auth-type";
 
   public static final String STORAGE_ACCOUNT_KEY = "azure.storage.%s.account-key";
@@ -60,6 +62,10 @@ public class AzureProperties {
 
   public Optional<String> connectionString(String storageAccount) {
     return getProperty(storageAccount, STORAGE_CONNECTION_STRING);
+  }
+
+  public Optional<String> endpoint(String storageAccount) {
+    return getProperty(storageAccount, STORAGE_ENDPOINT);
   }
 
   public Optional<String> accountKey(String storageAccount) {

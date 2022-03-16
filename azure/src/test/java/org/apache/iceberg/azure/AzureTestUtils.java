@@ -34,4 +34,10 @@ public class AzureTestUtils {
     LOG.info("Random seed value for {}'s random: {}", caller, seed);
     return new Random(seed);
   }
+
+  public static byte[] randomData(int size, Random random) {
+    byte[] result = new byte[size];
+    random.nextBytes(result);
+    return result;
+  }
 }

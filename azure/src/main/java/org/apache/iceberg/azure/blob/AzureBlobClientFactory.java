@@ -30,8 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AzureBlobClientFactory {
 
-  private static final String AZURE_BLOB_STORAGE_ENDPOINT_TEMPLATE = "%s.blob.core.windows.net";
-
   private AzureBlobClientFactory() {
   }
 
@@ -45,7 +43,7 @@ public class AzureBlobClientFactory {
       Preconditions.checkArgument(!connectionString.get().isEmpty(), "Connection string cannot be empty.");
       builder.connectionString(connectionString.get());
     } else {
-      builder.endpoint(storageEndpoint(storageAccount));
+      builder.endpoint(storageEndpoint(storageAccount, azureProperties));
       final AuthType authType = azureProperties.authType(storageAccount);
       setAuth(storageAccount, authType, azureProperties, builder);
     }
@@ -71,7 +69,8 @@ public class AzureBlobClientFactory {
     }
   }
 
-  private static String storageEndpoint(String storageAccount) {
-    return String.format(AZURE_BLOB_STORAGE_ENDPOINT_TEMPLATE, storageAccount);
+  private static String storageEndpoint(String storageAccount, AzureProperties azureProperties) {
+    return azureProperties.endpoint(storageAccount)
+        .orElseGet(() -> String.format("https://%s.blob.core.windows.net", storageAccount));
   }
 }

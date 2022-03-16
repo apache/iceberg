@@ -23,7 +23,9 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.blob.options.BlockBlobOutputStreamOptions;
 import com.azure.storage.blob.specialized.BlobOutputStream;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -42,8 +44,7 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   private final AzureProperties azureProperties;
   private final BlobClient blobClient;
 
-  // TODO replace with counting output stream
-  private BlobOutputStream stream;
+  private OutputStream stream;
   private long pos = 0;
   private boolean closed = false;
 
@@ -61,13 +62,14 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   }
 
   @Override
-  public void write(int b) {
+  public void write(int b) throws IOException {
     Preconditions.checkState(!closed, "Cannot write: stream already closed");
+    stream.write(b);
     pos++;
   }
 
   @Override
-  public void write(byte[] b, int off, int len) {
+  public void write(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot write: stream already closed");
     stream.write(b, off, len);
     pos += len;
@@ -109,7 +111,8 @@ public class AzureBlobOutputStream extends PositionOutputStream {
         .setBlockSizeLong(azureProperties.writeBlockSize(azureURI.storageAccount()))
         .setMaxConcurrency(azureProperties.maxWriteConcurrency(azureURI.storageAccount()))
         .setMaxSingleUploadSizeLong(azureProperties.maxSingleUploadSize(azureURI.storageAccount()));
-    this.stream = blobClient.getBlockBlobClient()
+    BlobOutputStream blobOutputStream = blobClient.getBlockBlobClient()
         .getBlobOutputStream(new BlockBlobOutputStreamOptions().setParallelTransferOptions(options));
+    this.stream = new BufferedOutputStream(blobOutputStream);
   }
 }

@@ -35,6 +35,8 @@ import org.slf4j.LoggerFactory;
 // TODO add logging traces
 // TODO end all assertion error message with full stop
 // TODO enable encryption
+// TODO remove warnings
+// TODO reformat code
 public class AzureBlobFileIO implements FileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(AzureBlobFileIO.class);

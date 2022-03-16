@@ -25,12 +25,13 @@ import java.util.Random;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.Before;
+import org.junit.Test;
 
 import static java.lang.String.format;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_AUTH_TYPE;
+import static org.apache.iceberg.azure.AzureProperties.STORAGE_ENDPOINT;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_READ_BLOCK_SIZE;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_SHARED_ACCESS_SIGNATURE;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_WRITE_BLOCK_SIZE;
@@ -47,7 +48,7 @@ public class TestAzureProperties {
 
   private Map<String, String> properties;
 
-  @BeforeEach
+  @Before
   public void setupProperties() {
     this.properties = Maps.newHashMap();
   }
@@ -59,6 +60,7 @@ public class TestAzureProperties {
 
     assertThat(azureProperties.authType(storageAccount)).isEqualTo(AuthType.None);
     assertThat(azureProperties.connectionString(storageAccount)).isEqualTo(Optional.empty());
+    assertThat(azureProperties.endpoint(storageAccount)).isEqualTo(Optional.empty());
     assertThat(azureProperties.accountKey(storageAccount)).isEqualTo(Optional.empty());
     assertThat(azureProperties.sharedAccessSignature(storageAccount)).isEqualTo(Optional.empty());
     assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(STORAGE_READ_BLOCK_SIZE_DEFAULT);
@@ -97,6 +99,11 @@ public class TestAzureProperties {
     assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(writeBlockSize);
     assertThat(azureProperties.maxWriteConcurrency(storageAccount)).isEqualTo(maxWriteConcurrency);
     assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(maxSingleUploadSize);
+
+    // Should be empty since the auth type is SharedKey
+    assertThat(azureProperties.connectionString(storageAccount)).isEqualTo(Optional.empty());
+    assertThat(azureProperties.endpoint(storageAccount)).isEqualTo(Optional.empty());
+    assertThat(azureProperties.sharedAccessSignature(storageAccount)).isEqualTo(Optional.empty());
   }
 
   @Test
@@ -121,7 +128,9 @@ public class TestAzureProperties {
     // Storage account 3 auth config.
     final String sa3 = storageAccounts[2];
     final AuthType sa3AuthType = AuthType.None;
+    final String sa3Endpoint = "https://test-endpoint";
     properties.put(format(STORAGE_AUTH_TYPE, sa3), sa3AuthType.toString());
+    properties.put(format(STORAGE_ENDPOINT, sa3), sa3Endpoint);
 
     // All Storage accounts read block size config.
     for (String storageAccount : storageAccounts) {
@@ -164,6 +173,7 @@ public class TestAzureProperties {
     assertThat(azureProperties.authType(sa3)).isEqualTo(sa3AuthType);
     assertThat(azureProperties.accountKey(sa3)).isEqualTo(Optional.empty());
     assertThat(azureProperties.sharedAccessSignature(sa3)).isEqualTo(Optional.empty());
+    assertThat(azureProperties.endpoint(sa3)).isEqualTo(Optional.of(sa3Endpoint));
 
     // Assert read block size config for all storage accounts.
     for (String storageAccount : storageAccounts) {
