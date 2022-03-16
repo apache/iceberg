@@ -91,8 +91,9 @@ public class AzureProperties {
   }
 
   private Optional<String> getProperty(String storageAccount, String propertyTemplate) {
-    Preconditions.checkArgument(storageAccount != null && !storageAccount.isEmpty(),
-        "Storage Account cannot be null " + "or empty");
+    Preconditions.checkArgument(
+        storageAccount != null && !storageAccount.isEmpty(),
+        "Storage Account cannot be null or empty");
     return Optional.ofNullable(properties.get(String.format(propertyTemplate, storageAccount)));
   }
 }

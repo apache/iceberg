@@ -32,6 +32,10 @@ public class AzureBlobOutputFile extends BaseAzureBlobFile implements OutputFile
     super(azureURI, blobClient, azureProperties);
   }
 
+  public static AzureBlobOutputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
+    return new AzureBlobOutputFile(azureURI, blobClient, azureProperties);
+  }
+
   @Override
   public PositionOutputStream create() {
     if (!exists()) {
@@ -49,9 +53,5 @@ public class AzureBlobOutputFile extends BaseAzureBlobFile implements OutputFile
   @Override
   public InputFile toInputFile() {
     return AzureBlobInputFile.from(azureURI(), blobClient(), azureProperties());
-  }
-
-  public static AzureBlobOutputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
-    return new AzureBlobOutputFile(azureURI, blobClient, azureProperties);
   }
 }

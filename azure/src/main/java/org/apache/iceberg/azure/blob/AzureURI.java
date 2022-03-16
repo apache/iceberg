@@ -54,17 +54,20 @@ public class AzureURI {
     }
     this.location = location;
 
-    ValidationException.check(ABFS_SCHEME.equals(uri.getScheme()),
+    ValidationException.check(
+        ABFS_SCHEME.equals(uri.getScheme()),
         "Invalid Azure URI scheme, Expected scheme is 'afbs': %s",
         location);
 
     final String rawAuthority = uri.getRawAuthority();
-    ValidationException.check(rawAuthority != null && !rawAuthority.isEmpty(),
+    ValidationException.check(
+        rawAuthority != null && !rawAuthority.isEmpty(),
         INVALID_URI_MESSAGE,
         EXPECTED_URI_FORM,
         location);
     final String[] authoritySplit = rawAuthority.split(AUTHORITY_DELIMITER, 2);
-    ValidationException.check(authoritySplit.length == 2 && !authoritySplit[0].isEmpty(),
+    ValidationException.check(
+        authoritySplit.length == 2 && !authoritySplit[0].isEmpty(),
         INVALID_URI_MESSAGE,
         EXPECTED_URI_FORM,
         location);
@@ -72,14 +75,16 @@ public class AzureURI {
 
     final String endpoint = authoritySplit[1];
     final String[] endpointSplit = endpoint.split(ENDPOINT_DELIMITER, 2);
-    ValidationException.check(endpointSplit.length == 2 && !endpointSplit[0].isEmpty(),
+    ValidationException.check(
+        endpointSplit.length == 2 && !endpointSplit[0].isEmpty(),
         INVALID_URI_MESSAGE,
         EXPECTED_URI_FORM,
         location);
     this.storageAccount = endpointSplit[0];
 
     final String rawPath = uri.getRawPath();
-    ValidationException.check(rawPath != null && !rawPath.isEmpty() && !rawPath.equals(PATH_DELIMITER),
+    ValidationException.check(
+        rawPath != null && !rawPath.isEmpty() && !rawPath.equals(PATH_DELIMITER),
         "Invalid Azure URI, empty path: %s",
         location);
     this.path = rawPath;
@@ -87,9 +92,14 @@ public class AzureURI {
     LOG.debug("Parsed AzureURI: {}", this);
   }
 
+  public static AzureURI from(String location) {
+    return new AzureURI(location);
+  }
+
   @Override
   public String toString() {
-    return String.format("AzureURI(location=%s, container=%s, storageAccount=%s, path=%s)",
+    return String.format(
+        "AzureURI(location=%s, container=%s, storageAccount=%s, path=%s)",
         this.location,
         this.container,
         this.storageAccount,
@@ -110,9 +120,5 @@ public class AzureURI {
 
   public String path() {
     return path;
-  }
-
-  public static AzureURI from(String location) {
-    return new AzureURI(location);
   }
 }

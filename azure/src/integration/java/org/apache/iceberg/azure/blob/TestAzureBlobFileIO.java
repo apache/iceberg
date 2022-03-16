@@ -25,6 +25,7 @@ import com.azure.storage.blob.BlobServiceClient;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.azure.AuthType;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -37,12 +38,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import static org.apache.iceberg.azure.AzureProperties.STORAGE_ACCOUNT_KEY;
-import static org.apache.iceberg.azure.AzureProperties.STORAGE_AUTH_TYPE;
-import static org.apache.iceberg.azure.blob.AzureBlobTestConstants.DATA_CONTAINER;
-import static org.apache.iceberg.azure.blob.AzureBlobTestConstants.STORAGE_ACCOUNT_1;
-import static org.apache.iceberg.azure.blob.AzureBlobTestConstants.STORAGE_ACCOUNT_1_KEY;
-
 public class TestAzureBlobFileIO {
 
   private static BlobServiceClient serviceClient;
@@ -51,11 +46,17 @@ public class TestAzureBlobFileIO {
 
   @BeforeAll
   public static void beforeClass() {
-    serviceClient = AzureBlobTestUtils.blobServiceClient(STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_1_KEY);
-    containerClient = serviceClient.getBlobContainerClient(DATA_CONTAINER);
+    serviceClient = AzureBlobTestUtils.blobServiceClient(
+        AzureBlobTestConstants.STORAGE_ACCOUNT_1,
+        AzureBlobTestConstants.STORAGE_ACCOUNT_1_KEY);
+    containerClient = serviceClient.getBlobContainerClient(AzureBlobTestConstants.DATA_CONTAINER);
     properties = ImmutableMap.<String, String>builder()
-        .put(String.format(STORAGE_AUTH_TYPE, STORAGE_ACCOUNT_1), AuthType.SharedKey.toString())
-        .put(String.format(STORAGE_ACCOUNT_KEY, STORAGE_ACCOUNT_1), STORAGE_ACCOUNT_1_KEY)
+        .put(
+            String.format(AzureProperties.STORAGE_AUTH_TYPE, AzureBlobTestConstants.STORAGE_ACCOUNT_1),
+            AuthType.SharedKey.toString())
+        .put(
+            String.format(AzureProperties.STORAGE_ACCOUNT_KEY, AzureBlobTestConstants.STORAGE_ACCOUNT_1),
+            AzureBlobTestConstants.STORAGE_ACCOUNT_1_KEY)
         .build();
   }
 
@@ -69,7 +70,10 @@ public class TestAzureBlobFileIO {
     FileIO io = new AzureBlobFileIO();
     io.initialize(properties);
 
-    final String location = AzureBlobTestUtils.abfsLocation(STORAGE_ACCOUNT_1, "data", "/does/this/work/test.txt");
+    final String location = AzureBlobTestUtils.abfsLocation(
+        AzureBlobTestConstants.STORAGE_ACCOUNT_1,
+        AzureBlobTestConstants.DATA_CONTAINER,
+        "/does/this/work/test.txt");
 
     OutputFile outputFile = io.newOutputFile(location);
     PositionOutputStream positionOutputStream = outputFile.create();

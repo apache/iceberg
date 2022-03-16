@@ -32,6 +32,10 @@ public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
     super(uri, blobClient, azureProperties);
   }
 
+  public static AzureBlobInputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
+    return new AzureBlobInputFile(azureURI, blobClient, azureProperties);
+  }
+
   @Override
   public long getLength() {
     if (length == null) {
@@ -43,9 +47,5 @@ public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
   @Override
   public SeekableInputStream newStream() {
     return new AzureBlobInputStream(azureURI(), azureProperties(), blobClient());
-  }
-
-  public static AzureBlobInputFile from(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
-    return new AzureBlobInputFile(azureURI, blobClient, azureProperties);
   }
 }

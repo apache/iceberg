@@ -21,17 +21,14 @@ package org.apache.iceberg.azure.blob;
 
 public class AzureBlobTestConstants {
 
-  private AzureBlobTestConstants() {
-  }
-
   public static final String STORAGE_ACCOUNT_1 = System.getenv("STORAGE_ACCOUNT_1");
   public static final String STORAGE_ACCOUNT_1_KEY = System.getenv("STORAGE_ACCOUNT_1_KEY");
-
   public static final String STORAGE_ACCOUNT_2 = System.getenv("STORAGE_ACCOUNT_2");
   public static final String STORAGE_ACCOUNT_2_KEY = System.getenv("STORAGE_ACCOUNT_2_KEY");
-
   public static final String STORAGE_ACCOUNT_3 = System.getenv("STORAGE_ACCOUNT_3");
   public static final String STORAGE_ACCOUNT_3_KEY = System.getenv("STORAGE_ACCOUNT_3_KEY");
-
   public static final String DATA_CONTAINER = "data";
+
+  private AzureBlobTestConstants() {
+  }
 }

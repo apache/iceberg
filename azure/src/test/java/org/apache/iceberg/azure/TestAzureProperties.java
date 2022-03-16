@@ -144,7 +144,8 @@ public class TestAzureProperties {
     // All Storage accounts max single upload size config.
     for (String storageAccount : storageAccounts) {
       final Long sa1maxSingleUploadSize = Math.abs(random.nextLong());
-      properties.put(format(STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE, storageAccount),
+      properties.put(
+          format(STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE, storageAccount),
           String.valueOf(sa1maxSingleUploadSize));
     }
 
@@ -196,7 +197,8 @@ public class TestAzureProperties {
 
   @Test
   public void testNullProperties() {
-    AssertHelpers.assertThrows("Should not allow null properties map",
+    AssertHelpers.assertThrows(
+        "Should not allow null properties map",
         NullPointerException.class,
         "Properties map " + "cannot be null",
         () -> {
