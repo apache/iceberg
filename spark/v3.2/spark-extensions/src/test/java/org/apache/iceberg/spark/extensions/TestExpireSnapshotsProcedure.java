@@ -285,7 +285,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testExpireSnapshotWithStreamResultsEnabled() {
+  public void testExpireSnapshotWithParallelDeleteEnabled() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -304,7 +304,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "older_than => TIMESTAMP '%s'," +
             "table => '%s'," +
             "retain_last => 1, " +
-            "stream_results => true)",
+            "parallel_delete => true)",
         catalogName, currentTimestamp, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 1L)), output);
   }
