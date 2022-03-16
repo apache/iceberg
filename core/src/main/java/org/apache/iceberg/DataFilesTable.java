@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
+import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
@@ -60,8 +60,8 @@ public class DataFilesTable extends BaseFilesTable {
     }
 
     @Override
-    protected List<ManifestFile> manifests() {
-      return snapshot().dataManifests();
+    protected CloseableIterable<ManifestFile> manifests() {
+      return CloseableIterable.withNoopClose(snapshot().dataManifests());
     }
   }
 }

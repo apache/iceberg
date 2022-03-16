@@ -20,18 +20,10 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ParallelIterable;
 
 /**
@@ -41,7 +33,7 @@ import org.apache.iceberg.util.ParallelIterable;
  * <p>
  * This table may return duplicate rows.
  */
-public class AllDataFilesTable extends BaseMetadataTable {
+public class AllDataFilesTable extends BaseFilesTable {
 
   AllDataFilesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_data_files");
@@ -57,44 +49,24 @@ public class AllDataFilesTable extends BaseMetadataTable {
   }
 
   @Override
-  public Schema schema() {
-    StructType partitionType = Partitioning.partitionType(table());
-    Schema schema = new Schema(DataFile.getType(partitionType).fields());
-    if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
-    } else {
-      return schema;
-    }
-  }
-
-  @Override
   MetadataTableType metadataTableType() {
     return MetadataTableType.ALL_DATA_FILES;
   }
 
-  public static class AllDataFilesTableScan extends BaseAllMetadataTableScan {
-    private final Schema fileSchema;
+  public static class AllDataFilesTableScan extends BaseFilesTableScan {
 
     AllDataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema);
-      this.fileSchema = fileSchema;
+      super(ops, table, fileSchema, MetadataTableType.ALL_DATA_FILES);
     }
 
     private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
                                   TableScanContext context) {
-      super(ops, table, schema, context);
-      this.fileSchema = fileSchema;
-    }
-
-    @Override
-    protected String tableType() {
-      return MetadataTableType.ALL_DATA_FILES.name();
+      super(ops, table, schema, fileSchema, context, MetadataTableType.ALL_DATA_FILES);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, fileSchema, context);
+      return new AllDataFilesTableScan(ops, table, schema, fileSchema(), context);
     }
 
     @Override
@@ -108,30 +80,15 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allDataManifestFiles(
-          ops.current().snapshots(), context().planExecutor());
-      String schemaString = SchemaParser.toJson(schema());
-      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
-
-      return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), ops.current().specsById(), manifest, schema(),
-              schemaString, specString, residuals));
-    }
-  }
-
-  private static CloseableIterable<ManifestFile> allDataManifestFiles(
-      List<Snapshot> snapshots, ExecutorService workerPool) {
-    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
-        workerPool)) {
-      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close parallel iterable");
+    protected CloseableIterable<ManifestFile> manifests() {
+      try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
+          Iterables.transform(table().snapshots(),
+              snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
+          context().planExecutor())) {
+        return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to close parallel iterable");
+      }
     }
   }
 }

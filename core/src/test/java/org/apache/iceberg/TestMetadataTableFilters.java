@@ -48,7 +48,9 @@ public class TestMetadataTableFilters extends TableTestBase {
         { MetadataTableType.DATA_FILES, 2 },
         { MetadataTableType.DELETE_FILES, 2 },
         { MetadataTableType.FILES, 1 },
-        { MetadataTableType.FILES, 2 }
+        { MetadataTableType.FILES, 2 },
+        { MetadataTableType.ALL_DATA_FILES, 1 },
+        { MetadataTableType.ALL_DATA_FILES, 2 }
     };
   }
 
@@ -88,6 +90,14 @@ public class TestMetadataTableFilters extends TableTestBase {
           .addDeletes(FILE_D2_DELETES)
           .commit();
     }
+
+    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+      // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
+      table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
+      table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
+      Assert.assertEquals("Current snapshot should be made empty",
+          0, table.currentSnapshot().allManifests().size());
+    }
   }
 
   private Table createMetadataTable() {
@@ -98,6 +108,8 @@ public class TestMetadataTableFilters extends TableTestBase {
         return new DataFilesTable(table.ops(), table);
       case DELETE_FILES:
         return new DeleteFilesTable(table.ops(), table);
+      case ALL_DATA_FILES:
+        return new AllDataFilesTable(table.ops(), table);
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }
@@ -114,6 +126,8 @@ public class TestMetadataTableFilters extends TableTestBase {
       case DATA_FILES:
       case DELETE_FILES:
         return partitions;
+      case ALL_DATA_FILES:
+        return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }
