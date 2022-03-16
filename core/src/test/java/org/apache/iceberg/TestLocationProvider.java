@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Splitter;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
 import org.junit.Assert;
@@ -271,5 +273,22 @@ public class TestLocationProvider extends TableTestBase {
 
     Assert.assertTrue("write data path should be used when set",
         table.locationProvider().newDataLocation("file").contains(dataPath));
+  }
+
+  @Test
+  public void testObjectStorageWithinTableLocation() {
+    table.updateProperties()
+        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
+        .commit();
+
+    String fileLocation = table.locationProvider().newDataLocation("test.parquet");
+    String relativeLocation = fileLocation.replaceFirst(table.location(), "");
+    List<String> parts = Splitter.on("/").splitToList(relativeLocation);
+
+    Assert.assertEquals("Should contain 4 parts", 4, parts.size());
+    Assert.assertTrue("First part should be empty", parts.get(0).isEmpty());
+    Assert.assertEquals("Second part should be data", "data", parts.get(1));
+    Assert.assertFalse("Third part should be a hash value", parts.get(2).isEmpty());
+    Assert.assertEquals("Fourth part should be the file name passed in", "test.parquet", parts.get(3));
   }
 }
