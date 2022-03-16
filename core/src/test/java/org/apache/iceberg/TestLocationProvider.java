@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Splitter;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
