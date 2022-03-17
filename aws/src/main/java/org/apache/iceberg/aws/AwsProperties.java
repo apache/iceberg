@@ -270,7 +270,7 @@ public class AwsProperties implements Serializable {
 
   private boolean isS3ChecksumEnabled;
 
-  private Set<Tag> writeTags;
+  private Set<Tag> s3WriteTags;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
@@ -345,7 +345,7 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
 
-    this.writeTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
   }
 
   public String s3FileIoSseType() {
@@ -452,8 +452,8 @@ public class AwsProperties implements Serializable {
     this.isS3ChecksumEnabled = eTagCheckEnabled;
   }
 
-  public Set<Tag> getWriteTags() {
-    return writeTags;
+  public Set<Tag> getS3WriteTags() {
+    return s3WriteTags;
   }
 
   public Set<Tag> toTags(Map<String, String> properties, String prefix) {
