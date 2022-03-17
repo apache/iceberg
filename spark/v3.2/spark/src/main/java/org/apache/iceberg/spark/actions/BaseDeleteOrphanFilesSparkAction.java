@@ -22,8 +22,11 @@ package org.apache.iceberg.spark.actions;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -33,7 +36,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
@@ -196,10 +198,10 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> matchingFiles = Lists.newArrayList();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-    PathFilter filter = pathFilter(table.spec());
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.build(table.specs());
 
     // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
-    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, filter, matchingFiles);
+    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, pathFilter, matchingFiles);
 
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
@@ -212,26 +214,15 @@ public class BaseDeleteOrphanFilesSparkAction
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     JavaRDD<String> matchingLeafFileRDD =
-        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, filter));
+        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, pathFilter));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
   }
 
-  private PathFilter pathFilter(PartitionSpec spec) {
-    List<String> partitionNames = Lists.newArrayList();
-    for (PartitionField field : spec.fields()) {
-      if (field.name().startsWith("_") || field.name().startsWith(".")) {
-        partitionNames.add(field.name());
-      }
-    }
-
-    return (partitionNames.isEmpty()) ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
-  }
-
   private static void listDirRecursively(
-          String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
-          int maxDirectSubDirs, List<String> remainingSubDirs, PathFilter filter, List<String> matchingFiles) {
+      String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
+      int maxDirectSubDirs, List<String> remainingSubDirs, PathFilter pathFilter, List<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
@@ -245,7 +236,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
       List<String> subDirs = Lists.newArrayList();
 
-      for (FileStatus file : fs.listStatus(path, filter)) {
+      for (FileStatus file : fs.listStatus(path, pathFilter)) {
         if (file.isDirectory()) {
           subDirs.add(file.getPath().toString());
         } else if (file.isFile() && predicate.test(file)) {
@@ -260,7 +251,7 @@ public class BaseDeleteOrphanFilesSparkAction
       }
 
       for (String subDir : subDirs) {
-        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, filter,
+        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, pathFilter,
                 matchingFiles);
       }
     } catch (IOException e) {
@@ -271,7 +262,7 @@ public class BaseDeleteOrphanFilesSparkAction
   private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
       Broadcast<SerializableConfiguration> conf,
       long olderThanTimestamp,
-      PathFilter filter) {
+      PathFilter pathFilter) {
 
     return dirs -> {
       List<String> subDirs = Lists.newArrayList();
@@ -283,7 +274,7 @@ public class BaseDeleteOrphanFilesSparkAction
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
       dirs.forEachRemaining(dir -> {
-        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, filter, files);
+        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, pathFilter, files);
       });
 
       if (!subDirs.isEmpty()) {
@@ -297,9 +288,9 @@ public class BaseDeleteOrphanFilesSparkAction
   @VisibleForTesting
   static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
 
-    private final List<String> hiddenPathPartitionNames;
+    private final Set<String> hiddenPathPartitionNames;
 
-    PartitionAwareHiddenPathFilter(List<String> hiddenPathPartitionNames) {
+    PartitionAwareHiddenPathFilter(Set<String> hiddenPathPartitionNames) {
       this.hiddenPathPartitionNames = hiddenPathPartitionNames;
     }
 
@@ -307,6 +298,21 @@ public class BaseDeleteOrphanFilesSparkAction
     public boolean accept(Path path) {
       boolean isHiddenPartitionPath = hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
       return isHiddenPartitionPath || HiddenPathFilter.get().accept(path);
+    }
+
+    static PathFilter build(Map<Integer, PartitionSpec> specs) {
+      Set<String> partitionNames = new HashSet<>();
+
+      specs.values().stream()
+          .map(PartitionSpec::fields)
+          .flatMap(List::stream)
+          .forEach(partitionField -> {
+            if (partitionField.name().startsWith("_") || partitionField.name().startsWith(".")) {
+              partitionNames.add(partitionField.name());
+            }
+          });
+
+      return (partitionNames.isEmpty()) ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
     }
   }
 }
