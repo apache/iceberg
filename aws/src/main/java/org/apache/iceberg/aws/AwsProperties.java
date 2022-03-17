@@ -255,6 +255,32 @@ public class AwsProperties implements Serializable {
   public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
   /**
+   * Used by {@link S3FileIO} to tag objects when deleting. When this config is set, objects are
+   * tagged with the configured key-value pairs before deletion. This is considered a soft-delete,
+   * because users are able to configure tag-based object lifecycle policy at bucket level to
+   * transition objects to different tiers.
+   * <p>
+   * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
+   * <p>
+   * Example: s3.delete.tags.my_key=my_val
+   */
+  public static final String S3_DELETE_TAGS_PREFIX = "s3.delete.tags.";
+
+  /**
+   * Number of threads to use for adding delete tags to S3 objects, default to {@link
+   * Runtime#availableProcessors()}
+   */
+  public static final String S3FILEIO_DELETE_THREADS = "s3.delete.num-threads";
+
+  /**
+   * Determines if S3FileIO delete the object when io.delete() is called, default to true. Once
+   * disabled, users are expected to set tags through S3_DELETE_TAGS_PREFIX and manage deleted files
+   * through S3 lifecycle policy.
+   */
+  public static final String S3_DELETE_ENABLED = "s3.delete-enabled";
+  public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
+
+  /**
    * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
    */
   @Deprecated
@@ -271,6 +297,9 @@ public class AwsProperties implements Serializable {
   private ObjectCannedACL s3FileIoAcl;
   private boolean isS3ChecksumEnabled;
   private final Set<Tag> s3WriteTags;
+  private final Set<Tag> s3DeleteTags;
+  private int s3FileIoDeleteThreads;
+  private boolean isS3DeleteEnabled;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -290,6 +319,9 @@ public class AwsProperties implements Serializable {
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
     this.s3WriteTags = Sets.newHashSet();
+    this.s3DeleteTags = Sets.newHashSet();
+    this.s3FileIoDeleteThreads = Runtime.getRuntime().availableProcessors();
+    this.isS3DeleteEnabled = S3_DELETE_ENABLED_DEFAULT;
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -349,6 +381,10 @@ public class AwsProperties implements Serializable {
         String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
     this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3DeleteTags = toTags(properties, S3_DELETE_TAGS_PREFIX);
+    this.s3FileIoDeleteThreads = PropertyUtil.propertyAsInt(properties, S3FILEIO_DELETE_THREADS,
+            Runtime.getRuntime().availableProcessors());
+    this.isS3DeleteEnabled = PropertyUtil.propertyAsBoolean(properties, S3_DELETE_ENABLED, S3_DELETE_ENABLED_DEFAULT);
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
@@ -460,6 +496,26 @@ public class AwsProperties implements Serializable {
 
   public Set<Tag> s3WriteTags() {
     return s3WriteTags;
+  }
+
+  public Set<Tag> s3DeleteTags() {
+    return s3DeleteTags;
+  }
+
+  public int s3FileIoDeleteThreads() {
+    return s3FileIoDeleteThreads;
+  }
+
+  public void setS3FileIoDeleteThreads(int threads) {
+    this.s3FileIoDeleteThreads = threads;
+  }
+
+  public boolean isS3DeleteEnabled() {
+    return isS3DeleteEnabled;
+  }
+
+  public void setS3DeleteEnabled(boolean s3DeleteEnabled) {
+    this.isS3DeleteEnabled = s3DeleteEnabled;
   }
 
   private Set<Tag> toTags(Map<String, String> properties, String prefix) {
