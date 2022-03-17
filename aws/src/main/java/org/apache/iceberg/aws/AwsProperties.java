@@ -263,15 +263,13 @@ public class AwsProperties implements Serializable {
   private double s3FileIoMultipartThresholdFactor;
   private String s3fileIoStagingDirectory;
   private ObjectCannedACL s3FileIoAcl;
+  private boolean isS3ChecksumEnabled;
+  private final Set<Tag> s3WriteTags;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
 
   private String dynamoDbTableName;
-
-  private boolean isS3ChecksumEnabled;
-
-  private final Set<Tag> s3WriteTags;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
@@ -285,13 +283,12 @@ public class AwsProperties implements Serializable {
     this.s3FileIoDeleteBatchSize = S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
+    this.s3WriteTags = Sets.newHashSet();
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
 
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
-
-    this.s3WriteTags = Sets.newHashSet();
   }
 
   public AwsProperties(Map<String, String> properties) {
@@ -345,10 +342,10 @@ public class AwsProperties implements Serializable {
         s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
         String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
+    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
+
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
-
-    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
   }
 
   public String s3FileIoSseType() {
