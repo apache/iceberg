@@ -200,8 +200,9 @@ class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
-        .exposeLocality(exposeLocality)
         .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
+        .planParallelism(planParallelism)
         .build();
   }
 
@@ -223,6 +224,7 @@ class ScanContext implements Serializable {
         .limit(limit)
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
+        .planParallelism(planParallelism)
         .build();
   }
 

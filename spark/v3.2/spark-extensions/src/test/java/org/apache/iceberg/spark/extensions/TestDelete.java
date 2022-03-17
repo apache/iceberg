@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.extensions;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -39,6 +41,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -78,6 +82,30 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS deleted_id");
     sql("DROP TABLE IF EXISTS deleted_dep");
+  }
+
+  @Test
+  public void testDeleteFileThenMetadataDelete() throws Exception {
+    Assume.assumeFalse("Avro does not support metadata delete", fileFormat.equals("avro"));
+    createAndInitUnpartitionedTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+
+    // MOR mode: writes a delete file as null cannot be deleted by metadata
+    sql("DELETE FROM %s AS t WHERE t.id IS NULL", tableName);
+
+    // Metadata Delete
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table);
+
+    sql("DELETE FROM %s AS t WHERE t.id = 1", tableName);
+
+    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table);
+    Assert.assertTrue("Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test

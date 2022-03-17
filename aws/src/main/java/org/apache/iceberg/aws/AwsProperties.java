@@ -22,6 +22,7 @@ package org.apache.iceberg.aws;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
+import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -172,6 +173,25 @@ public class AwsProperties implements Serializable {
   public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
 
   /**
+   * Configure the batch size used when deleting multiple files from a given S3 bucket
+   */
+  public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
+
+  /**
+   * Default batch size used when deleting files.
+   * <p>
+   * Refer to https://github.com/apache/hadoop/commit/56dee667707926f3796c7757be1a133a362f05c9
+   * for more details on why this value was chosen.
+   */
+  public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = 250;
+
+  /**
+   * Max possible batch size for deletion. Currently, a max of 1000 keys can be deleted in one batch.
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+   */
+  public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
+
+  /**
    * DynamoDB table name for {@link DynamoDbCatalog}
    */
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
@@ -216,6 +236,15 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
+   * <p>
+   * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   * <p>
+   * Example in Spark: --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key=my_val
+   */
+  public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
+
+  /**
    * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
    */
   @Deprecated
@@ -226,6 +255,7 @@ public class AwsProperties implements Serializable {
   private String s3FileIoSseMd5;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
+  private int s3FileIoDeleteBatchSize;
   private double s3FileIoMultipartThresholdFactor;
   private String s3fileIoStagingDirectory;
   private ObjectCannedACL s3FileIoAcl;
@@ -246,6 +276,7 @@ public class AwsProperties implements Serializable {
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
     this.s3FileIoMultipartThresholdFactor = S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
+    this.s3FileIoDeleteBatchSize = S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
 
@@ -300,6 +331,12 @@ public class AwsProperties implements Serializable {
     this.isS3ChecksumEnabled = PropertyUtil.propertyAsBoolean(properties, S3_CHECKSUM_ENABLED,
         S3_CHECKSUM_ENABLED_DEFAULT);
 
+    this.s3FileIoDeleteBatchSize = PropertyUtil.propertyAsInt(properties, S3FILEIO_DELETE_BATCH_SIZE,
+        S3FILEIO_DELETE_BATCH_SIZE_DEFAULT);
+    Preconditions.checkArgument(s3FileIoDeleteBatchSize > 0 &&
+        s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
+        String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
+
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
   }
@@ -314,6 +351,14 @@ public class AwsProperties implements Serializable {
 
   public String s3FileIoSseKey() {
     return s3FileIoSseKey;
+  }
+
+  public int s3FileIoDeleteBatchSize() {
+    return s3FileIoDeleteBatchSize;
+  }
+
+  public void setS3FileIoDeleteBatchSize(int deleteBatchSize) {
+    this.s3FileIoDeleteBatchSize = deleteBatchSize;
   }
 
   public void setS3FileIoSseKey(String sseKey) {

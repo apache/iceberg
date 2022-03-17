@@ -95,10 +95,10 @@ public class AvroSchemaUtil {
    * <p>
    * To have an ID for a node:
    * <ul>
-   *   <li>a field node under struct (record) schema should have {@link FIELD_ID_PROP} property
-   *   <li>an element node under list (array) schema should have {@link ELEMENT_ID_PROP} property
-   *   <li>a pair of key and value node under map schema should have {@link KEY_ID_PROP} and
-   *   {@link VALUE_ID_PROP} respectively
+   *   <li>a field node under struct (record) schema should have {@link #FIELD_ID_PROP} property
+   *   <li>an element node under list (array) schema should have {@link #ELEMENT_ID_PROP} property
+   *   <li>a pair of key and value node under map schema should have {@link #KEY_ID_PROP} and
+   *   {@link #VALUE_ID_PROP} respectively
    *   <li>a primitive node is not assigned any ID properties
    * </ul>
    * <p>

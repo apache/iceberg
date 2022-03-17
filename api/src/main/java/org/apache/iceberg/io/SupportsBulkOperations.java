@@ -17,25 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source.parquet;
+package org.apache.iceberg.io;
 
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.spark.source.WritersBenchmark;
-
-/**
- * A benchmark that evaluates the performance of various Iceberg writers for Parquet data.
- *
- * To run this benchmark for spark 3.2:
- * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark-3.2_2.12:jmh \
- *       -PjmhIncludeRegex=ParquetWritersBenchmark \
- *       -PjmhOutputPath=benchmark/parquet-writers-benchmark-result.txt
- * </code>
- */
-public class ParquetWritersBenchmark extends WritersBenchmark {
-
-  @Override
-  protected FileFormat fileFormat() {
-    return FileFormat.PARQUET;
-  }
+public interface SupportsBulkOperations {
+  /**
+   * Delete the files at the given paths.
+   *
+   * @param pathsToDelete The paths to delete
+   * @throws BulkDeletionFailureException in
+   */
+  void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException;
 }

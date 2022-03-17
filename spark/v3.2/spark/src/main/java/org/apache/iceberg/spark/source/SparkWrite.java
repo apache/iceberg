@@ -277,17 +277,15 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       IsolationLevel isolationLevel = writeConf.isolationLevel();
       Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
 
+      if (isolationLevel != null && validateFromSnapshotId != null) {
+        dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
+      }
+
       if (isolationLevel == SERIALIZABLE) {
-        if (validateFromSnapshotId != null) {
-          dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
-        }
         dynamicOverwrite.validateNoConflictingData();
         dynamicOverwrite.validateNoConflictingDeletes();
 
       } else if (isolationLevel == SNAPSHOT) {
-        if (validateFromSnapshotId != null) {
-          dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
-        }
         dynamicOverwrite.validateNoConflictingDeletes();
       }
 
@@ -317,6 +315,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       for (DataFile file : files(messages)) {
         numFiles += 1;
         overwriteFiles.addFile(file);
+      }
+
+      IsolationLevel isolationLevel = writeConf.isolationLevel();
+      Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
+
+      if (isolationLevel != null && validateFromSnapshotId != null) {
+        overwriteFiles.validateFromSnapshot(validateFromSnapshotId);
+      }
+
+      if (isolationLevel == SERIALIZABLE) {
+        overwriteFiles.validateNoConflictingDeletes();
+        overwriteFiles.validateNoConflictingData();
+
+      } else if (isolationLevel == SNAPSHOT) {
+        overwriteFiles.validateNoConflictingDeletes();
       }
 
       String commitMsg = String.format("overwrite by filter %s with %d new data files", overwriteExpr, numFiles);

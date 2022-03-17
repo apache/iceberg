@@ -20,6 +20,9 @@
 package org.apache.iceberg.util;
 
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class PropertyUtil {
 
@@ -69,5 +72,27 @@ public class PropertyUtil {
       return value;
     }
     return defaultValue;
+  }
+
+  /**
+   * Returns subset of provided map with keys matching the provided prefix. Matching is case-sensitive and the matching
+   * prefix is removed from the keys in returned map.
+   *
+   * @param properties input map
+   * @param prefix prefix to choose keys from input map
+   * @return subset of input map with keys starting with provided prefix and prefix trimmed out
+   */
+  public static Map<String, String> propertiesWithPrefix(
+      Map<String, String> properties, String prefix) {
+    if (properties == null || properties.isEmpty()) {
+      return ImmutableMap.of();
+    }
+
+    Preconditions.checkArgument(prefix != null, "prefix can't be null.");
+
+    return properties.entrySet().stream()
+        .filter(e -> e.getKey().startsWith(prefix))
+        .collect(Collectors.toMap(
+            e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
   }
 }

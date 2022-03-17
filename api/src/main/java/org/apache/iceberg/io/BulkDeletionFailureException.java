@@ -17,25 +17,17 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source.parquet;
+package org.apache.iceberg.io;
 
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.spark.source.WritersBenchmark;
+public class BulkDeletionFailureException extends RuntimeException {
+  private final int numberFailedObjects;
 
-/**
- * A benchmark that evaluates the performance of various Iceberg writers for Parquet data.
- *
- * To run this benchmark for spark 3.2:
- * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark-3.2_2.12:jmh \
- *       -PjmhIncludeRegex=ParquetWritersBenchmark \
- *       -PjmhOutputPath=benchmark/parquet-writers-benchmark-result.txt
- * </code>
- */
-public class ParquetWritersBenchmark extends WritersBenchmark {
+  public BulkDeletionFailureException(int numberFailedObjects) {
+    super(String.format("Failed to delete %d files", numberFailedObjects));
+    this.numberFailedObjects = numberFailedObjects;
+  }
 
-  @Override
-  protected FileFormat fileFormat() {
-    return FileFormat.PARQUET;
+  public int numberFailedObjects() {
+    return numberFailedObjects;
   }
 }

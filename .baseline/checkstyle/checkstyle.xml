@@ -53,18 +53,23 @@
     </module>
     <module name="RegexpSingleline">
         <property name="format" value="new HashMap&lt;&gt;\(.*\)"/>
-        <property name="message"
-                  value="Prefer using Maps.newHashMap instead."/>
+        <property name="message" value="Prefer using Maps.newHashMap instead."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="new ConcurrentHashMap&lt;&gt;\(.*\)"/>
+        <property name="message" value="Prefer using Maps.newConcurrentMap() instead."/>
     </module>
     <module name="RegexpSingleline">
         <property name="format" value="new ArrayList&lt;&gt;\(.*\)"/>
-        <property name="message"
-                  value="Prefer using Lists.newArrayList() instead."/>
+        <property name="message" value="Prefer using Lists.newArrayList() instead."/>
     </module>
     <module name="RegexpSingleline">
         <property name="format" value="new HashSet&lt;&gt;\(.*\)"/>
-        <property name="message"
-                  value="Prefer using Sets.newHashSet() instead."/>
+        <property name="message" value="Prefer using Sets.newHashSet() instead."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="new LinkedHashSet&lt;&gt;\(.*\)"/>
+        <property name="message" value="Prefer using Sets.newLinkedHashSet() instead."/>
     </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
