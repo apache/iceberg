@@ -452,7 +452,7 @@ public class AwsProperties implements Serializable {
     this.isS3ChecksumEnabled = eTagCheckEnabled;
   }
 
-  public Set<Tag> getS3WriteTags() {
+  public Set<Tag> s3WriteTags() {
     return s3WriteTags;
   }
 

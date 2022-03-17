@@ -124,7 +124,7 @@ class S3OutputStream extends PositionOutputStream {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
-    this.writeTags = awsProperties.getS3WriteTags();
+    this.writeTags = awsProperties.s3WriteTags();
 
     this.createStack = Thread.currentThread().getStackTrace();
 
