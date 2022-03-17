@@ -19,16 +19,13 @@
 
 package org.apache.iceberg.aws.s3;
 
-import java.util.Set;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.Tag;
 
 abstract class BaseS3File {
   private final S3Client client;
@@ -36,23 +33,12 @@ abstract class BaseS3File {
   private final AwsProperties awsProperties;
   private HeadObjectResponse metadata;
   private final MetricsContext metrics;
-  private final Set<Tag> writeTags;
 
   BaseS3File(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.awsProperties = awsProperties;
     this.metrics = metrics;
-    this.writeTags = Sets.newHashSet();
-  }
-
-  BaseS3File(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics,
-      Set<Tag> writeTags) {
-    this.client = client;
-    this.uri = uri;
-    this.awsProperties = awsProperties;
-    this.metrics = metrics;
-    this.writeTags = writeTags;
   }
 
   public String location() {
@@ -73,10 +59,6 @@ abstract class BaseS3File {
 
   protected MetricsContext metrics() {
     return metrics;
-  }
-
-  public Set<Tag> writeTags() {
-    return writeTags;
   }
 
   /**

@@ -34,7 +34,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Assert;
@@ -50,7 +49,6 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
-import software.amazon.awssdk.services.s3.model.Tag;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -191,31 +189,5 @@ public class TestS3FileIO {
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
     assertEquals("s3", post.get().serviceName());
-  }
-
-  @Test
-  public void testWriteTags() throws IOException {
-    String location = "s3://bucket/path/to/file.txt";
-    byte[] expected = new byte[1024 * 1024];
-    random.nextBytes(expected);
-
-    InputFile in = s3FileIO.newInputFile(location);
-    assertFalse(in.exists());
-
-    OutputFile out = s3FileIO.newOutputFile(location);
-    try (OutputStream os = out.createOrOverwrite()) {
-      IOUtils.write(expected, os);
-    }
-
-    assertTrue(in.exists());
-
-    // Assert for writeTags
-    assertTrue(((S3InputFile) in).writeTags().isEmpty());
-    assertEquals(((S3OutputFile) out).writeTags().size(), 1);
-    assertEquals(((S3OutputFile) out).writeTags(), ImmutableSet.of(
-        Tag.builder().key("tagKey1").value("TagValue1").build()));
-
-    s3FileIO.deleteFile(in);
-    assertFalse(s3FileIO.newInputFile(location).exists());
   }
 }

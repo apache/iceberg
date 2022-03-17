@@ -39,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +48,6 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
-import software.amazon.awssdk.services.s3.model.Tag;
 
 /**
  * FileIO implementation backed by S3.
@@ -67,7 +65,6 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
   private transient S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private Set<Tag> writeTags = Sets.newHashSet();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -106,7 +103,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return S3OutputFile.fromLocation(path, client(), awsProperties, metrics, writeTags);
+    return S3OutputFile.fromLocation(path, client(), awsProperties, metrics);
   }
 
   @Override
@@ -190,7 +187,6 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
-    this.writeTags = toTags(properties);
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
@@ -217,12 +213,5 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
         client.close();
       }
     }
-  }
-
-  private Set<Tag> toTags(Map<String, String> properties) {
-    return PropertyUtil.propertiesWithPrefix(properties, AwsProperties.S3_WRITE_TAGS_PREFIX)
-        .entrySet().stream()
-        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
-        .collect(Collectors.toSet());
   }
 }

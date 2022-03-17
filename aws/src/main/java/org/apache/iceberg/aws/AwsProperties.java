@@ -21,11 +21,14 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.Tag;
 
 public class AwsProperties implements Serializable {
 
@@ -267,6 +270,8 @@ public class AwsProperties implements Serializable {
 
   private boolean isS3ChecksumEnabled;
 
+  private Set<Tag> writeTags;
+
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -339,6 +344,8 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
+
+    this.writeTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
   }
 
   public String s3FileIoSseType() {
@@ -443,5 +450,16 @@ public class AwsProperties implements Serializable {
 
   public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
     this.isS3ChecksumEnabled = eTagCheckEnabled;
+  }
+
+  public Set<Tag> getWriteTags() {
+    return writeTags;
+  }
+
+  public Set<Tag> toTags(Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix)
+        .entrySet().stream()
+        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+        .collect(Collectors.toSet());
   }
 }

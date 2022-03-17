@@ -105,7 +105,7 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics, Set<Tag> writeTags)
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
       throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
@@ -124,7 +124,7 @@ class S3OutputStream extends PositionOutputStream {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
-    this.writeTags = writeTags;
+    this.writeTags = awsProperties.getWriteTags();
 
     this.createStack = Thread.currentThread().getStackTrace();
 
