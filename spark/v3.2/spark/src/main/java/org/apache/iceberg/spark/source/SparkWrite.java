@@ -317,6 +317,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         overwriteFiles.addFile(file);
       }
 
+      IsolationLevel isolationLevel = writeConf.isolationLevel();
+      Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
+
+      if (isolationLevel != null && validateFromSnapshotId != null) {
+        overwriteFiles.validateFromSnapshot(validateFromSnapshotId);
+      }
+
+      if (isolationLevel == SERIALIZABLE) {
+        overwriteFiles.validateNoConflictingDeletes();
+        overwriteFiles.validateNoConflictingData();
+
+      } else if (isolationLevel == SNAPSHOT) {
+        overwriteFiles.validateNoConflictingDeletes();
+      }
+
       String commitMsg = String.format("overwrite by filter %s with %d new data files", overwriteExpr, numFiles);
       commitOperation(overwriteFiles, commitMsg);
     }
