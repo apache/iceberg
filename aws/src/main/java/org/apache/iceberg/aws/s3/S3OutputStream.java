@@ -260,7 +260,7 @@ class S3OutputStream extends PositionOutputStream {
     CreateMultipartUploadRequest.Builder requestBuilder = CreateMultipartUploadRequest.builder()
         .bucket(location.bucket())
         .key(location.key());
-    if (!writeTags.isEmpty()) {
+    if (writeTags != null && !writeTags.isEmpty()) {
       requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
     }
 
@@ -378,7 +378,7 @@ class S3OutputStream extends PositionOutputStream {
           .bucket(location.bucket())
           .key(location.key());
 
-      if (!writeTags.isEmpty()) {
+      if (writeTags != null && !writeTags.isEmpty()) {
         requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
       }
 
