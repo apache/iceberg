@@ -152,6 +152,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       switch (format) {
         case AVRO:
           return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              // Note avro currently passes the new test case - the writer func ignores the schema entirely.
               .createWriterFunc(ignore -> new FlinkAvroWriter(lazyEqDeleteFlinkSchema()))
               .withPartition(partition)
               .overwrite()

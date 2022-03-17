@@ -45,6 +45,8 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// import org.apache.iceberg.types.TypeUtil;
+
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaTaskWriter.class);
@@ -81,29 +83,34 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.equalityFieldIds = equalityFieldIds;
     this.upsert = upsert;
 
-    // Check if the present partition spec is equivalent to the equality field ids (case that is currently failing).
-    Set<Integer> partitionFieldIds =
-          table.spec().fields().stream().map(PartitionField::sourceId).collect(Collectors.toSet());
-
-    // LOG.error("equalityFieldIds are: {}", ImmutableSet.copyOf(equalityFieldIds));
-    // LOG.error("partitionFieldIds are: {}", ImmutableSet.copyOf(partitionFieldIds));
-    // Schema eqDeleteRowSchema = null;
-    // if (Objects.equals(partitionFieldIds, equalityFieldIdsSet)) {
-    //   eqDeleteRowSchema = TypeUtil.select(schema, Sets.difference(equalityFieldIdsSet, partitionFieldIds));
-    // } else {
-    //   eqDeleteRowSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
-    // }
-
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
     } else {
+
+      // else iof upsert
+      //  new stuff
+      // else
+      //  old stuff.
+      /**
+      Set<Integer> partitionFieldSourceIdsSet =
+          spec.fields().stream().map(PartitionField::sourceId).collect(Collectors.toSet());
+      Set<Integer> equalityFieldIdsSet = Sets.newHashSet(equalityFieldIds);
+      LOG.error("partitionFieldSourceIdsSet is {}", partitionFieldSourceIdsSet);
+      LOG.error("equalityFieldSourceIdsSet is {}", equalityFieldIdsSet);
+
       if (table.spec().isPartitioned() && !equalityFieldsMatchTablePartitionFieldSources()) {
         this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
-            ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
+            ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, equalityFieldIdsSet), null);
       } else {
         this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
             ArrayUtil.toIntArray(equalityFieldIds), schema, null);
       }
+      **/
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
+          ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+      // if (upsert) {
+      // this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
+      //     ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
     }
   }
 

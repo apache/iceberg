@@ -46,6 +46,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DeleteFile> completedDeleteFiles = Lists.newArrayList();
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
 
+  // Make visible in PR.
   private final PartitionSpec spec;
   private final FileFormat format;
   private final FileAppenderFactory<T> appenderFactory;
@@ -115,6 +116,13 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      */
     protected abstract StructLike asStructLike(T data);
 
+    /**
+     * Convert a {@link StructLike} into {@linkplan T}
+     * @param data the row projection to be used
+     *             for equality deletes
+     */
+    protected abstract T asRowType(StructLike data);
+
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
@@ -169,6 +177,18 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     public void deleteKey(T key) throws IOException {
       if (!internalPosDelete(asStructLike(key))) {
         eqDeleteWriter.write(key);
+      }
+    }
+
+    /**
+     * Delete an eleemnt with an equality delete using the
+     * @param row
+     * @throws IOException
+     */
+    public void deleteByKey(T row) throws IOException {
+      StructLike key = structProjection.wrap(asStructLike(row));
+      if (!internalPosDelete(key)) {
+        eqDeleteWriter.write(asRowType(key));
       }
     }
 

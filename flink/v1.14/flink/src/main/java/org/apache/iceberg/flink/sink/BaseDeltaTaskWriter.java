@@ -35,12 +35,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
-
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaTaskWriter.class);
 
   private final Schema schema;
   private final Schema deleteSchema;
@@ -59,6 +55,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
                       boolean upsert) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
+    // Note BaseDeltaTaskWriter uses the deleteSchema with projected onto equalityFieldIds
+    // always
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     this.upsert = upsert;
@@ -77,33 +75,31 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     switch (row.getRowKind()) {
       case INSERT:
       case UPDATE_AFTER:
-        LOG.error("+U - UPDATE_AFTER row: {}", row);
         if (upsert) {
-          writer.delete(row);
+          // Upserts come in modeled as INSERT. We need to be sure that
+          // we apply an equality delete, by using only the primary keys
+          // of the row as we don't have access to the old value as in the
+          // CDC case, only the upserted value. An equality delete for the
+          // keys will handle this.
+          writer.deleteByKey(row);
         }
         writer.write(row);
         break;
 
-      // UPDATE_BEFORE is not necessary to apply to upsert, as all rows are emitted as INSERT records during upsert
-      // and we account for deleting the previous row by emitting a delete using the subset of fields
-      // that are not part of the equality fields once we hit the UPDATE_AFTER (which is modeled as an INSERT during
-      // upsert mode).
+      // UPDATE_BEFORE is not necessary to apply in upsert mode, as all rows are modeled as INSERT
+      // records.
       //
-      // TODO - Investigate Flink 1.15 changes that will start to allow for using CDC values (INSERT_BEFORE,
-      //  INSERT_AFTER) when using upsert. I think we're good as we already generally do what the newer
-      //  "upsert-kafka" sink does (which is caching data in memory about what has been most recently written
-      //  for a given key).
+      // We account for deleting the previous row by calling delete when we get the INSERT, but that
+      // is the new row and not the upserted row.
       //
-      // See https://issues.apache.org/jira/browse/FLINK-20370 for recent upsert related changes.
+      // Updating the equality
       case UPDATE_BEFORE:
-        LOG.error("-U - UPDATE_BEFORE row: {}", row);
         if (upsert) {
           break;  // UPDATE_BEFORE is not necessary for UPDATE, we do nothing to prevent delete one row twice
         }
         writer.delete(row);
         break;
       case DELETE:
-        LOG.error("-D - DELETE row: {}", row);
         writer.delete(row);
         break;
 
@@ -120,6 +116,13 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     @Override
     protected StructLike asStructLike(RowData data) {
       return wrapper.wrap(data);
+    }
+
+    // TODO - Unsure if we'll need to implement this here. We might need to pass the schema
+    // through if so.
+    @Override
+    protected RowData asRowType(StructLike data) {
+      throw new UnsupportedOperationException("asRowType is not implemented");
     }
   }
 }
