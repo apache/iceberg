@@ -27,6 +27,7 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -186,6 +187,17 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an access point.
+   * <p>
+   * By default, attempting to use an access point in a different region will throw an exception.
+   * When enabled, this property allows using access points in other regions.
+   * <p>
+   * For more details see: https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#useArnRegionEnabled--
+   */
+  public static final String S3_USE_ARN_REGION_ENABLED = "s3.use-arn-region-enabled";
+  public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = false;
+
+  /**
    * Enables eTag checks for S3 PUT and MULTIPART upload requests.
    */
   public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
@@ -292,6 +304,16 @@ public class AwsProperties implements Serializable {
   public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
   /**
+   * Used by {@link S3FileIO}, prefix used for bucket access point configuration.
+   * To set, we can pass a catalog property.
+   * <p>
+   * For more details, see https://aws.amazon.com/s3/features/access-points/
+   * <p>
+   * Example: s3.access-points.my-bucket=access-point
+   */
+  public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
+
+  /**
    * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
    */
   @Deprecated
@@ -320,6 +342,7 @@ public class AwsProperties implements Serializable {
   private ObjectCannedACL s3FileIoAcl;
   private boolean isS3ChecksumEnabled;
   private final Set<Tag> s3WriteTags;
+  private final Map<String, String> s3BucketToAccessPointMapping;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -340,6 +363,7 @@ public class AwsProperties implements Serializable {
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
     this.s3WriteTags = Sets.newHashSet();
+    this.s3BucketToAccessPointMapping = ImmutableMap.of();
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -403,6 +427,7 @@ public class AwsProperties implements Serializable {
         String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
     this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3BucketToAccessPointMapping = PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
@@ -529,5 +554,9 @@ public class AwsProperties implements Serializable {
         .entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
         .collect(Collectors.toSet());
+  }
+
+  public Map<String, String> s3BucketToAccessPointMapping() {
+    return s3BucketToAccessPointMapping;
   }
 }

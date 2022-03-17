@@ -45,6 +45,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private int timeout;
   private String region;
   private String s3Endpoint;
+  private boolean s3UseArnRegionEnabled;
   private String httpClientType;
 
   @Override
@@ -52,6 +53,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return S3Client.builder()
         .applyMutation(this::configure)
         .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
+        .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled).build())
         .build();
   }
 
@@ -84,6 +86,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
     this.tags = toTags(properties);
+    this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(properties, AwsProperties.S3_ACCESS_POINTS_PREFIX,
+        AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
     this.httpClientType = PropertyUtil.propertyAsString(properties,
         AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }
@@ -123,6 +127,10 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected String httpClientType() {
     return httpClientType;
+  }
+
+  protected boolean s3UseArnRegionEnabled() {
+    return s3UseArnRegionEnabled;
   }
 
   private StsClient sts() {

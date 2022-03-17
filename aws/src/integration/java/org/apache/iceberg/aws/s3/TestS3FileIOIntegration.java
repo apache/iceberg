@@ -38,12 +38,16 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.PartitionMetadata;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.model.ListAliasesRequest;
 import software.amazon.awssdk.services.kms.model.ListAliasesResponse;
@@ -57,14 +61,21 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Permission;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3control.S3ControlClient;
+import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
 
 public class TestS3FileIOIntegration {
 
   private static AwsClientFactory clientFactory;
   private static S3Client s3;
+  private static S3ControlClient s3Control;
+  private static S3ControlClient crossRegionS3Control;
   private static KmsClient kms;
   private static String bucketName;
+  private static String crossRegionBucketName;
+  private static String accessPointName;
+  private static String crossRegionAccessPointName;
   private static String prefix;
   private static byte[] contentBytes;
   private static String content;
@@ -78,17 +89,27 @@ public class TestS3FileIOIntegration {
     clientFactory = AwsClientFactories.defaultFactory();
     s3 = clientFactory.s3();
     kms = clientFactory.kms();
+    s3Control = AwsIntegTestUtil.createS3ControlClient(AwsIntegTestUtil.testRegion());
+    crossRegionS3Control = AwsIntegTestUtil.createS3ControlClient(AwsIntegTestUtil.testCrossRegion());
     bucketName = AwsIntegTestUtil.testBucketName();
+    crossRegionBucketName = AwsIntegTestUtil.testCrossRegionBucketName();
+    accessPointName = UUID.randomUUID().toString();
+    crossRegionAccessPointName = UUID.randomUUID().toString();
     prefix = UUID.randomUUID().toString();
     contentBytes = new byte[1024 * 1024 * 10];
     deletionBatchSize = 3;
     content = new String(contentBytes, StandardCharsets.UTF_8);
     kmsKeyArn = kms.createKey().keyMetadata().arn();
+
+    AwsIntegTestUtil.createAccessPoint(s3Control, accessPointName, bucketName);
+    AwsIntegTestUtil.createAccessPoint(crossRegionS3Control, crossRegionAccessPointName, crossRegionBucketName);
   }
 
   @AfterClass
   public static void afterClass() {
     AwsIntegTestUtil.cleanS3Bucket(s3, bucketName, prefix);
+    AwsIntegTestUtil.deleteAccessPoint(s3Control, accessPointName);
+    AwsIntegTestUtil.deleteAccessPoint(crossRegionS3Control, crossRegionAccessPointName);
     kms.scheduleKeyDeletion(ScheduleKeyDeletionRequest.builder().keyId(kmsKeyArn).pendingWindowInDays(7).build());
   }
 
@@ -96,6 +117,11 @@ public class TestS3FileIOIntegration {
   public void before() {
     objectKey = String.format("%s/%s", prefix, UUID.randomUUID().toString());
     objectUri = String.format("s3://%s/%s", bucketName, objectKey);
+  }
+
+  @BeforeEach
+  public void beforeEach() {
+    clientFactory.initialize(Maps.newHashMap());
   }
 
   @Test
@@ -107,10 +133,65 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testNewInputStreamWithAccessPoint() throws Exception {
+    s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
+        testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testNewInputStreamWithCrossRegionAccessPoint() throws Exception {
+    clientFactory.initialize(ImmutableMap.of(AwsProperties.S3_USE_ARN_REGION_ENABLED, "true"));
+    S3Client s3Client = clientFactory.s3();
+    s3Client.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    // make a copy in cross-region bucket
+    s3Client.putObject(PutObjectRequest.builder()
+        .bucket(testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName))
+            .key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
+        testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
+    validateRead(s3FileIO);
+  }
+
+  @Test
   public void testNewOutputStream() throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     write(s3FileIO);
     InputStream stream = s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
+    String result = IoUtils.toUtf8String(stream);
+    stream.close();
+    Assert.assertEquals(content, result);
+  }
+
+  @Test
+  public void testNewOutputStreamWithAccessPoint() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
+        testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
+    write(s3FileIO);
+    InputStream stream = s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
+    String result = IoUtils.toUtf8String(stream);
+    stream.close();
+    Assert.assertEquals(content, result);
+  }
+
+  @Test
+  public void testNewOutputStreamWithCrossRegionAccessPoint() throws Exception {
+    clientFactory.initialize(ImmutableMap.of(AwsProperties.S3_USE_ARN_REGION_ENABLED, "true"));
+    S3Client s3Client = clientFactory.s3();
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
+        testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
+    write(s3FileIO);
+    InputStream stream = s3Client.getObject(GetObjectRequest.builder()
+        .bucket(testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName))
+        .key(objectKey).build());
     String result = IoUtils.toUtf8String(stream);
     stream.close();
     Assert.assertEquals(content, result);
@@ -219,6 +300,23 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testDeleteFilesMultipleBatchesWithAccessPoints() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
+        testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
+    testDeleteFiles(deletionBatchSize * 2, s3FileIO);
+  }
+
+  @Test
+  public void testDeleteFilesMultipleBatchesWithCrossRegionAccessPoints() throws Exception {
+    clientFactory.initialize(ImmutableMap.of(AwsProperties.S3_USE_ARN_REGION_ENABLED, "true"));
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
+        testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
+    testDeleteFiles(deletionBatchSize * 2, s3FileIO);
+  }
+
+  @Test
   public void testDeleteFilesLessThanBatchSize() throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
     testDeleteFiles(deletionBatchSize - 1, s3FileIO);
@@ -267,5 +365,11 @@ public class TestS3FileIOIntegration {
     String result = IoUtils.toUtf8String(stream);
     stream.close();
     Assert.assertEquals(content, result);
+  }
+
+  private String testAccessPointARN(String region, String accessPoint) {
+    // format: arn:aws:s3:region:account-id:accesspoint/resource
+    return String.format("arn:%s:s3:%s:%s:accesspoint/%s",
+        PartitionMetadata.of(Region.of(region)).id(), region, AwsIntegTestUtil.testAccountId(), accessPoint);
   }
 }

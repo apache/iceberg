@@ -28,7 +28,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class S3InputFile extends BaseS3File implements InputFile {
   public static S3InputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
       MetricsContext metrics) {
-    return new S3InputFile(client, new S3URI(location), awsProperties, metrics);
+    return new S3InputFile(client, new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        awsProperties, metrics);
   }
 
   S3InputFile(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
