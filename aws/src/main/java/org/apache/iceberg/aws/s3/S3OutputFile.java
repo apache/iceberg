@@ -21,30 +21,22 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Set;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.Tag;
 
 public class S3OutputFile extends BaseS3File implements OutputFile {
   public static S3OutputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
       MetricsContext metrics) {
-    return new S3OutputFile(client, new S3URI(location), awsProperties, metrics, Sets.newHashSet());
+    return new S3OutputFile(client, new S3URI(location), awsProperties, metrics);
   }
 
-  public static S3OutputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
-      MetricsContext metrics, Set<Tag> writeTags) {
-    return new S3OutputFile(client, new S3URI(location), awsProperties, metrics, writeTags);
-  }
-
-  S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics, Set<Tag> writeTags) {
-    super(client, uri, awsProperties, metrics, writeTags);
+  S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
+    super(client, uri, awsProperties, metrics);
   }
 
   /**
@@ -65,7 +57,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new S3OutputStream(client(), uri(), awsProperties(), metrics(), writeTags());
+      return new S3OutputStream(client(), uri(), awsProperties(), metrics());
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
     }

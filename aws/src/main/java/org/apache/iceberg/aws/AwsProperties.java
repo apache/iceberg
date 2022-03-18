@@ -21,11 +21,15 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.Tag;
 
 public class AwsProperties implements Serializable {
 
@@ -259,13 +263,13 @@ public class AwsProperties implements Serializable {
   private double s3FileIoMultipartThresholdFactor;
   private String s3fileIoStagingDirectory;
   private ObjectCannedACL s3FileIoAcl;
+  private boolean isS3ChecksumEnabled;
+  private final Set<Tag> s3WriteTags;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
 
   private String dynamoDbTableName;
-
-  private boolean isS3ChecksumEnabled;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
@@ -279,6 +283,7 @@ public class AwsProperties implements Serializable {
     this.s3FileIoDeleteBatchSize = S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
+    this.s3WriteTags = Sets.newHashSet();
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -336,6 +341,8 @@ public class AwsProperties implements Serializable {
     Preconditions.checkArgument(s3FileIoDeleteBatchSize > 0 &&
         s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
         String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
+
+    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
@@ -443,5 +450,16 @@ public class AwsProperties implements Serializable {
 
   public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
     this.isS3ChecksumEnabled = eTagCheckEnabled;
+  }
+
+  public Set<Tag> getS3WriteTags() {
+    return s3WriteTags;
+  }
+
+  private Set<Tag> toTags(Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix)
+        .entrySet().stream()
+        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+        .collect(Collectors.toSet());
   }
 }

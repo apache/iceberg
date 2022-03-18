@@ -22,6 +22,7 @@ package org.apache.iceberg.aws.glue;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.DataFile;
@@ -74,8 +75,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertTrue(response.table().parameters().containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
     Assert.assertEquals(schema.columns().size(), response.table().storageDescriptor().columns().size());
     Assert.assertEquals(partitionSpec.fields().size(), response.table().partitionKeys().size());
-    Assert.assertEquals("additionalLocations should match", tableLocationProperties.values(),
-        response.table().storageDescriptor().additionalLocations());
+    Assert.assertEquals("additionalLocations should match",
+        tableLocationProperties.values().stream().sorted().collect(Collectors.toList()),
+        response.table().storageDescriptor().additionalLocations().stream().sorted().collect(Collectors.toList()));
     // verify metadata file exists in S3
     String metaLocation = response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     String key = metaLocation.split(testBucketName, -1)[1].substring(1);
