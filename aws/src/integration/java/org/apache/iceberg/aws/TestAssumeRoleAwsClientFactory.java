@@ -68,13 +68,16 @@ public class TestAssumeRoleAwsClientFactory {
             "\"Effect\":\"Allow\"," +
             "\"Principal\":{" +
             "\"AWS\":\"arn:aws:iam::" + AwsIntegTestUtil.testAccountId() + ":root\"}," +
-            "\"Action\": \"sts:AssumeRole\"}]}")
+            "\"Action\": [\"sts:AssumeRole\"," +
+            "\"sts:TagSession\"]}]}")
         .maxSessionDuration(3600)
         .build());
     assumeRoleProperties = Maps.newHashMap();
     assumeRoleProperties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, response.role().arn());
+    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX + "key1", "value1");
+    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX + "key2", "value2");
     policyName = UUID.randomUUID().toString();
   }
 

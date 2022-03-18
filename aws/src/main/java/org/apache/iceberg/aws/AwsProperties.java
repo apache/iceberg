@@ -215,6 +215,12 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_ARN = "client.assume-role.arn";
 
   /**
+   * Used by {@link AssumeRoleAwsClientFactory} to pass a list of sessions.
+   * Each session tag consists of a key name and an associated value.
+   */
+  public static final String CLIENT_ASSUME_ROLE_TAGS_PREFIX = "client.assume-role.tags.";
+
+  /**
    * Used by {@link AssumeRoleAwsClientFactory}.
    * The timeout of the assume role session in seconds, default to 1 hour.
    * At the end of the timeout, a new set of role session credentials will be fetched through a STS client.
