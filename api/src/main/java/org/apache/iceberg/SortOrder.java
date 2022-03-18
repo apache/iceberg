@@ -266,7 +266,7 @@ public class SortOrder implements Serializable {
 
     Builder addSortField(String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
       Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      ValidationException.check(column != null, "Cannot find source column: %s", sourceId);
       Transform<?, ?> transform = Transforms.fromString(column.type(), transformAsString);
       SortField sortField = new SortField(transform, sourceId, direction, nullOrder);
       fields.add(sortField);
