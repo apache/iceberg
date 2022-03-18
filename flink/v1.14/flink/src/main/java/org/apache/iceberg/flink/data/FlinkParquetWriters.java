@@ -450,7 +450,10 @@ public class FlinkParquetWriters {
 
     @Override
     protected Object get(RowData struct, int index) {
-      return fieldGetter[index].getFieldOrNull(struct);
+      if (struct.isNullAt(index)) {
+        return null;
+      }
+      return this.fieldGetter[index].getFieldOrNull(struct);
     }
   }
 }

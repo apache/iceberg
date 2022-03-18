@@ -28,7 +28,9 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -41,6 +43,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final Schema schema;
   private final Schema deleteSchema;
   private final RowDataWrapper wrapper;
+  private final RowDataWrapper wrapperDelete;
   private final boolean upsert;
 
   BaseDeltaTaskWriter(PartitionSpec spec,
@@ -55,10 +58,9 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
                       boolean upsert) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
-    // Note BaseDeltaTaskWriter uses the deleteSchema with projected onto equalityFieldIds
-    // always
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+    this.wrapperDelete = new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
     this.upsert = upsert;
   }
 
@@ -66,6 +68,10 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   RowDataWrapper wrapper() {
     return wrapper;
+  }
+
+  RowDataWrapper wrapperDelete() {
+    return wrapperDelete;
   }
 
   @Override
@@ -76,31 +82,31 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       case INSERT:
       case UPDATE_AFTER:
         if (upsert) {
-          // Upserts come in modeled as INSERT. We need to be sure that
-          // we apply an equality delete, by using only the primary keys
-          // of the row as we don't have access to the old value as in the
-          // CDC case, only the upserted value. An equality delete for the
-          // keys will handle this.
-          writer.deleteByKey(row);
+          RowData wrap = RowDataProjection.create(schema, deleteSchema).wrap(row);
+          writer.deleteKey(wrap);
         }
         writer.write(row);
         break;
 
-      // UPDATE_BEFORE is not necessary to apply in upsert mode, as all rows are modeled as INSERT
-      // records.
-      //
-      // We account for deleting the previous row by calling delete when we get the INSERT, but that
-      // is the new row and not the upserted row.
-      //
-      // Updating the equality
       case UPDATE_BEFORE:
         if (upsert) {
           break;  // UPDATE_BEFORE is not necessary for UPDATE, we do nothing to prevent delete one row twice
         }
-        writer.delete(row);
+        if (deleteSchema != null) {
+          RowData wrap = RowDataProjection.create(schema, deleteSchema).wrap(row);
+          writer.deleteKey(wrap);
+        }else{
+          writer.delete(row);
+        }
+
         break;
       case DELETE:
-        writer.delete(row);
+        if (deleteSchema != null) {
+          RowData wrap = RowDataProjection.create(schema, deleteSchema).wrap(row);
+          writer.deleteKey(wrap);
+        }else{
+          writer.delete(row);
+        }
         break;
 
       default:
@@ -118,11 +124,9 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       return wrapper.wrap(data);
     }
 
-    // TODO - Unsure if we'll need to implement this here. We might need to pass the schema
-    // through if so.
     @Override
-    protected RowData asRowType(StructLike data) {
-      throw new UnsupportedOperationException("asRowType is not implemented");
+    protected StructLike asStructLikeKey(RowData data) {
+      return wrapperDelete.wrap(data);
     }
   }
 }

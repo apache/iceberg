@@ -63,8 +63,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    for (FileFormat format : new FileFormat[] {FileFormat.PARQUET}) {
-    // for (FileFormat format : new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO, FileFormat.ORC}) {
+    for (FileFormat format : new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO, FileFormat.ORC}) {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
