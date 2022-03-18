@@ -29,11 +29,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -54,8 +54,8 @@ public class RESTSerializers {
         .addDeserializer(Namespace.class, new NamespaceDeserializer())
         .addSerializer(Schema.class, new SchemaSerializer())
         .addDeserializer(Schema.class, new SchemaDeserializer())
-        .addSerializer(PartitionSpec.class, new PartitionSpecSerializer())
-        .addDeserializer(PartitionSpec.class, new PartitionSpecDeserializer())
+        .addSerializer(UnboundPartitionSpec.class, new UnboundPartitionSpecSerializer())
+        .addDeserializer(UnboundPartitionSpec.class, new UnboundPartitionSpecDeserializer())
         .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
         .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer());
     mapper.registerModule(module);
@@ -99,10 +99,7 @@ public class RESTSerializers {
     @Override
     public Schema deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      Schema schema = SchemaParser.fromJson(jsonNode);
-      // Store the schema in the context so that it can be used when parsing PartitionSpec / SortOrder
-      context.setAttribute("schema", schema);
-      return schema;
+      return SchemaParser.fromJson(jsonNode);
     }
   }
 
@@ -114,22 +111,21 @@ public class RESTSerializers {
     }
   }
 
-  public static class PartitionSpecSerializer extends JsonSerializer<PartitionSpec> {
+  public static class UnboundPartitionSpecSerializer extends JsonSerializer<UnboundPartitionSpec> {
     @Override
     public void serialize(
-        PartitionSpec partitionSpec, JsonGenerator gen, SerializerProvider serializers)
+        UnboundPartitionSpec spec, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      PartitionSpecParser.toJson(partitionSpec, gen);
+      PartitionSpecParser.toJson(spec, gen);
     }
   }
 
-  public static class PartitionSpecDeserializer extends JsonDeserializer<PartitionSpec> {
+  public static class UnboundPartitionSpecDeserializer extends JsonDeserializer<UnboundPartitionSpec> {
     @Override
-    public PartitionSpec deserialize(JsonParser p, DeserializationContext context)
+    public UnboundPartitionSpec deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      Schema schema = (Schema) context.getAttribute("schema");
-      return PartitionSpecParser.fromJson(schema, jsonNode);
+      return PartitionSpecParser.fromJson(jsonNode);
     }
   }
 

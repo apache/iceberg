@@ -105,13 +105,17 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class AddPartitionSpec implements MetadataUpdate {
-    private final PartitionSpec spec;
+    private final UnboundPartitionSpec spec;
 
     public AddPartitionSpec(PartitionSpec spec) {
+      this(spec.toUnbound());
+    }
+
+    public AddPartitionSpec(UnboundPartitionSpec spec) {
       this.spec = spec;
     }
 
-    public PartitionSpec spec() {
+    public UnboundPartitionSpec spec() {
       return spec;
     }
 
