@@ -19,13 +19,14 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.hadoop.shaded.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.NullOrder;
@@ -33,15 +34,16 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
+import org.apache.iceberg.util.ZOrderByteUtils;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -62,14 +64,58 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
       .sortBy(Z_COLUMN, SortDirection.ASC, NullOrder.NULLS_LAST)
       .build();
 
-  private final List<String> zOrderColNames;
-  private transient FileScanTaskSetManager manager = FileScanTaskSetManager.get();
-  private transient FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
+  /**
+   * Controls the amount of bytes interleaved in the ZOrder Algorithm. Default is all bytes being interleaved.
+   */
+  private static final String MAX_OUTPUT_SIZE_KEY = "max-output-size";
+  private static final int DEFAULT_MAX_OUTPUT_SIZE = Integer.MAX_VALUE;
 
-  private final Spark3ZOrderUDF orderHelper;
+  /**
+  * Controls the number of bytes considered from an input column of a type with variable length (String, Binary).
+  * Default is to use the same size as primitives {@link ZOrderByteUtils#PRIMITIVE_BUFFER_SIZE}
+   */
+  private static final String VAR_LENGTH_CONTRIBUTION_KEY = "var-length-contribution";
+  private static final int DEFAULT_VAR_LENGTH_CONTRIBUTION = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE;
+
+  private final List<String> zOrderColNames;
+  private final Spark3ZOrderUDF zOrderUDF;
+
+  private int maxOutputSize;
+  private int varLengthContribution;
+
+  @Override
+  public Set<String> validOptions() {
+    return ImmutableSet.<String>builder()
+        .addAll(super.validOptions())
+        .add(VAR_LENGTH_CONTRIBUTION_KEY)
+        .add(MAX_OUTPUT_SIZE_KEY)
+        .build();
+  }
+
+  @Override
+  public RewriteStrategy options(Map<String, String> options) {
+    super.options(options);
+
+    varLengthContribution = PropertyUtil.propertyAsInt(options, VAR_LENGTH_CONTRIBUTION_KEY,
+        DEFAULT_VAR_LENGTH_CONTRIBUTION);
+    Preconditions.checkArgument(varLengthContribution > 0,
+        "Cannot use less than 1 byte for variable length types with zOrder, %s was set to %s",
+        VAR_LENGTH_CONTRIBUTION_KEY, varLengthContribution);
+
+
+    maxOutputSize = PropertyUtil.propertyAsInt(options, MAX_OUTPUT_SIZE_KEY, DEFAULT_MAX_OUTPUT_SIZE);
+    Preconditions.checkArgument(maxOutputSize > 0,
+        "Cannot have the interleaved ZOrder value use less than 1 byte, %s was set to %s",
+        MAX_OUTPUT_SIZE_KEY, maxOutputSize);
+
+    return  this;
+  }
 
   public Spark3ZOrderStrategy(Table table, SparkSession spark, List<String> zOrderColNames) {
     super(table, spark);
+
+    Preconditions.checkArgument(zOrderColNames != null && !zOrderColNames.isEmpty(),
+        "Cannot ZOrder when no columns are specified");
 
     Stream<String> identityPartitionColumns = table.spec().fields().stream()
         .filter(f -> f.transform().isIdentity())
@@ -80,10 +126,10 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
     Preconditions.checkArgument(
         partZOrderCols.isEmpty(),
         "Cannot ZOrder on an Identity partition column as these values are constant within a partition, " +
-            "ZOrdering requested on %s",
+            "ZOrdering requested on Identity columns: %s",
         partZOrderCols);
 
-    this.orderHelper = new Spark3ZOrderUDF(zOrderColNames.size());
+    this.zOrderUDF = new Spark3ZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
 
     this.zOrderColNames = zOrderColNames;
   }
@@ -114,7 +160,7 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
     Distribution distribution = Distributions.ordered(ordering);
 
     try {
-      manager.stageTasks(table(), groupID, filesToRewrite);
+      manager().stageTasks(table(), groupID, filesToRewrite);
 
       // Disable Adaptive Query Execution as this may change the output partitioning of our write
       SparkSession cloneSession = spark().cloneSession();
@@ -137,10 +183,10 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
           .collect(Collectors.toList());
 
       Column zvalueArray = functions.array(zOrderColumns.stream().map(colStruct ->
-          orderHelper.sortedLexicographically(functions.col(colStruct.name()), colStruct.dataType())
+          zOrderUDF.sortedLexicographically(functions.col(colStruct.name()), colStruct.dataType())
       ).toArray(Column[]::new));
 
-      Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, orderHelper.interleaveBytes(zvalueArray));
+      Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, zOrderUDF.interleaveBytes(zvalueArray));
 
       SQLConf sqlConf = cloneSession.sessionState().conf();
       LogicalPlan sortPlan = sortPlan(distribution, ordering, zvalueDF.logicalPlan(), sqlConf);
@@ -155,10 +201,10 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
           .mode("append")
           .save(table().name());
 
-      return rewriteCoordinator.fetchNewDataFiles(table(), groupID);
+      return rewriteCoordinator().fetchNewDataFiles(table(), groupID);
     } finally {
-      manager.removeTasks(table(), groupID);
-      rewriteCoordinator.clearRewrite(table(), groupID);
+      manager().removeTasks(table(), groupID);
+      rewriteCoordinator().clearRewrite(table(), groupID);
     }
   }
 

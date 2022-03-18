@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharsetEncoder;
@@ -44,10 +45,12 @@ import org.apache.spark.sql.types.TimestampType;
 import scala.collection.Seq;
 
 class Spark3ZOrderUDF implements Serializable {
-  private static final int STRING_KEY_LENGTH = 8;
+  private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE];
 
-  private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.BUFFER_SIZE];
-
+  /**
+   * Every Spark task runs iteratively on a rows in a single thread so ThreadLocal should protect from
+   * concurrent access to any of these structures.
+   */
   private transient ThreadLocal<ByteBuffer> outputBuffer;
   private transient ThreadLocal<byte[][]> inputHolder;
   private transient ThreadLocal<ByteBuffer>[] inputBuffers;
@@ -56,26 +59,22 @@ class Spark3ZOrderUDF implements Serializable {
   private final int numCols;
 
   private int inputCol = 0;
-  private int totalBytes = 0;
+  private int totalOutputBytes = 0;
+  private final int varTypeSize;
+  private final int maxOutputSize;
 
-  Spark3ZOrderUDF(int numCols) {
+  Spark3ZOrderUDF(int numCols, int varTypeSize, int maxOutputSize) {
     this.numCols = numCols;
+    this.varTypeSize = varTypeSize;
+    this.maxOutputSize = maxOutputSize;
   }
 
-  private void readObject(java.io.ObjectInputStream in)
-      throws IOException, ClassNotFoundException {
+  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     in.defaultReadObject();
     inputBuffers = new ThreadLocal[numCols];
     inputHolder = ThreadLocal.withInitial(() -> new byte[numCols][]);
+    outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(totalOutputBytes));
     encoder = ThreadLocal.withInitial(() -> StandardCharsets.UTF_8.newEncoder());
-  }
-
-  private ByteBuffer outputBuffer(int size) {
-    if (outputBuffer == null) {
-      // May over allocate on concurrent calls
-      outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(size));
-    }
-    return outputBuffer.get();
   }
 
   private ByteBuffer inputBuffer(int position, int size) {
@@ -89,7 +88,7 @@ class Spark3ZOrderUDF implements Serializable {
   byte[] interleaveBits(Seq<byte[]> scalaBinary) {
     byte[][] columnsBinary = scala.collection.JavaConverters.seqAsJavaList(scalaBinary)
         .toArray(inputHolder.get());
-    return ZOrderByteUtils.interleaveBits(columnsBinary, totalBytes, outputBuffer(totalBytes));
+    return ZOrderByteUtils.interleaveBits(columnsBinary, totalOutputBytes, outputBuffer.get());
   }
 
   private UserDefinedFunction tinyToOrderedBytesUDF() {
@@ -98,11 +97,11 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.tinyintToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
+      return ZOrderByteUtils.tinyintToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("TINY_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalBytes += Byte.BYTES;
+    this.totalOutputBytes += Byte.BYTES;
 
     return udf;
   }
@@ -113,11 +112,11 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.shortToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
+      return ZOrderByteUtils.shortToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("SHORT_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalBytes += Short.BYTES;
+    this.totalOutputBytes += Short.BYTES;
 
     return udf;
   }
@@ -128,11 +127,11 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.intToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
+      return ZOrderByteUtils.intToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("INT_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalBytes += Integer.BYTES;
+    this.totalOutputBytes += Integer.BYTES;
 
     return udf;
   }
@@ -143,11 +142,11 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.longToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
+      return ZOrderByteUtils.longToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("LONG_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalBytes += Long.BYTES;
+    this.totalOutputBytes += Long.BYTES;
 
     return udf;
   }
@@ -158,11 +157,11 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.floatToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
+      return ZOrderByteUtils.floatToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("FLOAT_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalBytes += Float.BYTES;
+    this.totalOutputBytes += Float.BYTES;
 
     return udf;
   }
@@ -173,11 +172,11 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.doubleToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
-    }, DataTypes.BinaryType).withName("FLOAT_ORDERED_BYTES");
+      return ZOrderByteUtils.doubleToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE)).array();
+    }, DataTypes.BinaryType).withName("DOUBLE_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalBytes += Double.BYTES;
+    this.totalOutputBytes += Double.BYTES;
 
     return udf;
   }
@@ -187,13 +186,26 @@ class Spark3ZOrderUDF implements Serializable {
     UserDefinedFunction udf = functions.udf((String value) ->
         ZOrderByteUtils.stringToOrderedBytes(
             value,
-            STRING_KEY_LENGTH,
-            inputBuffer(position, STRING_KEY_LENGTH),
+            varTypeSize,
+            inputBuffer(position, varTypeSize),
             encoder.get()).array(), DataTypes.BinaryType)
           .withName("STRING-LEXICAL-BYTES");
 
     this.inputCol++;
-    this.totalBytes += STRING_KEY_LENGTH;
+    this.totalOutputBytes += varTypeSize;
+
+    return udf;
+  }
+
+  private UserDefinedFunction bytesTruncateUDF() {
+    int position = inputCol;
+    UserDefinedFunction udf = functions.udf((byte[] value) ->
+        ZOrderByteUtils.byteTruncateOrFill(value, varTypeSize, inputBuffer(position, varTypeSize)).array(),
+            DataTypes.BinaryType)
+        .withName("BYTE-TRUNCATE");
+
+    this.inputCol++;
+    this.totalOutputBytes += varTypeSize;
 
     return udf;
   }
@@ -223,9 +235,9 @@ class Spark3ZOrderUDF implements Serializable {
     } else if (type instanceof StringType) {
       return stringToOrderedBytesUDF().apply(column);
     } else if (type instanceof BinaryType) {
-      return stringToOrderedBytesUDF().apply(column);
+      return bytesTruncateUDF().apply(column);
     } else if (type instanceof BooleanType) {
-      return column.cast(DataTypes.BinaryType);
+      return bytesTruncateUDF().apply(column);
     } else if (type instanceof TimestampType) {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
     } else if (type instanceof DateType) {

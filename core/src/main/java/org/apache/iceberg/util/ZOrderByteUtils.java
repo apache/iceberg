@@ -43,22 +43,23 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public class ZOrderByteUtils {
 
-  public static final int BUFFER_SIZE = 8;
+  public static final int PRIMITIVE_BUFFER_SIZE = 8;
 
   private ZOrderByteUtils() {
 
   }
 
   static ByteBuffer allocatePrimitiveBuffer() {
-    return ByteBuffer.allocate(BUFFER_SIZE);
+    return ByteBuffer.allocate(PRIMITIVE_BUFFER_SIZE);
   }
+
   /**
    * Signed ints do not have their bytes in magnitude order because of the sign bit.
    * To fix this, flip the sign bit so that all negatives are ordered before positives. This essentially
    * shifts the 0 value so that we don't break our ordering when we cross the new 0 value.
    */
   public static ByteBuffer intToOrderedBytes(int val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     bytes.putLong(((long) val) ^ 0x8000000000000000L);
     return bytes;
   }
@@ -67,7 +68,7 @@ public class ZOrderByteUtils {
    * Signed longs are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
   public static ByteBuffer longToOrderedBytes(long val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     bytes.putLong(val ^ 0x8000000000000000L);
     return bytes;
   }
@@ -76,7 +77,7 @@ public class ZOrderByteUtils {
    * Signed shorts are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
   public static ByteBuffer shortToOrderedBytes(short val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     bytes.putLong(((long) val) ^ 0x8000000000000000L);
     return bytes;
   }
@@ -85,7 +86,7 @@ public class ZOrderByteUtils {
    * Signed tiny ints are treated the same as the signed ints in {@link #intToOrderedBytes(int, ByteBuffer)}
    */
   public static ByteBuffer tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     bytes.putLong(((long) val) ^ 0x8000000000000000L);
     return bytes;
   }
@@ -99,7 +100,7 @@ public class ZOrderByteUtils {
    * comparable bytes
    */
   public static ByteBuffer floatToOrderedBytes(float val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     long lval = Double.doubleToLongBits(val);
     lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
     bytes.putLong(lval);
@@ -110,7 +111,7 @@ public class ZOrderByteUtils {
    * Doubles are treated the same as floats in {@link #floatToOrderedBytes(float, ByteBuffer)}
    */
   public static ByteBuffer doubleToOrderedBytes(double val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, BUFFER_SIZE);
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     long lval = Double.doubleToLongBits(val);
     lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
     bytes.putLong(lval);
@@ -137,14 +138,21 @@ public class ZOrderByteUtils {
   }
 
   /**
-   * For Testing interleave all available bytes
+   * Return a bytebuffer with the given bytes truncated to length, or filled with 0's to length depending on whether
+   * the given bytes are larger or smaller than the given length.
    */
-  static byte[] interleaveBits(byte[][] columnsBinary) {
-    return interleaveBits(columnsBinary,
-        Arrays.stream(columnsBinary).mapToInt(column -> column.length).sum());
+  public static ByteBuffer byteTruncateOrFill(byte[] val, int length, ByteBuffer reuse) {
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
+    if (val.length < length) {
+      bytes.put(val, 0, val.length);
+      Arrays.fill(bytes.array(), val.length, length, (byte) 0x00);
+    } else {
+      bytes.put(val, 0, length);
+    }
+    return bytes;
   }
 
-  public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize) {
+  static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize) {
     return interleaveBits(columnsBinary, interleavedSize, ByteBuffer.allocate(interleavedSize));
   }
 

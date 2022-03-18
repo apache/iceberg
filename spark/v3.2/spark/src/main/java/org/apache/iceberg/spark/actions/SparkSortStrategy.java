@@ -157,6 +157,14 @@ public class SparkSortStrategy extends SortStrategy {
   }
 
   protected double sizeEstimateMultiple() {
-    return this.sizeEstimateMultiple;
+    return sizeEstimateMultiple;
+  }
+
+  protected FileScanTaskSetManager manager() {
+    return manager;
+  }
+
+  protected FileRewriteCoordinator rewriteCoordinator() {
+    return rewriteCoordinator;
   }
 }

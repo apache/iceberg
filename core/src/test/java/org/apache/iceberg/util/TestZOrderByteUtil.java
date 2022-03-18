@@ -96,7 +96,9 @@ public class TestZOrderByteUtil {
         testBytes[byteIndex] = generateRandomBytes();
         testStrings[byteIndex] = bytesToString(testBytes[byteIndex]);
       }
-      byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes);
+
+      int zOrderSize = Arrays.stream(testBytes).mapToInt(column -> column.length).sum();
+      byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, zOrderSize);
       String byteResultAsString = bytesToString(byteResult);
 
       String stringResult = interleaveStrings(testStrings);
@@ -111,7 +113,7 @@ public class TestZOrderByteUtil {
     byte[] expected = new byte[40];
 
     Assert.assertArrayEquals("Should combine empty arrays",
-        expected, ZOrderByteUtils.interleaveBits(test));
+        expected, ZOrderByteUtils.interleaveBits(test, 40));
   }
 
   @Test
@@ -124,7 +126,7 @@ public class TestZOrderByteUtil {
     byte[] expected = new byte[]{IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII};
 
     Assert.assertArrayEquals("Should combine full arrays",
-        expected, ZOrderByteUtils.interleaveBits(test));
+        expected, ZOrderByteUtils.interleaveBits(test, 6));
   }
 
   @Test
@@ -140,7 +142,7 @@ public class TestZOrderByteUtil {
         OIOIOIOI, OIOIOIOI,
         OOOOIIII};
     Assert.assertArrayEquals("Should combine mixed byte arrays",
-        expected, ZOrderByteUtils.interleaveBits(test));
+        expected, ZOrderByteUtils.interleaveBits(test, 9));
   }
 
   @Test
@@ -273,6 +275,25 @@ public class TestZOrderByteUtil {
       Assert.assertEquals(String.format(
           "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
           aString, bString, stringCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
+          stringCompare, byteCompare);
+    }
+  }
+
+  @Test
+  public void testByteTruncateOrFill() {
+    ByteBuffer aBuffer = ByteBuffer.allocate(128);
+    ByteBuffer bBuffer = ByteBuffer.allocate(128);
+    for (int i = 0; i < NUM_TESTS; i++) {
+      byte[] aBytesRaw =  (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
+      byte[] bBytesRaw =  (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
+      int stringCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytesRaw, bBytesRaw));
+      byte[] aBytes = ZOrderByteUtils.byteTruncateOrFill(aBytesRaw, 128, aBuffer).array();
+      byte[] bBytes = ZOrderByteUtils.byteTruncateOrFill(bBytesRaw, 128, bBuffer).array();
+      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+
+      Assert.assertEquals(String.format(
+              "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aBytesRaw, bBytesRaw, stringCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
           stringCompare, byteCompare);
     }
   }

@@ -48,9 +48,10 @@ public class ByteBuffers {
   }
 
   public static ByteBuffer reuse(ByteBuffer reuse, int length) {
-    Preconditions.checkArgument(reuse.hasArray() && reuse.arrayOffset() == 0 && reuse.capacity() == length,
-        "Cannot reuse buffer: Should be an array %s, should have an offset of 0 %s, should be of size %s was %s",
-        reuse.hasArray(), reuse.arrayOffset(), length, reuse.capacity());
+    Preconditions.checkArgument(reuse.hasArray(), "Cannot reuse a buffer not backed by an array");
+    Preconditions.checkArgument(reuse.arrayOffset() == 0, "Cannot reuse a buffer whose array offset is not 0");
+    Preconditions.checkArgument(reuse.capacity() == length,
+        "Canout use a buffer whose capacity (%s) is not equal to the requested length (%s)", length, reuse.capacity());
     reuse.position(0);
     reuse.limit(length);
     return reuse;
