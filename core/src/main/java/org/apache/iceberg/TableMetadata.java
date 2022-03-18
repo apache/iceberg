@@ -644,16 +644,9 @@ public class TableMetadata implements Serializable {
   }
 
   private static SortOrder updateSortOrderSchema(Schema schema, SortOrder sortOrder) {
-    SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(sortOrder.orderId());
-
-    // add all the fields to the builder. IDs should not change.
-    for (SortField field : sortOrder.fields()) {
-      builder.addSortField(field.transform(), field.sourceId(), field.direction(), field.nullOrder());
-    }
-
     // build without validation because the schema may have changed in a way that makes this order invalid. the order
     // should still be preserved so that older metadata can be interpreted.
-    return builder.buildUnchecked();
+    return sortOrder.toUnbound().bindUnchecked(schema);
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
@@ -674,7 +667,7 @@ public class TableMetadata implements Serializable {
   }
 
   private static SortOrder freshSortOrder(int orderId, Schema schema, SortOrder sortOrder) {
-    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    UnboundSortOrder.Builder builder = UnboundSortOrder.builder();
 
     if (sortOrder.isSorted()) {
       builder.withOrderId(orderId);
@@ -692,7 +685,7 @@ public class TableMetadata implements Serializable {
           field.nullOrder());
     }
 
-    return builder.build();
+    return builder.build().bind(schema);
   }
 
   private static Map<Long, Snapshot> indexAndValidateSnapshots(List<Snapshot> snapshots, long lastSequenceNumber) {
@@ -961,6 +954,11 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
       }
 
+      return this;
+    }
+
+    public Builder addSortOrder(UnboundSortOrder order) {
+      addSortOrderInternal(order.bind(schemasById.get(currentSchemaId)));
       return this;
     }
 

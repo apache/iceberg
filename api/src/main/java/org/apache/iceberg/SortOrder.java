@@ -135,6 +135,16 @@ public class SortOrder implements Serializable {
     return fieldList;
   }
 
+  UnboundSortOrder toUnbound() {
+    UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
+
+    for (SortField field : fields) {
+      builder.addSortField(field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+    }
+
+    return builder.build();
+  }
+
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
@@ -244,7 +254,7 @@ public class SortOrder implements Serializable {
       return this;
     }
 
-    Builder addSortField(Term term, SortDirection direction, NullOrder nullOrder) {
+    private Builder addSortField(Term term, SortDirection direction, NullOrder nullOrder) {
       Preconditions.checkArgument(term instanceof UnboundTerm, "Term must be unbound");
       // ValidationException is thrown by bind if binding fails so we assume that boundTerm is correct
       BoundTerm<?> boundTerm = ((UnboundTerm<?>) term).bind(schema.asStruct(), caseSensitive);
@@ -260,11 +270,6 @@ public class SortOrder implements Serializable {
       Transform<?, ?> transform = Transforms.fromString(column.type(), transformAsString);
       SortField sortField = new SortField(transform, sourceId, direction, nullOrder);
       fields.add(sortField);
-      return this;
-    }
-
-    Builder addSortField(Transform<?, ?> transform, int sourceId, SortDirection direction, NullOrder nullOrder) {
-      fields.add(new SortField(transform, sourceId, direction, nullOrder));
       return this;
     }
 

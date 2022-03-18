@@ -35,6 +35,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
@@ -56,8 +57,8 @@ public class RESTSerializers {
         .addDeserializer(Schema.class, new SchemaDeserializer())
         .addSerializer(PartitionSpec.class, new PartitionSpecSerializer())
         .addDeserializer(PartitionSpec.class, new PartitionSpecDeserializer())
-        .addSerializer(SortOrder.class, new SortOrderSerializer())
-        .addDeserializer(SortOrder.class, new SortOrderDeserializer());
+        .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
+        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer());
     mapper.registerModule(module);
   }
 
@@ -133,20 +134,19 @@ public class RESTSerializers {
     }
   }
 
-  public static class SortOrderSerializer extends JsonSerializer<SortOrder> {
+  public static class UnboundSortOrderSerializer extends JsonSerializer<UnboundSortOrder> {
     @Override
-    public void serialize(SortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(UnboundSortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       SortOrderParser.toJson(sortOrder, gen);
     }
   }
 
-  public static class SortOrderDeserializer extends JsonDeserializer<SortOrder> {
+  public static class UnboundSortOrderDeserializer extends JsonDeserializer<UnboundSortOrder> {
     @Override
-    public SortOrder deserialize(JsonParser p, DeserializationContext context) throws IOException {
+    public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      Schema schema = (Schema) context.getAttribute("schema");
-      return SortOrderParser.fromJson(schema, jsonNode);
+      return SortOrderParser.fromJson(jsonNode);
     }
   }
 }
