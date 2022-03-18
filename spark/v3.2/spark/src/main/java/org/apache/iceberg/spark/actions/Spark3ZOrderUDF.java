@@ -44,7 +44,7 @@ import org.apache.spark.sql.types.TimestampType;
 import scala.collection.Seq;
 
 class Spark3ZOrderUDF implements Serializable {
-  private static final int STRING_KEY_LENGTH = 16;
+  private static final int STRING_KEY_LENGTH = 8;
 
   private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.BUFFER_SIZE];
 
@@ -98,7 +98,7 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.tinyintToOrderedBytes(value, inputBuffer(position, Byte.BYTES)).array();
+      return ZOrderByteUtils.tinyintToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("TINY_ORDERED_BYTES");
 
     this.inputCol++;
@@ -113,7 +113,7 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.shortToOrderedBytes(value, inputBuffer(position, Short.BYTES)).array();
+      return ZOrderByteUtils.shortToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("SHORT_ORDERED_BYTES");
 
     this.inputCol++;
@@ -128,7 +128,7 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.intToOrderedBytes(value, inputBuffer(position, Integer.BYTES)).array();
+      return ZOrderByteUtils.intToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("INT_ORDERED_BYTES");
 
     this.inputCol++;
@@ -143,7 +143,7 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.longToOrderedBytes(value, inputBuffer(position, Long.BYTES)).array();
+      return ZOrderByteUtils.longToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("LONG_ORDERED_BYTES");
 
     this.inputCol++;
@@ -158,7 +158,7 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.floatToOrderedBytes(value, inputBuffer(position, Float.BYTES)).array();
+      return ZOrderByteUtils.floatToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("FLOAT_ORDERED_BYTES");
 
     this.inputCol++;
@@ -173,7 +173,7 @@ class Spark3ZOrderUDF implements Serializable {
       if (value == null) {
         return PRIMITIVE_EMPTY;
       }
-      return ZOrderByteUtils.doubleToOrderedBytes(value, inputBuffer(position, Double.BYTES)).array();
+      return ZOrderByteUtils.doubleToOrderedBytes(value, inputBuffer(position, ZOrderByteUtils.BUFFER_SIZE)).array();
     }, DataTypes.BinaryType).withName("FLOAT_ORDERED_BYTES");
 
     this.inputCol++;

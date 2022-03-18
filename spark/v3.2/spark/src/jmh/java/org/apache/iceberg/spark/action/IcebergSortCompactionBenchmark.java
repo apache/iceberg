@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.actions.Spark3SortStrategy;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -65,7 +66,7 @@ import static org.apache.spark.sql.functions.expr;
 
 @Fork(1)
 @State(Scope.Benchmark)
-@Measurement(iterations = 3)
+@Measurement(iterations = 10)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
 public class IcebergSortCompactionBenchmark {
@@ -74,9 +75,8 @@ public class IcebergSortCompactionBenchmark {
   private static final String NAME = "sortbench";
   private static final Identifier IDENT = Identifier.of(NAMESPACE, NAME);
   private static final int NUM_FILES = 8;
-  private static final long NUM_ROWS = 10000000L;
-  private static final long UNIQUE_VALUES = NUM_ROWS / 10;
-
+  private static final long NUM_ROWS = 7500000L;
+  private static final long UNIQUE_VALUES = NUM_ROWS / 4;
 
   private final Configuration hadoopConf = initHadoopConf();
   private SparkSession spark;
@@ -107,6 +107,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortInt() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
             .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -118,43 +119,46 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortInt2() {
     SparkActions.get()
-            .rewriteDataFiles(table())
-            .sort(SortOrder
-                    .builderFor(table().schema())
-                    .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .build())
-            .execute();
+        .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
+        .sort(SortOrder
+            .builderFor(table().schema())
+            .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .build())
+        .execute();
   }
 
   @Benchmark
   @Threads(1)
   public void sortInt3() {
     SparkActions.get()
-            .rewriteDataFiles(table())
-            .sort(SortOrder
-                    .builderFor(table().schema())
-                    .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol3", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol4", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .build())
-            .execute();
+        .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
+        .sort(SortOrder
+            .builderFor(table().schema())
+            .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol3", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol4", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .build())
+        .execute();
   }
 
   @Benchmark
   @Threads(1)
   public void sortInt4() {
     SparkActions.get()
-            .rewriteDataFiles(table())
-            .sort(SortOrder
-                    .builderFor(table().schema())
-                    .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol3", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .sortBy("intCol4", SortDirection.ASC, NullOrder.NULLS_FIRST)
-                    .build())
-            .execute();
+        .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
+        .sort(SortOrder
+            .builderFor(table().schema())
+            .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol2", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol3", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .sortBy("intCol4", SortDirection.ASC, NullOrder.NULLS_FIRST)
+            .build())
+        .execute();
   }
 
   @Benchmark
@@ -162,6 +166,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortString() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
             .sortBy("stringCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -174,6 +179,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortFourColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
             .sortBy("stringCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -189,6 +195,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortSixColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
             .sortBy("stringCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -206,6 +213,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortInt() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .zOrder("intCol")
         .execute();
   }
@@ -214,27 +222,30 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortInt2() {
     SparkActions.get()
-            .rewriteDataFiles(table())
-            .zOrder("intCol", "intCol2")
-            .execute();
+        .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
+        .zOrder("intCol", "intCol2")
+        .execute();
   }
 
   @Benchmark
   @Threads(1)
   public void zSortInt3() {
     SparkActions.get()
-            .rewriteDataFiles(table())
-            .zOrder("intCol", "intCol2", "intCol3")
-            .execute();
+        .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
+        .zOrder("intCol", "intCol2", "intCol3")
+        .execute();
   }
 
   @Benchmark
   @Threads(1)
   public void zSortInt4() {
     SparkActions.get()
-            .rewriteDataFiles(table())
-            .zOrder("intCol", "intCol2", "intCol3", "intCol4")
-            .execute();
+        .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
+        .zOrder("intCol", "intCol2", "intCol3", "intCol4")
+        .execute();
   }
 
   @Benchmark
@@ -242,6 +253,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortString() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .zOrder("stringCol")
         .execute();
   }
@@ -251,6 +263,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortFourColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .zOrder("stringCol", "intCol", "dateCol", "doubleCol")
         .execute();
   }
@@ -260,6 +273,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortSixColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
+        .option(Spark3SortStrategy.REWRITE_ALL, "true")
         .zOrder("stringCol", "intCol", "dateCol", "timestampCol", "doubleCol", "longCol")
         .execute();
   }
@@ -284,7 +298,7 @@ public class IcebergSortCompactionBenchmark {
     SparkSessionCatalog catalog = null;
     try {
       catalog = (SparkSessionCatalog)
-          Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
+                    Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
       catalog.dropTable(IDENT);
       catalog.createTable(IDENT, SparkSchemaUtil.convert(schema), new Transform[0], Collections.emptyMap());
     } catch (Exception e) {
@@ -296,17 +310,23 @@ public class IcebergSortCompactionBenchmark {
     Dataset<Row> df = spark().range(0, NUM_ROWS * NUM_FILES, 1, NUM_FILES)
         .drop("id")
         .withColumn("longCol", new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply())
-        .withColumn("intCol",
+        .withColumn(
+            "intCol",
             new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
-        .withColumn("intCol2",
+        .withColumn(
+            "intCol2",
             new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
-        .withColumn("intCol3",
+        .withColumn(
+            "intCol3",
             new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
-        .withColumn("intCol4",
+        .withColumn(
+            "intCol4",
             new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.IntegerType))
-        .withColumn("floatCol",
+        .withColumn(
+            "floatCol",
             new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.FloatType))
-        .withColumn("doubleCol",
+        .withColumn(
+            "doubleCol",
             new RandomGeneratingUDF(UNIQUE_VALUES).randomLongUDF().apply().cast(DataTypes.DoubleType))
         .withColumn("dateCol", date_add(current_date(), col("intCol").mod(NUM_FILES)))
         .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
