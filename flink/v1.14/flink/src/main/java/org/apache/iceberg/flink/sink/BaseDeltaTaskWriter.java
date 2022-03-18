@@ -70,10 +70,6 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     return wrapper;
   }
 
-  RowDataWrapper wrapperDelete() {
-    return wrapperDelete;
-  }
-
   @Override
   public void write(RowData row) throws IOException {
     RowDataDeltaWriter writer = route(row);
@@ -95,16 +91,16 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
         if (deleteSchema != null) {
           RowData wrap = RowDataProjection.create(schema, deleteSchema).wrap(row);
           writer.deleteKey(wrap);
-        }else{
+        } else {
           writer.delete(row);
         }
-
         break;
+
       case DELETE:
         if (deleteSchema != null) {
           RowData wrap = RowDataProjection.create(schema, deleteSchema).wrap(row);
           writer.deleteKey(wrap);
-        }else{
+        } else {
           writer.delete(row);
         }
         break;

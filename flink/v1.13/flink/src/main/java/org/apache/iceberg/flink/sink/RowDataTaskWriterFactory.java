@@ -35,6 +35,8 @@ import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
@@ -72,7 +74,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     } else {
       // TODO provide the ability to customize the equality-delete row schema.
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
-          ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+          ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
     }
   }
 

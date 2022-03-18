@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -126,6 +127,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
 
   @Test
   public void testUpsertAndQuery() {
+    Assume.assumeTrue("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+
     String tableName = "test_upsert_query";
 
     sql("CREATE TABLE %s(id INT NOT NULL, province STRING NOT NULL, dt DATE, PRIMARY KEY(id,province) NOT ENFORCED) " +
@@ -152,8 +155,6 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
       result = sql("SELECT * FROM %s WHERE dt < '2022-03-03'", tableName);
 
       Assert.assertEquals("result should have 5 rows!", 5, result.size());
-
-      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
@@ -166,6 +167,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   // test pass.
   @Test
   public void testUpsertWhenPartitionFieldSourceIdsAreEqualToEqualityDeleteFields() {
+    Assume.assumeTrue("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+
     String tableName = "upsert_on_data_key";
     try {
       sql("CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL, PRIMARY KEY(data) NOT ENFORCED) " +
@@ -212,7 +215,9 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
 
   @Test
   public void testUpsertEqualityFieldsAreSuperSetOfPartitionFieldsWithPartitionFieldAtEnd() {
-    String tableName = "upsert_on_subset_of_partition_ids";
+    Assume.assumeTrue("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+
+    String tableName = "upsert_on_super_of_partition_ids";
     LocalDate dt = LocalDate.of(2022, 3, 1);
     try {
       sql("CREATE TABLE %s(id INT, data STRING NOT NULL, dt DATE NOT NULL, PRIMARY KEY(data,dt) NOT ENFORCED) " +
@@ -264,7 +269,9 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   // Either way, the deletion manifest statistics are WRONG. =(
   @Test
   public void testUpsertEqualityFieldsAreSuperSetOfPartitionFieldsWithPartitionFieldAtBeginning() {
-    String tableName = "upsert_on_subset_of_partition_ids";
+    Assume.assumeTrue("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
+
+    String tableName = "upsert_on_super_of_partition_ids_other_order";
     LocalDate dt = LocalDate.of(2022, 3, 1);
     try {
       sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT, PRIMARY KEY(data,dt) NOT ENFORCED) " +
