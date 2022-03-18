@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
@@ -133,7 +134,7 @@ public class RewriteDataFilesCommitManager {
   public class CommitService implements Closeable {
     private final ExecutorService committerService;
     private final ConcurrentLinkedQueue<RewriteFileGroup> completedRewrites;
-    private final List<RewriteFileGroup> committedRewrites;
+    private final List<RewriteDataFiles.FileGroupRewriteResult> committedRewrites;
     private final int rewritesPerCommit;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -177,7 +178,7 @@ public class RewriteDataFilesCommitManager {
 
             try {
               commitOrClean(batch);
-              committedRewrites.addAll(batch);
+              committedRewrites.addAll(batch.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList()));
             } catch (Exception e) {
               LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
             }
@@ -200,7 +201,7 @@ public class RewriteDataFilesCommitManager {
     /**
      * Returns all File groups which have been committed
      */
-    public List<RewriteFileGroup> results() {
+    public List<RewriteDataFiles.FileGroupRewriteResult> results() {
       Preconditions.checkState(committerService.isShutdown(),
           "Cannot get results from a service which has not been closed");
       return committedRewrites;

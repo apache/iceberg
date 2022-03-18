@@ -324,17 +324,14 @@ abstract class BaseRewriteDataFilesSparkAction
 
     // Stop Commit service
     commitService.close();
-    List<RewriteFileGroup> commitResults = commitService.results();
+    List<FileGroupRewriteResult> commitResults = commitService.results();
     if (commitResults.size() == 0) {
       LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual " +
           "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation " +
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
     }
 
-    List<FileGroupRewriteResult> rewriteResults = commitResults.stream()
-        .map(RewriteFileGroup::asResult)
-        .collect(Collectors.toList());
-    return new BaseRewriteDataFilesResult(rewriteResults);
+    return new BaseRewriteDataFilesResult(commitResults);
   }
 
   private Stream<RewriteFileGroup> toGroupStream(RewriteExecutionContext ctx,
