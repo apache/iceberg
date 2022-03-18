@@ -216,6 +216,20 @@ class BaseTransaction implements Transaction {
     return expire;
   }
 
+  CherryPickOperation cherryPick() {
+    checkLastOperationCommitted("CherryPick");
+    CherryPickOperation cherrypick = new CherryPickOperation(tableName, transactionOps);
+    updates.add(cherrypick);
+    return cherrypick;
+  }
+
+  SetSnapshotOperation setBranchSnapshot() {
+    checkLastOperationCommitted("SetBranchSnapshot");
+    SetSnapshotOperation set = new SetSnapshotOperation(transactionOps);
+    updates.add(set);
+    return set;
+  }
+
   @Override
   public void commitTransaction() {
     Preconditions.checkState(hasLastOpCommitted,

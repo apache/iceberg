@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -115,6 +116,14 @@ public class SparkWriteConf {
     return sessionConf.get("spark.wap.id", null);
   }
 
+  public boolean mergeSchema() {
+    return confParser.booleanConf()
+        .option(SparkWriteOptions.MERGE_SCHEMA)
+        .option(SparkWriteOptions.SPARK_MERGE_SCHEMA)
+        .defaultValue(SparkWriteOptions.MERGE_SCHEMA_DEFAULT)
+        .parse();
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString = confParser.stringConf()
         .option(SparkWriteOptions.WRITE_FORMAT)
@@ -137,6 +146,22 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.FANOUT_ENABLED)
         .tableProperty(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED)
         .defaultValue(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public FileFormat deleteFileFormat() {
+    String valueAsString = confParser.stringConf()
+        .option(SparkWriteOptions.DELETE_FORMAT)
+        .tableProperty(TableProperties.DELETE_DEFAULT_FILE_FORMAT)
+        .parseOptional();
+    return valueAsString != null ? FileFormat.valueOf(valueAsString.toUpperCase(Locale.ENGLISH)) : dataFileFormat();
+  }
+
+  public long targetDeleteFileSize() {
+    return confParser.longConf()
+        .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES)
+        .tableProperty(TableProperties.DELETE_TARGET_FILE_SIZE_BYTES)
+        .defaultValue(TableProperties.DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT)
         .parse();
   }
 
@@ -182,39 +207,22 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode copyOnWriteDeleteDistributionMode() {
+  public DistributionMode deleteDistributionMode() {
     String deleteModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
-        .parseOptional();
-
-    if (deleteModeName != null) {
-      DistributionMode deleteMode = DistributionMode.fromName(deleteModeName);
-      if (deleteMode == RANGE && table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-        return HASH;
-      } else {
-        return deleteMode;
-      }
-    } else {
-      // use hash distribution if write distribution is range or hash
-      // avoid range-based shuffles unless the user asks explicitly
-      DistributionMode writeMode = distributionMode();
-      return writeMode != NONE ? HASH : NONE;
-    }
+        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .parse();
+    return DistributionMode.fromName(deleteModeName);
   }
 
-  public DistributionMode copyOnWriteUpdateDistributionMode() {
+  public DistributionMode updateDistributionMode() {
     String updateModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
-        .parseOptional();
-
-    if (updateModeName != null) {
-      DistributionMode updateMode = DistributionMode.fromName(updateModeName);
-      return adjustWriteDistributionMode(updateMode);
-    } else {
-      return distributionMode();
-    }
+        .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .parse();
+    return DistributionMode.fromName(updateModeName);
   }
 
   public DistributionMode copyOnWriteMergeDistributionMode() {
@@ -231,10 +239,31 @@ public class SparkWriteConf {
     }
   }
 
+  public DistributionMode positionDeltaMergeDistributionMode() {
+    String mergeModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
+        .parseOptional();
+    return mergeModeName != null ? DistributionMode.fromName(mergeModeName) : distributionMode();
+  }
+
   public boolean useTableDistributionAndOrdering() {
     return confParser.booleanConf()
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .parse();
+  }
+
+  public Long validateFromSnapshotId() {
+    return confParser.longConf()
+        .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID)
+        .parseOptional();
+  }
+
+  public IsolationLevel isolationLevel() {
+    String isolationLevelName = confParser.stringConf()
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
+        .parseOptional();
+    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
   }
 }

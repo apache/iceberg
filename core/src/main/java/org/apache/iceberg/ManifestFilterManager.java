@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -46,7 +48,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,10 +87,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
       Maps.newConcurrentMap();
 
-  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById) {
+  private final Supplier<ExecutorService> workerPoolSupplier;
+
+  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById,
+                                  Supplier<ExecutorService> executorSupplier) {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
+    this.workerPoolSupplier = executorSupplier;
   }
 
   protected abstract void deleteFile(String location);
@@ -181,7 +186,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
         .stopOnFailure().throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(workerPoolSupplier.get())
         .run(index -> {
           ManifestFile manifest = filterManifest(tableSchema, manifests.get(index));
           filtered[index] = manifest;
@@ -345,18 +350,25 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles || canContainDropBySeq;
   }
 
-  @SuppressWarnings("CollectionUndefinedEquality")
+  @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
   private boolean manifestHasDeletedFiles(PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
     boolean hasDeletedFiles = false;
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
-      boolean fileDelete = deletePaths.contains(file.path()) ||
+      boolean markedForDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
           (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
-      if (fileDelete || evaluator.rowsMightMatch(file)) {
+
+      boolean nonMatchingDeleteFile = !file.content().equals(FileContent.DATA) && !evaluator.rowsMustMatch(file);
+      if (!markedForDelete && nonMatchingDeleteFile) {
+        // not all DeleteFiles removal can be handled by metadata operation, skip in this case
+        continue;
+      }
+
+      if (markedForDelete || evaluator.rowsMightMatch(file)) {
         ValidationException.check(
-            fileDelete || evaluator.rowsMustMatch(file),
+            markedForDelete || evaluator.rowsMustMatch(file),
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 

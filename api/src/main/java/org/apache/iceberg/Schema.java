@@ -55,6 +55,7 @@ public class Schema implements Serializable {
   private final StructType struct;
   private final int schemaId;
   private final int[] identifierFieldIds;
+  private final int highestFieldId;
 
   private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, NestedField> idToField = null;
@@ -102,7 +103,7 @@ public class Schema implements Serializable {
 
     this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
-    lazyIdToName();
+    this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
   }
 
   static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
@@ -184,6 +185,13 @@ public class Schema implements Serializable {
    */
   public int schemaId() {
     return this.schemaId;
+  }
+
+  /**
+   * Returns the highest field ID in this schema, including nested fields.
+   */
+  public int highestFieldId() {
+    return highestFieldId;
   }
 
   /**

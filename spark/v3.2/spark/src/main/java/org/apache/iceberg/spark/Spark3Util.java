@@ -21,7 +21,6 @@ package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -86,11 +85,11 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
-import scala.Predef;
 import scala.Some;
 import scala.collection.JavaConverters;
-import scala.collection.Seq;
+import scala.collection.immutable.Seq;
 
 public class Spark3Util {
 
@@ -99,6 +98,13 @@ public class Spark3Util {
   private static final Joiner DOT = Joiner.on(".");
 
   private Spark3Util() {
+  }
+
+  public static CaseInsensitiveStringMap setOption(String key, String value, CaseInsensitiveStringMap options) {
+    Map<String, String> newOptions = Maps.newHashMap();
+    newOptions.putAll(options);
+    newOptions.put(key, value);
+    return new CaseInsensitiveStringMap(newOptions);
   }
 
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
@@ -649,7 +655,7 @@ public class Spark3Util {
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name,
                                                           CatalogPlugin defaultCatalog) throws ParseException {
     ParserInterface parser = spark.sessionState().sqlParser();
-    Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
+    Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name).toIndexedSeq();
     List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
     return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
@@ -757,7 +763,6 @@ public class Spark3Util {
   public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format,
                                                    Map<String, String> partitionFilter) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
-    Map<String, String> emptyMap = Collections.emptyMap();
 
     InMemoryFileIndex fileIndex = new InMemoryFileIndex(
         spark,
@@ -765,10 +770,7 @@ public class Spark3Util {
             .collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
             .asScala()
             .toSeq(),
-        JavaConverters
-            .mapAsScalaMapConverter(emptyMap)
-            .asScala()
-            .toMap(Predef.conforms()),
+            scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
         Option.empty(),
         fileStatusCache,
         Option.empty(),
@@ -783,13 +785,14 @@ public class Spark3Util {
     List<org.apache.spark.sql.catalyst.expressions.Expression> filterExpressions =
         SparkUtil.partitionMapToExpression(schema, partitionFilter);
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaPartitionFilters =
-        JavaConverters.asScalaBufferConverter(filterExpressions).asScala().toSeq();
+        JavaConverters.asScalaBufferConverter(filterExpressions).asScala().toIndexedSeq();
 
     List<org.apache.spark.sql.catalyst.expressions.Expression> dataFilters = Lists.newArrayList();
     Seq<org.apache.spark.sql.catalyst.expressions.Expression> scalaDataFilters =
-        JavaConverters.asScalaBufferConverter(dataFilters).asScala().toSeq();
+        JavaConverters.asScalaBufferConverter(dataFilters).asScala().toIndexedSeq();
 
-    Seq<PartitionDirectory> filteredPartitions = fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters);
+    Seq<PartitionDirectory> filteredPartitions =
+        fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters).toIndexedSeq();
 
     return JavaConverters
         .seqAsJavaListConverter(filteredPartitions)

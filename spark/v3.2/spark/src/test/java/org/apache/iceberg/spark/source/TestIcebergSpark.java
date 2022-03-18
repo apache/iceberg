@@ -185,4 +185,41 @@ public class TestIcebergSpark {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot bucket by type: float");
   }
+
+  @Test
+  public void testRegisterIntegerTruncateUDF() {
+    IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_int_4", DataTypes.IntegerType, 4);
+    List<Row> results = spark.sql("SELECT iceberg_truncate_int_4(1)").collectAsList();
+    Assert.assertEquals(1, results.size());
+    Assert.assertEquals(Transforms.truncate(Types.IntegerType.get(), 4).apply(1),
+        results.get(0).getInt(0));
+  }
+
+  @Test
+  public void testRegisterLongTruncateUDF() {
+    IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_long_4", DataTypes.LongType, 4);
+    List<Row> results = spark.sql("SELECT iceberg_truncate_long_4(1L)").collectAsList();
+    Assert.assertEquals(1, results.size());
+    Assert.assertEquals(Transforms.truncate(Types.LongType.get(), 4).apply(1L),
+        results.get(0).getLong(0));
+  }
+
+  @Test
+  public void testRegisterDecimalTruncateUDF() {
+    IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_decimal_4", new DecimalType(4, 2), 4);
+    List<Row> results =
+        spark.sql("SELECT iceberg_truncate_decimal_4(11.11)").collectAsList();
+    Assert.assertEquals(1, results.size());
+    Assert.assertEquals(Transforms.truncate(Types.DecimalType.of(4, 2), 4)
+        .apply(new BigDecimal("11.11")), results.get(0).getDecimal(0));
+  }
+
+  @Test
+  public void testRegisterStringTruncateUDF() {
+    IcebergSpark.registerTruncateUDF(spark, "iceberg_truncate_string_4", DataTypes.StringType, 4);
+    List<Row> results = spark.sql("SELECT iceberg_truncate_string_4('hello')").collectAsList();
+    Assert.assertEquals(1, results.size());
+    Assert.assertEquals(Transforms.truncate(Types.StringType.get(), 4).apply("hello"),
+        results.get(0).getString(0));
+  }
 }

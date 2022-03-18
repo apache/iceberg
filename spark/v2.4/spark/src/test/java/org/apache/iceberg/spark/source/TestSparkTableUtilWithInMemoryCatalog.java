@@ -451,9 +451,10 @@ public class TestSparkTableUtilWithInMemoryCatalog {
       );
       Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), tableLocation);
 
-      // assign a custom metrics config
+      // assign a custom metrics config and disable vectorized reads
       table.updateProperties()
           .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
+          .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");

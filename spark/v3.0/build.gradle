@@ -18,9 +18,9 @@
  */
 
 def sparkProjects = [
-    project(':iceberg-spark:iceberg-spark3'),
-    project(":iceberg-spark:iceberg-spark3-extensions"),
-    project(':iceberg-spark:iceberg-spark3-runtime')
+    project(':iceberg-spark:iceberg-spark-3.0_2.12'),
+    project(":iceberg-spark:iceberg-spark-extensions-3.0_2.12"),
+    project(':iceberg-spark:iceberg-spark-runtime-3.0_2.12')
 ]
 
 configure(sparkProjects) {
@@ -38,7 +38,7 @@ configure(sparkProjects) {
   }
 }
 
-project(':iceberg-spark:iceberg-spark3') {
+project(':iceberg-spark:iceberg-spark-3.0_2.12') {
   apply plugin: 'scala'
   apply plugin: 'com.github.alisiikh.scalastyle'
 
@@ -105,7 +105,7 @@ project(':iceberg-spark:iceberg-spark3') {
   }
 }
 
-project(":iceberg-spark:iceberg-spark3-extensions") {
+project(":iceberg-spark:iceberg-spark-extensions-3.0_2.12") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
   apply plugin: 'com.github.alisiikh.scalastyle'
@@ -132,7 +132,7 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
     compileOnly project(':iceberg-data')
     compileOnly project(':iceberg-orc')
     compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark:iceberg-spark3')
+    compileOnly project(':iceberg-spark:iceberg-spark-3.0_2.12')
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
@@ -146,12 +146,11 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark:iceberg-spark3', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-spark:iceberg-spark-3.0_2.12', configuration: 'testArtifacts')
 
     testImplementation "org.apache.avro:avro"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
-    // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
     runtimeOnly "org.antlr:antlr4-runtime:4.7.1"
     antlr "org.antlr:antlr4:4.7.1"
   }
@@ -162,7 +161,7 @@ project(":iceberg-spark:iceberg-spark3-extensions") {
   }
 }
 
-project(':iceberg-spark:iceberg-spark3-runtime') {
+project(':iceberg-spark:iceberg-spark-runtime-3.0_2.12') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -189,15 +188,15 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
       exclude group: 'com.ibm.icu'
       exclude group: 'org.glassfish'
       exclude group: 'org.abego.treelayout'
-      exclude group: 'org.antlr', module: 'ST4'
-      exclude group: 'org.antlr', module: 'antlr4'
+      exclude group: 'org.antlr'
+      exclude group: 'io.netty'
     }
   }
 
   dependencies {
     api project(':iceberg-api')
-    implementation project(':iceberg-spark:iceberg-spark3')
-    implementation project(':iceberg-spark:iceberg-spark3-extensions')
+    implementation project(':iceberg-spark:iceberg-spark-3.0_2.12')
+    implementation project(':iceberg-spark:iceberg-spark-extensions-3.0_2.12')
     implementation project(':iceberg-aws')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
@@ -214,11 +213,11 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark3', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark3-extensions', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.0_2.12', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-extensions-3.0_2.12', configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark3-extensions')
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark3')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-extensions-3.0_2.12')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.0_2.12')
     integrationCompileOnly project(':iceberg-api')
   }
 
@@ -246,12 +245,9 @@ project(':iceberg-spark:iceberg-spark3-runtime') {
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
     // relocate Arrow and related deps to shade Iceberg specific version
-    relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
     relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
-    // relocate Antlr runtime and related deps to shade Iceberg specific version
-    relocate 'org.antlr.v4', 'org.apache.iceberg.shaded.org.antlr.v4'
     relocate 'org.roaringbitmap', 'org.apache.iceberg.shaded.org.roaringbitmap'
 
     classifier null

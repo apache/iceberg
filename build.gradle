@@ -472,6 +472,7 @@ project(':iceberg-orc') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(':iceberg-common')
   }
 }
 
@@ -584,6 +585,24 @@ project(':iceberg-nessie') {
     testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+}
+
+project(':iceberg-dell') {
+  dependencies {
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    compileOnly 'com.emc.ecs:object-client-bundle'
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+    testImplementation "javax.xml.bind:jaxb-api"
+    testImplementation "javax.activation:activation"
+    testImplementation "org.glassfish.jaxb:jaxb-runtime"
   }
 }
 

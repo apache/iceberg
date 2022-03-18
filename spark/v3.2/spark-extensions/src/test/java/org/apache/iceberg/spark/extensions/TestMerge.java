@@ -32,6 +32,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -43,6 +46,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
@@ -74,7 +78,48 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS source");
   }
 
-  // TODO: add tests for multiple NOT MATCHED clauses when we move to Spark 3.1
+  @Test
+  public void testMergeWithStaticPredicatePushDown() {
+    createAndInitTable("id BIGINT, dep STRING");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    // add a data file to the 'software' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
+
+    // add a data file to the 'hr' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snapshot = table.currentSnapshot();
+    String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
+    Assert.assertEquals("Must have 2 files before MERGE", "2", dataFilesCount);
+
+    createOrReplaceView("source",
+        "{ \"id\": 1, \"dep\": \"finance\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }");
+
+    // remove the data file from the 'hr' partition to ensure it is not scanned
+    withUnavailableFiles(snapshot.addedFiles(), () -> {
+      // disable dynamic pruning and rely only on static predicate pushdown
+      withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
+        sql("MERGE INTO %s t USING source " +
+            "ON t.id == source.id AND t.dep IN ('software') AND source.id < 10 " +
+            "WHEN MATCHED AND source.id = 1 THEN " +
+            "  UPDATE SET dep = source.dep " +
+            "WHEN NOT MATCHED THEN " +
+            "  INSERT (dep, id) VALUES (source.dep, source.id)", tableName);
+      });
+    });
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1L, "finance"),  // updated
+        row(1L, "hr"),       // kept
+        row(2L, "hardware")  // new
+    );
+    assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+  }
 
   @Test
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
@@ -287,9 +332,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     List<Integer> sourceIds = Lists.newArrayList();
     for (int i = 0; i < 10_000; i++) {
       sourceIds.add(i);
-      sourceIds.add(i);
     }
-    createOrReplaceView("source", sourceIds, Encoders.INT());
+    Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
+    ds.union(ds).createOrReplaceTempView("source");
 
     String errorMsg = "a single row from the target table with multiple rows of the source table";
     AssertHelpers.assertThrowsCause("Should complain about multiple matches",
@@ -307,6 +352,130 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+  }
+
+  @Test
+  public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceEnabledHashShuffleJoin() {
+    createAndInitTable("id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" +
+        "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    List<Integer> sourceIds = Lists.newArrayList();
+    for (int i = 0; i < 10_000; i++) {
+      sourceIds.add(i);
+    }
+    Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
+    ds.union(ds).createOrReplaceTempView("source");
+
+    withSQLConf(ImmutableMap.of(SQLConf.PREFER_SORTMERGEJOIN().key(), "false"), () -> {
+      String errorMsg = "a single row from the target table with multiple rows of the source table";
+      AssertHelpers.assertThrowsCause("Should complain about multiple matches",
+          SparkException.class, errorMsg,
+          () -> {
+            sql("MERGE INTO %s AS t USING source AS s " +
+                "ON t.id == s.value " +
+                "WHEN MATCHED AND t.id = 1 THEN " +
+                "  UPDATE SET id = 10 " +
+                "WHEN MATCHED AND t.id = 6 THEN " +
+                "  DELETE " +
+                "WHEN NOT MATCHED AND s.value = 2 THEN " +
+                "  INSERT (id, dep) VALUES (s.value, null)", tableName);
+          });
+    });
+
+    assertEquals("Target should be unchanged",
+        ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+  }
+
+  @Test
+  public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoEqualityCondition() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }");
+
+    List<Integer> sourceIds = Lists.newArrayList();
+    for (int i = 0; i < 10_000; i++) {
+      sourceIds.add(i);
+    }
+    Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
+    ds.union(ds).createOrReplaceTempView("source");
+
+    withSQLConf(ImmutableMap.of(SQLConf.PREFER_SORTMERGEJOIN().key(), "false"), () -> {
+      String errorMsg = "a single row from the target table with multiple rows of the source table";
+      AssertHelpers.assertThrowsCause("Should complain about multiple matches",
+          SparkException.class, errorMsg,
+          () -> {
+            sql("MERGE INTO %s AS t USING source AS s " +
+                "ON t.id > s.value " +
+                "WHEN MATCHED AND t.id = 1 THEN " +
+                "  UPDATE SET id = 10 " +
+                "WHEN MATCHED AND t.id = 6 THEN " +
+                "  DELETE " +
+                "WHEN NOT MATCHED AND s.value = 2 THEN " +
+                "  INSERT (id, dep) VALUES (s.value, null)", tableName);
+          });
+    });
+
+    assertEquals("Target should be unchanged",
+        ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+  }
+
+  @Test
+  public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActions() {
+    createAndInitTable("id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" +
+        "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    List<Integer> sourceIds = Lists.newArrayList();
+    for (int i = 0; i < 10_000; i++) {
+      sourceIds.add(i);
+    }
+    Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
+    ds.union(ds).createOrReplaceTempView("source");
+
+    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    AssertHelpers.assertThrowsCause("Should complain about multiple matches",
+        SparkException.class, errorMsg,
+        () -> {
+          sql("MERGE INTO %s AS t USING source AS s " +
+              "ON t.id == s.value " +
+              "WHEN MATCHED AND t.id = 1 THEN " +
+              "  UPDATE SET id = 10 " +
+              "WHEN MATCHED AND t.id = 6 THEN " +
+              "  DELETE", tableName);
+        });
+
+    assertEquals("Target should be unchanged",
+        ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+  }
+
+  @Test
+  public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActionsNoEqualityCondition() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }");
+
+    List<Integer> sourceIds = Lists.newArrayList();
+    for (int i = 0; i < 10_000; i++) {
+      sourceIds.add(i);
+    }
+    Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
+    ds.union(ds).createOrReplaceTempView("source");
+
+    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    AssertHelpers.assertThrowsCause("Should complain about multiple matches",
+        SparkException.class, errorMsg,
+        () -> {
+          sql("MERGE INTO %s AS t USING source AS s " +
+              "ON t.id > s.value " +
+              "WHEN MATCHED AND t.id = 1 THEN " +
+              "  UPDATE SET id = 10 " +
+              "WHEN MATCHED AND t.id = 6 THEN " +
+              "  DELETE", tableName);
+        });
+
+    assertEquals("Target should be unchanged",
+        ImmutableList.of(row(1, "emp-id-one")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
@@ -1109,6 +1278,108 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM tmp"));
 
     spark.sql("UNCACHE TABLE tmp");
+  }
+
+  @Test
+  public void testMergeWithMultipleNotMatchedActions() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN NOT MATCHED AND s.id = 1 THEN " +
+        "  INSERT (dep, id) VALUES (s.dep, -1)" +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(-1, "emp-id-1"), // new
+        row(0, "emp-id-0"),  // kept
+        row(2, "emp-id-2"),  // new
+        row(3, "emp-id-3")   // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeWithMultipleConditionalNotMatchedActions() {
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN NOT MATCHED AND s.id = 1 THEN " +
+        "  INSERT (dep, id) VALUES (s.dep, -1)" +
+        "WHEN NOT MATCHED AND s.id = 2 THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(-1, "emp-id-1"), // new
+        row(0, "emp-id-0"),  // kept
+        row(2, "emp-id-2")   // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeResolvesColumnsByName() {
+    createAndInitTable("id INT, badge INT, dep STRING",
+        "{ \"id\": 1, \"badge\": 1000, \"dep\": \"emp-id-one\" }\n" +
+        "{ \"id\": 6, \"badge\": 6000, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView("source", "badge INT, id INT, dep STRING",
+        "{ \"badge\": 1001, \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"badge\": 6006, \"id\": 6, \"dep\": \"emp-id-6\" }\n" +
+        "{ \"badge\": 7007, \"id\": 7, \"dep\": \"emp-id-7\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON t.id == s.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT * ", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, 1001, "emp-id-1"), // updated
+        row(6, 6006, "emp-id-6"), // updated
+        row(7, 7007, "emp-id-7")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows,
+        sql("SELECT id, badge, dep FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeShouldResolveWhenThereAreNoUnresolvedExpressionsOrColumns() {
+    // ensures that MERGE INTO will resolve into the correct action even if no columns
+    // or otherwise unresolved expressions exist in the query (testing SPARK-34962)
+    createAndInitTable("id INT, dep STRING");
+
+    createOrReplaceView("source", "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n" +
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n" +
+        "{ \"id\": 3, \"dep\": \"emp-id-3\" }");
+
+    sql("MERGE INTO %s AS t USING source AS s " +
+        "ON 1 != 1 " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET * " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, "emp-id-1"), // new
+        row(2, "emp-id-2"), // new
+        row(3, "emp-id-3")  // new
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test

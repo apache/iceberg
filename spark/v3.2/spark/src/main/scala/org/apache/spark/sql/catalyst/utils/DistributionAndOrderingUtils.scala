@@ -54,6 +54,7 @@ import org.apache.spark.sql.connector.expressions.YearsTransform
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.IntegerType
+import scala.collection.compat.immutable.ArraySeq
 
 object DistributionAndOrderingUtils {
 
@@ -89,7 +90,7 @@ object DistributionAndOrderingUtils {
       .map(e => toCatalyst(e, query, resolver).asInstanceOf[catalyst.expressions.SortOrder])
 
     val queryWithDistributionAndOrdering = if (ordering.nonEmpty) {
-      Sort(ordering, global = false, queryWithDistribution)
+      Sort(ArraySeq.unsafeWrapArray(ordering), global = false, queryWithDistribution)
     } else {
       queryWithDistribution
     }
@@ -119,21 +120,21 @@ object DistributionAndOrderingUtils {
         val catalystChild = toCatalyst(s.expression(), query, resolver)
         catalyst.expressions.SortOrder(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
       case it: IdentityTransform =>
-        resolve(it.ref.fieldNames)
+        resolve(ArraySeq.unsafeWrapArray(it.ref.fieldNames))
       case BucketTransform(numBuckets, ref) =>
-        IcebergBucketTransform(numBuckets, resolve(ref.fieldNames))
+        IcebergBucketTransform(numBuckets, resolve(ArraySeq.unsafeWrapArray(ref.fieldNames)))
       case TruncateTransform(ref, width) =>
-        IcebergTruncateTransform(resolve(ref.fieldNames), width)
+        IcebergTruncateTransform(resolve(ArraySeq.unsafeWrapArray(ref.fieldNames)), width)
       case yt: YearsTransform =>
-        IcebergYearTransform(resolve(yt.ref.fieldNames))
+        IcebergYearTransform(resolve(ArraySeq.unsafeWrapArray(yt.ref.fieldNames)))
       case mt: MonthsTransform =>
-        IcebergMonthTransform(resolve(mt.ref.fieldNames))
+        IcebergMonthTransform(resolve(ArraySeq.unsafeWrapArray(mt.ref.fieldNames)))
       case dt: DaysTransform =>
-        IcebergDayTransform(resolve(dt.ref.fieldNames))
+        IcebergDayTransform(resolve(ArraySeq.unsafeWrapArray(dt.ref.fieldNames)))
       case ht: HoursTransform =>
-        IcebergHourTransform(resolve(ht.ref.fieldNames))
+        IcebergHourTransform(resolve(ArraySeq.unsafeWrapArray(ht.ref.fieldNames)))
       case ref: FieldReference =>
-        resolve(ref.fieldNames)
+        resolve(ArraySeq.unsafeWrapArray(ref.fieldNames))
       case _ =>
         throw new RuntimeException(s"$expr is not currently supported")
 
@@ -158,7 +159,7 @@ object DistributionAndOrderingUtils {
     def unapply(transform: Transform): Option[(Int, FieldReference)] = transform match {
       case bt: BucketTransform => bt.columns match {
         case Seq(nf: NamedReference) =>
-          Some(bt.numBuckets.value(), FieldReference(nf.fieldNames()))
+          Some(bt.numBuckets.value(), FieldReference(ArraySeq.unsafeWrapArray(nf.fieldNames())))
         case _ =>
           None
       }
@@ -176,9 +177,9 @@ object DistributionAndOrderingUtils {
     def unapply(transform: Transform): Option[(FieldReference, Int)] = transform match {
       case at @ ApplyTransform(name, _) if name.equalsIgnoreCase("truncate")  => at.args match {
         case Seq(nf: NamedReference, Lit(value: Int, IntegerType)) =>
-          Some(FieldReference(nf.fieldNames()), value)
+          Some(FieldReference(ArraySeq.unsafeWrapArray(nf.fieldNames())), value)
         case Seq(Lit(value: Int, IntegerType), nf: NamedReference) =>
-          Some(FieldReference(nf.fieldNames()), value)
+          Some(FieldReference(ArraySeq.unsafeWrapArray(nf.fieldNames())), value)
         case _ =>
           None
       }

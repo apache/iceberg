@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionSet;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
@@ -80,6 +81,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private final Schema fileSchema;
 
   // updated by configuration methods
+  private PartitionSet partitionSet = null;
   private Expression partFilter = alwaysTrue();
   private Expression rowFilter = alwaysTrue();
   private Schema fileProjection = null;
@@ -99,6 +101,7 @@ public class ManifestReader<F extends ContentFile<F>>
     try {
       try (AvroIterable<ManifestEntry<F>> headerReader = Avro.read(file)
           .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+          .classLoader(GenericManifestEntry.class.getClassLoader())
           .build()) {
         this.metadata = headerReader.getMetadata();
       }
@@ -157,6 +160,11 @@ public class ManifestReader<F extends ContentFile<F>>
     return this;
   }
 
+  public ManifestReader<F> filterPartitions(PartitionSet partitions) {
+    this.partitionSet = partitions;
+    return this;
+  }
+
   public ManifestReader<F> filterRows(Expression expr) {
     this.rowFilter = Expressions.and(rowFilter, expr);
     return this;
@@ -169,7 +177,8 @@ public class ManifestReader<F extends ContentFile<F>>
 
   CloseableIterable<ManifestEntry<F>> entries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
+        (partFilter != null && partFilter != Expressions.alwaysTrue()) ||
+        (partitionSet != null)) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 
@@ -181,10 +190,15 @@ public class ManifestReader<F extends ContentFile<F>>
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
           entry -> entry != null &&
               evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file()));
+              metricsEvaluator.eval(entry.file()) &&
+              inPartitionSet(entry.file()));
     } else {
       return open(projection(fileSchema, fileProjection, columns, caseSensitive));
     }
+  }
+
+  private boolean inPartitionSet(F fileToCheck) {
+    return partitionSet == null || partitionSet.contains(fileToCheck.specId(), fileToCheck.partition());
   }
 
   private CloseableIterable<ManifestEntry<F>> open(Schema projection) {

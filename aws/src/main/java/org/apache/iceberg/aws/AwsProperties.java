@@ -21,10 +21,15 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
+import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.Tag;
 
 public class AwsProperties implements Serializable {
 
@@ -166,6 +171,31 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Enables eTag checks for S3 PUT and MULTIPART upload requests.
+   */
+  public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
+  public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
+
+  /**
+   * Configure the batch size used when deleting multiple files from a given S3 bucket
+   */
+  public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
+
+  /**
+   * Default batch size used when deleting files.
+   * <p>
+   * Refer to https://github.com/apache/hadoop/commit/56dee667707926f3796c7757be1a133a362f05c9
+   * for more details on why this value was chosen.
+   */
+  public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = 250;
+
+  /**
+   * Max possible batch size for deletion. Currently, a max of 1000 keys can be deleted in one batch.
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+   */
+  public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
+
+  /**
    * DynamoDB table name for {@link DynamoDbCatalog}
    */
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
@@ -183,6 +213,12 @@ public class AwsProperties implements Serializable {
    * If set, all AWS clients will assume a role of the given ARN, instead of using the default credential chain.
    */
   public static final String CLIENT_ASSUME_ROLE_ARN = "client.assume-role.arn";
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory} to pass a list of sessions.
+   * Each session tag consists of a key name and an associated value.
+   */
+  public static final String CLIENT_ASSUME_ROLE_TAGS_PREFIX = "client.assume-role.tags.";
 
   /**
    * Used by {@link AssumeRoleAwsClientFactory}.
@@ -209,14 +245,32 @@ public class AwsProperties implements Serializable {
    */
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
+  /**
+   * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
+   * <p>
+   * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
+   * <p>
+   * Example in Spark: --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key=my_val
+   */
+  public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
+
+  /**
+   * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
+   */
+  @Deprecated
+  public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
+  private int s3FileIoDeleteBatchSize;
   private double s3FileIoMultipartThresholdFactor;
   private String s3fileIoStagingDirectory;
   private ObjectCannedACL s3FileIoAcl;
+  private boolean isS3ChecksumEnabled;
+  private final Set<Tag> s3WriteTags;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -232,7 +286,10 @@ public class AwsProperties implements Serializable {
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
     this.s3FileIoMultipartThresholdFactor = S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
+    this.s3FileIoDeleteBatchSize = S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
+    this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
+    this.s3WriteTags = Sets.newHashSet();
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -282,6 +339,17 @@ public class AwsProperties implements Serializable {
     Preconditions.checkArgument(s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
         "Cannot support S3 CannedACL " + aclType);
 
+    this.isS3ChecksumEnabled = PropertyUtil.propertyAsBoolean(properties, S3_CHECKSUM_ENABLED,
+        S3_CHECKSUM_ENABLED_DEFAULT);
+
+    this.s3FileIoDeleteBatchSize = PropertyUtil.propertyAsInt(properties, S3FILEIO_DELETE_BATCH_SIZE,
+        S3FILEIO_DELETE_BATCH_SIZE_DEFAULT);
+    Preconditions.checkArgument(s3FileIoDeleteBatchSize > 0 &&
+        s3FileIoDeleteBatchSize <= S3FILEIO_DELETE_BATCH_SIZE_MAX,
+        String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
+
+    this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
+
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
   }
@@ -296,6 +364,14 @@ public class AwsProperties implements Serializable {
 
   public String s3FileIoSseKey() {
     return s3FileIoSseKey;
+  }
+
+  public int s3FileIoDeleteBatchSize() {
+    return s3FileIoDeleteBatchSize;
+  }
+
+  public void setS3FileIoDeleteBatchSize(int deleteBatchSize) {
+    this.s3FileIoDeleteBatchSize = deleteBatchSize;
   }
 
   public void setS3FileIoSseKey(String sseKey) {
@@ -372,5 +448,24 @@ public class AwsProperties implements Serializable {
 
   public void setDynamoDbTableName(String name) {
     this.dynamoDbTableName = name;
+  }
+
+  public boolean isS3ChecksumEnabled() {
+    return this.isS3ChecksumEnabled;
+  }
+
+  public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
+    this.isS3ChecksumEnabled = eTagCheckEnabled;
+  }
+
+  public Set<Tag> s3WriteTags() {
+    return s3WriteTags;
+  }
+
+  private Set<Tag> toTags(Map<String, String> properties, String prefix) {
+    return PropertyUtil.propertiesWithPrefix(properties, prefix)
+        .entrySet().stream()
+        .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+        .collect(Collectors.toSet());
   }
 }

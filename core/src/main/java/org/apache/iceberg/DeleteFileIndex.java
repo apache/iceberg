@@ -54,6 +54,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.Tasks;
 
@@ -331,6 +332,7 @@ class DeleteFileIndex {
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
     private Expression partitionFilter = Expressions.alwaysTrue();
+    private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
 
@@ -356,6 +358,11 @@ class DeleteFileIndex {
 
     Builder filterPartitions(Expression newPartitionFilter) {
       this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
+      return this;
+    }
+
+    Builder filterPartitions(PartitionSet newPartitionSet) {
+      this.partitionSet = newPartitionSet;
       return this;
     }
 
@@ -462,7 +469,7 @@ class DeleteFileIndex {
       Iterable<ManifestFile> matchingManifests = evalCache == null ? deleteManifests :
           Iterables.filter(deleteManifests, manifest ->
               manifest.content() == ManifestContent.DELETES &&
-                  (manifest.hasAddedFiles() || manifest.hasDeletedFiles()) &&
+                  (manifest.hasAddedFiles() || manifest.hasExistingFiles()) &&
                   evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       return Iterables.transform(
@@ -471,6 +478,7 @@ class DeleteFileIndex {
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
                   .filterRows(dataFilter)
                   .filterPartitions(partitionFilter)
+                  .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
                   .liveEntries()
       );

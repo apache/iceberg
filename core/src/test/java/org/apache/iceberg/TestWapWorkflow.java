@@ -100,7 +100,7 @@ public class TestWapWorkflow extends TableTestBase {
 
     // try to cherry-pick, which should fail because the overwrite's parent is no longer current
     AssertHelpers.assertThrows("Should reject overwrite that is not a fast-forward commit",
-        ValidationException.class, "Cannot fast-forward to non-append snapshot",
+        ValidationException.class, "not append, dynamic overwrite, or fast-forward",
         () -> table.manageSnapshots().cherrypick(overwrite.snapshotId()).commit());
 
     // the table state should not have changed

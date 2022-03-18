@@ -121,13 +121,12 @@ public class ParquetAvroValueReaders {
     @Override
     public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
                                       ParquetValueReader<?> elementReader) {
-      GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
-      Type elementType = repeated.getType(0);
+      Type elementType = ParquetSchemaUtil.determineListElementType(array);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
       return new ListReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));

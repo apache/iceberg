@@ -32,6 +32,9 @@ import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.equal;
+
 public class TestDeleteFileIndex extends TableTestBase {
   public TestDeleteFileIndex() {
     super(2 /* table format version */);
@@ -260,7 +263,7 @@ public class TestDeleteFileIndex extends TableTestBase {
     FileScanTask task = tasks.get(0);
     Assert.assertEquals("Should have the correct data file path",
         FILE_B.path(), task.file().path());
-    Assert.assertEquals("Should have one associated delete file",
+    Assert.assertEquals("Should have no delete files to apply",
         0, task.deletes().size());
   }
 
@@ -396,5 +399,60 @@ public class TestDeleteFileIndex extends TableTestBase {
         1, task.deletes().size());
     Assert.assertEquals("Should have only pos delete file",
         unpartitionedPosDeleteFile.path(), task.deletes().get(0).path());
+  }
+
+  @Test
+  public void testPartitionedTableWithExistingDeleteFile() {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "false")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_EQ_1)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_POS_1)
+        .commit();
+
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
+        .commit();
+
+    Assert.assertEquals("Should have two delete manifests",
+        2, table.currentSnapshot().deleteManifests().size());
+
+    // merge delete manifests
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    Assert.assertEquals("Should have one delete manifest",
+        1, table.currentSnapshot().deleteManifests().size());
+    Assert.assertEquals("Should have zero added delete file",
+        0, table.currentSnapshot().deleteManifests().get(0).addedFilesCount().intValue());
+    Assert.assertEquals("Should have zero deleted delete file",
+        0, table.currentSnapshot().deleteManifests().get(0).deletedFilesCount().intValue());
+    Assert.assertEquals("Should have two existing delete files",
+        2, table.currentSnapshot().deleteManifests().get(0).existingFilesCount().intValue());
+
+    List<FileScanTask> tasks =
+        Lists.newArrayList(table.newScan().filter(equal(bucket("data", BUCKETS_NUMBER), 0))
+            .planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have two associated delete files",
+        2, task.deletes().size());
+    Assert.assertEquals("Should have expected delete files",
+        Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()),
+        Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
   }
 }

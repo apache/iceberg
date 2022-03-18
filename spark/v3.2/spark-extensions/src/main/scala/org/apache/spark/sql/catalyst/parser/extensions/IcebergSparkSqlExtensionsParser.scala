@@ -54,7 +54,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
-import scala.collection.JavaConverters.seqAsJavaListConverter
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {

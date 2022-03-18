@@ -34,6 +34,8 @@ import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Union
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
@@ -59,7 +61,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
           val updateCond = cond.getOrElse(Literal.TrueLiteral)
           val rewritePlan = operation match {
             case _: SupportsDelta =>
-              throw new AnalysisException("Delta updates are currently not supported")
+              buildWriteDeltaPlan(r, table, assignments, updateCond)
             case _ if SubqueryExpression.hasSubquery(updateCond) =>
               buildReplaceDataWithUnionPlan(r, table, assignments, updateCond)
             case _ =>
@@ -76,21 +78,21 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
   // if the condition does NOT contain a subquery
   private def buildReplaceDataPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
+      operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
       cond: Expression): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, table, metadataAttrs)
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
 
     // build a plan with updated and copied over records
     val updatedAndRemainingRowsPlan = buildUpdateProjection(readRelation, assignments, cond)
 
     // build a plan to replace read groups in the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     ReplaceData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
@@ -98,17 +100,17 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
   // if the condition contains a subquery
   private def buildReplaceDataWithUnionPlan(
       relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
+      operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
       cond: Expression): ReplaceData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
-    val metadataAttrs = resolveRequiredMetadataAttrs(relation, table.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
     // the same read relation will be used to read records that must be updated and be copied over
     // DeduplicateRelations will take care of duplicated attr IDs
-    val readRelation = buildReadRelation(relation, table, metadataAttrs)
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
 
     // build a plan for records that match the cond and should be updated
     val matchedRowsPlan = Filter(cond, readRelation)
@@ -122,8 +124,35 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     val updatedAndRemainingRowsPlan = Union(updatedRowsPlan, remainingRowsPlan)
 
     // build a plan to replace read groups in the table
-    val writeRelation = relation.copy(table = table)
+    val writeRelation = relation.copy(table = operationTable)
     ReplaceData(writeRelation, updatedAndRemainingRowsPlan, relation)
+  }
+
+  // build a rewrite plan for sources that support row deltas
+  private def buildWriteDeltaPlan(
+      relation: DataSourceV2Relation,
+      operationTable: RowLevelOperationTable,
+      assignments: Seq[Assignment],
+      cond: Expression): WriteDelta = {
+
+    // resolve all needed attrs (e.g. row ID and any required metadata attrs)
+    val rowAttrs = relation.output
+    val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
+    val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
+
+    // construct a scan relation and include all required metadata columns
+    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
+
+    // build a plan for updated records that match the cond
+    val matchedRowsPlan = Filter(cond, readRelation)
+    val updatedRowsPlan = buildUpdateProjection(matchedRowsPlan, assignments)
+    val operationType = Alias(Literal(UPDATE_OPERATION), OPERATION_COLUMN)()
+    val project = Project(operationType +: updatedRowsPlan.output, updatedRowsPlan)
+
+    // build a plan to write the row delta to the table
+    val writeRelation = relation.copy(table = operationTable)
+    val projections = buildWriteDeltaProjections(project, rowAttrs, rowIdAttrs, metadataAttrs)
+    WriteDelta(writeRelation, project, relation, projections)
   }
 
   // this method assumes the assignments have been already aligned before

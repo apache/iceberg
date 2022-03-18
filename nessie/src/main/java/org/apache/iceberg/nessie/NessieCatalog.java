@@ -78,7 +78,7 @@ import org.slf4j.LoggerFactory;
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
 
-  private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
+  private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private NessieApiV1 api;
   private String warehouseLocation;
@@ -122,7 +122,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       //        defaultCatalog,
       //        currentNamespace
       //    );
-      logger.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
+      LOG.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
           "'warehouse' is not set, Nessie can't store data.", inputName, options);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
@@ -194,7 +194,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
 
     if (purge) {
-      logger.info("Purging data for table {} was set to true but is ignored", identifier.toString());
+      LOG.info("Purging data for table {} was set to true but is ignored", identifier.toString());
     }
 
     CommitMultipleOperationsBuilder commitBuilderBase = api.commitMultipleOperations()
@@ -218,11 +218,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           }, BaseNessieClientServerException.class);
       threw = false;
     } catch (NessieConflictException e) {
-      logger.error("Cannot drop table: failed after retry (update ref and retry)", e);
+      LOG.error("Cannot drop table: failed after retry (update ref and retry)", e);
     } catch (NessieNotFoundException e) {
-      logger.error("Cannot drop table: ref is no longer valid.", e);
+      LOG.error("Cannot drop table: ref is no longer valid.", e);
     } catch (BaseNessieClientServerException e) {
-      logger.error("Cannot drop table: unknown error", e);
+      LOG.error("Cannot drop table: unknown error", e);
     }
     return !threw;
   }

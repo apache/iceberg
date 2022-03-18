@@ -36,16 +36,18 @@ import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeRows
+import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
 
@@ -79,6 +81,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       // refresh the cache using the original relation
       ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
 
+    case WriteDelta(_: DataSourceV2Relation, query, r: DataSourceV2Relation, projs, Some(write)) =>
+      // refresh the cache using the original relation
+      WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
+
     case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
         notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
         output, child) =>
@@ -100,6 +106,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         filter
       }.toArray
       DeleteFromTableExec(r.table.asDeletable, filters, refreshCache(r)) :: Nil
+
+    case NoStatsUnaryNode(child) =>
+      planLater(child) :: Nil
 
     case _ => Nil
   }

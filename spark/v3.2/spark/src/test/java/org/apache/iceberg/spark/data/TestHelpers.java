@@ -32,12 +32,19 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -692,5 +699,29 @@ public class TestHelpers {
           expectedValues.isNullAt(i) ? null : expectedValues.get(i, valueType),
           actualValues.isNullAt(i) ? null : actualValues.get(i, valueType));
     }
+  }
+
+  public static List<ManifestFile> deleteManifests(Table table) {
+    return table.currentSnapshot().deleteManifests();
+  }
+
+  public static Set<DataFile> dataFiles(Table table) {
+    Set<DataFile> dataFiles = Sets.newHashSet();
+
+    for (FileScanTask task : table.newScan().planFiles()) {
+      dataFiles.add(task.file());
+    }
+
+    return dataFiles;
+  }
+
+  public static Set<DeleteFile> deleteFiles(Table table) {
+    Set<DeleteFile> deleteFiles = Sets.newHashSet();
+
+    for (FileScanTask task : table.newScan().planFiles()) {
+      deleteFiles.addAll(task.deletes());
+    }
+
+    return deleteFiles;
   }
 }

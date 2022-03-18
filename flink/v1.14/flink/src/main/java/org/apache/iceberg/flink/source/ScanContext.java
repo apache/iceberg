@@ -28,6 +28,7 @@ import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
@@ -72,6 +73,7 @@ class ScanContext implements Serializable {
       ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
 
   private final boolean caseSensitive;
+  private final boolean exposeLocality;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -87,11 +89,13 @@ class ScanContext implements Serializable {
   private final List<Expression> filters;
   private final long limit;
   private final boolean includeColumnStats;
+  private final Integer planParallelism;
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-                      boolean isStreaming, Duration monitorInterval, String nameMapping,
-                      Schema schema, List<Expression> filters, long limit, boolean includeColumnStats) {
+                      boolean isStreaming, Duration monitorInterval, String nameMapping, Schema schema,
+                      List<Expression> filters, long limit, boolean includeColumnStats, boolean exposeLocality,
+                      Integer planParallelism) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -108,6 +112,8 @@ class ScanContext implements Serializable {
     this.filters = filters;
     this.limit = limit;
     this.includeColumnStats = includeColumnStats;
+    this.exposeLocality = exposeLocality;
+    this.planParallelism = planParallelism;
   }
 
   boolean caseSensitive() {
@@ -170,6 +176,14 @@ class ScanContext implements Serializable {
     return includeColumnStats;
   }
 
+  boolean exposeLocality() {
+    return exposeLocality;
+  }
+
+  Integer planParallelism() {
+    return planParallelism;
+  }
+
   ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -187,6 +201,8 @@ class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
+        .planParallelism(planParallelism)
         .build();
   }
 
@@ -207,6 +223,8 @@ class ScanContext implements Serializable {
         .filters(filters)
         .limit(limit)
         .includeColumnStats(includeColumnStats)
+        .exposeLocality(exposeLocality)
+        .planParallelism(planParallelism)
         .build();
   }
 
@@ -230,6 +248,8 @@ class ScanContext implements Serializable {
     private List<Expression> filters;
     private long limit = -1L;
     private boolean includeColumnStats = INCLUDE_COLUMN_STATS.defaultValue();
+    private boolean exposeLocality;
+    private Integer planParallelism = FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
 
     private Builder() {
     }
@@ -309,6 +329,16 @@ class ScanContext implements Serializable {
       return this;
     }
 
+    Builder exposeLocality(boolean newExposeLocality) {
+      this.exposeLocality = newExposeLocality;
+      return this;
+    }
+
+    Builder planParallelism(Integer parallelism) {
+      this.planParallelism = parallelism;
+      return this;
+    }
+
     Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
@@ -331,7 +361,7 @@ class ScanContext implements Serializable {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
           splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, includeColumnStats);
+          filters, limit, includeColumnStats, exposeLocality, planParallelism);
     }
   }
 }

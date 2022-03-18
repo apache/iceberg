@@ -54,9 +54,11 @@ public class TableTestBase {
       required(4, "data", Types.StringType.get())
   );
 
+  protected static final int BUCKETS_NUMBER = 16;
+
   // Partition spec used to create tables
   protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", 16)
+      .bucket("data", BUCKETS_NUMBER)
       .build();
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
@@ -105,34 +107,24 @@ public class TableTestBase {
       .withPartitionPath("data_bucket=2") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
+  static final DeleteFile FILE_C2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+      .ofEqualityDeletes(1)
+      .withPath("/path/to/data-c-deletes.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+      .withRecordCount(1)
+      .build();
   static final DataFile FILE_D = DataFiles.builder(SPEC)
       .withPath("/path/to/data-d.parquet")
       .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=3") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
-  static final DataFile FILE_PARTITION_0 = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-0.parquet")
+  static final DeleteFile FILE_D2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+      .ofEqualityDeletes(1)
+      .withPath("/path/to/data-d-deletes.parquet")
       .withFileSizeInBytes(10)
-      .withPartition(TestHelpers.Row.of(0))
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_PARTITION_1 = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-1.parquet")
-      .withFileSizeInBytes(10)
-      .withPartition(TestHelpers.Row.of(1))
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_PARTITION_2 = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-2.parquet")
-      .withFileSizeInBytes(10)
-      .withPartition(TestHelpers.Row.of(2))
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_PARTITION_3 = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-3.parquet")
-      .withFileSizeInBytes(10)
-      .withPartition(TestHelpers.Row.of(3))
+      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
   static final DataFile FILE_WITH_STATS = DataFiles.builder(SPEC)

@@ -41,7 +41,7 @@ import org.apache.iceberg.types.Types;
 import static org.apache.iceberg.types.Type.TypeID;
 
 abstract class Bucket<T> implements Transform<T, Integer> {
-  private static final HashFunction MURMUR3 = Hashing.murmur3_32();
+  private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
 
   @SuppressWarnings("unchecked")
   static <T> Bucket<T> get(Type type, int numBuckets) {
@@ -236,12 +236,6 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(CharSequence value) {
-      for (int i = 0; i < value.length(); i++) {
-        if (Character.isSurrogate(value.charAt(i))) {
-          // TODO remove the fallback to this (slower) code path once https://github.com/google/guava/issues/5648 is fixed
-          return MURMUR3.hashBytes(value.toString().getBytes(StandardCharsets.UTF_8)).asInt();
-        }
-      }
       return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
     }
 

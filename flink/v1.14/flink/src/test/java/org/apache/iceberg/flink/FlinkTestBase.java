@@ -74,7 +74,6 @@ public abstract class FlinkTestBase extends TestBaseUtils {
         if (tEnv == null) {
           EnvironmentSettings settings = EnvironmentSettings
               .newInstance()
-              .useBlinkPlanner()
               .inBatchMode()
               .build();
 
