@@ -234,7 +234,7 @@ public class TestS3OutputStream {
     if (properties.isS3ChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       String tagging = putObjectRequests.get(0).tagging();
-      assertEquals(getTags(properties.getS3WriteTags()), tagging);
+      assertEquals(getTags(properties.s3WriteTags()), tagging);
     }
   }
 
