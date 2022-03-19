@@ -139,13 +139,17 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class AddSortOrder implements MetadataUpdate {
-    private final SortOrder sortOrder;
+    private final UnboundSortOrder sortOrder;
 
     public AddSortOrder(SortOrder sortOrder) {
+      this(sortOrder.toUnbound());
+    }
+
+    public AddSortOrder(UnboundSortOrder sortOrder) {
       this.sortOrder = sortOrder;
     }
 
-    public SortOrder sortOrder() {
+    public UnboundSortOrder sortOrder() {
       return sortOrder;
     }
 

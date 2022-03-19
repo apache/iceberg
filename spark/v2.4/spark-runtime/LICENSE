@@ -503,6 +503,14 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
+This binary artifact contains Netty's buffer library.
+
+Copyright: 2014-2020 The Netty Project
+Home page: https://netty.io/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This binary artifact contains Google FlatBuffers.
 
 Copyright: 2013-2020 Google Inc.
