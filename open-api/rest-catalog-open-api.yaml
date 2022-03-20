@@ -234,8 +234,8 @@ paths:
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
       responses:
-        200:
-          $ref: '#/components/responses/DropNamespaceResponse'
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -502,8 +502,8 @@ paths:
             type: boolean
             default: false
       responses:
-        200:
-          $ref: '#/components/responses/DropTableResponse'
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1444,38 +1444,6 @@ components:
           example: {
             "namespace": ["accounting", "tax"],
             "properties": { "owner": "Ralph", "created_at": "1452120468" }
-          }
-
-    DropTableResponse:
-      description: A successful call to drop a table
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              dropped:
-                type: boolean
-                description: true if the table was found and removed from the catalog
-              purged:
-                type: boolean
-                description: whether the underlying data was purged or is being purged
-          example: {
-            "dropped": true,
-            "purged": false
-          }
-
-    DropNamespaceResponse:
-      description: A successful call to drop a namespace
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              dropped:
-                description: true if the namespace was dropped
-                type: boolean
-          example: {
-            "dropped": true
           }
 
     GetNamespaceResponse:
