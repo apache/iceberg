@@ -78,7 +78,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   public void initialize(String name, Map<String, String> props) {
     this.client = clientBuilder.apply(props);
     this.catalogName = name;
-    this.properties = props;
+    this.properties = ImmutableMap.copyOf(props);
     String ioImpl = props.get(CatalogProperties.FILE_IO_IMPL);
     this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), props, conf);
   }
@@ -397,7 +397,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
   private Map<String, String> fullConf(Map<String, String> config) {
     Map<String, String> fullConf = Maps.newHashMap(properties);
-    properties.putAll(config);
+    fullConf.putAll(config);
     return fullConf;
   }
 
