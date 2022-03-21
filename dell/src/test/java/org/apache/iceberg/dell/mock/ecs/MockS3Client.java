@@ -104,7 +104,7 @@ public class MockS3Client implements S3Client {
    * <p>
    * Current {@link S3ObjectMetadata} only store the user metadata.
    */
-  private final Map<String, ObjectData> objectData = Maps.newConcurrentMap();
+  private final Map<ObjectId, ObjectData> objectData = Maps.newConcurrentMap();
 
   @Override
   public PutObjectResult putObject(PutObjectRequest request) {

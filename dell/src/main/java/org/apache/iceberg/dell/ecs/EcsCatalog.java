@@ -115,7 +115,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   private EcsURI cleanWarehousePath(String path) {
     Preconditions.checkArgument(path != null && path.length() > 0,
-            "Cannot initialize EcsCatalog because warehousePath must not be null");
+            "Cannot initialize EcsCatalog because warehousePath must not be null or empty string");
     int len = path.length();
     if (path.charAt(len - 1) == '/') {
       return new EcsURI(path.substring(0, len - 1));
