@@ -20,9 +20,8 @@
 package org.apache.iceberg.flink.source;
 
 /**
- * Starting strategy for streaming execution. Note that starting snapshot is exclusive in the
- * incremental split discovery mode. That means files appended by the starting snapshot aren't
- * included in split discovery.
+ * Starting strategy for streaming execution. Note that starting snapshot is exclusive in the incremental
+ * split discovery mode. Files appended by the starting snapshot aren't included in split discovery.
  */
 public enum StreamingStartingStrategy {
   /**

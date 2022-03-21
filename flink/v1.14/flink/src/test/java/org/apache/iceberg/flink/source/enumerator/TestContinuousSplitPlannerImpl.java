@@ -40,6 +40,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestName;
 
 public class TestContinuousSplitPlannerImpl {
   @ClassRule
@@ -51,6 +52,9 @@ public class TestContinuousSplitPlannerImpl {
   @Rule
   public final HadoopTableResource tableResource = new HadoopTableResource(TEMPORARY_FOLDER,
       TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
+
+  @Rule
+  public TestName testName = new TestName();
 
   private GenericAppenderHelper dataAppender;
   private DataFile dataFile1;
@@ -73,7 +77,7 @@ public class TestContinuousSplitPlannerImpl {
         .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
         .build();
     ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
-        tableResource.table(), scanContext);
+        tableResource.table(), scanContext, testName.getMethodName());
 
     ContinuousEnumerationResult result1 = splitPlanner.planSplits(null);
     Assert.assertEquals(snapshot1.snapshotId(), result1.position().endSnapshotId());

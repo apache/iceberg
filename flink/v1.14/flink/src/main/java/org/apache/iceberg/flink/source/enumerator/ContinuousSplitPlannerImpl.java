@@ -21,17 +21,16 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,28 +43,27 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   private final ScanContext scanContext;
   private final ExecutorService workerPool;
 
-  public ContinuousSplitPlannerImpl(Table table, ScanContext scanContext) {
+  public ContinuousSplitPlannerImpl(Table table, ScanContext scanContext, String threadPoolName) {
     this.table = table;
     this.scanContext = scanContext;
-    // Within a JVM, table name should be unique across sources.
-    // Hence it is used as worker pool thread name prefix.
-    this.workerPool = ThreadPools.newWorkerPool("iceberg-worker-pool-" + table.name(), scanContext.planParallelism());
+    this.workerPool = ThreadPools.newWorkerPool(
+        "iceberg-enumerator-pool-" + threadPoolName, scanContext.planParallelism());
   }
 
   @Override
   public ContinuousEnumerationResult planSplits(IcebergEnumeratorPosition lastPosition) {
     table.refresh();
     if (lastPosition != null) {
-      return discoverDeltaSplits(lastPosition);
+      return discoverIncrementalSplits(lastPosition);
     } else {
       return discoverInitialSplits();
     }
   }
 
   /**
-   * Discover delta changes between @{code lastPosition} and current table snapshot
+   * Discover incremental changes between @{code lastPosition} and current table snapshot
    */
-  private ContinuousEnumerationResult discoverDeltaSplits(IcebergEnumeratorPosition lastPosition) {
+  private ContinuousEnumerationResult discoverIncrementalSplits(IcebergEnumeratorPosition lastPosition) {
     // incremental discovery mode
     Snapshot currentSnapshot = table.currentSnapshot();
     if (currentSnapshot.snapshotId() == lastPosition.endSnapshotId()) {
@@ -89,82 +87,65 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   }
 
   /**
-   * Discovery initial set of splits based on {@link StreamingStartingStrategy}
+   * Discovery initial set of splits based on {@link StreamingStartingStrategy}.
+   *
+   * <li>{@link ContinuousEnumerationResult#splits()} should contain initial splits
+   * discovered from table scan for {@link StreamingStartingStrategy#TABLE_SCAN_THEN_INCREMENTAL}.
+   * For all other strategies, splits collection should be empty.
+   * <li>{@link ContinuousEnumerationResult#position()} points to the starting position
+   * for the next incremental split discovery with exclusive behavior. Meaning files committed
+   * by the snapshot from the position in {@code ContinuousEnumerationResult} won't be included
+   * in the next incremental scan.
    */
   private ContinuousEnumerationResult discoverInitialSplits() {
-    HistoryEntry startSnapshotEntry = getStartSnapshot(table, scanContext);
-    LOG.info("get startSnapshotId {} based on starting strategy {}",
-        startSnapshotEntry.snapshotId(), scanContext.startingStrategy());
+    Snapshot startSnapshot = getStartSnapshot(table, scanContext);
+    LOG.info("Get starting snapshot id {} based on strategy {}",
+        startSnapshot.snapshotId(), scanContext.startingStrategy());
     List<IcebergSourceSplit> splits;
     if (scanContext.startingStrategy() ==
         StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
       // do a full table scan first
       splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
-      LOG.info("Discovered {} splits from initial full table scan with snapshotId {}",
-          splits.size(), startSnapshotEntry);
+      LOG.info("Discovered {} splits from initial full table scan with snapshot Id {}",
+          splits.size(), startSnapshot.snapshotId());
     } else {
       splits = Collections.emptyList();
     }
 
     IcebergEnumeratorPosition position = IcebergEnumeratorPosition.builder()
-        .endSnapshotId(startSnapshotEntry.snapshotId())
-        .endSnapshotTimestampMs(startSnapshotEntry.timestampMillis())
+        .endSnapshotId(startSnapshot.snapshotId())
+        .endSnapshotTimestampMs(startSnapshot.timestampMillis())
         .build();
     return new ContinuousEnumerationResult(splits, position);
   }
 
   @VisibleForTesting
-  static HistoryEntry getStartSnapshot(Table table, ScanContext scanContext) {
-    List<HistoryEntry> historyEntries = table.history();
-    HistoryEntry startEntry;
+  static Snapshot getStartSnapshot(Table table, ScanContext scanContext) {
     switch (scanContext.startingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case LATEST_SNAPSHOT:
-        startEntry = historyEntries.get(historyEntries.size() - 1);
-        break;
+        return table.currentSnapshot();
       case EARLIEST_SNAPSHOT:
-        startEntry = historyEntries.get(0);
-        break;
+        return SnapshotUtil.oldestAncestor(table);
       case SPECIFIC_START_SNAPSHOT_ID:
-        Optional<HistoryEntry> matchedEntry = historyEntries.stream()
-            .filter(entry -> entry.snapshotId() == scanContext.startSnapshotId())
-            .findFirst();
-        if (matchedEntry.isPresent()) {
-          startEntry = matchedEntry.get();
+        Snapshot matchedSnapshotById = table.snapshot(scanContext.startSnapshotId());
+        if (matchedSnapshotById != null) {
+          return matchedSnapshotById;
         } else {
-          throw new IllegalArgumentException(
-              "Snapshot id not found in history: {}" + scanContext.startSnapshotId());
+          throw new IllegalArgumentException("Snapshot id not found in history: " + scanContext.startSnapshotId());
         }
-        break;
       case SPECIFIC_START_SNAPSHOT_TIMESTAMP:
-        Optional<HistoryEntry> opt = findSnapshotHistoryEntryByTimestamp(
-            scanContext.startSnapshotTimestamp(), historyEntries);
-        if (opt.isPresent()) {
-          startEntry = opt.get();
+        // snapshotIdAsOfTime returns valid snapshot id only.
+        // it throws IllegalArgumentException when a matching snapshot not found.
+        long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, scanContext.startSnapshotTimestamp());
+        Snapshot matchedSnapshotByTimestamp = table.snapshot(snapshotIdAsOfTime);
+        if (matchedSnapshotByTimestamp != null) {
+          return matchedSnapshotByTimestamp;
         } else {
-          throw new IllegalArgumentException(
-              "Failed to find a start snapshot in history using timestamp: " +
-                  scanContext.startSnapshotTimestamp());
+          throw new IllegalArgumentException("Snapshot id not found in history: " + snapshotIdAsOfTime);
         }
-        break;
       default:
-        throw new IllegalArgumentException("Unknown starting strategy: " +
-            scanContext.startingStrategy());
+        throw new IllegalArgumentException("Unknown starting strategy: " + scanContext.startingStrategy());
     }
-
-    return startEntry;
   }
-
-  @VisibleForTesting
-  static Optional<HistoryEntry> findSnapshotHistoryEntryByTimestamp(long timestamp, List<HistoryEntry> historyEntries) {
-    HistoryEntry matchedEntry = null;
-    for (HistoryEntry logEntry : historyEntries) {
-      if (logEntry.timestampMillis() <= timestamp) {
-        matchedEntry = logEntry;
-      }
-    }
-
-    return Optional.ofNullable(matchedEntry);
-  }
-
 }
