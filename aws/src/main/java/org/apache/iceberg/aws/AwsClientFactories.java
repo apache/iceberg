@@ -23,6 +23,7 @@ import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -30,6 +31,8 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -80,6 +83,7 @@ public class AwsClientFactories {
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
+    private String httpClientType;
 
     DefaultAwsClientFactory() {
     }
@@ -87,7 +91,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClientBuilder(UrlConnectionHttpClient.builder())
+          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -95,17 +99,17 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
-      return GlueClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+      return GlueClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+      return KmsClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
-      return DynamoDbClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build();
+      return DynamoDbClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
     }
 
     @Override
@@ -118,6 +122,23 @@ public class AwsClientFactories {
       ValidationException.check((s3AccessKeyId == null && s3SecretAccessKey == null) ||
           (s3AccessKeyId != null && s3SecretAccessKey != null),
           "S3 client access key ID and secret access key must be set at the same time");
+      this.httpClientType = PropertyUtil.propertyAsString(properties,
+          AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
+    }
+  }
+
+  static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
+    String clientType = httpClientType;
+    if (Strings.isNullOrEmpty(clientType)) {
+      clientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
+    }
+    switch (clientType) {
+      case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
+        return  UrlConnectionHttpClient.builder();
+      case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
+        return ApacheHttpClient.builder();
+      default:
+        throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }
   }
 

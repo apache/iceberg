@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -46,6 +45,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private int timeout;
   private String region;
   private String s3Endpoint;
+  private String httpClientType;
 
   @Override
   public S3Client s3() {
@@ -84,6 +84,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
     this.tags = toTags(properties);
+    this.httpClientType = PropertyUtil.propertyAsString(properties,
+        AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }
 
   private <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
@@ -97,14 +99,20 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(StsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build())
+            .stsClient(sts())
             .refreshRequest(request)
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(UrlConnectionHttpClient.builder());
+    clientBuilder.httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType));
 
     return clientBuilder;
+  }
+
+  private StsClient sts() {
+    return StsClient.builder()
+        .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType))
+        .build();
   }
 
   private String genSessionName() {

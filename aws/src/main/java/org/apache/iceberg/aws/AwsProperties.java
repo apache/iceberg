@@ -246,6 +246,28 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link AwsClientFactory}
+   * If set, all AWS clients will use this specified HTTP client.
+   * If not set, {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used.
+   * For specific types supported, see HTTP_CLIENT_TYPE_* defined below.
+   */
+  public static final String HTTP_CLIENT_TYPE = "http-client.type";
+
+  /**
+   * If this is set under {@link #HTTP_CLIENT_TYPE},
+   * {@link software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient}
+   * will be used as the HTTP Client in {@link AwsClientFactory}
+   */
+  public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
+
+  /**
+   * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link software.amazon.awssdk.http.apache.ApacheHttpClient}
+   * will be used as the HTTP Client in {@link AwsClientFactory}
+   */
+  public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
+  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
+
+  /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    * <p>
    * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
