@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -254,7 +255,8 @@ public class TestStreamingReaderOperator extends TableTestBase {
             .build();
       }
 
-      Collections.addAll(inputSplits, FlinkSplitPlanner.planInputSplits(table, scanContext));
+      Collections.addAll(inputSplits, FlinkSplitPlanner.planInputSplits(
+          table, scanContext, ThreadPools.getWorkerPool()));
     }
 
     return inputSplits;

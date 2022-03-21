@@ -72,7 +72,6 @@ public class TestFlinkScanSql extends TestFlinkSource {
         if (tEnv == null) {
           this.tEnv = TableEnvironment.create(EnvironmentSettings
               .newInstance()
-              .useBlinkPlanner()
               .inBatchMode().build());
         }
       }

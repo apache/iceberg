@@ -55,6 +55,8 @@ public class MetadataTableUtils {
         return new ManifestEntriesTable(ops, baseTable, metadataTableName);
       case FILES:
         return new DataFilesTable(ops, baseTable, metadataTableName);
+      case DELETE_FILES:
+        return new DeleteFilesTable(ops, baseTable, metadataTableName);
       case HISTORY:
         return new HistoryTable(ops, baseTable, metadataTableName);
       case SNAPSHOTS:

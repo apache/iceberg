@@ -404,6 +404,7 @@ public class GenericManifestFile
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
+        .add("content", content)
         .add("path", manifestPath)
         .add("length", length)
         .add("partition_spec_id", specId)
@@ -416,6 +417,8 @@ public class GenericManifestFile
         .add("deleted_rows_count", deletedRowsCount)
         .add("partitions", partitions)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
+        .add("sequence_number", sequenceNumber)
+        .add("min_sequence_number", minSequenceNumber)
         .toString();
   }
 

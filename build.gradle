@@ -472,6 +472,7 @@ project(':iceberg-orc') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(':iceberg-common')
   }
 }
 

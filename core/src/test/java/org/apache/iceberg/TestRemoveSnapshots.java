@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -32,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -1141,6 +1143,65 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
     Assert.assertEquals("Should remove expired manifest lists",
         Sets.newHashSet(firstSnapshot.manifestListLocation(), secondSnapshot.manifestListLocation()),
+        deletedFiles);
+  }
+
+  @Test
+  public void testExpireWithDeleteFiles() {
+    Assume.assumeTrue("Delete files only supported in V2 spec", formatVersion == 2);
+
+    // Data Manifest => File_A
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    // Data Manifest => FILE_A
+    // Delete Manifest => FILE_A_DELETES
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 data manifest", 1, secondSnapshot.dataManifests().size());
+    Assert.assertEquals("Should have 1 delete manifest", 1, secondSnapshot.deleteManifests().size());
+
+    // FILE_A and FILE_A_DELETES move into "DELETED" state
+    table.newRewrite()
+        .rewriteFiles(
+            ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES), // deleted
+            ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_B_DELETES)) // added
+        .validateFromSnapshot(secondSnapshot.snapshotId())
+        .commit();
+    Snapshot thirdSnapshot = table.currentSnapshot();
+    Set<ManifestFile> manifestOfDeletedFiles = thirdSnapshot.allManifests().stream().filter(
+        ManifestFile::hasDeletedFiles).collect(Collectors.toSet());
+    Assert.assertEquals("Should have two manifests of deleted files", 2,
+        manifestOfDeletedFiles.size());
+
+    // Need one more commit before manifests of files of DELETED state get cleared from current snapshot.
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    Snapshot fourthSnapshot = table.currentSnapshot();
+    long fourthSnapshotTs = waitUntilAfter(fourthSnapshot.timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    table.expireSnapshots()
+        .expireOlderThan(fourthSnapshotTs)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    Assert.assertEquals("Should remove old delete files and delete file manifests",
+        ImmutableSet.builder()
+            .add(FILE_A.path())
+            .add(FILE_A_DELETES.path())
+            .add(firstSnapshot.manifestListLocation())
+            .add(secondSnapshot.manifestListLocation())
+            .add(thirdSnapshot.manifestListLocation())
+            .addAll(secondSnapshot.allManifests().stream().map(ManifestFile::path).collect(Collectors.toList()))
+            .addAll(manifestOfDeletedFiles.stream().map(ManifestFile::path).collect(Collectors.toList()))
+            .build(),
         deletedFiles);
   }
 }

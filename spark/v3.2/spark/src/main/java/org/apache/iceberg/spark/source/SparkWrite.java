@@ -98,6 +98,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final JavaSparkContext sparkContext;
+  private final SparkWriteConf writeConf;
   private final Table table;
   private final String queryId;
   private final FileFormat format;
@@ -118,6 +119,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
              Distribution requiredDistribution, SortOrder[] requiredOrdering) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.writeConf = writeConf;
     this.queryId = writeInfo.queryId();
     this.format = writeConf.dataFileFormat();
     this.applicationId = applicationId;
@@ -272,6 +274,20 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       }
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+      IsolationLevel isolationLevel = writeConf.isolationLevel();
+      Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
+
+      if (isolationLevel != null && validateFromSnapshotId != null) {
+        dynamicOverwrite.validateFromSnapshot(validateFromSnapshotId);
+      }
+
+      if (isolationLevel == SERIALIZABLE) {
+        dynamicOverwrite.validateNoConflictingData();
+        dynamicOverwrite.validateNoConflictingDeletes();
+
+      } else if (isolationLevel == SNAPSHOT) {
+        dynamicOverwrite.validateNoConflictingDeletes();
+      }
 
       int numFiles = 0;
       for (DataFile file : files) {
@@ -299,6 +315,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       for (DataFile file : files(messages)) {
         numFiles += 1;
         overwriteFiles.addFile(file);
+      }
+
+      IsolationLevel isolationLevel = writeConf.isolationLevel();
+      Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
+
+      if (isolationLevel != null && validateFromSnapshotId != null) {
+        overwriteFiles.validateFromSnapshot(validateFromSnapshotId);
+      }
+
+      if (isolationLevel == SERIALIZABLE) {
+        overwriteFiles.validateNoConflictingDeletes();
+        overwriteFiles.validateNoConflictingData();
+
+      } else if (isolationLevel == SNAPSHOT) {
+        overwriteFiles.validateNoConflictingDeletes();
       }
 
       String commitMsg = String.format("overwrite by filter %s with %d new data files", overwriteExpr, numFiles);

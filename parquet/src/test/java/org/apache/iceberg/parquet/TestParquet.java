@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -135,7 +134,7 @@ public class TestParquet {
         .build();
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
-    List<ByteBuffer> expectedByteList = new ArrayList();
+    List<ByteBuffer> expectedByteList = Lists.newArrayList();
     byte[] expectedByte = {0x00, 0x01};
     ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
     expectedByteList.add(expectedBinary);

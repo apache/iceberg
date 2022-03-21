@@ -21,18 +21,24 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.ExecutorService;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,6 +73,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private transient SourceContext<FlinkInputSplit> sourceContext;
   private transient Table table;
   private transient ListState<Long> lastSnapshotIdState;
+  private transient ExecutorService workerPool;
 
   public StreamingMonitorFunction(TableLoader tableLoader, ScanContext scanContext) {
     Preconditions.checkArgument(scanContext.snapshotId() == null,
@@ -77,6 +84,17 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set end-snapshot-id option for streaming reader");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
+  }
+
+  @Override
+  public void open(Configuration parameters) throws Exception {
+    super.open(parameters);
+
+    final RuntimeContext runtimeContext = getRuntimeContext();
+    ValidationException.check(
+        runtimeContext instanceof StreamingRuntimeContext, "context should be instance of StreamingRuntimeContext");
+    final String operatorID = ((StreamingRuntimeContext) runtimeContext).getOperatorUniqueID();
+    this.workerPool = ThreadPools.newWorkerPool("iceberg-worker-pool-" + operatorID, scanContext.planParallelism());
   }
 
   @Override
@@ -140,7 +158,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
-      FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext);
+      FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
       for (FlinkInputSplit split : splits) {
         sourceContext.collect(split);
       }
@@ -173,5 +191,9 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   @Override
   public void close() {
     cancel();
+
+    if (workerPool != null) {
+      workerPool.shutdown();
+    }
   }
 }

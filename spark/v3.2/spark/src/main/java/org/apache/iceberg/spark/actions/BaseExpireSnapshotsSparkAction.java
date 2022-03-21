@@ -58,7 +58,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * <p>
  * This action first leverages {@link org.apache.iceberg.ExpireSnapshots} to expire snapshots and then
  * uses metadata tables to find files that can be safely deleted. This is done by anti-joining two Datasets
- * that contain all manifest and data files before and after the expiration. The snapshot expiration
+ * that contain all manifest and content files before and after the expiration. The snapshot expiration
  * will be fully committed before any deletes are issued.
  * <p>
  * This operation performs a shuffle so the parallelism can be controlled through 'spark.sql.shuffle.partitions'.
@@ -70,11 +70,11 @@ public class BaseExpireSnapshotsSparkAction
     extends BaseSparkAction<ExpireSnapshots, ExpireSnapshots.Result> implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
 
-  private static final String DATA_FILE = "Data File";
+  public static final String STREAM_RESULTS = "stream-results";
+
+  private static final String CONTENT_FILE = "Content File";
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
-
-  private static final String STREAM_RESULTS = "stream-results";
 
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
@@ -226,7 +226,7 @@ public class BaseExpireSnapshotsSparkAction
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, this.table.io());
-    return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
+    return appendTypeString(buildValidContentFileDF(staticTable), CONTENT_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
         .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
@@ -255,9 +255,9 @@ public class BaseExpireSnapshotsSparkAction
           String type = fileInfo.getString(1);
           deleteFunc.accept(file);
           switch (type) {
-            case DATA_FILE:
+            case CONTENT_FILE:
               dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Data File: {}", file);
+              LOG.trace("Deleted Content File: {}", file);
               break;
             case MANIFEST:
               manifestCount.incrementAndGet();

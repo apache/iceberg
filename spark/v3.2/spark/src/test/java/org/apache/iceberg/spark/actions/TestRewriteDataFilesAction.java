@@ -65,6 +65,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -193,6 +194,34 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackAfterPartitionChange() {
+    Table table = createTable();
+
+    writeRecords(20, SCALE, 20);
+    shouldHaveFiles(table, 20);
+    table.updateSpec().addField(Expressions.ref("c1")).commit();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .option(SortStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) + 1000))
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) + 1001))
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroup because all files were not correctly partitioned",
+        1, result.rewriteResults().size());
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveFiles(table, 20);
   }
 
   @Test
@@ -901,8 +930,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testSortCustomSortOrderRequiresRepartition() {
+    int partitions = 4;
     Table table = createTable();
-    writeRecords(20, SCALE, 20);
+    writeRecords(20, SCALE, partitions);
     shouldHaveLastCommitUnsorted(table, "c3");
 
     // Add a partition column so this requires repartitioning
@@ -917,7 +947,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         basicRewrite(table)
             .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
             .option(SortStrategy.REWRITE_ALL, "true")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / partitions))
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", result.rewriteResults().size(), 1);
@@ -1052,39 +1082,48 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   protected <T> void shouldHaveLastCommitSorted(Table table, String column) {
     List<Pair<Pair<T, T>, Pair<T, T>>>
-        overlappingFiles = getOverlappingFiles(table, column);
+        overlappingFiles = checkForOverlappingFiles(table, column);
 
     Assert.assertEquals("Found overlapping files", Collections.emptyList(), overlappingFiles);
   }
 
   protected <T> void shouldHaveLastCommitUnsorted(Table table, String column) {
     List<Pair<Pair<T, T>, Pair<T, T>>>
-        overlappingFiles = getOverlappingFiles(table, column);
+        overlappingFiles = checkForOverlappingFiles(table, column);
 
     Assert.assertNotEquals("Found no overlapping files", Collections.emptyList(), overlappingFiles);
   }
 
-  private <T> List<Pair<Pair<T, T>, Pair<T, T>>> getOverlappingFiles(Table table, String column) {
+  private <T> Pair<T, T> boundsOf(DataFile file, NestedField field, Class<T> javaClass) {
+    int columnId = field.fieldId();
+    return Pair.of(javaClass.cast(Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(columnId))),
+        javaClass.cast(Conversions.fromByteBuffer(field.type(), file.upperBounds().get(columnId))));
+  }
+
+
+  private <T> List<Pair<Pair<T, T>, Pair<T, T>>> checkForOverlappingFiles(Table table, String column) {
     table.refresh();
     NestedField field = table.schema().caseInsensitiveFindField(column);
-    int columnId = field.fieldId();
     Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
+
     Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles())
         .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =
         filesByPartition.entrySet().stream().flatMap(entry -> {
-          List<Pair<T, T>> columnBounds =
-              entry.getValue().stream()
-                  .map(file -> Pair.of(
-                      javaClass.cast(Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(columnId))),
-                      javaClass.cast(Conversions.fromByteBuffer(field.type(), file.upperBounds().get(columnId)))))
-                  .collect(Collectors.toList());
+          List<DataFile> datafiles = entry.getValue();
+          Preconditions.checkArgument(datafiles.size() > 1,
+              "This test is checking for overlaps in a situation where no overlaps can actually occur because the " +
+                  "partition %s does not contain multiple datafiles", entry.getKey());
+
+          List<Pair<Pair<T, T>, Pair<T, T>>> boundComparisons = Lists.cartesianProduct(datafiles, datafiles).stream()
+              .filter(tuple -> tuple.get(0) != tuple.get(1))
+              .map(tuple -> Pair.of(boundsOf(tuple.get(0), field, javaClass), boundsOf(tuple.get(1), field, javaClass)))
+              .collect(Collectors.toList());
 
           Comparator<T> comparator = Comparators.forType(field.type().asPrimitiveType());
 
-          List<Pair<Pair<T, T>, Pair<T, T>>> overlappingFiles = columnBounds.stream()
-              .flatMap(left -> columnBounds.stream().map(right -> Pair.of(left, right)))
+          List<Pair<Pair<T, T>, Pair<T, T>>> overlappingFiles = boundComparisons.stream()
               .filter(filePair -> {
                 Pair<T, T> left = filePair.first();
                 T lMin = left.first();
@@ -1097,9 +1136,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
                     (comparator.compare(rMax, lMax) >= 0 && comparator.compare(rMin, lMax) >= 0) ||
                         (comparator.compare(lMax, rMax) >= 0 && comparator.compare(lMin, rMax) >= 0);
 
-                return (left != right) && !boundsDoNotOverlap;
-              })
-              .collect(Collectors.toList());
+                return !boundsDoNotOverlap;
+              }).collect(Collectors.toList());
           return overlappingFiles.stream();
         });
 

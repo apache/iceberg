@@ -40,6 +40,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
@@ -238,6 +240,11 @@ public abstract class SparkTestBase {
         }
       });
     }
+  }
+
+  protected Dataset<Row> jsonToDF(String schema, String... records) {
+    Dataset<String> jsonDF = spark.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
+    return spark.read().schema(schema).json(jsonDF);
   }
 
   @FunctionalInterface

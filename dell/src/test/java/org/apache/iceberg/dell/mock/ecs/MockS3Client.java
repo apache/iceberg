@@ -87,10 +87,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
@@ -105,7 +104,7 @@ public class MockS3Client implements S3Client {
    * <p>
    * Current {@link S3ObjectMetadata} only store the user metadata.
    */
-  private final ConcurrentMap<ObjectId, ObjectData> objectData = new ConcurrentHashMap<>();
+  private final Map<String, ObjectData> objectData = Maps.newConcurrentMap();
 
   @Override
   public PutObjectResult putObject(PutObjectRequest request) {

@@ -30,6 +30,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,6 +55,7 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
@@ -88,7 +90,9 @@ public class TestS3OutputStream {
 
   private final AwsProperties properties = new AwsProperties(ImmutableMap.of(
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
-      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
+      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString(),
+      "s3.write.tags.abc", "123",
+      "s3.write.tags.def", "789"));
 
   public TestS3OutputStream() throws IOException {
   }
@@ -166,6 +170,7 @@ public class TestS3OutputStream {
       verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+      checkTags(putObjectRequestArgumentCaptor);
       reset(s3mock);
 
       // Test file larger than part size but less than multipart threshold
@@ -175,6 +180,7 @@ public class TestS3OutputStream {
       verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+      checkTags(putObjectRequestArgumentCaptor);
       reset(s3mock);
 
       // Test file large enough to trigger multipart upload
@@ -222,6 +228,20 @@ public class TestS3OutputStream {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       assertEquals(getDigest(data, 0, data.length), putObjectRequests.get(0).contentMD5());
     }
+  }
+
+  private void checkTags(ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
+    if (properties.isS3ChecksumEnabled()) {
+      List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
+      String tagging = putObjectRequests.get(0).tagging();
+      assertEquals(getTags(properties.s3WriteTags()), tagging);
+    }
+  }
+
+  private String getTags(Set<Tag> objectTags) {
+    return objectTags.stream()
+        .map(e -> e.key() + "=" + e.value())
+        .collect(Collectors.joining("&"));
   }
 
   private String getDigest(byte[] data, int offset, int length) {

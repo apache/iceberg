@@ -26,11 +26,11 @@ def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProper
 def jmhProjects = []
 
 if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark2"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4"))
 }
 
 if (sparkVersions.contains("3.0")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark3"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.0_2.12"))
 }
 
 if (sparkVersions.contains("3.1")) {
@@ -40,6 +40,8 @@ if (sparkVersions.contains("3.1")) {
 if (sparkVersions.contains("3.2")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.2_${scalaVersion}"))
 }
+
+jmhProjects.add(project(":iceberg-data"))
 
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'

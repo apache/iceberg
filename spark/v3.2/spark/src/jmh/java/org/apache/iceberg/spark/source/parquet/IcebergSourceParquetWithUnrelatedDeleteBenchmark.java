@@ -32,9 +32,9 @@ import org.openjdk.jmh.annotations.Param;
  * This class uses a dataset with a flat schema.
  * To run this benchmark for spark-3.2:
  * <code>
- * ./gradlew :iceberg-spark:iceberg-spark-3.2:jmh
- *   -PjmhIncludeRegex=IcebergSourceParquetWithUnrelatedDeleteBenchmark
- *   -PjmhOutputPath=benchmark/iceberg-source-parquet-with-unrelated-delete-benchmark-result.txt
+ *   ./gradlew :iceberg-spark:iceberg-spark-3.2:jmh
+ *       -PjmhIncludeRegex=IcebergSourceParquetWithUnrelatedDeleteBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-parquet-with-unrelated-delete-benchmark-result.txt
  * </code>
  */
 public class IcebergSourceParquetWithUnrelatedDeleteBenchmark extends IcebergSourceDeleteBenchmark {

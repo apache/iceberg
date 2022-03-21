@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -301,7 +303,7 @@ public class TableMetadata implements Serializable {
     this.schemasById = indexSchemas();
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
-    this.refs = validateRefs(refs);
+    this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -407,7 +409,7 @@ public class TableMetadata implements Serializable {
     return specsById;
   }
 
-  int lastAssignedPartitionId() {
+  public int lastAssignedPartitionId() {
     return lastAssignedPartitionId;
   }
 
@@ -465,6 +467,14 @@ public class TableMetadata implements Serializable {
 
   public List<Snapshot> snapshots() {
     return snapshots;
+  }
+
+  public SnapshotRef ref(String name) {
+    return refs.get(name);
+  }
+
+  public Map<String, SnapshotRef> refs() {
+    return refs;
   }
 
   public List<HistoryEntry> snapshotLog() {
@@ -647,24 +657,24 @@ public class TableMetadata implements Serializable {
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
+    UnboundPartitionSpec.Builder specBuilder = UnboundPartitionSpec.builder()
         .withSpecId(specId);
 
     for (PartitionField field : partitionSpec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
-      specBuilder.add(
+      specBuilder.addField(
+          field.transform().toString(),
           schema.findField(sourceName).fieldId(),
           field.fieldId(),
-          field.name(),
-          field.transform().toString());
+          field.name());
     }
 
-    return specBuilder.build();
+    return specBuilder.build().bind(schema);
   }
 
   private static SortOrder freshSortOrder(int orderId, Schema schema, SortOrder sortOrder) {
-    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    UnboundSortOrder.Builder builder = UnboundSortOrder.builder();
 
     if (sortOrder.isSorted()) {
       builder.withOrderId(orderId);
@@ -682,7 +692,7 @@ public class TableMetadata implements Serializable {
           field.nullOrder());
     }
 
-    return builder.build();
+    return builder.build().bind(schema);
   }
 
   private static Map<Long, Snapshot> indexAndValidateSnapshots(List<Snapshot> snapshots, long lastSequenceNumber) {
@@ -720,15 +730,24 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private Map<String, SnapshotRef> validateRefs(Map<String, SnapshotRef> inputRefs) {
-    for (Map.Entry<String, SnapshotRef> refEntry : inputRefs.entrySet()) {
-      String refName = refEntry.getKey();
-      SnapshotRef ref = refEntry.getValue();
-      if (!(ref.snapshotId() == -1 && refName.equals(SnapshotRef.MAIN_BRANCH))) {
-        Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
-            "Snapshot reference %s does not exist in the existing snapshots list", ref);
-      }
+  private static Map<String, SnapshotRef> validateRefs(Long currentSnapshotId,
+                                                       Map<String, SnapshotRef> inputRefs,
+                                                       Map<Long, Snapshot> snapshotsById) {
+    for (SnapshotRef ref : inputRefs.values()) {
+      Preconditions.checkArgument(snapshotsById.containsKey(ref.snapshotId()),
+          "Snapshot for reference %s does not exist in the existing snapshots list", ref);
     }
+
+    SnapshotRef main = inputRefs.get(SnapshotRef.MAIN_BRANCH);
+    if (currentSnapshotId != -1) {
+      Preconditions.checkArgument(main == null || currentSnapshotId == main.snapshotId(),
+          "Current snapshot ID does not match main branch (%s != %s)",
+          currentSnapshotId, main != null ? main.snapshotId() : null);
+    } else {
+      Preconditions.checkArgument(main == null,
+          "Current snapshot is not set, but main branch exists: %s", main);
+    }
+
     return inputRefs;
   }
 
@@ -737,7 +756,10 @@ public class TableMetadata implements Serializable {
   }
 
   public static class Builder {
+    private static final int LAST_ADDED = -1;
+
     private final TableMetadata base;
+    private String metadataLocation;
     private int formatVersion;
     private String uuid;
     private Long lastUpdatedMillis;
@@ -754,12 +776,15 @@ public class TableMetadata implements Serializable {
     private final Map<String, String> properties;
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
-    private Map<String, SnapshotRef> refs;
+    private final Map<String, SnapshotRef> refs;
 
     // change tracking
     private final List<MetadataUpdate> changes;
     private final int startingChangeCount;
     private boolean discardChanges = false;
+    private Integer lastAddedSchemaId = null;
+    private Integer lastAddedSpecId = null;
+    private Integer lastAddedOrderId = null;
 
     // handled in build
     private final List<HistoryEntry> snapshotLog;
@@ -804,6 +829,11 @@ public class TableMetadata implements Serializable {
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
     }
 
+    public Builder withMetadataLocation(String newMetadataLocation) {
+      this.metadataLocation = newMetadataLocation;
+      return this;
+    }
+
     public Builder assignUUID() {
       if (uuid == null) {
         this.uuid = UUID.randomUUID().toString();
@@ -836,6 +866,12 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setCurrentSchema(int schemaId) {
+      if (schemaId == -1) {
+        ValidationException.check(lastAddedSchemaId != null,
+            "Cannot set last added schema: no schema has been added");
+        return setCurrentSchema(lastAddedSchemaId);
+      }
+
       if (currentSchemaId == schemaId) {
         return this;
       }
@@ -856,12 +892,17 @@ public class TableMetadata implements Serializable {
 
       this.currentSchemaId = schemaId;
 
-      changes.add(new MetadataUpdate.SetCurrentSchema(schemaId));
+      if (lastAddedSchemaId != null && lastAddedSchemaId == schemaId) {
+        changes.add(new MetadataUpdate.SetCurrentSchema(LAST_ADDED));
+      } else {
+        changes.add(new MetadataUpdate.SetCurrentSchema(schemaId));
+      }
 
       return this;
     }
 
     public Builder addSchema(Schema schema, int newLastColumnId) {
+      // TODO: remove requirement for newLastColumnId
       addSchemaInternal(schema, newLastColumnId);
       return this;
     }
@@ -872,14 +913,28 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setDefaultPartitionSpec(int specId) {
+      if (specId == -1) {
+        ValidationException.check(lastAddedSpecId != null, "Cannot set last added spec: no spec has been added");
+        return setDefaultPartitionSpec(lastAddedSpecId);
+      }
+
       if (defaultSpecId == specId) {
         // the new spec is already current and no change is needed
         return this;
       }
 
       this.defaultSpecId = specId;
-      changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
+      if (lastAddedSpecId != null && lastAddedSpecId == specId) {
+        changes.add(new MetadataUpdate.SetDefaultPartitionSpec(LAST_ADDED));
+      } else {
+        changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
+      }
 
+      return this;
+    }
+
+    public Builder addPartitionSpec(UnboundPartitionSpec spec) {
+      addPartitionSpecInternal(spec.bind(schemasById.get(currentSchemaId)));
       return this;
     }
 
@@ -894,13 +949,28 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setDefaultSortOrder(int sortOrderId) {
+      if (sortOrderId == -1) {
+        ValidationException.check(lastAddedOrderId != null,
+            "Cannot set last added sort order: no sort order has been added");
+        return setDefaultSortOrder(lastAddedOrderId);
+      }
+
       if (sortOrderId == defaultSortOrderId) {
         return this;
       }
 
       this.defaultSortOrderId = sortOrderId;
-      changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
+      if (lastAddedOrderId != null && lastAddedOrderId == sortOrderId) {
+        changes.add(new MetadataUpdate.SetDefaultSortOrder(LAST_ADDED));
+      } else {
+        changes.add(new MetadataUpdate.SetDefaultSortOrder(sortOrderId));
+      }
 
+      return this;
+    }
+
+    public Builder addSortOrder(UnboundSortOrder order) {
+      addSortOrderInternal(order.bind(schemasById.get(currentSchemaId)));
       return this;
     }
 
@@ -930,7 +1000,7 @@ public class TableMetadata implements Serializable {
 
     public Builder setBranchSnapshot(Snapshot snapshot, String branch) {
       addSnapshot(snapshot);
-      setBranchSnapshot(snapshot, branch, null);
+      setBranchSnapshotInternal(snapshot, branch);
       return this;
     }
 
@@ -944,7 +1014,7 @@ public class TableMetadata implements Serializable {
       Snapshot snapshot = snapshotsById.get(snapshotId);
       ValidationException.check(snapshot != null, "Cannot set %s to unknown snapshot: %s", branch, snapshotId);
 
-      setBranchSnapshot(snapshot, branch, System.currentTimeMillis());
+      setBranchSnapshotInternal(snapshot, branch);
 
       return this;
     }
@@ -966,7 +1036,10 @@ public class TableMetadata implements Serializable {
 
     public Builder removeSnapshots(List<Snapshot> snapshotsToRemove) {
       Set<Long> idsToRemove = snapshotsToRemove.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      return removeSnapshots(idsToRemove);
+    }
 
+    public Builder removeSnapshots(Collection<Long> idsToRemove) {
       List<Snapshot> retainedSnapshots = Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
@@ -1040,6 +1113,12 @@ public class TableMetadata implements Serializable {
         this.lastUpdatedMillis = System.currentTimeMillis();
       }
 
+      // when associated with a metadata file, table metadata must have no changes so that the metadata matches exactly
+      // what is in the metadata file, which does not store changes. metadata location with changes is inconsistent.
+      Preconditions.checkArgument(
+          changes.size() == 0 || discardChanges || metadataLocation == null,
+          "Cannot set metadata location with changes to table metadata: %s changes", changes.size());
+
       Schema schema = schemasById.get(currentSchemaId);
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
@@ -1049,7 +1128,7 @@ public class TableMetadata implements Serializable {
       List<HistoryEntry> newSnapshotLog = updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
 
       return new TableMetadata(
-          null,
+          metadataLocation,
           formatVersion,
           uuid,
           location,
@@ -1081,6 +1160,7 @@ public class TableMetadata implements Serializable {
       boolean schemaFound = schemasById.containsKey(newSchemaId);
       if (schemaFound && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
+        this.lastAddedSchemaId = newSchemaId;
         return newSchemaId;
       }
 
@@ -1099,6 +1179,8 @@ public class TableMetadata implements Serializable {
       }
 
       changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+
+      this.lastAddedSchemaId = newSchemaId;
 
       return newSchemaId;
     }
@@ -1119,6 +1201,7 @@ public class TableMetadata implements Serializable {
     private int addPartitionSpecInternal(PartitionSpec spec) {
       int newSpecId = reuseOrCreateNewSpecId(spec);
       if (specsById.containsKey(newSpecId)) {
+        this.lastAddedSpecId = newSpecId;
         return newSpecId;
       }
 
@@ -1133,6 +1216,8 @@ public class TableMetadata implements Serializable {
       specsById.put(newSpecId, newSpec);
 
       changes.add(new MetadataUpdate.AddPartitionSpec(newSpec));
+
+      this.lastAddedSpecId = newSpecId;
 
       return newSpecId;
     }
@@ -1154,6 +1239,7 @@ public class TableMetadata implements Serializable {
     private int addSortOrderInternal(SortOrder order) {
       int newOrderId = reuseOrCreateNewSortOrderId(order);
       if (sortOrdersById.containsKey(newOrderId)) {
+        this.lastAddedOrderId = newOrderId;
         return newOrderId;
       }
 
@@ -1172,6 +1258,8 @@ public class TableMetadata implements Serializable {
       sortOrdersById.put(newOrderId, newOrder);
 
       changes.add(new MetadataUpdate.AddSortOrder(newOrder));
+
+      this.lastAddedOrderId = newOrderId;
 
       return newOrderId;
     }
@@ -1194,7 +1282,7 @@ public class TableMetadata implements Serializable {
       return newOrderId;
     }
 
-    private void setBranchSnapshot(Snapshot snapshot, String branch, Long currentTimestampMillis) {
+    private void setBranchSnapshotInternal(Snapshot snapshot, String branch) {
       long replacementSnapshotId = snapshot.snapshotId();
       SnapshotRef ref = refs.get(branch);
       if (ref != null) {
@@ -1208,7 +1296,9 @@ public class TableMetadata implements Serializable {
           "Last sequence number %s is less than existing snapshot sequence number %s",
           lastSequenceNumber, snapshot.sequenceNumber());
 
-      this.lastUpdatedMillis = currentTimestampMillis != null ? currentTimestampMillis : snapshot.timestampMillis();
+      // if the snapshot was added in this change set, use its timestamp
+      this.lastUpdatedMillis = isAddedSnapshot(snapshot.snapshotId()) ?
+          snapshot.timestampMillis() : System.currentTimeMillis();
 
       if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
         this.currentSnapshotId = replacementSnapshotId;
@@ -1310,6 +1400,17 @@ public class TableMetadata implements Serializable {
       }
 
       return newSnapshotLog;
+    }
+
+    private boolean isAddedSnapshot(long snapshotId) {
+      return changes(MetadataUpdate.AddSnapshot.class)
+          .anyMatch(add -> add.snapshot().snapshotId() == snapshotId);
+    }
+
+    private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
+      return changes.stream()
+          .filter(updateClass::isInstance)
+          .map(updateClass::cast);
     }
   }
 }

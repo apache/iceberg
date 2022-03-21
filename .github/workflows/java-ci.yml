@@ -20,20 +20,11 @@
 name: "Java CI"
 on:
   push:
-    paths-ignore:
-    - '.github/workflows/python-ci.yml'
-    - '.github/workflows/spark-ci.yml'
-    - '.github/workflows/flink-ci.yml'
-    - '.github/workflows/hive-ci.yml'
-    - '.github/workflows/cancel-duplicate-workflow-runs.yml'
-    - '.gitignore'
-    - 'dev/**'
-    - 'python/**'
-    - 'python_legacy/**'
-    - 'docs/**'
-    - '.gitattributes'
-    - 'README.md'
-    - 'CONTRIBUTING.md'
+    branches:
+    - 'master'
+    - '0.**'
+    tags:
+    - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -45,9 +36,15 @@ on:
     - 'python/**'
     - 'python_legacy/**'
     - 'docs/**'
+    - 'open-api/**'
+    - 'format/**'
     - '.gitattributes'
     - 'README.md'
     - 'CONTRIBUTING.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   core-tests:

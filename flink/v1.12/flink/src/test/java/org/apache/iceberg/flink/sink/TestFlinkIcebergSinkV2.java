@@ -49,6 +49,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -84,33 +86,37 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
+  private final String writeDistributionMode;
 
   private StreamExecutionEnvironment env;
   private TestTableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"orc", 1, true},
-        new Object[] {"orc", 1, false},
-        new Object[] {"orc", 2, true},
-        new Object[] {"orc", 2, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 2, true},
-        new Object[] {"parquet", 2, false}
+        new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+
+        new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+
+        new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
     };
   }
 
-  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned) {
+  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned, String writeDistributionMode) {
     super(FORMAT_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.parallelism = parallelism;
     this.partitioned = partitioned;
+    this.writeDistributionMode = writeDistributionMode;
   }
 
   @Before
@@ -127,6 +133,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     table.updateProperties()
         .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, writeDistributionMode)
         .commit();
 
     env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
@@ -153,10 +160,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
-
-    // Shuffle by the equality key, so that different operations of the same key could be wrote in order when
-    // executing tasks in parallel.
-    dataStream = dataStream.keyBy(keySelector);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .tableLoader(tableLoader)
@@ -196,6 +199,37 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   }
 
   @Test
+  public void testCheckAndGetEqualityFieldIds() {
+    table.updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("type", Types.StringType.get())
+        .setIdentifierFields("type")
+        .commit();
+
+    DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
+    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+
+    // Use schema identifier field IDs as equality field id list by default
+    Assert.assertEquals(
+        table.schema().identifierFieldIds(),
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
+    );
+
+    // Use user-provided equality field column as equality field id list
+    builder.equalityFieldColumns(Lists.newArrayList("id"));
+    Assert.assertEquals(
+        Sets.newHashSet(table.schema().findField("id").fieldId()),
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
+    );
+
+    builder.equalityFieldColumns(Lists.newArrayList("type"));
+    Assert.assertEquals(
+        Sets.newHashSet(table.schema().findField("type").fieldId()),
+        Sets.newHashSet(builder.checkAndGetEqualityFieldIds())
+    );
+  }
+
+  @Test
   public void testChangeLogOnIdKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
@@ -226,8 +260,18 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "ddd"), record(2, "ddd"))
     );
 
-    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
-        elementsPerCheckpoint, expectedRecords);
+    if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
+      AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
+          IllegalStateException.class, "should be included in equality fields",
+          () -> {
+            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
+                elementsPerCheckpoint, expectedRecords);
+            return null;
+          });
+    } else {
+      testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
+          elementsPerCheckpoint, expectedRecords);
+    }
   }
 
   @Test
@@ -342,7 +386,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     AssertHelpers.assertThrows("Should be error because upsert mode and overwrite mode enable at the same time.",
         IllegalStateException.class, "OVERWRITE mode shouldn't be enable",
-        () -> builder.equalityFieldColumns(ImmutableList.of("id")).overwrite(true).append()
+        () -> builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append()
     );
 
     AssertHelpers.assertThrows("Should be error because equality field columns are empty.",
@@ -380,8 +424,8 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
       AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
           IllegalStateException.class, "should be included in equality fields",
           () -> {
-            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true, elementsPerCheckpoint,
-                expectedRecords);
+            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true,
+                elementsPerCheckpoint, expectedRecords);
             return null;
           });
     }

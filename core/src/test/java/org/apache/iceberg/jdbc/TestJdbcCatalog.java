@@ -42,6 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -50,6 +51,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -66,7 +68,7 @@ import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestJdbcCatalog {
+public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
 
   static final Schema SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get(), "unique ID"),
@@ -79,9 +81,20 @@ public class TestJdbcCatalog {
   static Configuration conf = new Configuration();
   private static JdbcCatalog catalog;
   private static String warehouseLocation;
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   File tableDir = null;
+
+  @Override
+  protected JdbcCatalog catalog() {
+    return catalog;
+  }
+
+  @Override
+  protected boolean supportsNamespaceProperties() {
+    return true;
+  }
 
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
@@ -377,7 +390,7 @@ public class TestJdbcCatalog {
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
     AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
-        "Failed to rename db.tbl2 to db.tbl2-newtable", () -> catalog.renameTable(from2, to)
+        "Failed to execute", () -> catalog.renameTable(from2, to)
     );
   }
 
@@ -532,9 +545,8 @@ public class TestJdbcCatalog {
 
   @Test
   public void testDropNamespace() {
-
-    AssertHelpers.assertThrows("Should fail to drop namespace doesn't exist", NoSuchNamespaceException.class,
-        "Namespace does not exist", () -> catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
+    Assert.assertFalse("Should return false if drop does not modify state",
+        catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
 
     TableIdentifier tbl0 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "tbl1");
@@ -552,6 +564,72 @@ public class TestJdbcCatalog {
         "is not empty. 1 tables exist.", () -> catalog.dropNamespace(tbl2.namespace()));
     AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class,
         "is not empty. 1 tables exist.", () -> catalog.dropNamespace(tbl4.namespace()));
+  }
+
+  @Test
+  public void testCreateNamespace() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    // Test with no metadata
+    catalog.createNamespace(testNamespace);
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
+  }
+
+  @Test
+  public void testCreateNamespaceWithMetadata() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+
+    // Test with metadata
+    Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2", "key_3", "value_3");
+    catalog.createNamespace(testNamespace, testMetadata);
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
+  }
+
+  @Test
+  public void testSetProperties() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2",
+            "key_3", "value_3");
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    // Add more properties to set to test insert and update
+    Map<String, String> propertiesToSet = ImmutableMap.of("key_5", "value_5", "key_3", "new_value_3",
+            "key_1", "new_value_1",  "key_4", "value_4", "key_2", "new_value_2");
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
+    Assert.assertTrue(catalog.setProperties(testNamespace, propertiesToSet));
+
+    Map<String, String> allProperties = catalog.loadNamespaceMetadata(testNamespace);
+    Assert.assertEquals(6, allProperties.size());
+
+    Map<String, String> namespaceProperties = catalog.loadNamespaceMetadata(testNamespace);
+    Assert.assertEquals("All new keys should be in the namespace properties",
+        propertiesToSet.keySet(), Sets.intersection(propertiesToSet.keySet(), namespaceProperties.keySet()));
+    // values should match
+    for (Map.Entry<String, String> keyValue : propertiesToSet.entrySet()) {
+      Assert.assertEquals("Value for key " + keyValue.getKey() + " should match",
+          keyValue.getValue(), namespaceProperties.get(keyValue.getKey()));
+    }
+  }
+
+  @Test
+  public void testRemoveProperties() {
+    Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
+    Map<String, String> testMetadata = ImmutableMap.of("key_1", "value_1", "key_2", "value_2",
+            "key_3", "value_3", "key_4", "value_4");
+    catalog.createNamespace(testNamespace, testMetadata);
+
+    Set<String> propertiesToRemove = ImmutableSet.of("key_2", "key_4");
+    catalog.removeProperties(testNamespace, propertiesToRemove);
+    Map<String, String> remainderProperties = catalog.loadNamespaceMetadata(testNamespace);
+
+    Assert.assertEquals(3, remainderProperties.size());
+    Assert.assertTrue(remainderProperties.containsKey("key_1"));
+    Assert.assertTrue(remainderProperties.containsKey("key_3"));
+    Assert.assertTrue(remainderProperties.containsKey("location"));
+
+    // Remove remaining properties to test if it deletes the namespace
+    Set<String> allProperties = ImmutableSet.of("key_1", "key_3");
+    catalog.removeProperties(testNamespace, allProperties);
+    Assert.assertTrue(catalog.namespaceExists(testNamespace));
   }
 
   @Test

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.flink.api.common.state.CheckpointListener;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A stream source that:
@@ -39,6 +40,7 @@ import org.apache.flink.streaming.api.functions.source.SourceFunction;
 public final class BoundedTestSource<T> implements SourceFunction<T>, CheckpointListener {
 
   private final List<List<T>> elementsPerCheckpoint;
+  private final boolean checkpointEnabled;
   private volatile boolean running = true;
 
   private final AtomicInteger numCheckpointsComplete = new AtomicInteger(0);
@@ -46,8 +48,13 @@ public final class BoundedTestSource<T> implements SourceFunction<T>, Checkpoint
   /**
    * Emits all those elements in several checkpoints.
    */
-  public BoundedTestSource(List<List<T>> elementsPerCheckpoint) {
+  public BoundedTestSource(List<List<T>> elementsPerCheckpoint, boolean checkpointEnabled) {
     this.elementsPerCheckpoint = elementsPerCheckpoint;
+    this.checkpointEnabled = checkpointEnabled;
+  }
+
+  public BoundedTestSource(List<List<T>> elementsPerCheckpoint) {
+    this(elementsPerCheckpoint, true);
   }
 
   /**
@@ -59,7 +66,14 @@ public final class BoundedTestSource<T> implements SourceFunction<T>, Checkpoint
 
   @Override
   public void run(SourceContext<T> ctx) throws Exception {
-    for (int checkpoint = 0; checkpoint < elementsPerCheckpoint.size(); checkpoint++) {
+    if (!checkpointEnabled) {
+      Preconditions.checkArgument(elementsPerCheckpoint.size() <= 1,
+              "There should be at most one list in the elementsPerCheckpoint when checkpoint is disabled.");
+      elementsPerCheckpoint.stream().flatMap(List::stream).forEach(ctx::collect);
+      return;
+    }
+
+    for (List<T> elements : elementsPerCheckpoint) {
 
       final int checkpointToAwait;
       synchronized (ctx.getCheckpointLock()) {
@@ -70,7 +84,7 @@ public final class BoundedTestSource<T> implements SourceFunction<T>, Checkpoint
         // affected in the end. Setting the delta to be 2 is introducing the variable that produce un-continuous
         // checkpoints that emit the records buffer from elementsPerCheckpoints.
         checkpointToAwait = numCheckpointsComplete.get() + 2;
-        for (T element : elementsPerCheckpoint.get(checkpoint)) {
+        for (T element : elements) {
           ctx.collect(element);
         }
       }
