@@ -214,12 +214,14 @@ public class ORC {
       }
 
       static Context dataContext(Map<String, String> config) {
-        long stripeSize = PropertyUtil.propertyAsLong(config,
-            TableProperties.ORC_STRIPE_SIZE_BYTES, TableProperties.ORC_STRIPE_SIZE_BYTES_DEFAULT);
+        long stripeSize = PropertyUtil.propertyAsLong(config, OrcConf.STRIPE_SIZE.getAttribute(),
+            TableProperties.ORC_STRIPE_SIZE_BYTES_DEFAULT);
+        stripeSize = PropertyUtil.propertyAsLong(config, TableProperties.ORC_STRIPE_SIZE_BYTES, stripeSize);
         Preconditions.checkArgument(stripeSize > 0, "Stripe size must be > 0");
 
-        long blockSize = PropertyUtil.propertyAsLong(config,
-            TableProperties.ORC_BLOCK_SIZE_BYTES, TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT);
+        long blockSize = PropertyUtil.propertyAsLong(config, OrcConf.BLOCK_SIZE.getAttribute(),
+            TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT);
+        blockSize = PropertyUtil.propertyAsLong(config, TableProperties.ORC_BLOCK_SIZE_BYTES, blockSize);
         Preconditions.checkArgument(blockSize > 0, "Block size must be > 0");
 
         int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,

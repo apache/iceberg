@@ -29,7 +29,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -122,9 +121,9 @@ public class TestSparkOrcReadMetadataColumns {
         .createWriterFunc(SparkOrcWriter::new)
         .schema(DATA_SCHEMA)
         // write in such a way that the file contains 10 stripes each with 100 rows
-        .set(TableProperties.ORC_WRITE_BATCH_SIZE, "100")
+        .set("iceberg.orc.vectorbatch.size", "100")
         .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "100")
-        .set(TableProperties.ORC_STRIPE_SIZE_BYTES, "1")
+        .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
         .build()) {
       writer.addAll(DATA_ROWS);
     }
