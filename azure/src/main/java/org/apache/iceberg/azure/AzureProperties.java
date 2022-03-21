@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.azure;
 
+import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class AzureProperties {
+public class AzureProperties implements Serializable {
 
   public static final String STORAGE_CONNECTION_STRING = "azure.storage.%s.connection-string";
 
@@ -52,7 +54,8 @@ public class AzureProperties {
 
   public AzureProperties(Map<String, String> properties) {
     Preconditions.checkNotNull(properties, "Properties map cannot be null");
-    this.properties = ImmutableMap.copyOf(properties);
+    // Immutable Map raises exceptions during kryo serialization in Spark, thus using unmodifiable map.
+    this.properties = Collections.unmodifiableMap(Maps.newHashMap(properties));
   }
 
   public AuthType authType(String storageAccount) {
