@@ -106,6 +106,16 @@ public class PartitionSpec implements Serializable {
     return lastAssignedFieldId;
   }
 
+  public UnboundPartitionSpec toUnbound() {
+    UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
+
+    for (PartitionField field : fields) {
+      builder.addField(field.transform().toString(), field.sourceId(), field.fieldId(), field.name());
+    }
+
+    return builder.build();
+  }
+
   /**
    * Returns the {@link PartitionField field} that partitions the given source field
    *

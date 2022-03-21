@@ -44,11 +44,7 @@ public class PartitionSpecParser {
   private static final String NAME = "name";
 
   public static void toJson(PartitionSpec spec, JsonGenerator generator) throws IOException {
-    generator.writeStartObject();
-    generator.writeNumberField(SPEC_ID, spec.specId());
-    generator.writeFieldName(FIELDS);
-    toJsonFields(spec, generator);
-    generator.writeEndObject();
+    toJson(spec.toUnbound(), generator);
   }
 
   public static String toJson(PartitionSpec spec) {
@@ -56,6 +52,22 @@ public class PartitionSpecParser {
   }
 
   public static String toJson(PartitionSpec spec, boolean pretty) {
+    return toJson(spec.toUnbound(), pretty);
+  }
+
+  public static void toJson(UnboundPartitionSpec spec, JsonGenerator generator) throws IOException {
+    generator.writeStartObject();
+    generator.writeNumberField(SPEC_ID, spec.specId());
+    generator.writeFieldName(FIELDS);
+    toJsonFields(spec, generator);
+    generator.writeEndObject();
+  }
+
+  public static String toJson(UnboundPartitionSpec spec) {
+    return toJson(spec, false);
+  }
+
+  public static String toJson(UnboundPartitionSpec spec, boolean pretty) {
     try {
       StringWriter writer = new StringWriter();
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
@@ -72,9 +84,13 @@ public class PartitionSpecParser {
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
+    return fromJson(json).bind(schema);
+  }
+
+  public static UnboundPartitionSpec fromJson(JsonNode json) {
     Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
     int specId = JsonUtil.getInt(SPEC_ID, json);
-    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
+    UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
     buildFromJsonFields(builder, json.get(FIELDS));
     return builder.build();
   }
@@ -96,13 +112,17 @@ public class PartitionSpecParser {
   }
 
   static void toJsonFields(PartitionSpec spec, JsonGenerator generator) throws IOException {
+    toJsonFields(spec.toUnbound(), generator);
+  }
+
+  static void toJsonFields(UnboundPartitionSpec spec, JsonGenerator generator) throws IOException {
     generator.writeStartArray();
-    for (PartitionField field : spec.fields()) {
+    for (UnboundPartitionSpec.UnboundPartitionField field : spec.fields()) {
       generator.writeStartObject();
       generator.writeStringField(NAME, field.name());
-      generator.writeStringField(TRANSFORM, field.transform().toString());
+      generator.writeStringField(TRANSFORM, field.transformAsString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
-      generator.writeNumberField(FIELD_ID, field.fieldId());
+      generator.writeNumberField(FIELD_ID, field.partitionId());
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -122,9 +142,9 @@ public class PartitionSpecParser {
   }
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, JsonNode json) {
-    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
+    UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
     buildFromJsonFields(builder, json);
-    return builder.build();
+    return builder.build().bind(schema);
   }
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, String json) {
@@ -135,7 +155,7 @@ public class PartitionSpecParser {
     }
   }
 
-  private static void buildFromJsonFields(PartitionSpec.Builder builder, JsonNode json) {
+  private static void buildFromJsonFields(UnboundPartitionSpec.Builder builder, JsonNode json) {
     Preconditions.checkArgument(json.isArray(),
         "Cannot parse partition spec fields, not an array: %s", json);
 
@@ -152,10 +172,10 @@ public class PartitionSpecParser {
 
       // partition field ids are missing in old PartitionSpec, they always auto-increment from PARTITION_DATA_ID_START
       if (element.has(FIELD_ID)) {
-        builder.add(sourceId, JsonUtil.getInt(FIELD_ID, element), name, transform);
+        builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name);
         fieldIdCount++;
-      }  else {
-        builder.add(sourceId, name, transform);
+      } else {
+        builder.addField(transform, sourceId, name);
       }
     }
 

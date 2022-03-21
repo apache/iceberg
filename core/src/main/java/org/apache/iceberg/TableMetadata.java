@@ -644,26 +644,33 @@ public class TableMetadata implements Serializable {
   }
 
   private static SortOrder updateSortOrderSchema(Schema schema, SortOrder sortOrder) {
+    SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(sortOrder.orderId());
+
+    // add all the fields to the builder. IDs should not change.
+    for (SortField field : sortOrder.fields()) {
+      builder.addSortField(field.transform(), field.sourceId(), field.direction(), field.nullOrder());
+    }
+
     // build without validation because the schema may have changed in a way that makes this order invalid. the order
     // should still be preserved so that older metadata can be interpreted.
-    return sortOrder.toUnbound().bindUnchecked(schema);
+    return builder.buildUnchecked();
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
+    UnboundPartitionSpec.Builder specBuilder = UnboundPartitionSpec.builder()
         .withSpecId(specId);
 
     for (PartitionField field : partitionSpec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
-      specBuilder.add(
+      specBuilder.addField(
+          field.transform().toString(),
           schema.findField(sourceName).fieldId(),
           field.fieldId(),
-          field.name(),
-          field.transform().toString());
+          field.name());
     }
 
-    return specBuilder.build();
+    return specBuilder.build().bind(schema);
   }
 
   private static SortOrder freshSortOrder(int orderId, Schema schema, SortOrder sortOrder) {
@@ -923,6 +930,11 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
       }
 
+      return this;
+    }
+
+    public Builder addPartitionSpec(UnboundPartitionSpec spec) {
+      addPartitionSpecInternal(spec.bind(schemasById.get(currentSchemaId)));
       return this;
     }
 
