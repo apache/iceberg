@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.net.InetAddress;
@@ -71,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -402,7 +404,25 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
 
+    setSnapshotStats(metadata, parameters);
+
     tbl.setParameters(parameters);
+  }
+
+  private void setSnapshotStats(TableMetadata metadata, Map<String, String> parameters) {
+    Snapshot currentSnapshot = metadata.currentSnapshot();
+    if (currentSnapshot != null) {
+      parameters.put(TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
+      parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
+      try {
+        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY,
+            JsonUtil.mapper().writeValueAsString(currentSnapshot.summary()));
+      } catch (JsonProcessingException e) {
+        LOG.warn("Failed to convert snapshot summary to a json string", e);
+      }
+    }
+
+    parameters.put(TableProperties.SNAPSHOT_COUNT, String.valueOf(metadata.snapshots().size()));
   }
 
   private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {

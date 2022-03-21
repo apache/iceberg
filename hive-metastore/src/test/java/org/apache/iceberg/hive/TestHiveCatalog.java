@@ -21,9 +21,13 @@ package org.apache.iceberg.hive;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -464,6 +468,53 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       // check parameters are in expected state
       Map<String, String> parameters = hmsTable.getParameters();
       Assert.assertNotNull(parameters.get(TableProperties.UUID));
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
+
+  @Test
+  public void testSnapshotStatsTableProperties() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    try {
+      catalog.buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .create();
+
+      String tableName = tableIdentifier.name();
+      org.apache.hadoop.hive.metastore.api.Table hmsTable =
+          metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
+
+      // check whether parameters are in expected state
+      Map<String, String> parameters = hmsTable.getParameters();
+      Assert.assertEquals("0", parameters.get(TableProperties.SNAPSHOT_COUNT));
+      Assert.assertNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_SUMMARY));
+      Assert.assertNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_ID));
+      Assert.assertNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP));
+
+      // create a snapshot
+      Table icebergTable = catalog.loadTable(tableIdentifier);
+      String fileName = UUID.randomUUID().toString();
+      DataFile file = DataFiles.builder(icebergTable.spec())
+          .withPath(FileFormat.PARQUET.addExtension(fileName))
+          .withRecordCount(2)
+          .withFileSizeInBytes(0)
+          .build();
+      icebergTable.newFastAppend().appendFile(file).commit();
+
+      // check whether parameters are in expected state
+      hmsTable = metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
+      parameters = hmsTable.getParameters();
+      Assert.assertEquals("1", parameters.get(TableProperties.SNAPSHOT_COUNT));
+      Assert.assertNotNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_SUMMARY));
+      Assert.assertNotNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_ID));
+      Assert.assertNotNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP));
     } finally {
       catalog.dropTable(tableIdentifier);
     }
