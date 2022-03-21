@@ -185,4 +185,5 @@ df.write
 | snapshot-property._custom-key_    | null            | Adds an entry with custom-key and corresponding value in the snapshot summary  |
 | fanout-enabled       | false        | Overrides this table's write.spark.fanout.enabled  |
 | check-ordering       | true        | Checks if input schema and table schema are same  |
-
+| isolation-level | null | Desired isolation level for transaction, currently implemented for Dataframe overwrite transactions.  Null value will perform no checks, `serializable` checks for concurrent inserts or deletes in destination partitions, and `snapshot` checks for concurrent deletes. |
+| validate-from-snapshot-id | null | If isolation level set, identifies base snapshot from which to check concurrent conflicts. If null, check from the first un-expired snapshot.  Obtain via `Spark3Util.loadIcebergTable().currentSnapshot().snapshotId() |
