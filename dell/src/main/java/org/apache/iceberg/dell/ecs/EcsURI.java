@@ -50,10 +50,13 @@ class EcsURI {
     this.name = uri.getPath().replaceAll("^/*", "");
   }
 
+  /**
+   * The leading slashes of name will be ignored.
+   */
   EcsURI(String bucket, String name) {
-    this.location = String.format("ecs://%s/%s", bucket, name);
     this.bucket = bucket;
-    this.name = name;
+    this.name = name.replaceAll("^/*", "");
+    this.location = String.format("ecs://%s/%s", bucket, name);
   }
 
   /**
