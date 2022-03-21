@@ -360,23 +360,23 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
           dropPartitions.contains(file.specId(), file.partition()) ||
           (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
 
-      boolean nonMatchingDeleteFile = !file.content().equals(FileContent.DATA) && !evaluator.rowsMustMatch(file);
-      if (!markedForDelete && nonMatchingDeleteFile) {
-        // not all DeleteFiles removal can be handled by metadata operation, skip in this case
-        continue;
-      }
-
       if (markedForDelete || evaluator.rowsMightMatch(file)) {
+        boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
         ValidationException.check(
-            markedForDelete || evaluator.rowsMustMatch(file),
+            allRowsMatch || isDelete, // ignore delete files where some records may not match the expression
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 
-        hasDeletedFiles = true;
+        hasDeletedFiles = allRowsMatch;
+
         if (failAnyDelete) {
           throw new DeleteException(reader.spec().partitionToPath(file.partition()));
         }
-        break; // as soon as a deleted file is detected, stop scanning
+
+        if (hasDeletedFiles) {
+          // as soon as a deleted file is detected, stop scanning
+          break;
+        }
       }
     }
     return hasDeletedFiles;
@@ -396,29 +396,33 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       try {
         reader.entries().forEach(entry -> {
           F file = entry.file();
-          boolean fileDelete = deletePaths.contains(file.path()) ||
+          boolean markedForDelete = deletePaths.contains(file.path()) ||
               dropPartitions.contains(file.specId(), file.partition()) ||
               (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
           if (entry.status() != ManifestEntry.Status.DELETED) {
-            if (fileDelete || evaluator.rowsMightMatch(file)) {
+            if (markedForDelete || evaluator.rowsMightMatch(file)) {
+              boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
               ValidationException.check(
-                  fileDelete || evaluator.rowsMustMatch(file),
+                  allRowsMatch || isDelete, // ignore delete files where some records may not match the expression
                   "Cannot delete file where some, but not all, rows match filter %s: %s",
                   this.deleteExpression, file.path());
 
-              writer.delete(entry);
+              if (allRowsMatch) {
+                writer.delete(entry);
 
-              CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
-              if (deletedPaths.contains(wrapper)) {
-                LOG.warn("Deleting a duplicate path from manifest {}: {}",
-                    manifest.path(), wrapper.get());
-                duplicateDeleteCount += 1;
+                CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
+                if (deletedPaths.contains(wrapper)) {
+                  LOG.warn("Deleting a duplicate path from manifest {}: {}", manifest.path(), wrapper.get());
+                  duplicateDeleteCount += 1;
+                } else {
+                  // only add the file to deletes if it is a new delete
+                  // this keeps the snapshot summary accurate for non-duplicate data
+                  deletedFiles.add(entry.file().copyWithoutStats());
+                }
+                deletedPaths.add(wrapper);
               } else {
-                // only add the file to deletes if it is a new delete
-                // this keeps the snapshot summary accurate for non-duplicate data
-                deletedFiles.add(entry.file().copyWithoutStats());
+                writer.existing(entry);
               }
-              deletedPaths.add(wrapper);
 
             } else {
               writer.existing(entry);
