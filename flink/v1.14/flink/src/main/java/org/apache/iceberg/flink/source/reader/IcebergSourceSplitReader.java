@@ -25,7 +25,6 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
-import org.apache.flink.connector.base.source.reader.fetcher.SplitFetcher;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
@@ -39,7 +38,7 @@ import org.slf4j.LoggerFactory;
 class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, IcebergSourceSplit> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceSplitReader.class);
 
-  private final ReaderFunction<T> readerFunction;
+  private final ReaderFunction<T> openSplitFunction;
   private final int indexOfSubtask;
   private final Queue<IcebergSourceSplit> splits;
 
@@ -53,10 +52,10 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   private IcebergSourceSplit currentSplit;
   private String currentSplitId;
 
-  IcebergSourceSplitReader(ReaderFunction<T> readerFunction,
+  IcebergSourceSplitReader(ReaderFunction<T> openSplitFunction,
                            SourceReaderContext context,
                            ReaderMetricsContext metrics) {
-    this.readerFunction = readerFunction;
+    this.openSplitFunction = openSplitFunction;
     this.indexOfSubtask = context.getIndexOfSubtask();
     this.splits = new ArrayDeque<>();
 
@@ -89,10 +88,10 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   public void handleSplitsChanges(SplitsChange<IcebergSourceSplit> splitsChange) {
     if (!(splitsChange instanceof SplitsAddition)) {
       throw new UnsupportedOperationException(String.format(
-          "The SplitChange type of %s is not supported.", splitsChange.getClass()));
+          "Unsupported split change: %s", splitsChange.getClass()));
     }
 
-    LOG.info("Add splits to reader: {}", splitsChange.splits());
+    LOG.info("Add {} splits to reader", splitsChange.splits().size());
     splits.addAll(splitsChange.splits());
     assignedSplits.increment(Long.valueOf(splitsChange.splits().size()));
     assignedBytes.increment(calculateBytes(splitsChange));
@@ -122,14 +121,6 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
         .reduce(0L, Long::sum);
   }
 
-  /**
-   * @throws IOException when current split is done and there is no more splits available.
-   * It will be propagated by caller of {@code FetchTask#run()}. That will cause
-   * {@link SplitFetcher} to exit. When new split is assigned, a new {@code SplitFetcher}
-   * will be created to handle it. This behavior is a little odd.
-   * Right now, we are copying the same behavior from Flink file source.
-   * We can work with Flink community and potentially improve this behavior.
-   */
   private void checkSplitOrStartNext() throws IOException {
     if (currentReader != null) {
       return;
@@ -137,12 +128,18 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
     IcebergSourceSplit nextSplit = splits.poll();
     if (nextSplit == null) {
+      // throws IOException when current split is done and there is no more splits available.
+      // It will be propagated by the caller of FetchTask#run(). That will cause
+      // SplitFetcher to exit. When new split is assigned, a new SplitFetcher
+      // will be created to handle it. This behavior is a little odd.
+      // Right now, we are copying the same behavior from Flink file source.
+      // We can work with Flink community and potentially improve this behavior.
       throw new IOException("No split remaining");
     }
 
     currentSplit = nextSplit;
     currentSplitId = nextSplit.splitId();
-    currentReader = readerFunction.apply(currentSplit);
+    currentReader = openSplitFunction.apply(currentSplit);
   }
 
   private ArrayBatchRecords<T> finishSplit() throws IOException {
