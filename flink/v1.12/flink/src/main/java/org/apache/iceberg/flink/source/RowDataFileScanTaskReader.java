@@ -132,7 +132,6 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private CloseableIterable<RowData> newParquetIterable(
       FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
     Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getInputFile(task))
-        .reuseContainers()
         .split(task.start(), task.length())
         .project(schema)
         .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
