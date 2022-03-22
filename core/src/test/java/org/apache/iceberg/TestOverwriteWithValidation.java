@@ -1014,15 +1014,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES)
         .commit();
 
-    Snapshot baseSnapshot = table.currentSnapshot();
-
     table.newOverwrite()
         .overwriteByRowFilter(EXPRESSION_DAY_2_ANOTHER_ID_RANGE)
         .addFile(FILE_DAY_2_MODIFIED)
-        .validateFromSnapshot(baseSnapshot.snapshotId())
-        .conflictDetectionFilter(EXPRESSION_DAY_2_ANOTHER_ID_RANGE)
-        .validateNoConflictingData()
-        .validateNoConflictingDeletes()
         .commit();
 
     validateTableFiles(table, FILE_DAY_2, FILE_DAY_2_MODIFIED);

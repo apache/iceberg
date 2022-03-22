@@ -369,11 +369,11 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
         hasDeletedFiles = allRowsMatch;
 
-        if (failAnyDelete) {
-          throw new DeleteException(reader.spec().partitionToPath(file.partition()));
-        }
-
         if (hasDeletedFiles) {
+          if (failAnyDelete) {
+            throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+          }
+
           // as soon as a deleted file is detected, stop scanning
           break;
         }
