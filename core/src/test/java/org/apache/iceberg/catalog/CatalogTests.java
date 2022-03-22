@@ -1207,7 +1207,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        CommitFailedException.class, "Table already exists", createOrReplace::commitTransaction);
+        AlreadyExistsException.class, "Table already exists", createOrReplace::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);

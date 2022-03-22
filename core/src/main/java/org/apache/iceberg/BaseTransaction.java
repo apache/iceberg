@@ -49,7 +49,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
-class BaseTransaction implements Transaction {
+public class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
   enum TransactionType {
@@ -88,6 +88,14 @@ class BaseTransaction implements Transaction {
   @Override
   public Table table() {
     return transactionTable;
+  }
+
+  public TableMetadata startMetadata() {
+    return current;
+  }
+
+  public TableOperations underlyingOps() {
+    return ops;
   }
 
   private void checkLastOperationCommitted(String operation) {
