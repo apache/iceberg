@@ -220,12 +220,13 @@ public class BaseFileScanTask implements FileScanTask {
     }
 
     public boolean isAdjacent(SplitScanTask other) {
-      return (other != null) &&
-          (this.file().equals(other.file())) &&
-          (this.offset + this.len == other.offset);
+      return other != null &&
+          this.file().equals(other.file()) &&
+          this.offset + this.len == other.offset;
     }
   }
 
+  @SuppressWarnings("MixedMutabilityReturnType")
   static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
     if (tasks.isEmpty()) {
       return Collections.emptyList();
