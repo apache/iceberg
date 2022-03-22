@@ -37,6 +37,17 @@ public class TestEcsURI {
     assertURI("bucket", "a//b", new EcsURI("ecs://bucket//a//b"));
   }
 
+  @Test
+  public void testConstructorWithBucketAndName() {
+    assertURI("bucket", "", new EcsURI("bucket", ""));
+    assertURI("bucket", "", new EcsURI("bucket", "/"));
+    assertURI("bucket", "", new EcsURI("bucket", "//"));
+    assertURI("bucket", "a", new EcsURI("bucket", "a"));
+    assertURI("bucket", "a", new EcsURI("bucket", "/a"));
+    assertURI("bucket", "a/b", new EcsURI("bucket", "a/b"));
+    assertURI("bucket", "a//b", new EcsURI("bucket", "/a//b"));
+  }
+
   private void assertURI(String bucket, String name, EcsURI ecsURI) {
     Assert.assertEquals("bucket", bucket, ecsURI.bucket());
     Assert.assertEquals("name", name, ecsURI.name());

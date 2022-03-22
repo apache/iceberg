@@ -143,6 +143,10 @@ public class TableProperties {
   public static final String DELETE_ORC_BLOCK_SIZE_BYTES = "write.delete.orc.block-size-bytes";
   public static final long ORC_BLOCK_SIZE_BYTES_DEFAULT = 256L * 1024 * 1024; // 256 MB
 
+  public static final String ORC_WRITE_BATCH_SIZE = "write.orc.vectorized.batch-size";
+  public static final String DELETE_ORC_WRITE_BATCH_SIZE = "write.delete.orc.vectorized.batch-size";
+  public static final int ORC_WRITE_BATCH_SIZE_DEFAULT = 1024;
+
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
