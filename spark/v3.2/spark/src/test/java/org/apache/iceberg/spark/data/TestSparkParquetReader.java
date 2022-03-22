@@ -119,7 +119,7 @@ public class TestSparkParquetReader extends AvroDataTest {
             DataFiles.builder(PartitionSpec.unpartitioned())
                 .withFormat(FileFormat.PARQUET)
                 .withInputFile(inputFile)
-                .withMetrics(ParquetUtil.fileMetrics(inputFile, MetricsConfig.getDefault()))
+                .withMetrics(ParquetUtil.fileMetrics(inputFile, MetricsConfig.getDefault(), table.schema()))
                 .withFileSizeInBytes(inputFile.getLength())
                 .build())
         .commit();

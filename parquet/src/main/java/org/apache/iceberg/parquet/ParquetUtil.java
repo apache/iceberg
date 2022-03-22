@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,15 +38,19 @@ import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.ImportCompatibilityChecker;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.UnicodeUtil;
@@ -70,12 +75,14 @@ public class ParquetUtil {
   private ParquetUtil() {
   }
 
-  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
-    return fileMetrics(file, metricsConfig, null);
+  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, Schema schema) {
+    return fileMetrics(file, metricsConfig, null, schema);
   }
 
-  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
+  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping, Schema schema) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
+      // Checks if the imported file schema is compatible with schema of the table to which it is imported
+      TypeUtil.canImportSchema(ParquetSchemaUtil.convert(reader.getFooter().getFileMetaData().getSchema()), schema);
       return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
@@ -370,4 +377,7 @@ public class ParquetUtil {
     }
     return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
   }
+
+
+
 }

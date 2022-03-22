@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -39,14 +40,19 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.types.ImportCompatibilityChecker;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
@@ -76,13 +82,13 @@ public class TableMigrationUtil {
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
-                                             NameMapping mapping) {
-    return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1);
+                                             NameMapping mapping, Schema schema) {
+    return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1, schema);
   }
 
   public static List<DataFile> listPartition(Map<String, String> partitionPath, String partitionUri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsSpec,
-                                             NameMapping mapping, int parallelism) {
+                                             NameMapping mapping, int parallelism, Schema schema) {
     ExecutorService service = null;
     try {
       String partitionKey = spec.fields().stream()
@@ -112,7 +118,7 @@ public class TableMigrationUtil {
         });
       } else if (format.contains("parquet")) {
         task.run(index -> {
-          Metrics metrics = getParquetMerics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+          Metrics metrics = getParquetMerics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping, schema);
           datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
         });
       } else if (format.contains("orc")) {
@@ -144,11 +150,11 @@ public class TableMigrationUtil {
     }
   }
 
-  private static Metrics getParquetMerics(Path path,  Configuration conf,
-                                          MetricsConfig metricsSpec, NameMapping mapping) {
+  private static Metrics getParquetMerics(Path path, Configuration conf,
+                                          MetricsConfig metricsSpec, NameMapping mapping, Schema schema) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
-      return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
+      return ParquetUtil.fileMetrics(file, metricsSpec, mapping, schema);
     } catch (UncheckedIOException e) {
       throw new RuntimeException("Unable to read the metrics of the Parquet file: " +
               path, e);

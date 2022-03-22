@@ -31,6 +31,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -634,6 +636,23 @@ public class TypeUtil {
         throw new IllegalStateException(
             "Could not find required length for precision " + precision);
       }
+    }
+  }
+
+  /**
+   * Check the if the schemas are compatible.
+   * Throws {@link ValidationException} when incompatible
+   * @param importSchema the schema of file being imported
+   * @param tableSchema schema of the table to which file is to be imported
+   */
+  public static void canImportSchema(Schema importSchema, Schema tableSchema) {
+    // Assigning ids by name look up, required for checking compatibility
+    Schema schemaWithIds = TypeUtil.assignFreshIds(importSchema, tableSchema, new AtomicInteger(1000)::incrementAndGet);
+    List<String> errors = ImportCompatibilityChecker.importCompatibilityErrors(tableSchema, schemaWithIds, false);
+    if (!errors.isEmpty()) {
+      String errorString = Joiner.on("\n\t").join(errors);
+      throw new ValidationException("Imported file's schema not compatible with table's schema." +
+          " Errors : %s", errorString);
     }
   }
 }
