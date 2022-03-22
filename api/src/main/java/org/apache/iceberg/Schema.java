@@ -109,6 +109,8 @@ public class Schema implements Serializable {
   static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
                                               Map<Integer, Integer> idToParent) {
     Types.NestedField field = idToField.get(fieldId);
+    Preconditions.checkArgument(field != null,
+        "Can not add filedId %d as an identifier field: field not exists", fieldId);
     Preconditions.checkArgument(field.type().isPrimitiveType(),
         "Cannot add field %s as an identifier field: not a primitive type field", field.name());
     Preconditions.checkArgument(field.isRequired(),
