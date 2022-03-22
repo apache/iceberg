@@ -31,7 +31,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SortOrder;
@@ -165,13 +164,13 @@ abstract class BaseRewriteDataFilesSparkAction
       return new BaseRewriteDataFilesResult(Collections.emptyList());
     }
 
-    Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
+    List<RewriteFileGroup> groupList = toGroupList(ctx, fileGroupsByPartition);
 
     RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId);
     if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream, commitManager);
+      return doExecuteWithPartialProgress(ctx, groupList, commitManager);
     } else {
-      return doExecute(ctx, groupStream, commitManager);
+      return doExecute(ctx, groupList, commitManager);
     }
   }
 
@@ -250,13 +249,13 @@ abstract class BaseRewriteDataFilesSparkAction
     return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
-  private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
+  private Result doExecute(RewriteExecutionContext ctx, List<RewriteFileGroup> groupList,
                            RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
 
-    Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder = Tasks.foreach(groupStream)
+    Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder = Tasks.foreach(groupList)
         .executeWith(rewriteService)
         .stopOnFailure()
         .noRetry()
@@ -304,7 +303,7 @@ abstract class BaseRewriteDataFilesSparkAction
     return new BaseRewriteDataFilesResult(rewriteResults);
   }
 
-  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
+  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, List<RewriteFileGroup> groupList,
                                               RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
@@ -314,12 +313,15 @@ abstract class BaseRewriteDataFilesSparkAction
     commitService.start();
 
     // Start rewrite tasks
-    Tasks.foreach(groupStream)
+    Tasks.foreach(groupList)
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
         .onFailure((fileGroup, exception) -> LOG.error("Failure during rewrite group {}", fileGroup.info(), exception))
-        .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
+        .run(fileGroup -> {
+          commitService.offer(rewriteFiles(ctx, fileGroup));
+          groupList.remove(fileGroup);
+        });
     rewriteService.shutdown();
 
     // Stop Commit service
@@ -334,7 +336,7 @@ abstract class BaseRewriteDataFilesSparkAction
     return new BaseRewriteDataFilesResult(commitResults);
   }
 
-  private Stream<RewriteFileGroup> toGroupStream(RewriteExecutionContext ctx,
+  private List<RewriteFileGroup> toGroupList(RewriteExecutionContext ctx,
                                                  Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
 
     // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
@@ -348,7 +350,7 @@ abstract class BaseRewriteDataFilesSparkAction
             FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
             return new RewriteFileGroup(info, tasks);
           });
-        });
+        }).collect(Collectors.toList());
   }
 
   private void validateAndInitOptions() {
