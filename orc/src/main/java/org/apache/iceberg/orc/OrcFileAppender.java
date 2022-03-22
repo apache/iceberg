@@ -20,6 +20,7 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +31,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
@@ -41,6 +43,7 @@ import org.apache.orc.Reader;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
+import org.apache.orc.impl.writer.TreeWriter;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
@@ -52,6 +55,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final Writer writer;
   private final TreeWriter treeWriter;
   private final VectorizedRowBatch batch;
+  private final int estimateLength;
   private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
   private final Configuration conf;
@@ -67,6 +71,11 @@ class OrcFileAppender<D> implements FileAppender<D> {
     this.metricsConfig = metricsConfig;
 
     TypeDescription orcSchema = ORCSchemaUtil.convert(schema);
+
+    List<Integer> integers = OrcSchemaVisitor.visitSchema(orcSchema, new EstimateOrcAveWidthVisitor());
+    estimateLength = integers
+        .stream().reduce(Integer::sum).orElse(1);
+
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
     OrcFile.WriterOptions options = OrcFile.writerOptions(conf).useUTCTimestamp(true);
@@ -75,6 +84,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
+
+    // TODO: Remove reflection after ORC 1.7.4 released with https://github.com/apache/orc/pull/1057.
     this.treeWriter =  treeWriterHiddenInORC();
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
@@ -88,7 +99,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
         batch.reset();
       }
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Problem writing to ORC file %s", file.location());
+      throw new UncheckedIOException(String.format("Problem writing to ORC file %s", file.location()), ioe);
     }
   }
 
@@ -104,10 +115,10 @@ class OrcFileAppender<D> implements FileAppender<D> {
     if (isClosed) {
       return file.toInputFile().getLength();
     }
-    if (this.treeWriter == null) {
-      throw new RuntimeException("Can't get the length!");
-    }
-    long estimateMemory = this.treeWriter.estimateMemory();
+
+    Preconditions.checkNotNull(treeWriter, "Can't get three writer!");
+
+    long estimateMemory = treeWriter.estimateMemory();
 
     long dataLength = 0;
     try {
@@ -117,11 +128,12 @@ class OrcFileAppender<D> implements FileAppender<D> {
         dataLength = stripeInformation != null ? stripeInformation.getOffset() + stripeInformation.getLength() : 0;
       }
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Can't get stripes from file %s", file.location()), e);
+      throw new UncheckedIOException(String.format("Can't get strip's length from the file writer with path: %s.",
+          file.location()), e);
     }
 
     // This value is estimated, not actual.
-    return dataLength + estimateMemory + batch.size;
+    return dataLength + estimateMemory + (long) (batch.size * estimateLength * 0.2);
   }
 
   @Override
