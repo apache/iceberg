@@ -1334,24 +1334,28 @@ public class TestSchemaUpdate {
 
   @Test
   public void testSetIdentifierFieldsFails() {
-
     Schema testSchema = new Schema(
         optional(1, "id", Types.IntegerType.get()),
         required(2, "float", Types.FloatType.get()),
         required(3, "double", Types.DoubleType.get())
     );
 
+    AssertHelpers.assertThrows("Creating schema with nonexistent identifier fieldId should fail",
+        IllegalArgumentException.class,
+        "Cannot add fieldId %d as an identifier field: field not exists",
+        () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)));
+
     AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
         IllegalArgumentException.class,
         "Cannot add field id as an identifier field: not a required field",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(1)));
 
-    AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
+    AssertHelpers.assertThrows("Creating schema with float identifier field should fail",
         IllegalArgumentException.class,
         "Cannot add field float as an identifier field: must not be float or double field",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)));
 
-    AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
+    AssertHelpers.assertThrows("Creating schema with double identifier field should fail",
         IllegalArgumentException.class,
         "Cannot add field double as an identifier field: must not be float or double field",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)));
