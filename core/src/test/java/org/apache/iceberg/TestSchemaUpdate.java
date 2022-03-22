@@ -1342,7 +1342,7 @@ public class TestSchemaUpdate {
 
     AssertHelpers.assertThrows("Creating schema with nonexistent identifier fieldId should fail",
         IllegalArgumentException.class,
-        "Cannot add fieldId 999 as an identifier field: field not exists",
+        "Cannot add fieldId 999 as an identifier field: field does not exist",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)));
 
     AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
