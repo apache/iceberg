@@ -47,6 +47,7 @@ public class TestMetadataTableFilters extends TableTestBase {
         { MetadataTableType.DATA_FILES, 1 },
         { MetadataTableType.DATA_FILES, 2 },
         { MetadataTableType.DELETE_FILES, 2 },
+        { MetadataTableType.FILES, 1 },
         { MetadataTableType.FILES, 2 }
     };
   }
@@ -102,10 +103,14 @@ public class TestMetadataTableFilters extends TableTestBase {
     }
   }
 
-  private int expectedCount(int partitions) {
+  private int expectedScanTaskCount(int partitions) {
     switch (type) {
       case FILES:
-        return partitions * 2;
+        if (formatVersion == 1) {
+          return partitions;
+        } else {
+          return partitions * 2; // Delete File and Data File per partition
+        }
       case DATA_FILES:
       case DELETE_FILES:
         return partitions;
@@ -126,7 +131,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expected, scan.schema().asStruct());
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    Assert.assertEquals(expectedCount(4), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(4), Iterables.size(tasks));
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
     validateFileScanTasks(tasks, 2);
@@ -143,7 +148,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(and);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    Assert.assertEquals(expectedCount(1), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(1), Iterables.size(tasks));
     validateFileScanTasks(tasks, 0);
   }
 
@@ -154,7 +159,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Expression lt = Expressions.lessThan("partition.data_bucket", 2);
     TableScan scan = metadataTable.newScan().filter(lt);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    Assert.assertEquals(expectedCount(2), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
   }
@@ -170,7 +175,7 @@ public class TestMetadataTableFilters extends TableTestBase {
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    Assert.assertEquals(expectedCount(4), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(4), Iterables.size(tasks));
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
     validateFileScanTasks(tasks, 2);
@@ -185,7 +190,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(not);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    Assert.assertEquals(expectedCount(2), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
     validateFileScanTasks(tasks, 2);
     validateFileScanTasks(tasks, 3);
   }
@@ -198,7 +203,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(set);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    Assert.assertEquals(expectedCount(2), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
 
     validateFileScanTasks(tasks, 2);
     validateFileScanTasks(tasks, 3);
@@ -211,7 +216,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(unary);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    Assert.assertEquals(expectedCount(4), Iterables.size(tasks));
+    Assert.assertEquals(expectedScanTaskCount(4), Iterables.size(tasks));
 
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
