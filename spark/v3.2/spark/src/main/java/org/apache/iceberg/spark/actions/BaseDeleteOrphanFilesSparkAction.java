@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.actions;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -31,11 +30,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
@@ -301,18 +302,18 @@ public class BaseDeleteOrphanFilesSparkAction
     }
 
     static PathFilter build(Map<Integer, PartitionSpec> specs) {
-      Set<String> partitionNames = new HashSet<>();
+      if (specs == null) {
+        return HiddenPathFilter.get();
+      }
 
-      specs.values().stream()
+      Set<String> partitionNames = specs.values().stream()
           .map(PartitionSpec::fields)
           .flatMap(List::stream)
-          .forEach(partitionField -> {
-            if (partitionField.name().startsWith("_") || partitionField.name().startsWith(".")) {
-              partitionNames.add(partitionField.name());
-            }
-          });
+          .filter(partitionField -> partitionField.name().startsWith("_") || partitionField.name().startsWith("."))
+          .map(PartitionField::name)
+          .collect(Collectors.toSet());
 
-      return (partitionNames.isEmpty()) ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
+      return partitionNames.isEmpty() ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
     }
   }
 }

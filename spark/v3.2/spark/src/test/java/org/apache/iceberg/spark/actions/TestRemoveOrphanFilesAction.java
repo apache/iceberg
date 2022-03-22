@@ -557,20 +557,20 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   @Test
   public void testHiddenPartitionPaths() throws InterruptedException {
     Schema schema = new Schema(
-            optional(1, "c1", Types.IntegerType.get()),
-            optional(2, "_c2", Types.StringType.get()),
-            optional(3, "c3", Types.StringType.get())
+        optional(1, "c1", Types.IntegerType.get()),
+        optional(2, "_c2", Types.StringType.get()),
+        optional(3, "c3", Types.StringType.get())
     );
     PartitionSpec spec = PartitionSpec.builderFor(schema)
-            .truncate("_c2", 2)
-            .identity("c3")
-            .build();
+        .truncate("_c2", 2)
+        .identity("c3")
+        .build();
     Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
 
     StructType structType = new StructType()
-            .add("c1", DataTypes.IntegerType)
-            .add("_c2", DataTypes.StringType)
-            .add("c3", DataTypes.StringType);
+        .add("c1", DataTypes.IntegerType)
+        .add("_c2", DataTypes.StringType)
+        .add("c3", DataTypes.StringType);
     List<Row> records = Lists.newArrayList(
         RowFactory.create(1, "AAAAAAAAAA", "AAAA")
     );
@@ -584,6 +584,52 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
+
+    Thread.sleep(1000);
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
+  }
+
+  @Test
+  public void testHiddenPartitionPathsWithPartitionEvolution() throws InterruptedException {
+    Schema schema = new Schema(
+        optional(1, "_c1", Types.IntegerType.get()),
+        optional(2, "_c2", Types.StringType.get()),
+        optional(3, "c3", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .truncate("_c2", 2)
+        .build();
+    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+
+    StructType structType = new StructType()
+        .add("_c1", DataTypes.IntegerType)
+        .add("_c2", DataTypes.StringType)
+        .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(
+        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+
+    df.select("_c1", "_c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA");
+
+    table.updateSpec()
+        .addField("_c1")
+        .commit();
+
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/_c1=1");
 
     Thread.sleep(1000);
 
