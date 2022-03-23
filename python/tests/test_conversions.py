@@ -174,7 +174,7 @@ def test_none_partition_values(primitive_type):
         (BinaryType(), bytearray("Z", "utf8"), bytes([90])),
         (BinaryType(), b"foo", b"foo"),
         (DecimalType(5, 2), b"\x30\x39", Decimal("123.45")),
-        (DecimalType(7, 4), b"\x00\x12\xd6\x87", Decimal("123.4567")),
+        (DecimalType(7, 4), b"\x12\xd6\x87", Decimal("123.4567")),
         (DecimalType(7, 4), b"\xff\xed\x29\x79", Decimal("-123.4567")),
     ],
 )
@@ -218,11 +218,11 @@ def test_from_bytes(primitive_type, b, result):
         # decimal on 3-bytes to test that we use the minimum number of bytes and not a power of 2
         # 1234567 is 00010010|11010110|10000111 in binary
         # 00010010 -> 18, 11010110 -> 214, 10000111 -> 135
-        (DecimalType(7, 4), bytes([18, 214, 135]), Decimal("123.4567")),
+        (DecimalType(7, 4), b"\x12\xd6\x87", Decimal("123.4567")),
         # negative decimal to test two's complement
         # -1234567 is 11101101|00101001|01111001 in binary
         # 11101101 -> 237, 00101001 -> 41, 01111001 -> 121
-        (DecimalType(7, 4), bytes([237, 41, 121]), Decimal("-123.4567")),
+        (DecimalType(7, 4), b"\xed)y", Decimal("-123.4567")),
         # test empty byte in decimal
         # 11 is 00001011 in binary
         # 00001011 -> 11
