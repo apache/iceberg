@@ -46,7 +46,7 @@ public enum EncryptionAlgorithm {
      * A combination of GCM and CTR that can be used for file types like Parquet,
      * so that all modules except pages are encrypted by GCM to ensure integrity,
      * and CTR is used for efficient encryption of bulk data.
-     * The tradeoff is that attackers would be able to tamper page data.
+     * The tradeoff is that attackers would be able to tamper page data encrypted with CTR.
      */
     AES_GCM_CTR
 }

@@ -38,6 +38,7 @@ public class Ciphers {
     private final SecureRandom randomGenerator;
 
     public AesGcmEncryptor(byte[] keyBytes) {
+      Preconditions.checkArgument(keyBytes != null, "Key can't be null");
       int keyLength = keyBytes.length;
       Preconditions.checkArgument((keyLength == 16 || keyLength == 24 || keyLength == 32),
           "Cannot use a key of length " + keyLength + " because AES only allows 16, 24 or 32 bytes");
@@ -81,6 +82,7 @@ public class Ciphers {
     private final Cipher cipher;
 
     public AesGcmDecryptor(byte[] keyBytes) {
+      Preconditions.checkArgument(keyBytes != null, "Key can't be null");
       int keyLength = keyBytes.length;
       Preconditions.checkArgument((keyLength == 16 || keyLength == 24 || keyLength == 32),
           "Cannot use a key of length " + keyLength + " because AES only allows 16, 24 or 32 bytes");
@@ -114,7 +116,8 @@ public class Ciphers {
         }
         cipher.doFinal(ciphertext, NONCE_LENGTH, inputLength, plainText, 0);
       }  catch (AEADBadTagException e) {
-        throw new RuntimeException("GCM tag check failed", e);
+        throw new RuntimeException("GCM tag check failed. Possible reasons: wrong decryption key; or corrupt/tampered" +
+            "data. AES GCM doesn't differentiate between these two.. ", e);
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to decrypt", e);
       }
