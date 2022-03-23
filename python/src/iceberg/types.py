@@ -20,10 +20,11 @@ This module implements the data types described in the Iceberg specification for
 describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
 
 Example:
-    >>> StructType(
-            NestedField(True, 1, "required_field", StringType()),
-            NestedField(False, 2, "optional_field", IntegerType())
-    )
+    >>> str(StructType(
+    ...     NestedField(1, "required_field", StringType(), True),
+    ...     NestedField(2, "optional_field", IntegerType())
+    ... ))
+    'struct<1: required_field: optional string, 2: optional_field: optional int>'
 
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
@@ -98,7 +99,7 @@ class DecimalType(PrimitiveType):
     Example:
         >>> DecimalType(32, 3)
         DecimalType(precision=32, scale=3)
-        >>> DecimalType(8, 3)==DecimalType(8, 3)
+        >>> DecimalType(8, 3) == DecimalType(8, 3)
         True
     """
 
@@ -201,10 +202,11 @@ class StructType(IcebergType):
     """A struct type in Iceberg
 
     Example:
-        >>> StructType(
-                NestedField(True, 1, "required_field", StringType()),
-                NestedField(False, 2, "optional_field", IntegerType())
-        )
+        >>> str(StructType(
+        ...     NestedField(1, "required_field", StringType(), True),
+        ...     NestedField(2, "optional_field", IntegerType())
+        ... ))
+        'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
 
     _instances: Dict[Tuple[NestedField, ...], "StructType"] = {}
@@ -231,7 +233,7 @@ class ListType(IcebergType):
 
     Example:
         >>> ListType(element_id=3, element_type=StringType(), element_is_optional=True)
-        ListType(element=NestedField(is_optional=True, field_id=3, name='element', field_type=StringType(), doc=None))
+        ListType(element_id=3, element_type=StringType(), element_is_optional=True)
     """
 
     _instances: Dict[Tuple[bool, int, IcebergType], "ListType"] = {}
@@ -275,10 +277,7 @@ class MapType(IcebergType):
 
     Example:
         >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
-        MapType(
-            key=NestedField(is_optional=False, field_id=1, name='key', field_type=StringType(), doc=None),
-            value=NestedField(is_optional=True, field_id=2, name='value', field_type=IntegerType(), doc=None)
-        )
+        MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
     """
 
     _instances: Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"] = {}

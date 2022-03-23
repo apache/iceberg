@@ -30,6 +30,7 @@ import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -51,7 +52,8 @@ public class GCSInputStreamTest {
 
     writeGCSData(uri, data);
 
-    try (SeekableInputStream in = new GCSInputStream(storage, uri, gcpProperties)) {
+    try (SeekableInputStream in = new GCSInputStream(storage, uri, gcpProperties,
+        MetricsContext.nullMetrics())) {
       int readSize = 1024;
       byte [] actual = new byte[readSize];
 
@@ -102,7 +104,8 @@ public class GCSInputStreamTest {
   @Test
   public void testClose() throws Exception {
     BlobId blobId = BlobId.fromGsUtilUri("gs://bucket/path/to/closed.dat");
-    SeekableInputStream closed = new GCSInputStream(storage, blobId, gcpProperties);
+    SeekableInputStream closed = new GCSInputStream(storage, blobId, gcpProperties,
+        MetricsContext.nullMetrics());
     closed.close();
     assertThrows(IllegalStateException.class, () -> closed.seek(0));
   }
@@ -114,7 +117,8 @@ public class GCSInputStreamTest {
 
     writeGCSData(blobId, data);
 
-    try (SeekableInputStream in = new GCSInputStream(storage, blobId, gcpProperties)) {
+    try (SeekableInputStream in = new GCSInputStream(storage, blobId, gcpProperties,
+        MetricsContext.nullMetrics())) {
       in.seek(data.length / 2);
       byte[] actual = new byte[data.length / 2 ];
 

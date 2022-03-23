@@ -17,28 +17,18 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.exceptions;
 
-import java.util.Locale;
+import com.google.errorprone.annotations.FormatMethod;
 
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DATA_FILES,
-  DELETE_FILES,
-  HISTORY,
-  SNAPSHOTS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES;
-
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+/**
+ * REST exception thrown when a request is well-formed but cannot be applied.
+ * <p>
+ * For example, this is used when a property update requests that properties are simultaneously set and removed.
+ */
+public class UnprocessableEntityException extends RESTException {
+  @FormatMethod
+  public UnprocessableEntityException(String message, Object... args) {
+    super(message, args);
   }
 }
