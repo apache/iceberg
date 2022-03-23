@@ -30,7 +30,7 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   private final InternalRecordWrapper asStructLike;
 
   public GenericDeleteFilter(FileIO io, FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-    super(task, tableSchema, requestedSchema);
+    super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
     this.io = io;
     this.asStructLike = new InternalRecordWrapper(requiredSchema().asStruct());
   }
