@@ -55,7 +55,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final Writer writer;
   private final TreeWriter treeWriter;
   private final VectorizedRowBatch batch;
-  private final int estimateLength;
+  private final int avgRowByteSize;
   private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
   private final Configuration conf;
@@ -72,9 +72,9 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
     TypeDescription orcSchema = ORCSchemaUtil.convert(schema);
 
-    List<Integer> integers = OrcSchemaVisitor.visitSchema(orcSchema, new EstimateOrcAveWidthVisitor());
-    estimateLength = integers
-        .stream().reduce(Integer::sum).orElse(1);
+    this.avgRowByteSize =
+        OrcSchemaVisitor.visitSchema(orcSchema, new EstimateOrcAvgWidthVisitor()).stream().reduce(Integer::sum)
+            .orElse(0);
 
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
@@ -85,7 +85,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
 
-    // TODO: Remove reflection after ORC 1.7.4 released with https://github.com/apache/orc/pull/1057.
+    // TODO: Turn to access the estimateMemorySize directly after ORC 1.7.4 released with https://github.com/apache/orc/pull/1057.
     this.treeWriter =  treeWriterHiddenInORC();
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
@@ -133,7 +133,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
 
     // This value is estimated, not actual.
-    return dataLength + estimateMemory + (long) (batch.size * estimateLength * 0.2);
+    return (long) (dataLength + (estimateMemory + (long) batch.size * avgRowByteSize) * 0.2);
   }
 
   @Override

@@ -23,16 +23,16 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.orc.TypeDescription;
 
-public class EstimateOrcAveWidthVisitor extends OrcSchemaVisitor<Integer> {
+public class EstimateOrcAvgWidthVisitor extends OrcSchemaVisitor<Integer> {
 
   @Override
-  public Integer record(TypeDescription record, List<String> names, List<Integer> fields) {
-    return fields.stream().reduce(Integer::sum).orElse(0);
+  public Integer record(TypeDescription record, List<String> names, List<Integer> fieldWidths) {
+    return fieldWidths.stream().reduce(Integer::sum).orElse(0);
   }
 
   @Override
-  public Integer list(TypeDescription array, Integer elementResult) {
-    return elementResult;
+  public Integer list(TypeDescription array, Integer elementWidth) {
+    return elementWidth;
   }
 
   @Override
@@ -49,19 +49,16 @@ public class EstimateOrcAveWidthVisitor extends OrcSchemaVisitor<Integer> {
     }
 
     switch (primitive.getCategory()) {
-      case BOOLEAN:
       case BYTE:
       case CHAR:
-        return 1;
       case SHORT:
-        return 2;
       case INT:
       case FLOAT:
-        return 4;
+      case BOOLEAN:
       case LONG:
       case DOUBLE:
-        return 8;
       case DATE:
+        return 8;
       case TIMESTAMP:
       case TIMESTAMP_INSTANT:
         return 12;
@@ -70,7 +67,7 @@ public class EstimateOrcAveWidthVisitor extends OrcSchemaVisitor<Integer> {
       case BINARY:
         return 128;
       case DECIMAL:
-        return primitive.getPrecision() * 4 + 1;
+        return primitive.getPrecision() + 2;
       default:
         throw new IllegalArgumentException("Can't handle " + primitive);
     }
