@@ -34,6 +34,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
+// Other tests of interest.
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   @Test
   public void testSparkCatalogTable() throws Exception {

@@ -95,6 +95,13 @@ public class LocationProviders {
     }
   }
 
+  // The other option to reduce the amount of listing would be to control the number of buckets into this hash
+  // function, and thus the # of possible path randomizing "directory" fragments, which contributes to a lot of
+  // listing for the delete orphan files action.
+  //
+  // However, finding the right balance would be an arguably painful exercise in tuning, and would still do the list
+  // when various cloud providers have a way to get all of the actual files on a cadence, or people's on prem
+  // administrators can access a "true" listing of all files, etc.
   static class ObjectStoreLocationProvider implements LocationProvider {
     private static final Transform<String, Integer> HASH_FUNC = Transforms
         .bucket(Types.StringType.get(), Integer.MAX_VALUE);

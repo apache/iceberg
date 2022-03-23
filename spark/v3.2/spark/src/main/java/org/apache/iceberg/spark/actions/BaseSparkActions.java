@@ -39,6 +39,8 @@ abstract class BaseSparkActions implements ActionsProvider {
     return spark;
   }
 
+  // These are how actions are accessed (or were accessed... I never remember. But this is important
+  //                                     for where these are instantiated from).
   @Override
   public DeleteOrphanFiles deleteOrphanFiles(Table table) {
     return new BaseDeleteOrphanFilesSparkAction(spark, table);

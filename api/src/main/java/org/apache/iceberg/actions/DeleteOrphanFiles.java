@@ -80,6 +80,11 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    */
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
+  // Non-goal for the first pass - getting the Spark specific method into the interface.
+  //                              - Likely casting is just fine as we are specifically in "spark" modules / code
+  //                                and so can safely cast in there.
+  // DeleteOrphanFiles withActualFilesDF(Dataset<?> newActualFilesDF);
+
   /**
    * The action result that contains a summary of the execution.
    */
