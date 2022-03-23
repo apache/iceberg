@@ -332,12 +332,13 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testLocality() throws Exception {
+    String[] ANYWHERE = new String[] { "*" };
     helper.createUnpartitionedTable();
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(null, expectedRecords);
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(IcebergSplit.ANYWHERE, split.getLocations());
+      Assert.assertArrayEquals(ANYWHERE, split.getLocations());
     }
 
     builder.preferLocality();

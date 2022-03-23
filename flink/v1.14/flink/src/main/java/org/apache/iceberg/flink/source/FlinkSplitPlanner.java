@@ -69,8 +69,7 @@ public class FlinkSplitPlanner {
   public static List<IcebergSourceSplit> planIcebergSourceSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
     try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context, workerPool)) {
-      return Lists.newArrayList(CloseableIterable.transform(tasksIterable,
-          task -> IcebergSourceSplit.fromCombinedScanTask(task)));
+      return Lists.newArrayList(CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process task iterable: ", e);
     }

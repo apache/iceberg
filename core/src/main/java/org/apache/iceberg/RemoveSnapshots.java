@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -118,7 +118,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
-    LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);
+    LOG.info("Expiring snapshots older than: {} ({})", Instant.ofEpochMilli(timestampMillis), timestampMillis);
     this.expireOlderThan = timestampMillis;
     return this;
   }

@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
+@SuppressWarnings("ProtectedMembersInFinalClass")
 final class JdbcUtil {
   // Catalog Table
   protected static final String CATALOG_TABLE_NAME = "iceberg_tables";

@@ -486,6 +486,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return builder.build();
   }
 
+  @SuppressWarnings("MixedMutabilityReturnType")
   private static List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
     List<String> partitionKeys = Lists.newArrayList();
     for (PartitionField field : spec.fields()) {

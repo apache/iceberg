@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -138,8 +137,7 @@ public class BaseFileScanTask implements FileScanTask {
       int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
       sizeIdx += 1; // Create 1 split per offset
-      FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
-      return combinedTask;
+      return new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
     }
 
   }
@@ -226,10 +224,9 @@ public class BaseFileScanTask implements FileScanTask {
     }
   }
 
-  @SuppressWarnings("MixedMutabilityReturnType")
   static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
     if (tasks.isEmpty()) {
-      return Collections.emptyList();
+      return tasks;
     }
 
     List<FileScanTask> combinedScans = Lists.newArrayList();
