@@ -71,6 +71,7 @@ Notes:
         - -4.5F is -1 * 2ˆ2 * 1.125 and encoded as 11000000|10010000|0...0 in binary
         - 00000000 -> 0, 00000000 -> 0, 10010000 -> 144 (-112), 11000000 -> 192 (-64),
 """
+import struct
 import uuid
 from decimal import Decimal
 
@@ -102,7 +103,6 @@ from iceberg.types import (
         (BooleanType(), "false", False),
         (BooleanType(), "TRUE", True),
         (BooleanType(), "FALSE", False),
-        (BooleanType(), None, False),
         (IntegerType(), "1", 1),
         (IntegerType(), "9999", 9999),
         (LongType(), "123456789", 123456789),
@@ -111,7 +111,7 @@ from iceberg.types import (
         (DecimalType(5, 2), "123.45", Decimal("123.45")),
         (StringType(), "foo", "foo"),
         (UUIDType(), "f79c3e09-677c-4bbd-a479-3f349cb785e7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
-        (FixedType(3), "foo", bytearray(b"foo")),
+        (FixedType(3), "foo", b"foo"),
         (BinaryType(), "foo", b"foo"),
         (None, None, None),
     ],
@@ -119,6 +119,30 @@ from iceberg.types import (
 def test_from_partition_value_to_py(primitive_type, partition_value_as_str, expected_result):
     """Test converting a partition value to a python built-in"""
     assert conversions.from_partition_value_to_py(primitive_type, partition_value_as_str) == expected_result
+
+
+@pytest.mark.parametrize(
+    "primitive_type",
+    [
+        (BinaryType()),
+        (BooleanType()),
+        (DateType()),
+        (DecimalType(2, 1)),
+        (DoubleType()),
+        (FixedType(1)),
+        (FloatType()),
+        (IntegerType()),
+        (LongType()),
+        (StringType()),
+        (TimestampType()),
+        (TimestamptzType()),
+        (TimeType()),
+        (UUIDType()),
+    ],
+)
+def test_none_partition_values(primitive_type):
+    """Test converting a partition value to a python built-in"""
+    assert conversions.from_partition_value_to_py(primitive_type, None) == None
 
 
 @pytest.mark.parametrize(
@@ -157,22 +181,6 @@ def test_from_partition_value_to_py(primitive_type, partition_value_as_str, expe
 def test_from_bytes(primitive_type, b, result):
     """Test converting from bytes"""
     assert conversions.from_bytes(primitive_type, b) == result
-
-
-@pytest.mark.parametrize(
-    "primitive_type, b, approximate_result, approximation",
-    [
-        (FloatType(), b"\x19\x04\x9e?", 1.2345, 5),
-    ],
-)
-def test_from_bytes_approximately(primitive_type, b, approximate_result, approximation):
-    """Test approximate equality when converting from bytes
-
-    Note: This tests approximate equality because floating point numbers in python are implemented
-    using a double in C. Therefore a 32-bit (single precision) float is unpacked to 64-bit (double precision)
-    float in python which introduces some imprecision.
-    """
-    assert conversions.from_bytes(primitive_type, b) == pytest.approx(approximate_result, approximation)
 
 
 @pytest.mark.parametrize(
@@ -219,6 +227,9 @@ def test_from_bytes_approximately(primitive_type, b, approximate_result, approxi
         # 11 is 00001011 in binary
         # 00001011 -> 11
         (DecimalType(10, 3), bytes([11]), Decimal("0.011")),
+        (DecimalType(4, 2), b"\x04\xd2", Decimal("12.34")),
+        (FloatType(), b"\x00\x00\x90\xc0", struct.unpack("<f", struct.pack("<f", -4.5))[0]),
+        (FloatType(), b"\x19\x04\x9e?", struct.unpack("<f", struct.pack("<f", 1.2345))[0]),
     ],
 )
 def test_round_trip_conversion(primitive_type, b, result):
@@ -305,22 +316,6 @@ def test_round_trip_conversion_large_decimals(primitive_type, b, result):
     """Test round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
     value_from_bytes = conversions.from_bytes(primitive_type, b)
     assert value_from_bytes == result
-
-    bytes_from_value = conversions.to_bytes(primitive_type, value_from_bytes)
-    assert bytes_from_value == b
-
-
-@pytest.mark.parametrize(
-    "primitive_type, b, result",
-    [
-        (FloatType(), bytes([0, 0, 144, 192]), -4.5),
-        (FloatType(), b"\x19\x04\x9e?", 1.2345),
-    ],
-)
-def test_round_trip_conversion_approximation(primitive_type, b, result):
-    """Test approximate round trip conversions of calling `conversions.from_bytes` and then `conversions.to_bytes` on the result"""
-    value_from_bytes = conversions.from_bytes(primitive_type, b)
-    assert value_from_bytes == pytest.approx(result)
 
     bytes_from_value = conversions.to_bytes(primitive_type, value_from_bytes)
     assert bytes_from_value == b
@@ -420,3 +415,28 @@ def test_raise_on_incorrect_precision_or_scale(primitive_type, value, expected_e
         conversions.to_bytes(primitive_type, value)
 
     assert expected_error_message in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "primitive_type, value, should_raise",
+    [
+        (IntegerType(), "123.45", True),
+        (IntegerType(), "1234567.89", True),
+        (IntegerType(), "123.00", False),
+        (IntegerType(), "1234567.00", False),
+        (LongType(), "123.45", True),
+        (LongType(), "1234567.89", True),
+        (LongType(), "123.00", False),
+        (LongType(), "1234567.00", False),
+    ],
+)
+def test_from_partition_value_to_py_raise_on_incorrect_precision_or_scale(primitive_type, value, should_raise):
+    if should_raise:
+        with pytest.raises(ValueError) as exc_info:
+            conversions.from_partition_value_to_py(primitive_type, value)
+
+        assert f"Cannot convert partition value, value cannot have fractional digits for {primitive_type} partition" in str(
+            exc_info.value
+        )
+    else:
+        conversions.from_partition_value_to_py(primitive_type, value)
