@@ -26,19 +26,6 @@ Note:
     are defined here as generic functions using the @singledispatch decorator. For each PrimitiveType
     implementation, a concrete function is registered for each generic conversion function. For PrimitiveType
     implementations that share the same conversion logic, registrations can be stacked.
-
-Example (registering `from_partition_to_py` logic for BooleanType):
-    >>> @from_partition_value_to_py.register(BooleanType)
-    >>> def _(primitive_type, partition_value_as_str: str):
-            if partition_value_as_str is None:
-                return None
-            return partition_value_as_str.lower() == "true"
-
-Example (stacking registrations):
-   >>> @from_partition_value_to_py.register(FloatType)
-   >>> @from_partition_value_to_py.register(DoubleType)
-   >>> def _(primitive_type, partition_value_as_str: str):
-           return float(partition_value_as_str)
 """
 import struct
 import uuid
