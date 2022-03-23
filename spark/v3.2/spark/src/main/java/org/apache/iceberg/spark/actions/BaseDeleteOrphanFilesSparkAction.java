@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -95,7 +94,7 @@ public class BaseDeleteOrphanFilesSparkAction
   private final Table table;
 
 
-  private Dataset<Row> actualFilesDF;
+  private Dataset<Row> providedActualFilesDF;
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Consumer<String> deleteFunc = new Consumer<String>() {
@@ -173,7 +172,7 @@ public class BaseDeleteOrphanFilesSparkAction
   // Goal - to remove calls to `listDirsRecursively` and `listDirRecursively`.
   //      - happens to retrieve the "Actual Files", which could be obtainable in many ways
   public BaseDeleteOrphanFilesSparkAction withActualFilesDF(Dataset<Row> newActualFilesDF) {
-    this.actualFilesDF = newActualFilesDF;
+    this.providedActualFilesDF = newActualFilesDF;
     // this.actualFilesDF.createOrReplaceTempView("actual_files_%s");
     return this;
   }
@@ -199,7 +198,7 @@ public class BaseDeleteOrphanFilesSparkAction
     Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
     // If there are serialization issues, let me know as we can possibly pass in a function (spark session) -> dataframe
     // or explicitly broadcast it. But I don't think that's going to be necessary.
-    Dataset<Row> actualFileDF = this.actualFilesDF == null ? buildActualFileDF() : actualFilesDF;
+    Dataset<Row> actualFileDF = this.providedActualFilesDF == null ? buildActualFileDF() : providedActualFilesDF;
     // Dataset<Row> actualFileDF = buildActualFileDF();
 
     Column actualFileName = filenameUDF.apply(actualFileDF.col("file_path"));
