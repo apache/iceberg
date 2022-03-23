@@ -38,8 +38,6 @@ import org.projectnessie.model.ImmutableCommitMeta;
 public final class NessieUtil {
 
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
-  public static final String CONFIG_CLIENT_BUILDER_IMPL = NESSIE_CONFIG_PREFIX + "client-builder-impl";
-
   static final String APPLICATION_TYPE = "application-type";
 
   private NessieUtil() {

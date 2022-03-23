@@ -100,7 +100,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     // remove nessie prefix
     final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
 
-    this.api = createNessieClientBuilder(options.get(NessieUtil.CONFIG_CLIENT_BUILDER_IMPL))
+    this.api = createNessieClientBuilder(options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
         .fromConfig(x -> options.get(removePrefix.apply(x)))
         .build(NessieApiV1.class);
 
