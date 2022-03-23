@@ -164,13 +164,13 @@ abstract class BaseRewriteDataFilesSparkAction
       return new BaseRewriteDataFilesResult(Collections.emptyList());
     }
 
-    List<RewriteFileGroup> groupList = toGroupList(ctx, fileGroupsByPartition);
+    ConcurrentLinkedQueue<RewriteFileGroup> groupQueue = toGroupQueue(ctx, fileGroupsByPartition);
 
     RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId);
     if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupList, commitManager);
+      return doExecuteWithPartialProgress(ctx, groupQueue, commitManager);
     } else {
-      return doExecute(ctx, groupList, commitManager);
+      return doExecute(ctx, groupQueue, commitManager);
     }
   }
 
@@ -249,13 +249,13 @@ abstract class BaseRewriteDataFilesSparkAction
     return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
-  private Result doExecute(RewriteExecutionContext ctx, List<RewriteFileGroup> groupList,
+  private Result doExecute(RewriteExecutionContext ctx, ConcurrentLinkedQueue<RewriteFileGroup> groupQueue,
                            RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
 
-    Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder = Tasks.foreach(groupList)
+    Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder = Tasks.foreach(groupQueue)
         .executeWith(rewriteService)
         .stopOnFailure()
         .noRetry()
@@ -303,8 +303,8 @@ abstract class BaseRewriteDataFilesSparkAction
     return new BaseRewriteDataFilesResult(rewriteResults);
   }
 
-  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, List<RewriteFileGroup> groupList,
-                                              RewriteDataFilesCommitManager commitManager) {
+  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx,
+      ConcurrentLinkedQueue<RewriteFileGroup> groupQueue, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // Start Commit Service
@@ -313,14 +313,14 @@ abstract class BaseRewriteDataFilesSparkAction
     commitService.start();
 
     // Start rewrite tasks
-    Tasks.foreach(groupList)
+    Tasks.foreach(groupQueue)
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
         .onFailure((fileGroup, exception) -> LOG.error("Failure during rewrite group {}", fileGroup.info(), exception))
         .run(fileGroup -> {
           commitService.offer(rewriteFiles(ctx, fileGroup));
-          groupList.remove(fileGroup);
+          groupQueue.remove(fileGroup);
         });
     rewriteService.shutdown();
 
@@ -336,11 +336,12 @@ abstract class BaseRewriteDataFilesSparkAction
     return new BaseRewriteDataFilesResult(commitResults);
   }
 
-  private List<RewriteFileGroup> toGroupList(RewriteExecutionContext ctx,
+  private ConcurrentLinkedQueue<RewriteFileGroup> toGroupQueue(RewriteExecutionContext ctx,
                                                  Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
 
     // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
-    return fileGroupsByPartition.entrySet().stream()
+    ConcurrentLinkedQueue<RewriteFileGroup> groupQueue = Queues.newConcurrentLinkedQueue();
+    groupQueue.addAll(fileGroupsByPartition.entrySet().stream()
         .flatMap(e -> {
           StructLike partition = e.getKey();
           List<List<FileScanTask>> fileGroups = e.getValue();
@@ -350,7 +351,8 @@ abstract class BaseRewriteDataFilesSparkAction
             FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
             return new RewriteFileGroup(info, tasks);
           });
-        }).collect(Collectors.toList());
+        }).collect(Collectors.toList()));
+    return groupQueue;
   }
 
   private void validateAndInitOptions() {
