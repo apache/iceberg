@@ -341,17 +341,14 @@ abstract class BaseRewriteDataFilesSparkAction
 
     // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
     ConcurrentLinkedQueue<RewriteFileGroup> groupQueue = Queues.newConcurrentLinkedQueue();
-    groupQueue.addAll(fileGroupsByPartition.entrySet().stream()
-        .flatMap(e -> {
-          StructLike partition = e.getKey();
-          List<List<FileScanTask>> fileGroups = e.getValue();
-          return fileGroups.stream().map(tasks -> {
-            int globalIndex = ctx.currentGlobalIndex();
-            int partitionIndex = ctx.currentPartitionIndex(partition);
-            FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
-            return new RewriteFileGroup(info, tasks);
-          });
-        }).collect(Collectors.toList()));
+    fileGroupsByPartition.forEach((partition, fileGroups) ->
+        fileGroups.forEach(tasks -> {
+          int globalIndex = ctx.currentGlobalIndex();
+          int partitionIndex = ctx.currentPartitionIndex(partition);
+          FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
+          groupQueue.add(new RewriteFileGroup(info, tasks));
+        })
+    );
     return groupQueue;
   }
 
