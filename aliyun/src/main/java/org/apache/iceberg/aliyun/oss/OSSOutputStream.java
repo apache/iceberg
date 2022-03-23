@@ -34,7 +34,11 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -52,13 +56,18 @@ public class OSSOutputStream extends PositionOutputStream {
   private long pos = 0;
   private boolean closed = false;
 
-  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+  private final Counter<Long> writeBytes;
+  private final Counter<Integer> writeOperations;
+
+  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.createStack = Thread.currentThread().getStackTrace();
 
     this.currentStagingFile = newStagingFile(aliyunProperties.ossStagingDirectory());
     this.stream = newStream(currentStagingFile);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
   }
 
   private static File newStagingFile(String ossStagingDirectory) {
@@ -103,6 +112,8 @@ public class OSSOutputStream extends PositionOutputStream {
     Preconditions.checkState(!closed, "Already closed.");
     stream.write(b);
     pos += 1;
+    writeBytes.increment();
+    writeOperations.increment();
   }
 
   @Override
@@ -110,6 +121,8 @@ public class OSSOutputStream extends PositionOutputStream {
     Preconditions.checkState(!closed, "Already closed.");
     stream.write(b, off, len);
     pos += len;
+    writeBytes.increment((long) len);
+    writeOperations.increment();
   }
 
   @Override
