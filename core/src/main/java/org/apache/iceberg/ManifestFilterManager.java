@@ -350,10 +350,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles || canContainDropBySeq;
   }
 
-  @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
+  @SuppressWarnings("CollectionUndefinedEquality")
   private boolean manifestHasDeletedFiles(PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
-    boolean hasDeletedFiles = false;
+
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
       boolean markedForDelete = deletePaths.contains(file.path()) ||
@@ -367,19 +367,18 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 
-        hasDeletedFiles = allRowsMatch;
-
-        if (hasDeletedFiles) {
+        if (allRowsMatch) {
           if (failAnyDelete) {
             throw new DeleteException(reader.spec().partitionToPath(file.partition()));
           }
 
           // as soon as a deleted file is detected, stop scanning
-          break;
+          return true;
         }
       }
     }
-    return hasDeletedFiles;
+
+    return false;
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
