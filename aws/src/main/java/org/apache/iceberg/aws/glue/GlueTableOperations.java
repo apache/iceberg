@@ -44,12 +44,15 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.DeleteTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
+import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
+import software.amazon.awssdk.utils.ImmutableMap;
 
 class GlueTableOperations extends BaseMetastoreTableOperations {
 
@@ -117,10 +120,14 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     CommitStatus commitStatus = CommitStatus.FAILURE;
 
+    String newMetadataLocation = null;
+    boolean glueTempTableCreated = false;
     try {
+      glueTempTableCreated = createGlueTempTableIfNecessary(base, metadata.location());
+
+      newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
@@ -171,6 +178,31 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       }
     } finally {
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
+      cleanupGlueTempTableIfNecessary(glueTempTableCreated, commitStatus);
+    }
+  }
+
+  private boolean createGlueTempTableIfNecessary(TableMetadata base, String metadataLocation) {
+    if (awsProperties.glueLakeFormationEnabled() && base == null) {
+      // LakeFormation credential require TableArn as input，so creating a dummy table
+      // beforehand for create table scenario
+      glue.createTable(CreateTableRequest.builder()
+          .databaseName(databaseName)
+          .tableInput(TableInput.builder()
+              .parameters(ImmutableMap.of(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE))
+              .name(tableName)
+              .storageDescriptor(StorageDescriptor.builder().location(metadataLocation).build())
+              .build())
+          .build());
+      return true;
+    }
+
+    return false;
+  }
+
+  private void cleanupGlueTempTableIfNecessary(boolean glueTempTableCreated, CommitStatus commitStatus) {
+    if (glueTempTableCreated && commitStatus != CommitStatus.SUCCESS) {
+      glue.deleteTable(DeleteTableRequest.builder().databaseName(databaseName).name(tableName).build());
     }
   }
 
@@ -253,7 +285,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   @VisibleForTesting
   void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation) {
     try {
-      if (commitStatus == CommitStatus.FAILURE) {
+      if (commitStatus == CommitStatus.FAILURE && metadataLocation != null && !metadataLocation.isEmpty()) {
         // if anything went wrong, clean up the uncommitted metadata file
         io().deleteFile(metadataLocation);
       }
