@@ -55,7 +55,7 @@ public interface FileWriter<T, R> extends Closeable {
   void write(T row);
 
   /**
-   * Returns the file path that are currently opened.
+   * Returns the file path that is currently opened.
    *
    * @return the current file path.
    */
