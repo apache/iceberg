@@ -83,6 +83,7 @@ public class ORC {
 
   public static class WriteBuilder {
     private final OutputFile file;
+    private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
     private Map<String, byte[]> metadata = Maps.newHashMap();
@@ -93,6 +94,11 @@ public class ORC {
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
+      if (file instanceof HadoopOutputFile) {
+        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+      } else {
+        this.conf = new Configuration();
+      }
     }
 
     public WriteBuilder forTable(Table table) {
@@ -162,13 +168,8 @@ public class ORC {
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
 
-      Configuration conf = new Configuration();
-      if (file instanceof HadoopOutputFile) {
-        ((HadoopOutputFile) file).getConf().forEach(entry -> conf.set(entry.getKey(), entry.getValue()));
-      }
-
       for (Map.Entry<String, String> entry : config.entrySet()) {
-        conf.set(entry.getKey(), entry.getValue());
+        this.conf.set(entry.getKey(), entry.getValue());
       }
 
       // for compatibility
