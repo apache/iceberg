@@ -140,8 +140,8 @@ public class TestCallStatementParser {
   }
 
   @Test
-  public void testCallStripsLeadingBracketedComments() throws ParseException {
-    // These comments are meant to look like those that dbt would add to statements.
+  public void testCallStripsLeadingComments() throws ParseException {
+    // These comments are meant to look like those that systems like DBT would add to statements.
     List<String> callStatementsWithComments = Lists.newArrayList(
         "/* bracketed comment */  CALL cat.system.func('${spark.extra.prop}')",
         "/**/  CALL cat.system.func('${spark.extra.prop}')",
