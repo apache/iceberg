@@ -84,7 +84,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
    */
   @VisibleForTesting
   BaseUpdatePartitionSpec(int formatVersion, PartitionSpec spec) {
-    this(formatVersion, spec, spec.fields().stream().mapToInt(PartitionField::fieldId).max().orElse(999));
+    this(formatVersion, spec, spec.lastAssignedFieldId());
   }
 
   /**
