@@ -44,6 +44,8 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -162,6 +164,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return String.format("%s [filters=%s]", table, filters);
   }
 
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return new CustomMetric[] { new NumFiles() };
+  }
+
   static class ReaderFactory implements PartitionReaderFactory {
     private final int batchSize;
 
@@ -193,15 +200,39 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
   }
 
+  static long numFilesToScan(CombinedScanTask scanTask) {
+    long fileCount = 0L;
+    for (FileScanTask file : scanTask.files()) {
+      fileCount += 1L;
+    }
+    return fileCount;
+  }
+
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
+    private long numFilesToRead;
+
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
+      numFilesToRead = numFilesToScan(task.task);
+    }
+
+    @Override
+    public CustomTaskMetric[] currentMetricsValues() {
+      return new CustomTaskMetric[] { new TaskNumFiles(numFilesToRead) };
     }
   }
 
   private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
+    private long numFilesToRead;
+
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
+      numFilesToRead = numFilesToScan(task.task);
+    }
+
+    @Override
+    public CustomTaskMetric[] currentMetricsValues() {
+      return new CustomTaskMetric[] { new TaskNumFiles(numFilesToRead) };
     }
   }
 

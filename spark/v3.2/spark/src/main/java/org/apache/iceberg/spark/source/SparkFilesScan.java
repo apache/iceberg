@@ -51,6 +51,11 @@ class SparkFilesScan extends SparkScan {
   }
 
   @Override
+  public String description() {
+    return "IcebergFilesScan " + super.description();
+  }
+
+  @Override
   protected List<CombinedScanTask> tasks() {
     if (tasks == null) {
       FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();

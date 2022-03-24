@@ -93,6 +93,11 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     }
   }
 
+  @Override
+  public String description() {
+    return "IcebergScan " + super.description();
+  }
+
   Long snapshotId() {
     return snapshotId;
   }
