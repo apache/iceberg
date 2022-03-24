@@ -62,6 +62,7 @@ public class Deletes {
     return equalityFilter.filter(rows);
   }
 
+  /** Returns the same rows that are input, while marking the deleted ones. */
   public static <T> CloseableIterable<T> markDeleted(
       CloseableIterable<T> rows, Predicate<T> isDeleted, Consumer<T> deleteMarker) {
     return CloseableIterable.transform(
@@ -74,9 +75,24 @@ public class Deletes {
         });
   }
 
+  /**
+   * Returns the remaining rows (the ones that are not deleted), while counting the deleted ones.
+   */
   public static <T> CloseableIterable<T> filterDeleted(
-      CloseableIterable<T> rows, Predicate<T> isDeleted) {
-    return CloseableIterable.filter(rows, isDeleted.negate());
+      CloseableIterable<T> rows, Predicate<T> isDeleted, DeleteCounter counter) {
+    Filter<T> remainingRowsFilter =
+        new Filter<T>() {
+          @Override
+          protected boolean shouldKeep(T item) {
+            boolean deleted = isDeleted.test(item);
+            if (deleted) {
+              counter.increment();
+            }
+            return !deleted;
+          }
+        };
+
+    return remainingRowsFilter.filter(rows);
   }
 
   public static StructLikeSet toEqualitySet(
@@ -116,7 +132,15 @@ public class Deletes {
       CloseableIterable<T> rows,
       Function<T, Long> rowToPosition,
       CloseableIterable<Long> posDeletes) {
-    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
+    return streamingFilter(rows, rowToPosition, posDeletes, new DeleteCounter());
+  }
+
+  public static <T> CloseableIterable<T> streamingFilter(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes,
+      DeleteCounter counter) {
+    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes, counter);
   }
 
   public static <T> CloseableIterable<T> streamingMarker(
@@ -215,11 +239,15 @@ public class Deletes {
   }
 
   private static class PositionStreamDeleteFilter<T> extends PositionStreamDeleteIterable<T> {
-    private PositionStreamDeleteFilter(
+    private final DeleteCounter counter;
+
+    PositionStreamDeleteFilter(
         CloseableIterable<T> rows,
         Function<T, Long> rowToPosition,
-        CloseableIterable<Long> deletePositions) {
+        CloseableIterable<Long> deletePositions,
+        DeleteCounter counter) {
       super(rows, rowToPosition, deletePositions);
+      this.counter = counter;
     }
 
     @Override
@@ -227,7 +255,11 @@ public class Deletes {
       return new FilterIterator<T>(items) {
         @Override
         protected boolean shouldKeep(T item) {
-          return !isDeleted(item);
+          boolean deleted = isDeleted(item);
+          if (deleted) {
+            counter.increment();
+          }
+          return !deleted;
         }
       };
     }
