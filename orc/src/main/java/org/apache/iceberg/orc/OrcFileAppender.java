@@ -45,11 +45,15 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.impl.writer.TreeWriter;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Create a file appender for ORC.
  */
 class OrcFileAppender<D> implements FileAppender<D> {
+  private static final Logger LOG = LoggerFactory.getLogger(OrcFileAppender.class);
+
   private final int batchSize;
   private final OutputFile file;
   private final Writer writer;
@@ -75,6 +79,9 @@ class OrcFileAppender<D> implements FileAppender<D> {
     this.avgRowByteSize =
         OrcSchemaVisitor.visitSchema(orcSchema, new EstimateOrcAvgWidthVisitor()).stream().reduce(Integer::sum)
             .orElse(0);
+    if (avgRowByteSize == 0) {
+      LOG.warn("The average length of the rows appears to be zero.");
+    }
 
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
@@ -116,7 +123,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
       return file.toInputFile().getLength();
     }
 
-    Preconditions.checkNotNull(treeWriter, "Can't get three writer!");
+    Preconditions.checkNotNull(treeWriter,
+        "Cannot estimate length of file being written as the ORC writer's internal writer is not present");
 
     long estimateMemory = treeWriter.estimateMemory();
 
@@ -128,12 +136,12 @@ class OrcFileAppender<D> implements FileAppender<D> {
         dataLength = stripeInformation != null ? stripeInformation.getOffset() + stripeInformation.getLength() : 0;
       }
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Can't get strip's length from the file writer with path: %s.",
+      throw new UncheckedIOException(String.format("Can't get Stripe's length from the file writer with path: %s.",
           file.location()), e);
     }
 
     // This value is estimated, not actual.
-    return (long) (dataLength + (estimateMemory + (long) batch.size * avgRowByteSize) * 0.2);
+    return (long) Math.ceil(dataLength + (estimateMemory + (long) batch.size * avgRowByteSize) * 0.2);
   }
 
   @Override

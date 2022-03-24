@@ -62,152 +62,136 @@ public class TestEstimateOrcAvgWidthVisitor {
   ));
 
   @Test
-  public void testEstimateDataAveWidth() {
-    // create a schema with integer field
-    Schema schemaWithInteger = new Schema(
-        ID_FIELD
-    );
-    TypeDescription orcSchemaWithInteger = ORCSchemaUtil.convert(schemaWithInteger);
-    long estimateLength = getEstimateLength(orcSchemaWithInteger);
+  public void testEstimateIntegerWidth() {
+    Schema integerSchema = new Schema(ID_FIELD);
+    TypeDescription integerOrcSchema = ORCSchemaUtil.convert(integerSchema);
+    long estimateLength = getEstimateLength(integerOrcSchema);
     Assert.assertEquals("Estimated average length of integer must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with string field
-    Schema schemaWithString = new Schema(
-        DATA_FIELD
-    );
-    TypeDescription orcSchemaWithString = ORCSchemaUtil.convert(schemaWithString);
-    estimateLength = getEstimateLength(orcSchemaWithString);
+  @Test
+  public void testEstimateStringWidth() {
+    Schema stringSchema = new Schema(DATA_FIELD);
+    TypeDescription stringOrcSchema = ORCSchemaUtil.convert(stringSchema);
+    long estimateLength = getEstimateLength(stringOrcSchema);
     Assert.assertEquals("Estimated average length of string must be 128.", 128, estimateLength);
+  }
 
-    // create a schema with float field
-    Schema schemaWithFloat = new Schema(
-        FLOAT_FIELD
-    );
-    TypeDescription orcSchemaWithFloat = ORCSchemaUtil.convert(schemaWithFloat);
-    estimateLength = getEstimateLength(orcSchemaWithFloat);
+  @Test
+  public void testEstimateFloatWidth() {
+    Schema floatSchema = new Schema(FLOAT_FIELD);
+    TypeDescription floatOrcSchema = ORCSchemaUtil.convert(floatSchema);
+    long estimateLength = getEstimateLength(floatOrcSchema);
     Assert.assertEquals("Estimated average length of float must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with double field
-    Schema schemaWithDouble = new Schema(
-        DOUBLE_FIELD
-    );
-    TypeDescription orcSchemaWithDouble = ORCSchemaUtil.convert(schemaWithDouble);
-    estimateLength = getEstimateLength(orcSchemaWithDouble);
+  @Test
+  public void testEstimateDoubleWidth() {
+    Schema doubleSchema = new Schema(DOUBLE_FIELD);
+    TypeDescription doubleOrcSchema = ORCSchemaUtil.convert(doubleSchema);
+    long estimateLength = getEstimateLength(doubleOrcSchema);
     Assert.assertEquals("Estimated average length of double must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with decimal field
-    Schema schemaWithDecimal = new Schema(
-        DECIMAL_FIELD
-    );
-    TypeDescription orcSchemaWithDecimal = ORCSchemaUtil.convert(schemaWithDecimal);
-    estimateLength = getEstimateLength(orcSchemaWithDecimal);
+  @Test
+  public void testEstimateDecimalWidth() {
+    Schema decimalSchema = new Schema(DECIMAL_FIELD);
+    TypeDescription decimalOrcSchema = ORCSchemaUtil.convert(decimalSchema);
+    long estimateLength = getEstimateLength(decimalOrcSchema);
     Assert.assertEquals("Estimated average length of decimal must be 7.", 7, estimateLength);
+  }
 
-    // create a schema with fixed field
-    Schema schemaWithFixed = new Schema(
-        FIXED_FIELD
-    );
-    TypeDescription orcSchemaWithFixed = ORCSchemaUtil.convert(schemaWithFixed);
-    estimateLength = getEstimateLength(orcSchemaWithFixed);
+  @Test
+  public void testEstimateFixedWidth() {
+    Schema fixedSchema = new Schema(FIXED_FIELD);
+    TypeDescription fixedOrcSchema = ORCSchemaUtil.convert(fixedSchema);
+    long estimateLength = getEstimateLength(fixedOrcSchema);
     Assert.assertEquals("Estimated average length of fixed must be 128.", 128, estimateLength);
+  }
 
-    // create a schema with binary field
-    Schema schemaWithBinary = new Schema(
-        BINARY_FIELD
-    );
-    TypeDescription orcSchemaWithBinary = ORCSchemaUtil.convert(schemaWithBinary);
-    estimateLength = getEstimateLength(orcSchemaWithBinary);
+  @Test
+  public void testEstimateBinaryWidth() {
+    Schema binarySchema = new Schema(BINARY_FIELD);
+    TypeDescription binaryOrcSchema = ORCSchemaUtil.convert(binarySchema);
+    long estimateLength = getEstimateLength(binaryOrcSchema);
     Assert.assertEquals("Estimated average length of binary must be 128.", 128, estimateLength);
+  }
 
-    // create a schema with list field
-    Schema schemaWithList = new Schema(
-        FLOAT_LIST_FIELD
-    );
-    TypeDescription orcSchemaWithList = ORCSchemaUtil.convert(schemaWithList);
-    estimateLength = getEstimateLength(orcSchemaWithList);
+  @Test
+  public void testEstimateListWidth() {
+    Schema listSchema = new Schema(FLOAT_LIST_FIELD);
+    TypeDescription listOrcSchema = ORCSchemaUtil.convert(listSchema);
+    long estimateLength = getEstimateLength(listOrcSchema);
     Assert.assertEquals("Estimated average length of list must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with long field
-    Schema schemaWithLong = new Schema(
-        LONG_FIELD
-    );
-    TypeDescription orcSchemaWithLong = ORCSchemaUtil.convert(schemaWithLong);
-    estimateLength = getEstimateLength(orcSchemaWithLong);
+  @Test
+  public void testEstimateLongWidth() {
+    Schema longSchema = new Schema(LONG_FIELD);
+    TypeDescription longOrcSchema = ORCSchemaUtil.convert(longSchema);
+    long estimateLength = getEstimateLength(longOrcSchema);
     Assert.assertEquals("Estimated average length of long must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with boolean field
-    Schema schemaWithBoolean = new Schema(
-        BOOLEAN_FIELD
-    );
-    TypeDescription orcSchemaWithBoolean = ORCSchemaUtil.convert(schemaWithBoolean);
-    estimateLength = getEstimateLength(orcSchemaWithBoolean);
+  @Test
+  public void testEstimateBooleanWidth() {
+    Schema booleanSchema = new Schema(BOOLEAN_FIELD);
+    TypeDescription booleanOrcSchema = ORCSchemaUtil.convert(booleanSchema);
+    long estimateLength = getEstimateLength(booleanOrcSchema);
     Assert.assertEquals("Estimated average length of boolean must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with timestamps with zone field
-    Schema schemaWithTimestampWithZone = new Schema(
-        TIMESTAMP_ZONE_FIELD
-    );
-    TypeDescription orcSchemaWithTimestampWithZone = ORCSchemaUtil.convert(schemaWithTimestampWithZone);
-    estimateLength = getEstimateLength(orcSchemaWithTimestampWithZone);
+  @Test
+  public void testEstimateTimestampWidth() {
+    Schema timestampZoneSchema = new Schema(TIMESTAMP_ZONE_FIELD);
+    TypeDescription timestampZoneOrcSchema = ORCSchemaUtil.convert(timestampZoneSchema);
+    long estimateLength = getEstimateLength(timestampZoneOrcSchema);
     Assert.assertEquals("Estimated average length of timestamps with zone must be 12.", 12, estimateLength);
 
-    // create a schema with timestamp field
-    Schema schemaWithTimestamp = new Schema(
-        TIMESTAMP_FIELD
-    );
-    TypeDescription orcSchemaWithTimestamp = ORCSchemaUtil.convert(schemaWithTimestamp);
-    estimateLength = getEstimateLength(orcSchemaWithTimestamp);
+    Schema timestampSchema = new Schema(TIMESTAMP_FIELD);
+    TypeDescription timestampOrcSchema = ORCSchemaUtil.convert(timestampSchema);
+    estimateLength = getEstimateLength(timestampOrcSchema);
     Assert.assertEquals("Estimated average length of timestamp must be 12.", 12, estimateLength);
+  }
 
-    // create a schema with date field
-    Schema schemaWithDate = new Schema(
-        DATE_FIELD
-    );
-    TypeDescription orcSchemaWithDate = ORCSchemaUtil.convert(schemaWithDate);
-    estimateLength = getEstimateLength(orcSchemaWithDate);
+  @Test
+  public void testEstimateDateWidth() {
+    Schema dateSchema = new Schema(DATE_FIELD);
+    TypeDescription dateOrcSchema = ORCSchemaUtil.convert(dateSchema);
+    long estimateLength = getEstimateLength(dateOrcSchema);
     Assert.assertEquals("Estimated average length of date must be 8.", 8, estimateLength);
+  }
 
-    // create a schema with uuid field
-    Schema schemaWithUUID = new Schema(
-        UUID_FIELD
-    );
-    TypeDescription orcSchemaWithUUID = ORCSchemaUtil.convert(schemaWithUUID);
-    estimateLength = getEstimateLength(orcSchemaWithUUID);
+  @Test
+  public void testEstimateUUIDWidth() {
+    Schema uuidSchema = new Schema(UUID_FIELD);
+    TypeDescription uuidOrcSchema = ORCSchemaUtil.convert(uuidSchema);
+    long estimateLength = getEstimateLength(uuidOrcSchema);
     Assert.assertEquals("Estimated average length of uuid must be 128.", 128, estimateLength);
+  }
 
-    // create a schema with map field
-    Schema schemaWithMap = new Schema(
-        MAP_FIELD_1
-    );
-    TypeDescription orcSchemaWithMap = ORCSchemaUtil.convert(schemaWithMap);
-    estimateLength = getEstimateLength(orcSchemaWithMap);
+  @Test
+  public void testEstimateMapWidth() {
+    Schema mapSchema = new Schema(MAP_FIELD_1);
+    TypeDescription mapOrcSchema = ORCSchemaUtil.convert(mapSchema);
+    long estimateLength = getEstimateLength(mapOrcSchema);
     Assert.assertEquals("Estimated average length of map must be 136.", 136, estimateLength);
+  }
 
-    // create a schema with struct field
-    Schema schemaWithStruct = new Schema(
-        STRUCT_FIELD
-    );
-    TypeDescription orcSchemaWithStruct = ORCSchemaUtil.convert(schemaWithStruct);
-    estimateLength = getEstimateLength(orcSchemaWithStruct);
+  @Test
+  public void testEstimateStructWidth() {
+    Schema structSchema = new Schema(STRUCT_FIELD);
+    TypeDescription structOrcSchema = ORCSchemaUtil.convert(structSchema);
+    long estimateLength = getEstimateLength(structOrcSchema);
     Assert.assertEquals("Estimated average length of struct must be 28.", 28, estimateLength);
+  }
 
-    // create a schema with all supported fields
-    Schema schemaWithFUll = new Schema(
-        ID_FIELD,
-        DATA_FIELD,
-        FLOAT_FIELD,
-        DOUBLE_FIELD,
-        DECIMAL_FIELD,
-        FIXED_FIELD,
-        BINARY_FIELD,
-        FLOAT_LIST_FIELD,
-        LONG_FIELD,
-        MAP_FIELD_1,
-        MAP_FIELD_2,
-        STRUCT_FIELD
-    );
-    TypeDescription orcSchemaWithFull = ORCSchemaUtil.convert(schemaWithFUll);
-    estimateLength = getEstimateLength(orcSchemaWithFull);
+  @Test
+  public void testEstimateFullWidth() {
+    Schema fullSchema = new Schema(ID_FIELD, DATA_FIELD, FLOAT_FIELD, DOUBLE_FIELD, DECIMAL_FIELD, FIXED_FIELD,
+        BINARY_FIELD, FLOAT_LIST_FIELD, LONG_FIELD, MAP_FIELD_1, MAP_FIELD_2, STRUCT_FIELD);
+    TypeDescription fullOrcSchema = ORCSchemaUtil.convert(fullSchema);
+    long estimateLength = getEstimateLength(fullOrcSchema);
     Assert.assertEquals("Estimated average length of the row must be 611.", 611, estimateLength);
   }
 
