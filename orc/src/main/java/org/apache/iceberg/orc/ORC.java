@@ -162,11 +162,9 @@ public class ORC {
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
 
-      Configuration conf;
+      Configuration conf = new Configuration();
       if (file instanceof HadoopOutputFile) {
-        conf = ((HadoopOutputFile) file).getConf();
-      } else {
-        conf = new Configuration();
+        ((HadoopOutputFile) file).getConf().forEach(entry -> conf.set(entry.getKey(), entry.getValue()));
       }
 
       for (Map.Entry<String, String> entry : config.entrySet()) {
