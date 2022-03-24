@@ -19,14 +19,9 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.events.Listeners;
-import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.io.CloseableIterable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseAllMetadataTableScan.class);
 
   BaseAllMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
     super(ops, table, fileSchema);
@@ -58,9 +53,6 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
-    Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
-
-    return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
+    return super.planAllFiles();
   }
 }

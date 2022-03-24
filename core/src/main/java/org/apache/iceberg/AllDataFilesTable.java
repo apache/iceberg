@@ -80,6 +80,11 @@ public class AllDataFilesTable extends BaseFilesTable {
     }
 
     @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      return super.planAllFiles();
+    }
+
+    @Override
     protected CloseableIterable<ManifestFile> manifests() {
       try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
           Iterables.transform(table().snapshots(),
