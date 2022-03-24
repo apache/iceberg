@@ -22,8 +22,10 @@ package org.apache.iceberg.spark.extensions;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
@@ -135,6 +137,28 @@ public class TestCallStatementParser {
     AssertHelpers.assertThrows("Should fail with a sensible parse error", IcebergParseException.class,
         "missing '(' at 'radish'",
         () -> parser.parsePlan("CALL cat.system radish kebab"));
+  }
+
+  @Test
+  public void testCallStripsLeadingBracketedComments() throws ParseException {
+    // These comments are meant to look like those that dbt would add to statements.
+    List<String> callStatementsWithComments = Lists.newArrayList(
+        "/* bracketed comment */  CALL cat.system.func('${spark.extra.prop}')",
+        "/**/  CALL cat.system.func('${spark.extra.prop}')",
+        "-- single line comment \n CALL cat.system.func('${spark.extra.prop}')",
+        "-- multiple \n-- single line \n-- comments \n CALL cat.system.func('${spark.extra.prop}')",
+        "/* select * from multiline_comment \n where x like '%sql%'; */ CALL cat.system.func('${spark.extra.prop}')",
+        "/* {\"app\": \"dbt\", \"dbt_version\": \"1.0.1\", \"profile_name\": \"profile1\", \"target_name\": \"dev\", " +
+            "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')"
+    );
+    for (String sqlText : callStatementsWithComments) {
+      CallStatement call = (CallStatement) parser.parsePlan(sqlText);
+      Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+
+      Assert.assertEquals(1, call.args().size());
+
+      checkArg(call, 0, "value", DataTypes.StringType);
+    }
   }
 
   private void checkArg(CallStatement call, int index, Object expectedValue, DataType expectedType) {
