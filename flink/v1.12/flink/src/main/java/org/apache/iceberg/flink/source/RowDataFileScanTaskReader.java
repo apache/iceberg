@@ -172,7 +172,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
     FlinkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
                       InputFilesDecryptor inputFilesDecryptor) {
-      super(task, tableSchema, requestedSchema);
+      super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
       this.requiredRowType = FlinkSchemaUtil.convert(requiredSchema());
       this.asStructLike = new RowDataWrapper(requiredRowType, requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;
