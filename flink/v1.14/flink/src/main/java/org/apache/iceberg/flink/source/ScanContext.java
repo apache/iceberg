@@ -137,10 +137,14 @@ public class ScanContext implements Serializable {
       if (startingStrategy == StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_ID) {
         Preconditions.checkArgument(startSnapshotId != null,
             "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
+        Preconditions.checkArgument(startSnapshotTimestamp == null,
+            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
       if (startingStrategy == StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP) {
         Preconditions.checkArgument(startSnapshotTimestamp != null,
             "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
+        Preconditions.checkArgument(startSnapshotId == null,
+            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
     }
   }

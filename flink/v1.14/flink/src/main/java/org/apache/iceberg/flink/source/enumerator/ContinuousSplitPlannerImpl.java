@@ -47,7 +47,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     this.table = table;
     this.scanContext = scanContext;
     this.workerPool = ThreadPools.newWorkerPool(
-        "iceberg-enumerator-pool-" + threadPoolName, scanContext.planParallelism());
+        "iceberg-plan-worker-pool-" + threadPoolName, scanContext.planParallelism());
   }
 
   @Override
