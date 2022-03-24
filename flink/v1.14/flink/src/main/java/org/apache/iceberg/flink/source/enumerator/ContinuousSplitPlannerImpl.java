@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -98,7 +99,12 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    * in the next incremental scan.
    */
   private ContinuousEnumerationResult discoverInitialSplits() {
-    Snapshot startSnapshot = getStartSnapshot(table, scanContext);
+    Optional<Snapshot> startSnapshotOptional = getStartSnapshot(table, scanContext);
+    if (!startSnapshotOptional.isPresent()) {
+      // set IcebergEnumeratorPosition to null in this case
+      return new ContinuousEnumerationResult(Collections.emptyList(), null);
+    }
+    Snapshot startSnapshot = startSnapshotOptional.get();
     LOG.info("Get starting snapshot id {} based on strategy {}",
         startSnapshot.snapshotId(), scanContext.startingStrategy());
     List<IcebergSourceSplit> splits;
@@ -119,18 +125,21 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     return new ContinuousEnumerationResult(splits, position);
   }
 
+  /**
+   * Optional is used because table may be empty and has no snapshot
+   */
   @VisibleForTesting
-  static Snapshot getStartSnapshot(Table table, ScanContext scanContext) {
+  static Optional<Snapshot> getStartSnapshot(Table table, ScanContext scanContext) {
     switch (scanContext.startingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case LATEST_SNAPSHOT:
-        return table.currentSnapshot();
+        return Optional.ofNullable(table.currentSnapshot());
       case EARLIEST_SNAPSHOT:
-        return SnapshotUtil.oldestAncestor(table);
+        return Optional.ofNullable(SnapshotUtil.oldestAncestor(table));
       case SPECIFIC_START_SNAPSHOT_ID:
         Snapshot matchedSnapshotById = table.snapshot(scanContext.startSnapshotId());
         if (matchedSnapshotById != null) {
-          return matchedSnapshotById;
+          return Optional.of(matchedSnapshotById);
         } else {
           throw new IllegalArgumentException("Snapshot id not found in history: " + scanContext.startSnapshotId());
         }
@@ -140,7 +149,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
         long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, scanContext.startSnapshotTimestamp());
         Snapshot matchedSnapshotByTimestamp = table.snapshot(snapshotIdAsOfTime);
         if (matchedSnapshotByTimestamp != null) {
-          return matchedSnapshotByTimestamp;
+          return Optional.of(matchedSnapshotByTimestamp);
         } else {
           throw new IllegalArgumentException("Snapshot id not found in history: " + snapshotIdAsOfTime);
         }

@@ -57,20 +57,14 @@ public class TestContinuousSplitPlannerImpl {
   public TestName testName = new TestName();
 
   private GenericAppenderHelper dataAppender;
-  private DataFile dataFile1;
-  private Snapshot snapshot1;
 
   @Before
   public void before() throws IOException {
     dataAppender = new GenericAppenderHelper(tableResource.table(), fileFormat, TEMPORARY_FOLDER);
-    List<Record> batch1 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, randomSeed.incrementAndGet());
-    dataFile1 = dataAppender.writeFile(null, batch1);
-    dataAppender.appendToTable(dataFile1);
-    snapshot1 = tableResource.table().currentSnapshot();
   }
 
   @Test
-  public void testContinuousEnumerator() throws Exception {
+  public void testStartWithEmptyTable() throws Exception {
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
         .monitorInterval(Duration.ofMillis(10L))
@@ -79,14 +73,41 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
         tableResource.table(), scanContext, testName.getMethodName());
 
-    ContinuousEnumerationResult result1 = splitPlanner.planSplits(null);
-    Assert.assertEquals(snapshot1.snapshotId(), result1.position().endSnapshotId());
-    Assert.assertEquals(1, result1.splits().size());
-    IcebergSourceSplit split1 = result1.splits().iterator().next();
-    Assert.assertEquals(1, split1.task().files().size());
-    Assert.assertEquals(dataFile1.path().toString(), split1.task().files().iterator().next().file().path().toString());
+    // empty table
+    ContinuousEnumerationResult emptyTableResult = splitPlanner.planSplits(null);
+    Assert.assertNull(emptyTableResult.position());
+    Assert.assertTrue(emptyTableResult.splits().isEmpty());
 
-    IcebergEnumeratorPosition lastPosition = result1.position();
+    // next 3 snapshots
+    IcebergEnumeratorPosition lastPosition = emptyTableResult.position();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testStartWithSomeData() throws Exception {
+    List<Record> batch = RandomGenericData.generate(TestFixtures.SCHEMA, 2, randomSeed.incrementAndGet());
+    DataFile dataFile = dataAppender.writeFile(null, batch);
+    dataAppender.appendToTable(dataFile);
+    Snapshot snapshot = tableResource.table().currentSnapshot();
+
+    ScanContext scanContext = ScanContext.builder()
+        .streaming(true)
+        .monitorInterval(Duration.ofMillis(10L))
+        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertEquals(snapshot.snapshotId(), initialResult.position().endSnapshotId());
+    Assert.assertEquals(1, initialResult.splits().size());
+    IcebergSourceSplit split1 = initialResult.splits().iterator().next();
+    Assert.assertEquals(1, split1.task().files().size());
+    Assert.assertEquals(dataFile.path().toString(), split1.task().files().iterator().next().file().path().toString());
+
+    IcebergEnumeratorPosition lastPosition = initialResult.position();
     for (int i = 0; i < 3; ++i) {
       lastPosition = verifyOneCycle(splitPlanner, lastPosition);
     }

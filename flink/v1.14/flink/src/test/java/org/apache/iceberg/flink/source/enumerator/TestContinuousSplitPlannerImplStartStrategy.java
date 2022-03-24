@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -31,108 +32,163 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 public class TestContinuousSplitPlannerImplStartStrategy {
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
-  public static final HadoopTableResource tableResource = new HadoopTableResource(TEMPORARY_FOLDER,
-      TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
+  private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
 
-  @ClassRule
-  public static final TestRule chain = RuleChain
-      .outerRule(TEMPORARY_FOLDER)
+  public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+  public final HadoopTableResource tableResource = new HadoopTableResource(temporaryFolder,
+      TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
+  @Rule
+  public final TestRule chain = RuleChain
+      .outerRule(temporaryFolder)
       .around(tableResource);
 
-  private static final FileFormat fileFormat = FileFormat.PARQUET;
+  private GenericAppenderHelper dataAppender;
+  private Snapshot snapshot1;
+  private Snapshot snapshot2;
+  private Snapshot snapshot3;
 
-  private static Snapshot snapshot1;
-  private static Snapshot snapshot2;
-  private static Snapshot snapshot3;
+  @Before
+  public void before() throws IOException {
+    dataAppender = new GenericAppenderHelper(tableResource.table(), FILE_FORMAT, temporaryFolder);
+  }
 
-  @BeforeClass
-  public static void beforeClass() throws IOException {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(tableResource.table(), fileFormat, TEMPORARY_FOLDER);
-
+  private void appendThreeSnapshots() throws IOException {
     // snapshot1
     List<Record> batch1 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     dataAppender.appendToTable(batch1);
     snapshot1 = tableResource.table().currentSnapshot();
     // snapshot2
-    List<Record> batch2 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
+    List<Record> batch2 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L);
     dataAppender.appendToTable(batch2);
     snapshot2 = tableResource.table().currentSnapshot();
     // snapshot3
-    List<Record> batch3 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
+    List<Record> batch3 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 2L);
     dataAppender.appendToTable(batch3);
     snapshot3 = tableResource.table().currentSnapshot();
   }
 
   @Test
-  public void testTableScanThenIncrementalStrategy() {
+  public void testTableScanThenIncrementalStrategy()  throws IOException {
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
         .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
         .build();
-    Assert.assertEquals(snapshot3.snapshotId(),
-        ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).snapshotId());
+
+    // emtpy table
+    Assert.assertFalse(ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).isPresent());
+
+    // assert the 3 snapshots
+    appendThreeSnapshots();
+    Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
+    Assert.assertEquals(snapshot3.snapshotId(), startSnapshot.snapshotId());
   }
 
   @Test
-  public void testForLatestSnapshotStrategy() {
+  public void testForLatestSnapshotStrategy() throws IOException {
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
         .startingStrategy(StreamingStartingStrategy.LATEST_SNAPSHOT)
         .build();
-    Assert.assertEquals(snapshot3.snapshotId(),
-        ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).snapshotId());
+
+    // emtpy table
+    Assert.assertFalse(ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).isPresent());
+
+    // assert the 3 snapshots
+    appendThreeSnapshots();
+    Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
+    Assert.assertEquals(snapshot3.snapshotId(), startSnapshot.snapshotId());
   }
 
   @Test
-  public void testForEarliestSnapshotStrategy() {
+  public void testForEarliestSnapshotStrategy() throws IOException {
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
         .startingStrategy(StreamingStartingStrategy.EARLIEST_SNAPSHOT)
         .build();
-    Assert.assertEquals(snapshot1.snapshotId(),
-        ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).snapshotId());
+
+    // emtpy table
+    Assert.assertFalse(ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).isPresent());
+
+    // assert the 3 snapshots
+    appendThreeSnapshots();
+    Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
+    Assert.assertEquals(snapshot1.snapshotId(), startSnapshot.snapshotId());
   }
 
   @Test
-  public void testForSpecificSnapshotIdStrategy() {
+  public void testForSpecificSnapshotIdStrategy() throws IOException {
+    ScanContext scanContextInvalidSnapshotId = ScanContext.builder()
+        .streaming(true)
+        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_ID)
+        .startSnapshotId(1L)
+        .build();
+
+    // emtpy table
+    AssertHelpers.assertThrows("Should detect invalid starting snapshot id",
+        IllegalArgumentException.class,
+        "Snapshot id not found in history: 1",
+        () -> ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContextInvalidSnapshotId));
+
+    // assert the 3 snapshots
+    appendThreeSnapshots();
+
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
         .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_ID)
         .startSnapshotId(snapshot2.snapshotId())
         .build();
-    Assert.assertEquals(snapshot2.snapshotId(),
-        ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).snapshotId());
+
+    Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
+    Assert.assertEquals(snapshot2.snapshotId(), startSnapshot.snapshotId());
   }
 
   @Test
-  public void testForSpecificSnapshotTimestampStrategySnapshot2() {
+  public void testForSpecificSnapshotTimestampStrategySnapshot2() throws IOException {
+    ScanContext scanContextInvalidSnapshotTimestamp = ScanContext.builder()
+        .streaming(true)
+        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP)
+        .startSnapshotTimestamp(1L)
+        .build();
+
+    // emtpy table
+    AssertHelpers.assertThrows("Should detect invalid starting snapshot timestamp",
+        IllegalArgumentException.class,
+        "Cannot find a snapshot older than 1970-01-01 00:00:00.001",
+        () -> ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContextInvalidSnapshotTimestamp));
+
+    // assert the 3 snapshots
+    appendThreeSnapshots();
+
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
         .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP)
         .startSnapshotTimestamp(snapshot2.timestampMillis())
         .build();
-    Assert.assertEquals(snapshot2.snapshotId(),
-        ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).snapshotId());
+
+    Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
+    Assert.assertEquals(snapshot2.snapshotId(), startSnapshot.snapshotId());
   }
 
   @Test
-  public void testForSpecificSnapshotTimestampStrategySnapshot2Minus1() {
+  public void testForSpecificSnapshotTimestampStrategySnapshot2Minus1() throws IOException {
+    // assert the 3 snapshots
+    appendThreeSnapshots();
+
     ScanContext config = ScanContext.builder()
         .streaming(true)
         .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP)
         .startSnapshotTimestamp(snapshot2.timestampMillis() - 1L)
         .build();
-    Assert.assertEquals(snapshot1.snapshotId(),
-        ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), config).snapshotId());
-  }
 
+    Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), config).get();
+    Assert.assertEquals(snapshot1.snapshotId(), startSnapshot.snapshotId());
+  }
 }
