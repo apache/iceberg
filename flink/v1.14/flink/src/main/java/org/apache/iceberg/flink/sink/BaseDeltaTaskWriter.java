@@ -44,7 +44,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final Schema deleteSchema;
   private final RowDataWrapper wrapper;
   private final RowDataWrapper keyWrapper;
-  private final RowDataProjection deleteSchemaProjection;
+  private final RowDataProjection keyProjection;
   private final boolean upsert;
 
   BaseDeltaTaskWriter(PartitionSpec spec,
@@ -62,7 +62,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     this.keyWrapper =  new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
-    this.deleteSchemaProjection = RowDataProjection.create(schema, deleteSchema);
+    this.keyProjection = RowDataProjection.create(schema, deleteSchema);
     this.upsert = upsert;
   }
 
@@ -80,7 +80,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       case INSERT:
       case UPDATE_AFTER:
         if (upsert) {
-          writer.deleteKey(deleteSchemaProjection.wrap(row));
+          writer.deleteKey(keyProjection.wrap(row));
         }
         writer.write(row);
         break;
