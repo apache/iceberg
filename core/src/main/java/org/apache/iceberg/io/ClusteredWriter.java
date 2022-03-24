@@ -99,7 +99,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       this.currentWriter = newWriter(currentSpec, currentPartition);
     }
 
-    PathOffset pathOffset = PathOffset.of(currentWriter.location(), currentWriter.rowOffset());
+    PathOffset pathOffset = PathOffset.of(currentWriter.location(), currentWriter.recordCount());
     currentWriter.write(row);
 
     return pathOffset;

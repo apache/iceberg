@@ -90,7 +90,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
   }
 
   @Override
-  public long rowOffset() {
+  public long recordCount() {
     return currentFileRows;
   }
 

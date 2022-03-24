@@ -62,11 +62,11 @@ public interface FileWriter<T, R> extends Closeable {
   CharSequence location();
 
   /**
-   * Returns the row offset that are currently writing, starting from 0.
+   * Returns the number of top-level records in this file.
    *
    * @return the current row offset.
    */
-  long rowOffset();
+  long recordCount();
 
   /**
    * Returns the number of bytes that were currently written by this writer.

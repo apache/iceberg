@@ -39,7 +39,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   private final ByteBuffer keyMetadata;
   private final SortOrder sortOrder;
   private DataFile dataFile = null;
-  private long rowOffset = 0;
+  private long recordCount = 0;
 
   public DataWriter(FileAppender<T> appender, FileFormat format, String location,
                     PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata) {
@@ -60,7 +60,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   @Override
   public void write(T row) {
     appender.add(row);
-    rowOffset += 1;
+    recordCount += 1;
   }
 
   @Override
@@ -69,8 +69,8 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   }
 
   @Override
-  public long rowOffset() {
-    return rowOffset;
+  public long recordCount() {
+    return recordCount;
   }
 
   /**
