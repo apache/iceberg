@@ -21,7 +21,6 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +28,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
+
+import org.apache.commons.compress.utils.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -135,7 +136,7 @@ public class TableMigrationUtil {
   private static List<FileStatus> listStatus(Configuration conf, String partitionUri) throws IOException {
     Path partition = new Path(partitionUri);
     FileSystem fs = partition.getFileSystem(conf);
-    List<FileStatus> fileStatus = new ArrayList<>();
+    List<FileStatus> fileStatus = Lists.newArrayList();
     RemoteIterator<LocatedFileStatus> iterators = fs.listFiles(partition, true);
     while (iterators.hasNext()) {
       LocatedFileStatus status = iterators.next();
