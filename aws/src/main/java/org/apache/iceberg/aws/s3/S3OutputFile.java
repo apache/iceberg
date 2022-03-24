@@ -32,7 +32,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class S3OutputFile extends BaseS3File implements OutputFile {
   public static S3OutputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
       MetricsContext metrics) {
-    return new S3OutputFile(client, new S3URI(location), awsProperties, metrics);
+    return new S3OutputFile(client, new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        awsProperties, metrics);
   }
 
   S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
