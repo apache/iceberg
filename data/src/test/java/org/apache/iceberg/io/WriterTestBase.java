@@ -22,16 +22,25 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 
 public abstract class WriterTestBase<T> extends TableTestBase {
@@ -74,6 +83,43 @@ public abstract class WriterTestBase<T> extends TableTestBase {
       reader.forEach(set::add);
     }
     return set;
+  }
+
+  protected List<Record> readFile(FileFormat format, Schema schema, CharSequence path) throws IOException {
+    CloseableIterable<Record> iterable;
+
+    InputFile inputFile = Files.localInput(path.toString());
+    switch (format) {
+      case PARQUET:
+        iterable = Parquet.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build();
+        break;
+
+      case AVRO:
+        iterable = Avro.read(inputFile)
+            .project(schema)
+            .createReaderFunc(DataReader::create)
+            .build();
+        break;
+
+      case ORC:
+        iterable = ORC.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .build();
+        break;
+
+      default:
+        throw new UnsupportedOperationException("Unsupported file format: " + format);
+    }
+
+    List<Record> records = Lists.newArrayList();
+    try (CloseableIterable<Record> reader = iterable) {
+      reader.forEach(records::add);
+    }
+    return records;
   }
 
   protected DataFile writeData(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
