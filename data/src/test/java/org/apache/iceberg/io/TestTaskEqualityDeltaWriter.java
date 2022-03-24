@@ -472,7 +472,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       GenericRecord keyProjection = eqDeleteRecord.copy();
       for (String field : eqDeleteColumns) {
         keyProjection.setField(field, key.getField(field));
-        keyProjection.setField(field, key.getField(field));
       }
       deltaWriter.deleteKey(keyProjection);
     }
