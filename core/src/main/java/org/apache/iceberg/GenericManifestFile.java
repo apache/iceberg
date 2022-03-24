@@ -61,6 +61,7 @@ public class GenericManifestFile
   private Long deletedRowsCount = null;
   private PartitionFieldSummary[] partitions = null;
   private byte[] keyMetadata = null;
+  private long writeId = 0;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -105,6 +106,7 @@ public class GenericManifestFile
     this.partitions = null;
     this.fromProjectionPos = null;
     this.keyMetadata = null;
+    this.writeId = 0;
   }
 
   public GenericManifestFile(String path, long length, int specId, ManifestContent content,
@@ -112,6 +114,16 @@ public class GenericManifestFile
                              int addedFilesCount, long addedRowsCount, int existingFilesCount,
                              long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
                              List<PartitionFieldSummary> partitions, ByteBuffer keyMetadata) {
+    this(path, length, specId, content, sequenceNumber, minSequenceNumber, snapshotId, addedFilesCount,
+           addedRowsCount, existingFilesCount, existingRowsCount, deletedFilesCount, deletedRowsCount,
+            partitions, keyMetadata, 0);
+  }
+
+  public GenericManifestFile(String path, long length, int specId, ManifestContent content,
+                             long sequenceNumber, long minSequenceNumber, Long snapshotId,
+                             int addedFilesCount, long addedRowsCount, int existingFilesCount,
+                             long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
+                             List<PartitionFieldSummary> partitions, ByteBuffer keyMetadata, long writeId) {
     this.avroSchema = AVRO_SCHEMA;
     this.manifestPath = path;
     this.length = length;
@@ -129,6 +141,7 @@ public class GenericManifestFile
     this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.fromProjectionPos = null;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.writeId = writeId;
   }
 
   /**
@@ -151,6 +164,7 @@ public class GenericManifestFile
     this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
     this.deletedRowsCount = toCopy.deletedRowsCount;
+    this.writeId = toCopy.writeId;
     if (toCopy.partitions != null) {
       this.partitions = Stream.of(toCopy.partitions)
           .map(PartitionFieldSummary::copy)
@@ -209,6 +223,11 @@ public class GenericManifestFile
   @Override
   public long minSequenceNumber() {
     return minSequenceNumber;
+  }
+
+  @Override
+  public long writeId() {
+    return writeId;
   }
 
   @Override
@@ -304,6 +323,8 @@ public class GenericManifestFile
         return partitions();
       case 14:
         return keyMetadata();
+      case 15:
+        return writeId;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -365,6 +386,9 @@ public class GenericManifestFile
       case 14:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
+      case 15:
+        this.writeId = value != null ? (Long) value : 0;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -419,6 +443,7 @@ public class GenericManifestFile
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("sequence_number", sequenceNumber)
         .add("min_sequence_number", minSequenceNumber)
+        .add("write_id", writeId)
         .toString();
   }
 
@@ -438,7 +463,7 @@ public class GenericManifestFile
             toCopy.sequenceNumber(), toCopy.minSequenceNumber(), toCopy.snapshotId(),
             toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
             toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),
-            copyList(toCopy.partitions(), PartitionFieldSummary::copy), toCopy.keyMetadata());
+            copyList(toCopy.partitions(), PartitionFieldSummary::copy), toCopy.keyMetadata(), toCopy.writeId());
       }
     }
 

@@ -115,6 +115,7 @@ public class SnapshotParser {
         "Cannot parse table version from a non-object: %s", node);
 
     long sequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    long writeId = TableMetadata.INITIAL_WRITE_ID;
     if (node.has(SEQUENCE_NUMBER)) {
       sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, node);
     }
@@ -151,7 +152,7 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList);
+          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList, writeId);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be

@@ -51,6 +51,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private int deletedFiles = 0;
   private long deletedRows = 0L;
   private Long minSequenceNumber = null;
+  private long writeId = -1;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
@@ -100,6 +101,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    */
   @Override
   public void add(F addedFile) {
+    if (writeId > 0) {
+      reused.setWriteId(writeId);
+    }
     addEntry(reused.wrapAppend(snapshotId, addedFile));
   }
 
@@ -113,12 +117,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
    * @param sequenceNumber sequence number for the data file
    */
   public void add(F addedFile, long sequenceNumber) {
-    addEntry(reused.wrapAppend(snapshotId, sequenceNumber, addedFile));
+    addEntry(reused.wrapAppend(snapshotId, sequenceNumber, writeId, addedFile));
   }
 
   void add(ManifestEntry<F> entry) {
     if (entry.sequenceNumber() != null && entry.sequenceNumber() >= 0) {
-      addEntry(reused.wrapAppend(snapshotId, entry.sequenceNumber(), entry.file()));
+      addEntry(reused.wrapAppend(snapshotId, entry.sequenceNumber(), entry.writeId(), entry.file()));
     } else {
       addEntry(reused.wrapAppend(snapshotId, entry.file()));
     }
@@ -135,8 +139,20 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile));
   }
 
+  /**
+   * Add an existing entry for a file.
+   *
+   * @param existingFile a file
+   * @param fileSnapshotId snapshot ID when the data file was added to the table
+   * @param sequenceNumber sequence number for the data file
+   * @param writeId write id to track datafiles change
+   */
+  public void existing(F existingFile, long fileSnapshotId, long sequenceNumber, long writeId) {
+    addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile, writeId));
+  }
+
   void existing(ManifestEntry<F> entry) {
-    addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
+    addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file(), entry.writeId()));
   }
 
   /**
@@ -153,7 +169,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   void delete(ManifestEntry<F> entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
-    addEntry(reused.wrapDelete(snapshotId, entry.file()));
+    addEntry(reused.wrapDelete(snapshotId, entry.file(), entry.writeId()));
   }
 
   @Override
@@ -173,7 +189,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
     return new GenericManifestFile(file.location(), writer.length(), specId, content(),
         UNASSIGNED_SEQ, minSeqNumber, snapshotId,
-        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
+        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows,
+        stats.summaries(), null, writeId);
+  }
+
+  public long getWriteId() {
+    return writeId;
+  }
+
+  public void setWriteId(long writeId) {
+    this.writeId = writeId;
   }
 
   @Override

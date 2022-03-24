@@ -81,7 +81,8 @@ public class RewriteDataFilesCommitManager {
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
       long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber);
+      long writeId = table.snapshot(startingSnapshotId).writeId();
+      rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles, sequenceNumber, writeId);
     } else {
       rewrite.rewriteFiles(rewrittenDataFiles, addedDataFiles);
     }

@@ -87,6 +87,7 @@ public class TableMetadataParser {
   static final String TABLE_UUID = "table-uuid";
   static final String LOCATION = "location";
   static final String LAST_SEQUENCE_NUMBER = "last-sequence-number";
+  static final String LAST_WRITE_ID = "last-write-id";
   static final String LAST_UPDATED_MILLIS = "last-updated-ms";
   static final String LAST_COLUMN_ID = "last-column-id";
   static final String SCHEMA = "schema";
@@ -163,6 +164,7 @@ public class TableMetadataParser {
     generator.writeStringField(LOCATION, metadata.location());
     if (metadata.formatVersion() > 1) {
       generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
+      generator.writeNumberField(LAST_WRITE_ID, metadata.lastWriteId());
     }
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
@@ -313,10 +315,13 @@ public class TableMetadataParser {
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
     long lastSequenceNumber;
+    long lastWriteId;
     if (formatVersion > 1) {
       lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
+      lastWriteId = JsonUtil.getLong(LAST_WRITE_ID, node);
     } else {
       lastSequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
+      lastWriteId = TableMetadata.INITIAL_WRITE_ID;
     }
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
 
@@ -454,7 +459,7 @@ public class TableMetadataParser {
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
         snapshots, entries.build(), metadataEntries.build(), refs,
-        ImmutableList.of() /* no changes from the file */);
+        ImmutableList.of(), lastWriteId/* no changes from the file */);
   }
 
   private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {

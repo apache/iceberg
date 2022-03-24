@@ -126,6 +126,11 @@ class V1Metadata {
     }
 
     @Override
+    public long writeId() {
+      return wrapped.writeId();
+    }
+
+    @Override
     public Long snapshotId() {
       return wrapped.snapshotId();
     }
@@ -288,6 +293,16 @@ class V1Metadata {
     @Override
     public void setSequenceNumber(long sequenceNumber) {
       wrapped.setSequenceNumber(sequenceNumber);
+    }
+
+    @Override
+    public Long writeId() {
+      return wrapped.writeId();
+    }
+
+    @Override
+    public void setWriteId(long writeId) {
+      wrapped.setWriteId(writeId);
     }
 
     @Override

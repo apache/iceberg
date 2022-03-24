@@ -326,6 +326,11 @@ public class TestHelpers {
     }
 
     @Override
+    public long writeId() {
+      return 0;
+    }
+
+    @Override
     public Long snapshotId() {
       return snapshotId;
     }

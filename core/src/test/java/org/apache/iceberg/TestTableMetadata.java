@@ -190,7 +190,7 @@ public class TestTableMetadata {
         ImmutableList.of(schema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
         currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of(),
-        ImmutableMap.of(), ImmutableList.of());
+        ImmutableMap.of(), ImmutableList.of(), 0);
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), asJson);
@@ -393,7 +393,7 @@ public class TestTableMetadata {
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of(), 0);
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), asJson);
@@ -430,7 +430,7 @@ public class TestTableMetadata {
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of(), 0);
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -479,7 +479,7 @@ public class TestTableMetadata {
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of(), 0);
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -533,7 +533,7 @@ public class TestTableMetadata {
         SortOrder.unsorted().orderId(), ImmutableList.of(SortOrder.unsorted()),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
-        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of());
+        ImmutableList.copyOf(previousMetadataLog), ImmutableMap.of(), ImmutableList.of(), 0);
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -559,7 +559,8 @@ public class TestTableMetadata {
             LAST_ASSIGNED_COLUMN_ID, 7, ImmutableList.of(TEST_SCHEMA),
             SPEC_5.specId(), ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
             3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
-            ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of())
+            ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(),
+            ImmutableList.of())
     );
   }
 

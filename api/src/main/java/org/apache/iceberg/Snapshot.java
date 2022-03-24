@@ -42,6 +42,16 @@ public interface Snapshot extends Serializable {
   long sequenceNumber();
 
   /**
+   * A monotonically increasing long that tracks the order of changes to the table.
+   * However, this sequence number will not be impacted by compaction.
+   * <p>
+   * Write id are assigned when a snapshot is committed.
+   *
+   * @return a long write id
+   */
+  long writeId();
+
+  /**
    * Return this snapshot's ID.
    *
    * @return a long ID
@@ -135,4 +145,5 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
 }

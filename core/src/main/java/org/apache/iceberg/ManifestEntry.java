@@ -46,15 +46,17 @@ interface ManifestEntry<F extends ContentFile<F>> {
   Types.NestedField STATUS = required(0, "status", Types.IntegerType.get());
   Types.NestedField SNAPSHOT_ID = optional(1, "snapshot_id", Types.LongType.get());
   Types.NestedField SEQUENCE_NUMBER = optional(3, "sequence_number", Types.LongType.get());
+  Types.NestedField WRITE_ID = optional(4, "write_id", Types.LongType.get());
   int DATA_FILE_ID = 2;
-  // next ID to assign: 4
+  // next ID to assign: 5
 
   static Schema getSchema(StructType partitionType) {
     return wrapFileSchema(DataFile.getType(partitionType));
   }
 
   static Schema wrapFileSchema(StructType fileType) {
-    return new Schema(STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, required(DATA_FILE_ID, "data_file", fileType));
+    return new Schema(STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, required(DATA_FILE_ID, "data_file", fileType),
+            WRITE_ID);
   }
 
   /**
@@ -85,6 +87,18 @@ interface ManifestEntry<F extends ContentFile<F>> {
    * @param sequenceNumber a sequence number
    */
   void setSequenceNumber(long sequenceNumber);
+
+  /**
+   * Returns write id of the snapshot in which the file was added to the table.
+   */
+  Long writeId();
+
+  /**
+   * Set write id for this manifest entry.
+   *
+   * @param writeId write id
+   */
+  void setWriteId(long writeId);
 
   /**
    * Returns a file.

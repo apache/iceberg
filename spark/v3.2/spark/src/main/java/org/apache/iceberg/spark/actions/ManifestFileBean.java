@@ -138,6 +138,11 @@ public class ManifestFileBean implements ManifestFile {
   }
 
   @Override
+  public long writeId() {
+    return 0;
+  }
+
+  @Override
   public ManifestFile copy() {
     throw new UnsupportedOperationException("Cannot copy");
   }

@@ -71,6 +71,13 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
+  public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber, long writeId) {
+    setNewFilesSequenceNumber(sequenceNumber);
+    setNewWriteId(writeId + 1);
+    return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
+  }
+
+  @Override
   public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToReplace, Set<DeleteFile> deleteFilesToReplace,
                                    Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
     verifyInputAndOutputFiles(dataFilesToReplace, deleteFilesToReplace, dataFilesToAdd, deleteFilesToAdd);

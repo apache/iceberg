@@ -195,6 +195,9 @@ public class ValueWriters {
 
     @Override
     public void write(Long l, Encoder encoder) throws IOException {
+      if (l == null) {
+        l = null;
+      }
       encoder.writeLong(l);
     }
   }

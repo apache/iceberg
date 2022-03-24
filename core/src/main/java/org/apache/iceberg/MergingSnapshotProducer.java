@@ -86,6 +86,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
   private Long newFilesSequenceNumber;
+  private Long newWriteId;
   private final Map<Integer, List<DeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -571,6 +572,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     this.newFilesSequenceNumber = sequenceNumber;
   }
 
+  protected void setNewWriteId(long writeId) {
+    this.newWriteId = writeId;
+  }
+
   private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
     if (staringSnapshotId != null && metadata.snapshot(staringSnapshotId) != null) {
       Snapshot startingSnapshot = metadata.snapshot(staringSnapshotId);
@@ -699,6 +704,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // only keep manifests that have live data files or that were written by this commit
     Predicate<ManifestFile> shouldKeep = manifest ->
         manifest.hasAddedFiles() || manifest.hasExistingFiles() || manifest.snapshotId() == snapshotId();
+
+    setNewWriteId(base.nextWriteId());
+
     Iterable<ManifestFile> unmergedManifests = Iterables.filter(
         Iterables.concat(prepareNewManifests(), filtered), shouldKeep);
     Iterable<ManifestFile> unmergedDeleteManifests = Iterables.filter(
@@ -808,6 +816,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (cachedNewManifest == null) {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
+        writer.setWriteId(newWriteId);
         try {
           if (newFilesSequenceNumber == null) {
             writer.addAll(newFiles);
@@ -851,6 +860,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         PartitionSpec spec = ops.current().spec(specId);
         try {
           ManifestWriter<DeleteFile> writer = newDeleteManifestWriter(spec);
+          writer.setWriteId(newWriteId);
           try {
             writer.addAll(deleteFiles);
           } finally {

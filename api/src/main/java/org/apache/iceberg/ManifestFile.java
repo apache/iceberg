@@ -64,14 +64,16 @@ public interface ManifestFile {
       "Summary for each partition");
   Types.NestedField KEY_METADATA = optional(519, "key_metadata", Types.BinaryType.get(),
       "Encryption key metadata blob");
-  // next ID to assign: 520
+  Types.NestedField WRITE_ID = optional(520, "write_id", Types.LongType.get(),
+          "Write id to track datafiles change");
+  // next ID to assign: 521
 
   Schema SCHEMA = new Schema(
       PATH, LENGTH, SPEC_ID, MANIFEST_CONTENT,
       SEQUENCE_NUMBER, MIN_SEQUENCE_NUMBER, SNAPSHOT_ID,
       ADDED_FILES_COUNT, EXISTING_FILES_COUNT, DELETED_FILES_COUNT,
       ADDED_ROWS_COUNT, EXISTING_ROWS_COUNT, DELETED_ROWS_COUNT,
-      PARTITION_SUMMARIES, KEY_METADATA);
+      PARTITION_SUMMARIES, KEY_METADATA, WRITE_ID);
 
   static Schema schema() {
     return SCHEMA;
@@ -187,6 +189,11 @@ public interface ManifestFile {
   default ByteBuffer keyMetadata() {
     return null;
   }
+
+  /**
+   * Returns write id of the commit that added the manifest file.It is to track datafile change.
+   */
+  long writeId();
 
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use

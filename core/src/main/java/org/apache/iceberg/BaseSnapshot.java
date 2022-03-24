@@ -34,11 +34,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
+  private static final long INITIAL_WRITE_ID = 0;
 
   private final FileIO io;
   private final long snapshotId;
   private final Long parentId;
   private final long sequenceNumber;
+  private final long writeId;
   private final long timestampMillis;
   private final String manifestListLocation;
   private final String operation;
@@ -73,15 +75,8 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                Integer schemaId,
                String manifestList) {
-    this.io = io;
-    this.sequenceNumber = sequenceNumber;
-    this.snapshotId = snapshotId;
-    this.parentId = parentId;
-    this.timestampMillis = timestampMillis;
-    this.operation = operation;
-    this.summary = summary;
-    this.schemaId = schemaId;
-    this.manifestListLocation = manifestList;
+    this(io, sequenceNumber, snapshotId, parentId,
+            timestampMillis, operation, summary, schemaId, manifestList, INITIAL_WRITE_ID);
   }
 
   BaseSnapshot(FileIO io,
@@ -96,9 +91,36 @@ class BaseSnapshot implements Snapshot {
     this.allManifests = dataManifests;
   }
 
+  BaseSnapshot(FileIO io,
+               long sequenceNumber,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               String operation,
+               Map<String, String> summary,
+               Integer schemaId,
+               String manifestList,
+               long writeId) {
+    this.io = io;
+    this.sequenceNumber = sequenceNumber;
+    this.snapshotId = snapshotId;
+    this.parentId = parentId;
+    this.timestampMillis = timestampMillis;
+    this.operation = operation;
+    this.summary = summary;
+    this.schemaId = schemaId;
+    this.manifestListLocation = manifestList;
+    this.writeId = writeId;
+  }
+
   @Override
   public long sequenceNumber() {
     return sequenceNumber;
+  }
+
+  @Override
+  public long writeId() {
+    return writeId;
   }
 
   @Override
@@ -241,7 +263,8 @@ class BaseSnapshot implements Snapshot {
           Objects.equal(this.parentId, other.parentId()) &&
           this.sequenceNumber == other.sequenceNumber() &&
           this.timestampMillis == other.timestampMillis() &&
-          Objects.equal(this.schemaId, other.schemaId());
+          Objects.equal(this.schemaId, other.schemaId()) &&
+          this.writeId == other.writeId();
     }
 
     return false;
@@ -254,7 +277,8 @@ class BaseSnapshot implements Snapshot {
       this.parentId,
       this.sequenceNumber,
       this.timestampMillis,
-      this.schemaId
+      this.schemaId,
+       this.writeId
     );
   }
 

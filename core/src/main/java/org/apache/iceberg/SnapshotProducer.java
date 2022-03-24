@@ -170,6 +170,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
+    long writeId = base.nextWriteId();
 
     // run validations from the child operation
     validate(base);
@@ -180,7 +181,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       OutputFile manifestList = manifestListPath();
 
       try (ManifestListWriter writer = ManifestLists.write(
-          ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber)) {
+          ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber, writeId)) {
 
         // keep track of the manifest lists created
         manifestLists.add(manifestList.location());
@@ -201,7 +202,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          base.currentSchemaId(), manifestList.location());
+          base.currentSchemaId(), manifestList.location(), writeId);
 
     } else {
       return new BaseSnapshot(ops.io(),
@@ -458,7 +459,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
           ManifestContent.DATA, manifest.sequenceNumber(), manifest.minSequenceNumber(), snapshotId,
-          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
+          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(),
+              null, manifest.writeId());
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());

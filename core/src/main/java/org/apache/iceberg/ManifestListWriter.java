@@ -74,12 +74,17 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     private final V2Metadata.IndexedManifestFile wrapper;
 
     V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+      this(snapshotFile, snapshotId, parentSnapshotId, sequenceNumber, 0);
+    }
+
+    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber, long writeId) {
       super(snapshotFile, ImmutableMap.of(
           "snapshot-id", String.valueOf(snapshotId),
           "parent-snapshot-id", String.valueOf(parentSnapshotId),
           "sequence-number", String.valueOf(sequenceNumber),
-          "format-version", "2"));
-      this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
+          "format-version", "2",
+          "writeId", String.valueOf(writeId)));
+      this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber, writeId);
     }
 
     @Override

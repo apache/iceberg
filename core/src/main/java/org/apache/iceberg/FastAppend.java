@@ -51,6 +51,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private ManifestFile newManifest = null;
   private boolean hasNewFiles = false;
+  private long writeId = -1;
 
   FastAppend(String tableName, TableOperations ops) {
     super(ops);

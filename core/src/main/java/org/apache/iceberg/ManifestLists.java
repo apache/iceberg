@@ -55,10 +55,23 @@ class ManifestLists {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
-            "Invalid sequence number for v1 manifest list: %s", sequenceNumber);
+                "Invalid sequence number for v1 manifest list: %s", sequenceNumber);
         return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
       case 2:
         return new ManifestListWriter.V2Writer(manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+    }
+    throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
+  }
+
+  static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
+                                  long snapshotId, Long parentSnapshotId, long sequenceNumber, long writeId) {
+    switch (formatVersion) {
+      case 1:
+        Preconditions.checkArgument(sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
+            "Invalid sequence number for v1 manifest list: %s", sequenceNumber);
+        return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
+      case 2:
+        return new ManifestListWriter.V2Writer(manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, writeId);
     }
     throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
   }

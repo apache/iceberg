@@ -35,7 +35,8 @@ class InheritableMetadataFactory {
   static InheritableMetadata fromManifest(ManifestFile manifest) {
     Preconditions.checkArgument(manifest.snapshotId() != null,
         "Cannot read from ManifestFile with null (unassigned) snapshot ID");
-    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber());
+    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(),
+            manifest.sequenceNumber(), manifest.writeId());
   }
 
   static InheritableMetadata forCopy(long snapshotId) {
@@ -46,11 +47,17 @@ class InheritableMetadataFactory {
     private final int specId;
     private final long snapshotId;
     private final long sequenceNumber;
+    private final long writeId;
 
     private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber) {
+      this(specId, snapshotId, sequenceNumber, 0);
+    }
+
+    private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber, long writeId) {
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
+      this.writeId = writeId;
     }
 
     @Override
@@ -64,6 +71,9 @@ class InheritableMetadataFactory {
       }
       if (manifestEntry.sequenceNumber() == null) {
         manifestEntry.setSequenceNumber(sequenceNumber);
+      }
+      if (manifestEntry.writeId() == null) {
+        manifestEntry.setWriteId(writeId);
       }
       return manifestEntry;
     }

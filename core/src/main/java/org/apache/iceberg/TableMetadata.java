@@ -56,6 +56,8 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
+  static final long INITIAL_WRITE_ID = 0;
+  static final long INVALID_WRITE_ID = -1;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -126,7 +128,7 @@ public class TableMetadata implements Serializable {
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
-        ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of());
+        ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of(), INITIAL_WRITE_ID);
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -222,6 +224,7 @@ public class TableMetadata implements Serializable {
   private final String uuid;
   private final String location;
   private final long lastSequenceNumber;
+  private final long lastWriteId;
   private final long lastUpdatedMillis;
   private final int lastColumnId;
   private final int currentSchemaId;
@@ -265,6 +268,35 @@ public class TableMetadata implements Serializable {
                 List<MetadataLogEntry> previousFiles,
                 Map<String, SnapshotRef> refs,
                 List<MetadataUpdate> changes) {
+    this(metadataFileLocation, formatVersion, uuid, location, lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId,
+            schemas, defaultSpecId, specs, lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+            snapshots, snapshotLog, previousFiles, refs, changes, 0);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  TableMetadata(String metadataFileLocation,
+                int formatVersion,
+                String uuid,
+                String location,
+                long lastSequenceNumber,
+                long lastUpdatedMillis,
+                int lastColumnId,
+                int currentSchemaId,
+                List<Schema> schemas,
+                int defaultSpecId,
+                List<PartitionSpec> specs,
+                int lastAssignedPartitionId,
+                int defaultSortOrderId,
+                List<SortOrder> sortOrders,
+                Map<String, String> properties,
+                long currentSnapshotId,
+                List<Snapshot> snapshots,
+                List<HistoryEntry> snapshotLog,
+                List<MetadataLogEntry> previousFiles,
+                Map<String, SnapshotRef> refs,
+                List<MetadataUpdate> changes,
+                long lastWriteId) {
+
     Preconditions.checkArgument(specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
     Preconditions.checkArgument(formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
@@ -275,12 +307,15 @@ public class TableMetadata implements Serializable {
         "Sequence number must be 0 in v1: %s", lastSequenceNumber);
     Preconditions.checkArgument(metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
+    Preconditions.checkArgument(formatVersion > 1 || lastWriteId == 0,
+            "Write id must be 0 in v1: %s", lastWriteId);
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
     this.uuid = uuid;
     this.location = location;
     this.lastSequenceNumber = lastSequenceNumber;
+    this.lastWriteId = lastWriteId;
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;
     this.currentSchemaId = currentSchemaId;
@@ -299,7 +334,7 @@ public class TableMetadata implements Serializable {
     // changes are carried through until metadata is read from a file
     this.changes = changes;
 
-    this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
+    this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber, lastWriteId);
     this.schemasById = indexSchemas();
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
@@ -365,8 +400,16 @@ public class TableMetadata implements Serializable {
     return lastSequenceNumber;
   }
 
+  public long lastWriteId() {
+    return lastWriteId;
+  }
+
   public long nextSequenceNumber() {
     return formatVersion > 1 ? lastSequenceNumber + 1 : INITIAL_SEQUENCE_NUMBER;
+  }
+
+  public long nextWriteId() {
+    return formatVersion > 1 ? lastWriteId + 1 : INITIAL_WRITE_ID;
   }
 
   public long lastUpdatedMillis() {
@@ -696,11 +739,19 @@ public class TableMetadata implements Serializable {
   }
 
   private static Map<Long, Snapshot> indexAndValidateSnapshots(List<Snapshot> snapshots, long lastSequenceNumber) {
+    return indexAndValidateSnapshots(snapshots, lastSequenceNumber, 0);
+  }
+
+  private static Map<Long, Snapshot> indexAndValidateSnapshots(List<Snapshot> snapshots,
+                                                               long lastSequenceNumber, long lastWriteId) {
     ImmutableMap.Builder<Long, Snapshot> builder = ImmutableMap.builder();
     for (Snapshot snap : snapshots) {
       ValidationException.check(snap.sequenceNumber() <= lastSequenceNumber,
           "Invalid snapshot with sequence number %s greater than last sequence number %s",
           snap.sequenceNumber(), lastSequenceNumber);
+      ValidationException.check(snap.writeId() <= lastWriteId,
+              "Invalid snapshot with write id %s greater than last write id %s",
+              snap.writeId(), lastWriteId);
       builder.put(snap.snapshotId(), snap);
     }
     return builder.build();
@@ -765,6 +816,7 @@ public class TableMetadata implements Serializable {
     private Long lastUpdatedMillis;
     private String location;
     private long lastSequenceNumber;
+    private long lastWriteId;
     private int lastColumnId;
     private int currentSchemaId;
     private final List<Schema> schemas;
@@ -804,6 +856,7 @@ public class TableMetadata implements Serializable {
       this.lastUpdatedMillis = null;
       this.location = base.location;
       this.lastSequenceNumber = base.lastSequenceNumber;
+      this.lastWriteId = base.lastWriteId;
       this.lastColumnId = base.lastColumnId;
       this.currentSchemaId = base.currentSchemaId;
       this.schemas = Lists.newArrayList(base.schemas);
@@ -989,8 +1042,13 @@ public class TableMetadata implements Serializable {
           "Cannot add snapshot with sequence number %s older than last sequence number %s",
           snapshot.sequenceNumber(), lastSequenceNumber);
 
+      ValidationException.check(formatVersion == 1 || snapshot.writeId() > lastWriteId,
+              "Cannot add snapshot with write id %s older than last write id %s",
+              snapshot.writeId(), lastWriteId);
+
       this.lastUpdatedMillis = snapshot.timestampMillis();
       this.lastSequenceNumber = snapshot.sequenceNumber();
+      this.lastWriteId = snapshot.writeId();
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
@@ -1148,7 +1206,8 @@ public class TableMetadata implements Serializable {
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
           ImmutableMap.copyOf(refs),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes)
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
+          lastWriteId
       );
     }
 
@@ -1295,6 +1354,10 @@ public class TableMetadata implements Serializable {
       ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() <= lastSequenceNumber,
           "Last sequence number %s is less than existing snapshot sequence number %s",
           lastSequenceNumber, snapshot.sequenceNumber());
+
+      ValidationException.check(formatVersion == 1 || snapshot.writeId() <= lastWriteId,
+              "Last write id %s is less than existing snapshot write id %s",
+              lastWriteId, snapshot.writeId());
 
       // if the snapshot was added in this change set, use its timestamp
       this.lastUpdatedMillis = isAddedSnapshot(snapshot.snapshotId()) ?

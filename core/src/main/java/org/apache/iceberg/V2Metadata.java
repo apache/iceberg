@@ -47,7 +47,9 @@ class V2Metadata {
       ManifestFile.ADDED_ROWS_COUNT.asRequired(),
       ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
       ManifestFile.DELETED_ROWS_COUNT.asRequired(),
-      ManifestFile.PARTITION_SUMMARIES
+      ManifestFile.PARTITION_SUMMARIES,
+      ManifestFile.KEY_METADATA,
+      ManifestFile.WRITE_ID
   );
 
   /**
@@ -62,11 +64,17 @@ class V2Metadata {
 
     private final long commitSnapshotId;
     private final long sequenceNumber;
+    private final long writeId;
     private ManifestFile wrapped = null;
 
     IndexedManifestFile(long commitSnapshotId, long sequenceNumber) {
+      this(commitSnapshotId, sequenceNumber,0);
+    }
+
+    IndexedManifestFile(long commitSnapshotId, long sequenceNumber, long writeId) {
       this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
+      this.writeId =  writeId;
     }
 
     public ManifestFile wrap(ManifestFile file) {
@@ -134,6 +142,12 @@ class V2Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          if (wrapped.writeId() <= 0) {
+            return writeId;
+          } else {
+            return wrapped.writeId();
+          }
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -167,6 +181,11 @@ class V2Metadata {
     @Override
     public long minSequenceNumber() {
       return wrapped.minSequenceNumber();
+    }
+
+    @Override
+    public long writeId() {
+      return wrapped.writeId();
     }
 
     @Override
@@ -243,6 +262,7 @@ class V2Metadata {
     // this is used to build projection schemas
     return new Schema(
         ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID, ManifestEntry.SEQUENCE_NUMBER,
+            ManifestEntry.WRITE_ID,
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
@@ -312,8 +332,19 @@ class V2Metadata {
             return null;
           }
           return wrapped.sequenceNumber();
-        case 3:
+        case 4:
           return fileWrapper.wrap(wrapped.file());
+        case 3:
+          if (wrapped.writeId() == null) {
+            // if the entry's write id is null, then it will inherit the write id of the current commit.
+            // to validate that this is correct, check that the snapshot id is either null (will also be inherited) or
+            // that it matches the id of the current commit.
+            Preconditions.checkState(
+                    wrapped.snapshotId() == null || wrapped.snapshotId().equals(commitSnapshotId),
+                    "Found unassigned write id for an entry from snapshot: %s", wrapped.snapshotId());
+            return null;
+          }
+          return wrapped.writeId();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + i);
       }
@@ -342,6 +373,16 @@ class V2Metadata {
     @Override
     public void setSequenceNumber(long sequenceNumber) {
       wrapped.setSequenceNumber(sequenceNumber);
+    }
+
+    @Override
+    public Long writeId() {
+      return wrapped.writeId();
+    }
+
+    @Override
+    public void setWriteId(long writeId) {
+      wrapped.setWriteId(writeId);
     }
 
     @Override
