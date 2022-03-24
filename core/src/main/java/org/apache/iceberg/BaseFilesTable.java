@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -32,6 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base class logic for files metadata tables
@@ -55,6 +59,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   }
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
+    private static final Logger LOG = LoggerFactory.getLogger(BaseFilesTableScan.class);
+
     private final Schema fileSchema;
     private final MetadataTableType type;
 
@@ -85,6 +91,18 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     public TableScan appendsAfter(long fromSnapshotId) {
       throw new UnsupportedOperationException(
           String.format("Cannot incrementally scan table of type %s", type.name()));
+    }
+
+    @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+        LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
+        Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
+
+        return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
+      } else {
+        return super.planFiles();
+      }
     }
 
     @Override
