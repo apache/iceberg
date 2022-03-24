@@ -177,15 +177,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private def isIcebergCommand(sqlText: String): Boolean = {
     val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
-//      .replaceAll("\\s+", " ")
-//      .replaceAll("(?m)^--.*$", "") // replace all simple single line SQL comments
-//      .replaceAll("/\\*.*?\\*/", "") // replace bracketed SQL comments
       // Catch all SQL comments, including simple comments (that start with --), as well as multiline comments
       .replaceAll("(?ms)/\\*.*?\\*/|--.*?\\n", " ")
-      // replace new lines - needed for getting multiline comments that have SQL text after them
-      .replaceAll("\\s+", " ") // replace new lines - needed for getting multiline comments
-//      .replaceAll("/\\*.*?\\*/", "") // replace bracketed SQL comments
-      .replaceAll("\\s+", " ") // replace newlines
+      // Replace any remaining newlines
+      .replaceAll("\\s+", " ")
       .trim()
     normalized.startsWith("call") || (
         normalized.startsWith("alter table") && (
