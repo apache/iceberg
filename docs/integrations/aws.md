@@ -435,6 +435,23 @@ For the above example, the objects in S3 will be saved with tags: `my_key1=my_va
 
 For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
 
+### S3 AccessPoints
+
+[AccessPoints](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used for operating
+s3 objects from the specified bucket, against which access-point was mapped.
+For example, to use S3 access-point with Spark 3.0, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.test.s3.access-points.my-bucket=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
+```
+For the above example, the objects in S3 on `my-bucket` bucket will use `arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap`
+access-point for all S3 operations.
+
+For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html).
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
