@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,10 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Metrics;
@@ -90,11 +93,7 @@ public class TableMigrationUtil {
               .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
               .collect(Collectors.joining("/"));
 
-      Path partition = new Path(partitionUri);
-      FileSystem fs = partition.getFileSystem(conf);
-      List<FileStatus> fileStatus = Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-              .filter(FileStatus::isFile)
-              .collect(Collectors.toList());
+      List<FileStatus> fileStatus = listStatus(conf, partitionUri);
       DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task = Tasks.range(fileStatus.size())
               .stopOnFailure()
@@ -131,6 +130,20 @@ public class TableMigrationUtil {
         service.shutdown();
       }
     }
+  }
+
+  private static List<FileStatus> listStatus(Configuration conf, String partitionUri) throws IOException {
+    Path partition = new Path(partitionUri);
+    FileSystem fs = partition.getFileSystem(conf);
+    List<FileStatus> fileStatus = new ArrayList<>();
+    RemoteIterator<LocatedFileStatus> iterators = fs.listFiles(partition, true);
+    while (iterators.hasNext()) {
+      LocatedFileStatus status = iterators.next();
+      if (status.isFile() && HIDDEN_PATH_FILTER.accept(status.getPath())) {
+        fileStatus.add(status);
+      }
+    }
+    return fileStatus;
   }
 
   private static Metrics getAvroMetrics(Path path,  Configuration conf) {
