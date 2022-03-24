@@ -26,9 +26,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/**
- * Table metadata result when loading a table
- */
 public class LoadTableResponse {
 
   private String metadataLocation;

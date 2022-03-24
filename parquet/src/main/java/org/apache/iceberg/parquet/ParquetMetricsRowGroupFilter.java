@@ -565,7 +565,6 @@ public class ParquetMetricsRowGroupFilter {
     return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
   }
 
-  @SuppressWarnings("UnusedMethod")
   private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {
     Function<Object, Object> fromParquet = ParquetConversions.converterFromParquet(parquetType);
     if (icebergType != null) {
