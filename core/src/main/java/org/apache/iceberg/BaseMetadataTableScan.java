@@ -37,6 +37,13 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
     super(ops, table, schema, context);
   }
 
+  /**
+   * @return if metadata table scan is for all snapshots, ie 'all_x' metadata tables
+   */
+  protected boolean allScan() {
+    return false;
+  }
+
   @Override
   public long targetSplitSize() {
     long tableValue = tableOps().current().propertyAsLong(
@@ -45,13 +52,15 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 
-  /**
-   * Alternative to {@link #planFiles()}, allows exploring old snapshots even for empty table.
-   */
-  protected CloseableIterable<FileScanTask> planAllFiles() {
-    LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
-    Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
+  @Override
+  public CloseableIterable<FileScanTask> planFiles() {
+    if (allScan()) { // Avoid returning early for empty tables
+      LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
+      Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
 
-    return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
+      return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
+    } else {
+      return super.planFiles();
+    }
   }
 }
