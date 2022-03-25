@@ -39,10 +39,10 @@ class Schema:
     Example:
         >>> from iceberg.table.schema import Schema
         >>> from iceberg.types import BooleanType, IntegerType, NestedField, StringType
-        >>> fields = [
-            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        >>> fields = [ \
+            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False), \
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True), \
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False), \
         ]
         >>> table_schema = Schema(fields=fields, schema_id=1, aliases={"qux": 3})
         >>> print(table_schema)
@@ -196,10 +196,10 @@ class IndexById(SchemaVisitor):
     Example:
         >>> from iceberg.table.schema import IndexById, Schema
         >>> from iceberg.types import BooleanType, IntegerType, NestedField, StringType
-        >>> fields = [
-            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        >>> fields = [ \
+            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False), \
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True), \
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False), \
         ]
         >>> table_schema = Schema(fields=fields, schema_id=1)
         >>> visitor = IndexById()
@@ -275,10 +275,10 @@ class IndexByName(SchemaVisitor):
     Example:
         >>> from iceberg.table.schema import IndexByName, Schema
         >>> from iceberg.types import BooleanType, IntegerType, NestedField, StringType
-        >>> fields = [
-            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        >>> fields = [ \
+            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False), \
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True), \
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False), \
         ]
         >>> table_schema = Schema(fields=fields, schema_id=1)
         >>> visitor = IndexByName()
