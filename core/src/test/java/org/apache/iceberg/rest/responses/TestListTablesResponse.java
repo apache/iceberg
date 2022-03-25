@@ -146,6 +146,8 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
 
   @Override
   public ListTablesResponse deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, ListTablesResponse.class).validate();
+    ListTablesResponse resp = mapper().readValue(json, ListTablesResponse.class);
+    resp.validate();
+    return resp;
   }
 }

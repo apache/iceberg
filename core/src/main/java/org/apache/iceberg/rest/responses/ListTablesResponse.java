@@ -26,11 +26,12 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.rest.RESTResponse;
 
 /**
  * A list of table identifiers in a given namespace.
  */
-public class ListTablesResponse {
+public class ListTablesResponse implements RESTResponse {
 
   private List<TableIdentifier> identifiers;
 
@@ -43,9 +44,9 @@ public class ListTablesResponse {
     validate();
   }
 
-  ListTablesResponse validate() {
+  @Override
+  public void validate() {
     Preconditions.checkArgument(identifiers != null, "Invalid identifier list: null");
-    return this;
   }
 
   public List<TableIdentifier> identifiers() {

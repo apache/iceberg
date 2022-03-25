@@ -28,11 +28,12 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTRequest;
 
 /**
  * A REST request to create a namespace, with an optional set of properties.
  */
-public class CreateTableRequest {
+public class CreateTableRequest implements RESTRequest {
 
   private String name;
   private String location;
@@ -56,10 +57,10 @@ public class CreateTableRequest {
     validate();
   }
 
-  public CreateTableRequest validate() {
+  @Override
+  public void validate() {
     Preconditions.checkArgument(name != null, "Invalid table name: null");
     Preconditions.checkArgument(schema != null, "Invalid schema: null");
-    return this;
   }
 
   public String name() {
