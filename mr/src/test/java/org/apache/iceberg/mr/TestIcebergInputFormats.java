@@ -90,6 +90,8 @@ public class TestIcebergInputFormats {
           .bucket("id", 1)
           .build();
 
+  private static final String[] ANYWHERE = new String[] { "*" };
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -332,7 +334,6 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testLocality() throws Exception {
-    String[] ANYWHERE = new String[] { "*" };
     helper.createUnpartitionedTable();
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(null, expectedRecords);
