@@ -140,8 +140,7 @@ public class TestCallStatementParser {
   }
 
   @Test
-  public void testCallStripsLeadingComments() throws ParseException {
-    // These comments are meant to look like those that systems like DBT would add to statements.
+  public void testCallStripsComments() throws ParseException {
     List<String> callStatementsWithComments = Lists.newArrayList(
         "/* bracketed comment */  CALL cat.system.func('${spark.extra.prop}')",
         "/**/  CALL cat.system.func('${spark.extra.prop}')",
@@ -149,7 +148,9 @@ public class TestCallStatementParser {
         "-- multiple \n-- single line \n-- comments \n CALL cat.system.func('${spark.extra.prop}')",
         "/* select * from multiline_comment \n where x like '%sql%'; */ CALL cat.system.func('${spark.extra.prop}')",
         "/* {\"app\": \"dbt\", \"dbt_version\": \"1.0.1\", \"profile_name\": \"profile1\", \"target_name\": \"dev\", " +
-            "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')"
+            "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')",
+        "/* Some multi-line comment \n" +
+            "*/ CALL /* inline comment */ cat.system.func('${spark.extra.prop}') -- ending comment"
     );
     for (String sqlText : callStatementsWithComments) {
       CallStatement call = (CallStatement) parser.parsePlan(sqlText);
