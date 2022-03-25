@@ -108,7 +108,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
 
   @Override
   public void deleteFile(String path) {
-    S3URI location = new S3URI(path);
+    S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
     DeleteObjectRequest deleteRequest =
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
@@ -128,7 +128,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
     SetMultimap<String, String> bucketToObjects = Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
     int numberOfFailedDeletions = 0;
     for (String path : paths) {
-      S3URI location = new S3URI(path);
+      S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
       String bucket = location.bucket();
       String objectKey = location.key();
       Set<String> objectsInBucket = bucketToObjects.get(bucket);

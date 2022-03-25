@@ -164,6 +164,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
       greaterThanOrEqual("id", 5L),
       lessThanOrEqual("id", 9L));
 
+  private static final Expression EXPRESSION_DAY_2_ANOTHER_ID_RANGE = greaterThanOrEqual("id", 10L);
+
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] { 1, 2 };
@@ -994,5 +996,30 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(rowFilter)
             .validateNoConflictingData()
             .commit());
+  }
+
+  @Test
+  public void testMetadataOnlyDeleteWithPositionDeletes() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    Assert.assertNull("Should be empty table", table.currentSnapshot());
+
+    table.newAppend()
+        .appendFile(FILE_DAY_2)
+        .appendFile(FILE_DAY_2_ANOTHER_RANGE)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_DAY_2_POS_DELETES)
+        .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES)
+        .commit();
+
+    table.newOverwrite()
+        .overwriteByRowFilter(EXPRESSION_DAY_2_ANOTHER_ID_RANGE)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .commit();
+
+    validateTableFiles(table, FILE_DAY_2, FILE_DAY_2_MODIFIED);
+    validateTableDeleteFiles(table, FILE_DAY_2_POS_DELETES);
   }
 }

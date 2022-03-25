@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws;
+package org.apache.iceberg.aws.lakeformation;
 
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
-import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
 import org.junit.Assert;
@@ -42,11 +42,12 @@ import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
 import software.amazon.awssdk.services.iam.model.DeleteRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
-public class TestAssumeRoleAwsClientFactory {
+public class TestLakeFormationAwsClientFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestAssumeRoleAwsClientFactory.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestLakeFormationAwsClientFactory.class);
+  private static final int IAM_PROPAGATION_DELAY = 10000;
+  private static final int ASSUME_ROLE_SESSION_DURATION = 3600;
 
   private IamClient iam;
   private String roleName;
@@ -70,15 +71,15 @@ public class TestAssumeRoleAwsClientFactory {
             "\"AWS\":\"arn:aws:iam::" + AwsIntegTestUtil.testAccountId() + ":root\"}," +
             "\"Action\": [\"sts:AssumeRole\"," +
             "\"sts:TagSession\"]}]}")
-        .maxSessionDuration(3600)
+        .maxSessionDuration(ASSUME_ROLE_SESSION_DURATION)
         .build());
     assumeRoleProperties = Maps.newHashMap();
-    assumeRoleProperties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
-    assumeRoleProperties.put(AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_APACHE);
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
+    assumeRoleProperties.put(AwsProperties.GLUE_LAKEFORMATION_ENABLED, "true");
+    assumeRoleProperties.put(AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_APACHE);
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, response.role().arn());
-    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX + "key1", "value1");
-    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX + "key2", "value2");
+    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX +
+        LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER, "emr");
     policyName = UUID.randomUUID().toString();
   }
 
@@ -89,7 +90,7 @@ public class TestAssumeRoleAwsClientFactory {
   }
 
   @Test
-  public void testAssumeRoleGlueCatalog() throws Exception {
+  public void testLakeFormationEnabledGlueCatalog() throws Exception {
     String glueArnPrefix = "arn:aws:glue:*:" + AwsIntegTestUtil.testAccountId();
     iam.putRolePolicy(PutRolePolicyRequest.builder()
         .roleName(roleName)
@@ -99,7 +100,8 @@ public class TestAssumeRoleAwsClientFactory {
             "\"Statement\":[{" +
             "\"Sid\":\"policy1\"," +
             "\"Effect\":\"Allow\"," +
-            "\"Action\":[\"glue:CreateDatabase\",\"glue:DeleteDatabase\",\"glue:GetDatabase\",\"glue:GetTables\"]," +
+            "\"Action\":[\"glue:CreateDatabase\",\"glue:DeleteDatabase\"," +
+            "\"glue:Get*\",\"lakeformation:GetDataAccess\"]," +
             "\"Resource\":[\"" + glueArnPrefix + ":catalog\"," +
             "\"" + glueArnPrefix + ":database/allowed_*\"," +
             "\"" + glueArnPrefix + ":table/allowed_*/*\"," +
@@ -110,60 +112,35 @@ public class TestAssumeRoleAwsClientFactory {
     GlueCatalog glueCatalog = new GlueCatalog();
     assumeRoleProperties.put("warehouse", "s3://path");
     glueCatalog.initialize("test", assumeRoleProperties);
+    Namespace deniedNamespace = Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""));
     try {
-      glueCatalog.createNamespace(Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", "")));
+      glueCatalog.createNamespace(deniedNamespace);
       Assert.fail("Access to Glue should be denied");
     } catch (GlueException e) {
       Assert.assertEquals(AccessDeniedException.class, e.getClass());
+    } catch (AssertionError e) {
+      glueCatalog.dropNamespace(deniedNamespace);
+      throw e;
     }
 
-    Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
+    Namespace allowedNamespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
-      glueCatalog.createNamespace(namespace);
+      glueCatalog.createNamespace(allowedNamespace);
     } catch (GlueException e) {
-      LOG.error("fail to create or delete Glue database", e);
+      LOG.error("fail to create Glue database", e);
       Assert.fail("create namespace should succeed");
     } finally {
-      glueCatalog.dropNamespace(namespace);
+      glueCatalog.dropNamespace(allowedNamespace);
+      try {
+        glueCatalog.close();
+      } catch (Exception e) {
+        // swallow exception during closing
+        LOG.error("Error closing GlueCatalog", e);
+      }
     }
-  }
-
-  @Test
-  public void testAssumeRoleS3FileIO() throws Exception {
-    String bucketArn = "arn:aws:s3:::" + AwsIntegTestUtil.testBucketName();
-    iam.putRolePolicy(PutRolePolicyRequest.builder()
-        .roleName(roleName)
-        .policyName(policyName)
-        .policyDocument("{" +
-            "\"Version\":\"2012-10-17\"," +
-            "\"Statement\":[{" +
-            "\"Sid\":\"policy1\"," +
-            "\"Effect\":\"Allow\"," +
-            "\"Action\":\"s3:ListBucket\"," +
-            "\"Resource\":[\"" + bucketArn + "\"]," +
-            "\"Condition\":{\"StringLike\":{\"s3:prefix\":[\"allowed/*\"]}}} ,{" +
-            "\"Sid\":\"policy2\"," +
-            "\"Effect\":\"Allow\"," +
-            "\"Action\":\"s3:GetObject\"," +
-            "\"Resource\":[\"" + bucketArn + "/allowed/*\"]}]}")
-        .build());
-    waitForIamConsistency();
-
-    S3FileIO s3FileIO = new S3FileIO();
-    s3FileIO.initialize(assumeRoleProperties);
-    InputFile inputFile = s3FileIO.newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file");
-    try {
-      inputFile.exists();
-      Assert.fail("Access to s3 should be denied");
-    } catch (S3Exception e) {
-      Assert.assertEquals("Should see 403 error code", 403, e.statusCode());
-    }
-
-    inputFile = s3FileIO.newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/allowed/file");
-    Assert.assertFalse("should be able to access file", inputFile.exists());
   }
 
   private void waitForIamConsistency() throws Exception {
-    Thread.sleep(10000); // sleep to make sure IAM up to date
+    Thread.sleep(IAM_PROPAGATION_DELAY); // sleep to make sure IAM up to date
   }
 }

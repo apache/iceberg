@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -46,12 +45,15 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private int timeout;
   private String region;
   private String s3Endpoint;
+  private boolean s3UseArnRegionEnabled;
+  private String httpClientType;
 
   @Override
   public S3Client s3() {
     return S3Client.builder()
         .applyMutation(this::configure)
         .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, s3Endpoint))
+        .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled).build())
         .build();
   }
 
@@ -84,9 +86,13 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
     this.tags = toTags(properties);
+    this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(properties, AwsProperties.S3_ACCESS_POINTS_PREFIX,
+        AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+    this.httpClientType = PropertyUtil.propertyAsString(properties,
+        AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }
 
-  private <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
+  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
     AssumeRoleRequest request = AssumeRoleRequest.builder()
         .roleArn(roleArn)
         .roleSessionName(genSessionName())
@@ -97,14 +103,40 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
-            .stsClient(StsClient.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).build())
+            .stsClient(sts())
             .refreshRequest(request)
             .build());
 
     clientBuilder.region(Region.of(region));
-    clientBuilder.httpClientBuilder(UrlConnectionHttpClient.builder());
+    clientBuilder.httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType));
 
     return clientBuilder;
+  }
+
+  protected Set<Tag> tags() {
+    return tags;
+  }
+
+  protected String region() {
+    return region;
+  }
+
+  protected String s3Endpoint() {
+    return s3Endpoint;
+  }
+
+  protected String httpClientType() {
+    return httpClientType;
+  }
+
+  protected boolean s3UseArnRegionEnabled() {
+    return s3UseArnRegionEnabled;
+  }
+
+  private StsClient sts() {
+    return StsClient.builder()
+        .httpClientBuilder(AwsClientFactories.configureHttpClientBuilder(httpClientType))
+        .build();
   }
 
   private String genSessionName() {

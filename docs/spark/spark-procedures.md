@@ -105,7 +105,7 @@ This procedure invalidates all cached Spark plans that reference the affected ta
 
 #### Example
 
-Roll back `db.sample` to one day
+Roll back `db.sample` to a specific day and time.
 ```sql
 CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000')
 ```
@@ -215,16 +215,10 @@ If `older_than` and `retain_last` are omitted, the table's [expiration propertie
 
 #### Examples
 
-Remove snapshots older than one day, but retain the last 100 snapshots:
+Remove snapshots older than specific day and time, but retain the last 100 snapshots:
 
 ```sql
 CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
-```
-
-Erase all snapshots older than the current timestamp but retain the last 5 snapshots:
-
-```sql
-CALL hive_prod.system.expire_snapshots(table => 'db.sample', older_than => now(), retain_last => 5)
 ```
 
 ### `remove_orphan_files`

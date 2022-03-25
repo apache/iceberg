@@ -24,8 +24,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
+import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -88,6 +90,11 @@ public class AwsProperties implements Serializable {
   public static final String GLUE_CATALOG_ID = "glue.id";
 
   /**
+   * The account ID used in a Glue resource ARN, e.g. arn:aws:glue:us-east-1:1000000000000:table/db1/table1
+   */
+  public static final String GLUE_ACCOUNT_ID = "glue.account-id";
+
+  /**
    * If Glue should skip archiving an old table version when creating a new version in a commit.
    * By default Glue archives all old table versions after an UpdateTable call,
    * but Glue has a default max number of archived table versions (can be increased).
@@ -95,6 +102,15 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
+
+  /**
+   * If set, GlueCatalog will use Lake Formation for access control.
+   * For more credential vending details, see: https://docs.aws.amazon.com/lake-formation/latest/dg/api-overview.html.
+   * If enabled, the {@link AwsClientFactory} implementation must be {@link LakeFormationAwsClientFactory}
+   * or any class that extends it.
+   */
+  public static final String GLUE_LAKEFORMATION_ENABLED = "glue.lakeformation-enabled";
+  public static final boolean GLUE_LAKEFORMATION_ENABLED_DEFAULT = false;
 
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
@@ -169,6 +185,17 @@ public class AwsProperties implements Serializable {
    * reading the default credential chain to create S3 access credentials.
    */
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
+
+  /**
+   * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an access point.
+   * <p>
+   * By default, attempting to use an access point in a different region will throw an exception.
+   * When enabled, this property allows using access points in other regions.
+   * <p>
+   * For more details see: https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#useArnRegionEnabled--
+   */
+  public static final String S3_USE_ARN_REGION_ENABLED = "s3.use-arn-region-enabled";
+  public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = false;
 
   /**
    * Enables eTag checks for S3 PUT and MULTIPART upload requests.
@@ -246,6 +273,28 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
+   * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link AwsClientFactory}
+   * If set, all AWS clients will use this specified HTTP client.
+   * If not set, {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used.
+   * For specific types supported, see HTTP_CLIENT_TYPE_* defined below.
+   */
+  public static final String HTTP_CLIENT_TYPE = "http-client.type";
+
+  /**
+   * If this is set under {@link #HTTP_CLIENT_TYPE},
+   * {@link software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient}
+   * will be used as the HTTP Client in {@link AwsClientFactory}
+   */
+  public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
+
+  /**
+   * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link software.amazon.awssdk.http.apache.ApacheHttpClient}
+   * will be used as the HTTP Client in {@link AwsClientFactory}
+   */
+  public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
+  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
+
+  /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    * <p>
    * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
@@ -255,10 +304,32 @@ public class AwsProperties implements Serializable {
   public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
   /**
+   * Used by {@link S3FileIO}, prefix used for bucket access point configuration.
+   * To set, we can pass a catalog property.
+   * <p>
+   * For more details, see https://aws.amazon.com/s3/features/access-points/
+   * <p>
+   * Example: s3.access-points.my-bucket=access-point
+   */
+  public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
+
+  /**
    * @deprecated will be removed at 0.15.0, please use {@link #S3_CHECKSUM_ENABLED_DEFAULT} instead
    */
   @Deprecated
   public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
+
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}.
+   * The table name used as part of lake formation credentials request.
+   */
+  public static final String LAKE_FORMATION_TABLE_NAME = "lakeformation.table-name";
+
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}.
+   * The database name used as part of lake formation credentials request.
+   */
+  public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -271,9 +342,11 @@ public class AwsProperties implements Serializable {
   private ObjectCannedACL s3FileIoAcl;
   private boolean isS3ChecksumEnabled;
   private final Set<Tag> s3WriteTags;
+  private final Map<String, String> s3BucketToAccessPointMapping;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
+  private boolean glueLakeFormationEnabled;
 
   private String dynamoDbTableName;
 
@@ -290,9 +363,11 @@ public class AwsProperties implements Serializable {
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
     this.isS3ChecksumEnabled = S3_CHECKSUM_ENABLED_DEFAULT;
     this.s3WriteTags = Sets.newHashSet();
+    this.s3BucketToAccessPointMapping = ImmutableMap.of();
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
+    this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
 
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
   }
@@ -310,6 +385,9 @@ public class AwsProperties implements Serializable {
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive = PropertyUtil.propertyAsBoolean(properties,
         AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE, AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
+    this.glueLakeFormationEnabled = PropertyUtil.propertyAsBoolean(properties,
+        GLUE_LAKEFORMATION_ENABLED,
+        GLUE_LAKEFORMATION_ENABLED_DEFAULT);
 
     this.s3FileIoMultipartUploadThreads = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_UPLOAD_THREADS,
         Runtime.getRuntime().availableProcessors());
@@ -349,6 +427,7 @@ public class AwsProperties implements Serializable {
         String.format("Deletion batch size must be between 1 and %s", S3FILEIO_DELETE_BATCH_SIZE_MAX));
 
     this.s3WriteTags = toTags(properties, S3_WRITE_TAGS_PREFIX);
+    this.s3BucketToAccessPointMapping = PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
@@ -400,6 +479,14 @@ public class AwsProperties implements Serializable {
 
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
+  }
+
+  public boolean glueLakeFormationEnabled() {
+    return glueLakeFormationEnabled;
+  }
+
+  public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
+    this.glueLakeFormationEnabled = glueLakeFormationEnabled;
   }
 
   public int s3FileIoMultipartUploadThreads() {
@@ -467,5 +554,9 @@ public class AwsProperties implements Serializable {
         .entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
         .collect(Collectors.toSet());
+  }
+
+  public Map<String, String> s3BucketToAccessPointMapping() {
+    return s3BucketToAccessPointMapping;
   }
 }

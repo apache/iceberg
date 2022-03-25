@@ -68,7 +68,7 @@ Map<String, String> options = new HashMap<>();
 options.put("warehouse", "/path/to/warehouse");
 options.put("ref", "main");
 options.put("uri", "https://localhost:19120/api/v1");
-Catalog nessieCatalog = CatalogUtil.loadCatalog("org.apache.iceberg.nessie.NessieCatalog", "nessie", hadoopConfig, options);
+Catalog nessieCatalog = CatalogUtil.loadCatalog("org.apache.iceberg.nessie.NessieCatalog", "nessie", options, hadoopConfig);
 ```
 
 and in Spark:

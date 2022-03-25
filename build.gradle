@@ -312,11 +312,13 @@ project(':iceberg-aws') {
     implementation project(':iceberg-core')
 
     compileOnly 'software.amazon.awssdk:url-connection-client'
+    compileOnly 'software.amazon.awssdk:apache-client'
     compileOnly 'software.amazon.awssdk:s3'
     compileOnly 'software.amazon.awssdk:kms'
     compileOnly 'software.amazon.awssdk:glue'
     compileOnly 'software.amazon.awssdk:sts'
     compileOnly 'software.amazon.awssdk:dynamodb'
+    compileOnly 'software.amazon.awssdk:lakeformation'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -326,6 +328,7 @@ project(':iceberg-aws') {
     }
 
     testImplementation 'software.amazon.awssdk:iam'
+    testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"

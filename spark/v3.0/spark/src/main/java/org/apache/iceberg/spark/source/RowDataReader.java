@@ -182,7 +182,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
     SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-      super(task, tableSchema, requestedSchema);
+      super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 
