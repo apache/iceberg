@@ -132,8 +132,6 @@ class V2Metadata {
           return wrapped.deletedRowsCount();
         case 13:
           return wrapped.partitions();
-        case 14:
-          return wrapped.keyMetadata();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
