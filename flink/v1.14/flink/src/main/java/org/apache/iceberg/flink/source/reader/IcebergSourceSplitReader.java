@@ -22,8 +22,10 @@ package org.apache.iceberg.flink.source.reader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Queue;
 import org.apache.flink.api.connector.source.SourceReaderContext;
+import org.apache.flink.connector.base.source.reader.RecordsBySplits;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
@@ -69,7 +71,18 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   @Override
   public RecordsWithSplitIds<RecordAndPosition<T>> fetch() throws IOException {
     splitReaderFetchCalls.increment();
-    checkSplitOrStartNext();
+    if (currentReader == null) {
+      IcebergSourceSplit nextSplit = splits.poll();
+      if (nextSplit != null) {
+        currentSplit = nextSplit;
+        currentSplitId = nextSplit.splitId();
+        currentReader = openSplitFunction.apply(currentSplit);
+      } else {
+        // return an empty result, which will lead to split fetch to be idle.
+        // SplitFetcherManager will then close idle fetcher.
+        return new RecordsBySplits(Collections.emptyMap(), Collections.emptySet());
+      }
+    }
 
     if (currentReader.hasNext()) {
       // Because Iterator#next() doesn't support checked exception,
@@ -119,27 +132,6 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
     return splitsChanges.splits().stream()
         .map(split -> calculateBytes(split))
         .reduce(0L, Long::sum);
-  }
-
-  private void checkSplitOrStartNext() throws IOException {
-    if (currentReader != null) {
-      return;
-    }
-
-    IcebergSourceSplit nextSplit = splits.poll();
-    if (nextSplit == null) {
-      // throws IOException when current split is done and there is no more splits available.
-      // It will be propagated by the caller of FetchTask#run(). That will cause
-      // SplitFetcher to exit. When new split is assigned, a new SplitFetcher
-      // will be created to handle it. This behavior is a little odd.
-      // Right now, we are copying the same behavior from Flink file source.
-      // We can work with Flink community and potentially improve this behavior.
-      throw new IOException("No split remaining");
-    }
-
-    currentSplit = nextSplit;
-    currentSplitId = nextSplit.splitId();
-    currentReader = openSplitFunction.apply(currentSplit);
   }
 
   private ArrayBatchRecords<T> finishSplit() throws IOException {
