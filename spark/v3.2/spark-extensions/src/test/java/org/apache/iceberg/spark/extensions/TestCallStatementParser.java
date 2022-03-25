@@ -150,7 +150,9 @@ public class TestCallStatementParser {
         "/* {\"app\": \"dbt\", \"dbt_version\": \"1.0.1\", \"profile_name\": \"profile1\", \"target_name\": \"dev\", " +
             "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')",
         "/* Some multi-line comment \n" +
-            "*/ CALL /* inline comment */ cat.system.func('${spark.extra.prop}') -- ending comment"
+            "*/ CALL /* inline comment */ cat.system.func('${spark.extra.prop}') -- ending comment",
+        "CALL -- a line ending comment\n" +
+            "cat.system.func('${spark.extra.prop}')"
     );
     for (String sqlText : callStatementsWithComments) {
       CallStatement call = (CallStatement) parser.parsePlan(sqlText);
