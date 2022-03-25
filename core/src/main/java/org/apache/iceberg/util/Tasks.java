@@ -288,6 +288,7 @@ public class Tasks {
       }
     }
 
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private <E extends Exception> boolean runParallel(final Task<I, E> task,
                                                       Class<E> exceptionClass)
         throws E {
