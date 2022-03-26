@@ -40,7 +40,7 @@ import static org.apache.spark.sql.functions.expr;
  *
  * To run this benchmark for spark-3.2:
  * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataWriteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-write-benchmark-result.txt
  * </code>
