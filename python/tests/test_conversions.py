@@ -97,7 +97,7 @@ from iceberg.types import (
 
 
 @pytest.mark.parametrize(
-    "primitive_type, partition_value_as_str, expected_result",
+    "primitive_type, value_str, expected_result",
     [
         (BooleanType(), "true", True),
         (BooleanType(), "false", False),
@@ -113,12 +113,11 @@ from iceberg.types import (
         (UUIDType(), "f79c3e09-677c-4bbd-a479-3f349cb785e7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
         (FixedType(3), "foo", b"foo"),
         (BinaryType(), "foo", b"foo"),
-        (None, None, None),
     ],
 )
-def test_from_partition_value_to_py(primitive_type, partition_value_as_str, expected_result):
+def test_partition_to_py(primitive_type, value_str, expected_result):
     """Test converting a partition value to a python built-in"""
-    assert conversions.from_partition_value_to_py(primitive_type, partition_value_as_str) == expected_result
+    assert conversions.partition_to_py(primitive_type, value_str) == expected_result
 
 
 @pytest.mark.parametrize(
@@ -142,7 +141,64 @@ def test_from_partition_value_to_py(primitive_type, partition_value_as_str, expe
 )
 def test_none_partition_values(primitive_type):
     """Test converting a partition value to a python built-in"""
-    assert conversions.from_partition_value_to_py(primitive_type, None) == None
+    assert conversions.partition_to_py(primitive_type, None) == None
+
+
+@pytest.mark.parametrize(
+    "primitive_type",
+    [
+        (BinaryType()),
+        (BooleanType()),
+        (DateType()),
+        (DecimalType(2, 1)),
+        (DoubleType()),
+        (FixedType(1)),
+        (FloatType()),
+        (IntegerType()),
+        (LongType()),
+        (StringType()),
+        (TimestampType()),
+        (TimestamptzType()),
+        (TimeType()),
+        (UUIDType()),
+    ],
+)
+def test_hive_default_partition_values(primitive_type):
+    """Test converting a partition value to a python built-in"""
+    assert conversions.partition_to_py(primitive_type, "__HIVE_DEFAULT_PARTITION__") == None
+
+
+@pytest.mark.parametrize(
+    "primitive_type, value, should_raise",
+    [
+        (IntegerType(), "123.45", True),
+        (IntegerType(), "1234567.89", True),
+        (IntegerType(), "123.00", True),
+        (IntegerType(), "1234567.00", True),
+        (LongType(), "123.45", True),
+        (LongType(), "1234567.89", True),
+        (LongType(), "123.00", True),
+        (LongType(), "1234567.00", True),
+        (IntegerType(), "12345", False),
+        (IntegerType(), "123456789", False),
+        (IntegerType(), "12300", False),
+        (IntegerType(), "123456700", False),
+        (LongType(), "12345", False),
+        (LongType(), "123456789", False),
+        (LongType(), "12300", False),
+        (LongType(), "123456700", False),
+    ],
+)
+def test_partition_to_py_raise_on_incorrect_precision_or_scale(primitive_type, value, should_raise):
+    if should_raise:
+        with pytest.raises(ValueError) as exc_info:
+            conversions.partition_to_py(primitive_type, value)
+
+        assert f"Cannot convert partition value, value cannot have fractional digits for {primitive_type} partition" in str(
+            exc_info.value
+        )
+    else:
+        conversions.partition_to_py(primitive_type, value)
 
 
 @pytest.mark.parametrize(
@@ -153,25 +209,23 @@ def test_none_partition_values(primitive_type):
         (IntegerType(), b"\xd2\x04\x00\x00", 1234),
         (LongType(), b"\xd2\x04\x00\x00\x00\x00\x00\x00", 1234),
         (DoubleType(), b"\x8d\x97\x6e\x12\x83\xc0\xf3\x3f", 1.2345),
-        (DateType(), bytes([232, 3, 0, 0]), 1000),
+        (DateType(), b"\xe8\x03\x00\x00", 1000),
         (DateType(), b"\xd2\x04\x00\x00", 1234),
-        (TimeType(), bytes([16, 39, 0, 0, 0, 0, 0, 0]), 10000),
+        (TimeType(), b"\x10'\x00\x00\x00\x00\x00\x00", 10000),
         (TimeType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestamptzType(), bytes([128, 26, 6, 0, 0, 0, 0, 0]), 400000),
+        (TimestamptzType(), b"\x80\x1a\x06\x00\x00\x00\x00\x00", 400000),
         (TimestamptzType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestampType(), bytes([128, 26, 6, 0, 0, 0, 0, 0]), 400000),
+        (TimestampType(), b"\x80\x1a\x06\x00\x00\x00\x00\x00", 400000),
         (TimestampType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (StringType(), bytes([65, 66, 67]), "ABC"),
+        (StringType(), b"ABC", "ABC"),
         (StringType(), b"foo", "foo"),
         (
             UUIDType(),
-            bytes([247, 156, 62, 9, 103, 124, 75, 189, 164, 121, 63, 52, 156, 183, 133, 231]),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
             uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
         ),
         (UUIDType(), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
-        (FixedType(3), bytes([97, 98]), bytes("ab", "utf8")),
         (FixedType(3), b"foo", b"foo"),
-        (BinaryType(), bytearray("Z", "utf8"), bytes([90])),
         (BinaryType(), b"foo", b"foo"),
         (DecimalType(5, 2), b"\x30\x39", Decimal("123.45")),
         (DecimalType(7, 4), b"\x12\xd6\x87", Decimal("123.4567")),
@@ -188,33 +242,31 @@ def test_from_bytes(primitive_type, b, result):
     [
         (BooleanType(), b"\x00", False),
         (BooleanType(), b"\x01", True),
-        (IntegerType(), bytes([234, 72, 1, 0]), 84202),
+        (IntegerType(), b"\xeaH\x01\x00", 84202),
         (IntegerType(), b"\xd2\x04\x00\x00", 1234),
-        (LongType(), bytes([200, 0, 0, 0, 0, 0, 0, 0]), 200),
+        (LongType(), b"\xc8\x00\x00\x00\x00\x00\x00\x00", 200),
         (LongType(), b"\xd2\x04\x00\x00\x00\x00\x00\x00", 1234),
-        (DoubleType(), bytes([0, 0, 0, 0, 0, 0, 24, 64]), 6.0),
+        (DoubleType(), b"\x00\x00\x00\x00\x00\x00\x18@", 6.0),
         (DoubleType(), b"\x8d\x97n\x12\x83\xc0\xf3?", 1.2345),
-        (DateType(), bytes([232, 3, 0, 0]), 1000),
+        (DateType(), b"\xe8\x03\x00\x00", 1000),
         (DateType(), b"\xd2\x04\x00\x00", 1234),
-        (TimeType(), bytes([16, 39, 0, 0, 0, 0, 0, 0]), 10000),
+        (TimeType(), b"\x10'\x00\x00\x00\x00\x00\x00", 10000),
         (TimeType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (TimestamptzType(), bytes([128, 26, 6, 0, 0, 0, 0, 0]), 400000),
+        (TimestamptzType(), b"\x80\x1a\x06\x00\x00\x00\x00\x00", 400000),
         (TimestamptzType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
         (TimestampType(), b"\x00\xe8vH\x17\x00\x00\x00", 100000000000),
-        (StringType(), bytes([65, 66, 67]), "ABC"),
+        (StringType(), b"ABC", "ABC"),
         (StringType(), b"foo", "foo"),
         (
             UUIDType(),
-            bytes([247, 156, 62, 9, 103, 124, 75, 189, 164, 121, 63, 52, 156, 183, 133, 231]),
+            b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7",
             uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
         ),
         (UUIDType(), b"\xf7\x9c>\tg|K\xbd\xa4y?4\x9c\xb7\x85\xe7", uuid.UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7")),
-        (FixedType(3), bytes([97, 98]), bytes("ab", "utf8")),
         (FixedType(3), b"foo", b"foo"),
-        (BinaryType(), bytearray("Z", "utf8"), bytes([90])),
         (BinaryType(), b"foo", b"foo"),
         (DecimalType(5, 2), b"\x30\x39", Decimal("123.45")),
-        (DecimalType(3, 2), bytes([1, 89]), Decimal("3.45")),
+        (DecimalType(3, 2), b"\x01Y", Decimal("3.45")),
         # decimal on 3-bytes to test that we use the minimum number of bytes and not a power of 2
         # 1234567 is 00010010|11010110|10000111 in binary
         # 00010010 -> 18, 11010110 -> 214, 10000111 -> 135
@@ -226,7 +278,7 @@ def test_from_bytes(primitive_type, b, result):
         # test empty byte in decimal
         # 11 is 00001011 in binary
         # 00001011 -> 11
-        (DecimalType(10, 3), bytes([11]), Decimal("0.011")),
+        (DecimalType(10, 3), b"\x0b", Decimal("0.011")),
         (DecimalType(4, 2), b"\x04\xd2", Decimal("12.34")),
         (FloatType(), b"\x00\x00\x90\xc0", struct.unpack("<f", struct.pack("<f", -4.5))[0]),
         (FloatType(), b"\x19\x04\x9e?", struct.unpack("<f", struct.pack("<f", 1.2345))[0]),
@@ -365,14 +417,12 @@ def test_raise_on_unregistered_type():
             return "FooUnknownType()"
 
     with pytest.raises(TypeError) as exc_info:
-        conversions.from_partition_value_to_py(FooUnknownType(), "foo")
-    assert (f"Cannot convert partition string to python built-in, type FooUnknownType() not supported: 'foo'") in str(
-        exc_info.value
-    )
+        conversions.partition_to_py(FooUnknownType(), "foo")
+    assert (f"Cannot convert 'foo' to unsupported type: FooUnknownType()") in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
         conversions.to_bytes(FooUnknownType(), "foo")
-    assert ("Cannot serialize value, type FooUnknownType() not supported: 'foo'") in str(exc_info.value)
+    assert ("scale does not match FooUnknownType()") in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
         conversions.from_bytes(FooUnknownType(), b"foo")
@@ -415,28 +465,3 @@ def test_raise_on_incorrect_precision_or_scale(primitive_type, value, expected_e
         conversions.to_bytes(primitive_type, value)
 
     assert expected_error_message in str(exc_info.value)
-
-
-@pytest.mark.parametrize(
-    "primitive_type, value, should_raise",
-    [
-        (IntegerType(), "123.45", True),
-        (IntegerType(), "1234567.89", True),
-        (IntegerType(), "123.00", False),
-        (IntegerType(), "1234567.00", False),
-        (LongType(), "123.45", True),
-        (LongType(), "1234567.89", True),
-        (LongType(), "123.00", False),
-        (LongType(), "1234567.00", False),
-    ],
-)
-def test_from_partition_value_to_py_raise_on_incorrect_precision_or_scale(primitive_type, value, should_raise):
-    if should_raise:
-        with pytest.raises(ValueError) as exc_info:
-            conversions.from_partition_value_to_py(primitive_type, value)
-
-        assert f"Cannot convert partition value, value cannot have fractional digits for {primitive_type} partition" in str(
-            exc_info.value
-        )
-    else:
-        conversions.from_partition_value_to_py(primitive_type, value)

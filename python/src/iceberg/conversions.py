@@ -29,7 +29,7 @@ Note:
 """
 import struct
 import uuid
-from decimal import Decimal, localcontext
+from decimal import Decimal
 from functools import singledispatch
 from typing import Union
 
@@ -52,110 +52,114 @@ from iceberg.types import (
 )
 
 
-def convert_decimal_to_unscaled_value(decimal_type_var: DecimalType, value: Decimal) -> int:
-    """Get an unscaled value given a Decimal value and a DecimalType instance with defined precision and scale
+def handle_none(func):
+    """A decorator function to handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__"
 
     Args:
-        decimal_type_var (DecimalType): A DecimalType instance with precision and scale
-        value (Decimal): A Decimal instance
+        func (Callable): A function registered to the singledispatch function `partition_to_py`
+    """
 
-    Raises:
-        ValueError: If either the scale or precision of `value` does not match that defined in the DecimalType instance provided as `decimal_type_var`
+    def wrapper(primitive_type, value_str):
+        if value_str is None:
+            return None
+        elif value_str == "__HIVE_DEFAULT_PARTITION__":
+            return None
+        return func(primitive_type, value_str)
+
+    return wrapper
+
+
+def decimal_to_unscaled(value: Decimal) -> int:
+    """Get an unscaled value given a Decimal value
+
+    Args:
+        value (Decimal): A Decimal instance
 
     Returns:
         int: The unscaled value
     """
-    value_as_tuple = value.as_tuple()
-    value_precision = len(value_as_tuple.digits)
-    value_scale = -value_as_tuple.exponent
+    return int(value.to_integral_value())
 
-    if value_scale != decimal_type_var.scale:
-        raise ValueError(f"Cannot serialize value, scale of value does not match type {decimal_type_var}: {value_scale}")
-    elif value_precision > decimal_type_var.precision:
-        raise ValueError(
-            f"Cannot serialize value, precision of value is greater than precision of type {decimal_type_var}: {value_precision}"
-        )
 
-    with localcontext() as ctx:
-        ctx.prec = decimal_type_var.precision
-        sign, digits, exponent = value.as_tuple()
-        value_w_adjusted_scale = Decimal((sign, digits, exponent + decimal_type_var.scale))
-        return int(value_w_adjusted_scale.to_integral_value())
+def unscaled_to_decimal(unscaled: int, scale: int) -> Decimal:
+    """Get a scaled Decimal value given an unscaled value and a scale
+
+    Args:
+        unscaled (int): An unscaled value
+        scale (int): A scale to set for the returned Decimal instance
+
+    Returns:
+        Decimal: A scaled Decimal instance
+    """
+    sign, digits, _ = Decimal(unscaled).as_tuple()
+    return Decimal((sign, digits, scale))
 
 
 @singledispatch
-def from_partition_value_to_py(primitive_type, partition_value_as_str: str):
-    """A generic function function which converts a partition string to a python built-in
+def partition_to_py(primitive_type, value_str: str):
+    """A generic function which converts a partition string to a python built-in
 
     Args:
         primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
-        partition_value_as_str(str): A string representation of a partition value
+        value_str(str): A string representation of a partition value
     """
-    if partition_value_as_str is None:
-        return None
-    raise TypeError(
-        f"Cannot convert partition string to python built-in, type {primitive_type} not supported: '{partition_value_as_str}'"
-    )
+    raise TypeError(f"Cannot convert '{value_str}' to unsupported type: {primitive_type}")
 
 
-@from_partition_value_to_py.register(BooleanType)
-def _(primitive_type, partition_value_as_str: str):
-    if partition_value_as_str is None:
-        return None
-    return partition_value_as_str.lower() == "true"
+@partition_to_py.register(BooleanType)
+@handle_none
+def _(primitive_type, value_str: str) -> Union[int, float, str, uuid.UUID]:
+    return value_str.lower() == "true"
 
 
-@from_partition_value_to_py.register(IntegerType)
-@from_partition_value_to_py.register(LongType)
-def _(primitive_type, partition_value_as_str: str):
+@partition_to_py.register(IntegerType)
+@partition_to_py.register(LongType)
+@partition_to_py.register(DateType)
+@partition_to_py.register(TimeType)
+@partition_to_py.register(TimestampType)
+@partition_to_py.register(TimestamptzType)
+@handle_none
+def _(primitive_type, value_str: str) -> int:
     """
-    Note: Before attempting to cast the value to string, a validation happens to ensure that there are no fractional digits. For
-    example, an invalid value such as "123.45" will be converted to a decimal with digits (1, 2, 3, 4, 5) with an exponent of -2 and the last
-    2 digits will be inspected for non-zero values. An example of a valid value is "123.00".
+    Raises:
+        ValueError: If the scale/exponent is not 0
     """
-    if partition_value_as_str is None:
-        return None
-    _, digits, exponent = Decimal(partition_value_as_str).as_tuple()
-    if exponent != 0 and any(digits[exponent:]):  # If there are digits to the right of the exponent, raise if any are not 0
+    _, digits, exponent = Decimal(value_str).as_tuple()
+    if exponent != 0:  # Raise if there are digits to the right of the decimal
         raise ValueError(f"Cannot convert partition value, value cannot have fractional digits for {primitive_type} partition")
-    return int(float(partition_value_as_str))
+    return int(float(value_str))
 
 
-@from_partition_value_to_py.register(FloatType)
-@from_partition_value_to_py.register(DoubleType)
-def _(primitive_type, partition_value_as_str: str):
-    if partition_value_as_str is None:
-        return None
-    return float(partition_value_as_str)
+@partition_to_py.register(FloatType)
+@partition_to_py.register(DoubleType)
+@handle_none
+def _(primitive_type, value_str: str) -> float:
+    return float(value_str)
 
 
-@from_partition_value_to_py.register(StringType)
-def _(primitive_type, partition_value_as_str: str):
-    if partition_value_as_str is None:
-        return None
-    return partition_value_as_str
+@partition_to_py.register(StringType)
+@handle_none
+def _(primitive_type, value_str: str) -> str:
+    return value_str
 
 
-@from_partition_value_to_py.register(UUIDType)
-def _(primitive_type, partition_value_as_str: str):
-    if partition_value_as_str is None:
-        return None
-    return uuid.UUID(partition_value_as_str)
+@partition_to_py.register(UUIDType)
+@handle_none
+def _(primitive_type, value_str: str) -> uuid.UUID:
+    return uuid.UUID(value_str)
 
 
-@from_partition_value_to_py.register(FixedType)
-@from_partition_value_to_py.register(BinaryType)
-def _(primitive_type, partition_value_as_str: str):
-    if partition_value_as_str is None:
-        return None
-    return bytes(partition_value_as_str, "UTF-8")
+@partition_to_py.register(FixedType)
+@partition_to_py.register(BinaryType)
+@handle_none
+def _(primitive_type, value_str: str) -> bytes:
+    return bytes(value_str, "UTF-8")
 
 
-@from_partition_value_to_py.register(DecimalType)
-def _(primitive_type, partition_value_as_str: str):
-    if partition_value_as_str is None:
-        return None
-    return Decimal(partition_value_as_str)
+@partition_to_py.register(DecimalType)
+@handle_none
+def _(primitive_type, value_str: str) -> Decimal:
+    return Decimal(value_str)
 
 
 @singledispatch
@@ -170,7 +174,7 @@ def to_bytes(primitive_type: PrimitiveType, value: Union[bool, bytes, Decimal, f
         value: The value to convert to bytes (The type of this value depends on which dispatched function is
             used--check dispatchable functions for typehints)
     """
-    raise TypeError(f"Cannot serialize value, type {primitive_type} not supported: '{str(value)}'")
+    raise TypeError(f"scale does not match {primitive_type}")
 
 
 @to_bytes.register(BooleanType)
@@ -224,7 +228,29 @@ def _(primitive_type, value: bytes) -> bytes:
 
 @to_bytes.register(DecimalType)
 def _(primitive_type, value: Decimal) -> bytes:
-    unscaled_value = convert_decimal_to_unscaled_value(decimal_type_var=primitive_type, value=value)
+    """Convert a Decimal value to bytes given a DecimalType instance with defined precision and scale
+
+    Args:
+        primitive_type (Decimal): A DecimalType instance with precision and scale
+        value (Decimal): A Decimal instance
+
+    Raises:
+        ValueError: If either the precision or scale of `value` does not match that defined in the DecimalType instance
+
+
+    Returns:
+        bytes: The byte representation of `value`
+    """
+    sign, digits, exponent = value.as_tuple()
+
+    if -exponent != primitive_type.scale:
+        raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {-exponent}")
+    elif len(digits) > primitive_type.precision:
+        raise ValueError(
+            f"Cannot serialize value, precision of value is greater than precision of type {primitive_type}: {len(digits)}"
+        )
+
+    unscaled_value = decimal_to_unscaled(value=Decimal((sign, digits, 0)))
     min_num_bytes = ((unscaled_value).bit_length() + 7) // 8
     return unscaled_value.to_bytes(min_num_bytes, "big", signed=True)
 
@@ -287,8 +313,6 @@ def _(primitive_type, b: bytes) -> bytes:
 
 
 @from_bytes.register(DecimalType)
-def _(primitive_type, b: bytes) -> Decimal:
-    integer_representation = int.from_bytes(b, "big", signed=True)
-    with localcontext() as ctx:
-        ctx.prec = primitive_type.precision
-        return Decimal(integer_representation) * Decimal((0, (1,), -primitive_type.scale))
+def _(primitive_type, buf: bytes) -> Decimal:
+    unscaled = int.from_bytes(buf, "big", signed=True)
+    return unscaled_to_decimal(unscaled, -primitive_type.scale)
