@@ -36,6 +36,9 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [Snapshots metadata table](#snapshots)           | ✔️        | ✔️          |                                                |
 | [Files metadata table](#files)                   | ✔️        | ✔️          |                                                |
 | [Manifests metadata table](#manifests)           | ✔️        | ✔️          |                                                |
+| [Partitions metadata table](#partitions)         | ✔️        | ✔️          |                                                |
+| [Entries metadata table](#entries)               | ✔️        | ✔️          |                                                |
+| [All metadata tables](#all-metadata-tables)      | ✔️        | ✔️          |                                                |
 
 
 ## Querying with SQL
@@ -48,7 +51,7 @@ SELECT * FROM prod.db.table -- catalog: prod, namespace: db, table: table
 
 Metadata tables, like `history` and `snapshots`, can use the Iceberg table name as a namespace.
 
-For example, to read from the `files` metadata table for `prod.db.table`, run:
+For example, to read from the `files` metadata table for `prod.db.table`:
 
 ```
 SELECT * FROM prod.db.table.files
@@ -175,23 +178,20 @@ For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#re
 
 ### History
 
-To show table history, run:
+To show table history:
 
 ```sql
 SELECT * FROM prod.db.table.history
 ```
-```text
-+-------------------------+---------------------+---------------------+---------------------+
-| made_current_at         | snapshot_id         | parent_id           | is_current_ancestor |
-+-------------------------+---------------------+---------------------+---------------------+
+
+| made_current_at | snapshot_id  | parent_id | is_current_ancestor |
+| -- | -- | -- | -- |
 | 2019-02-08 03:29:51.215 | 5781947118336215154 | NULL                | true                |
 | 2019-02-08 03:47:55.948 | 5179299526185056830 | 5781947118336215154 | true                |
 | 2019-02-09 16:24:30.13  | 296410040247533544  | 5179299526185056830 | false               |
 | 2019-02-09 16:32:47.336 | 2999875608062437330 | 5179299526185056830 | true                |
 | 2019-02-09 19:42:03.919 | 8924558786060583479 | 2999875608062437330 | true                |
 | 2019-02-09 19:49:16.343 | 6536733823181975045 | 8924558786060583479 | true                |
-+-------------------------+---------------------+---------------------+---------------------+
-```
 
 {{< hint info >}}
 **This shows a commit that was rolled back.** The example has two snapshots with the same parent, and one is *not* an ancestor of the current table state.
@@ -199,21 +199,16 @@ SELECT * FROM prod.db.table.history
 
 ### Snapshots
 
-To show the valid snapshots for a table, run:
+To show the valid snapshots for a table:
 
 ```sql
 SELECT * FROM prod.db.table.snapshots
 ```
-```text
-+-------------------------+----------------+-----------+-----------+----------------------------------------------------+-------------------------------------------------------+
-| committed_at            | snapshot_id    | parent_id | operation | manifest_list                                      | summary                                               |
-+-------------------------+----------------+-----------+-----------+----------------------------------------------------+-------------------------------------------------------+
-| 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | { added-records -> 2478404, total-records -> 2478404, |
-|                         |                |           |           |                                                    |   added-data-files -> 438, total-data-files -> 438,   |
-|                         |                |           |           |                                                    |   spark.app.id -> application_1520379288616_155055 }  |
+
+| committed_at | snapshot_id | parent_id | operation | manifest_list | summary |
+| -- | -- | -- | -- | -- | -- |
+| 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | { added-records -> 2478404, total-records -> 2478404, added-data-files -> 438, total-data-files -> 438, spark.app.id -> application_1520379288616_155055 } |
 | ...                     | ...            | ...       | ...       | ...                                                | ...                                                   |
-+-------------------------+----------------+-----------+-----------+----------------------------------------------------+-------------------------------------------------------+
-```
 
 You can also join snapshots to table history. For example, this query will show table history, with the application ID that wrote each snapshot:
 
@@ -229,25 +224,23 @@ join prod.db.table.snapshots s
   on h.snapshot_id = s.snapshot_id
 order by made_current_at
 ```
-```text
-+-------------------------+-----------+----------------+---------------------+----------------------------------+
-| made_current_at         | operation | snapshot_id    | is_current_ancestor | summary[spark.app.id]            |
-+-------------------------+-----------+----------------+---------------------+----------------------------------+
+
+| made_current_at | operation | snapshot_id | is_current_ancestor | summary[spark.app.id] |
+| -- | -- | -- | -- | -- |
 | 2019-02-08 03:29:51.215 | append    | 57897183625154 | true                | application_1520379288616_155055 |
 | 2019-02-09 16:24:30.13  | delete    | 29641004024753 | false               | application_1520379288616_151109 |
 | 2019-02-09 16:32:47.336 | append    | 57897183625154 | true                | application_1520379288616_155055 |
 | 2019-02-08 03:47:55.948 | overwrite | 51792995261850 | true                | application_1520379288616_152431 |
-+-------------------------+-----------+----------------+---------------------+----------------------------------+
-```
 
 ### Files
 
-To show a table's data files and each file's metadata, run:
+To show a table's current data files:
 
 ```sql
 SELECT * FROM prod.db.table.files
 ```
-| content | file_path | file_format | spec_id | partition | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id |
+
+|content|file_path                                                                                                                                   |file_format|spec_id|partition|record_count|file_size_in_bytes|column_sizes      |value_counts    |null_value_counts|nan_value_counts|lower_bounds           |upper_bounds           |key_metadata|split_offsets|equality_ids|sort_order_id|
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
 | 0 | s3:/.../table/data/00000-3-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 01} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> c] | [1 -> , 2 -> c] | null         | [4]           | null | null |
 | 0 | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null | null |
@@ -255,27 +248,129 @@ SELECT * FROM prod.db.table.files
 
 ### Manifests
 
-To show a table's file manifests and each file's metadata, run:
+To show a table's current file manifests:
 
 ```sql
 SELECT * FROM prod.db.table.manifests
 ```
-```text
-+----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+--------------------------------------+
-| path                                                                 | length | partition_spec_id | added_snapshot_id   | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries                  |
-+----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+--------------------------------------+
+
+| path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries |
+| -- | -- | -- | -- | -- | -- | -- | -- |
 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | [[false,null,2019-05-13,2019-05-15]] |
-+----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+--------------------------------------+
+
+Note:
+1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](./spec.md#manifest-lists), with the following order:
+    - `contains_null`
+    - `contains_nan`
+    - `lower_bound`
+    - `upper_bound`
+2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
+    This usually occurs when reading from V1 table, where `contains_nan` is not populated.
+
+### Partitions
+
+To show a table's current partitions:
+
+```sql
+SELECT * FROM prod.db.table.partitions
 ```
 
-Note: 
-1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order: 
-   - `contains_null`
-   - `contains_nan`
-   - `lower_bound`
-   - `upper_bound`
-2. `contains_nan` could return null, which indicates that this information is not available from files' metadata. 
-   This usually occurs when reading from V1 table, where `contains_nan` is not populated. 
+| partition | record_count | file_count |
+| -- | -- | -- |
+|  {20211001, 11}|           1|         1|
+|  {20211002, 11}|           1|         1|
+|  {20211001, 10}|           1|         1|
+|  {20211002, 10}|           1|         1|
+
+### All Metadata Tables
+
+These tables are unions of the metadata tables specific to the current snapshot, and return metadata across all snapshots.
+
+{{< hint danger >}}
+The "all" metadata tables may produce more than one row per data file or manifest file because metadata files may be part of more than one table snapshot.
+{{< /hint >}}
+
+#### All Data Files
+
+To show all the table's data files and each file's metadata:
+
+```sql
+SELECT * FROM prod.db.table.all_data_files
+```
+
+| content | file_path | file_format | partition | record_count | file_size_in_bytes | column_sizes| value_counts | null_value_counts | nan_value_counts| lower_bounds| upper_bounds|key_metadata|split_offsets|equality_ids|sort_order_id|
+| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+|      0|s3:.../dt=20210102/xxx.parquet|    PARQUET|{20210102}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210102}|{1 -> 2, 2 -> 20210102}|        null|          [4]|        null|            0|
+|      0|s3:.../dt=20210103/xxx.parquet|    PARQUET|{20210103}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210103}|{1 -> 3, 2 -> 20210103}|        null|          [4]|        null|            0|
+|      0|sA valid manifest file is one that is3:.../dt=20210104/xxx.parquet|    PARQUET|{20210104}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210104}|{1 -> 3, 2 -> 20210104}|        null|          [4]|        null|            0|
+
+#### All Manifests
+
+To show all the table's manifest files:
+
+```sql
+SELECT * FROM prod.db.table.all_manifests
+```
+
+| path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count| partition_summaries|
+| -- | -- | -- | -- | -- | -- | -- | -- |
+| s3:/.../table/data/dt=20210102/xxx.parquet | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 10, 11}, {false, false, 20210101, 20210101}]|
+
+Note:
+1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](./spec.md#manifest-lists), with the following order:
+    - `contains_null`
+    - `contains_nan`
+    - `lower_bound`
+    - `upper_bound`
+2. `contains_nan` could return null, which indicates that this information is not available from files' metadata.
+    This usually occurs when reading from V1 table, where `contains_nan` is not populated.
+
+### Advanced Usage
+
+#### Entries
+
+To show a table's current manifest entries as rows, for both delete and data files:
+
+```sql
+SELECT * FROM prod.db.table.entries
+```
+
+| status|snapshot_id | sequence_number | data_file |
+| -- | -- | -- | -- |
+|0     |7462238160765527919|0              |{0, s3://.../dt=20211001/age=10/00000-0-38e4b886-b445-40a9-8db0-58653a331aba-00001.parquet, PARQUET, ...}|
+|2     |7462238160765527919|0              |{0, s3://.../dt=20211002/age=11/00001-1-dd95f618-4738-41a4-ba0e-21bbf964d0cc-00001.parquet, PARQUET, ...}|
+
+The field `status` contains the following enums:
+
+- 0 - existed
+- 1 - added
+- 2 - deleted
+
+{{< hint info >}} 
+Diffrent from metadata table [files](#files), this table exposes internal details, like files that have been deleted.
+{{< /hint >}}
+
+#### All Entries
+
+To show entries as rows from any snapshot currently tracked by the table, for both delete and data files:
+
+```sql
+SELECT * FROM prod.db.table.all_entries
+```
+
+| status | snapshot_id | sequence_number | data_file |
+| -- | -- | -- | -- |
+|0     |7462238160765527919|0              |{0, s3://.../dt=20211001/age=10/00000-0-38e4b886-b445-40a9-8db0-58653a331aba-00001.parquet, PARQUET, ...}|
+|2     |7462238160765527919|0              |{0, s3://.../dt=20211002/age=11/00001-1-dd95f618-4738-41a4-ba0e-21bbf964d0cc-00001.parquet, PARQUET, ...}|
+|0     |3830505224908377224|0              |{0, s3://.../dt=20211002/age=11/00001-1-dd95f618-4738-41a4-ba0e-21bbf964d0cc-00001.parquet, PARQUET, ...}|
+
+{{< hint info >}}
+Like metadata table [entries](#entries), this metadata table is different from [all_data_files](#all-data-files) and contains deleted data files.
+{{< /hint >}}
+
+{{< hint danger >}}
+The table's metadata may return **duplicate** rows
+{{< /hint >}}
 
 ## Inspecting with DataFrames
 
@@ -287,4 +382,3 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 // Hadoop path table
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
-
