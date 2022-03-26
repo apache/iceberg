@@ -307,7 +307,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   }
 
   /**
-   * a test case to test avoid repeate compress
+   * a test case to test avoid repeat compress
    * <p>
    * If datafile cannot be combined to CombinedScanTask with other DataFiles, the size of the CombinedScanTask list size
    * is 1, so we remove these CombinedScanTasks to avoid compressed repeatedly.
@@ -319,20 +319,23 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
    * @throws IOException IOException
    */
   @Test
-  public void testRewriteAvoidRepeateCompress() throws IOException {
+  public void testRewriteAvoidRepeatCompress() throws IOException {
     Assume.assumeFalse("ORC does not support getting length when file is opening", format.equals(FileFormat.ORC));
     List<Record> expected = Lists.newArrayList();
     Schema schema = icebergTableUnPartitioned.schema();
     GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
     File file = temp.newFile();
     int count = 0;
+    List<Long> offsets;
     try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
-      long filesize = 20000;
-      for (; fileAppender.length() < filesize; count++) {
+      long fileSize = 20000;
+      for (; fileAppender.length() < fileSize; count++) {
         Record record = SimpleDataUtil.createRecord(count, "iceberg");
         fileAppender.add(record);
         expected.add(record);
       }
+      fileAppender.close();
+      offsets = fileAppender.splitOffsets();
     }
 
     DataFile dataFile = DataFiles.builder(icebergTableUnPartitioned.spec())
@@ -340,6 +343,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         .withFileSizeInBytes(file.length())
         .withFormat(format)
         .withRecordCount(count)
+        .withSplitOffsets(offsets)
         .build();
 
     icebergTableUnPartitioned.newAppend()
