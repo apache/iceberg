@@ -53,6 +53,8 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
+  public static final String TABLE_MIGRATION_FILE_LISTING_RECURSIVE = "tableMigrationFileListingRecursive";
+
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -136,7 +138,8 @@ public class TableMigrationUtil {
     Path partition = new Path(partitionUri);
     FileSystem fs = partition.getFileSystem(conf);
     List<FileStatus> fileStatus = Lists.newArrayList();
-    RemoteIterator<LocatedFileStatus> iterators = fs.listFiles(partition, true);
+    boolean isRecursiveListing = conf.getBoolean(TABLE_MIGRATION_FILE_LISTING_RECURSIVE, false);
+    RemoteIterator<LocatedFileStatus> iterators = fs.listFiles(partition, isRecursiveListing);
     while (iterators.hasNext()) {
       LocatedFileStatus status = iterators.next();
       if (status.isFile() && HIDDEN_PATH_FILTER.accept(status.getPath())) {

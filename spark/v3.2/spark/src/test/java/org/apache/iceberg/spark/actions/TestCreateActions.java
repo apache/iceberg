@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -80,6 +82,8 @@ import scala.Option;
 import scala.Some;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
+
+import static org.apache.iceberg.data.TableMigrationUtil.TABLE_MIGRATION_FILE_LISTING_RECURSIVE;
 
 public class TestCreateActions extends SparkCatalogTestBase {
   private static final String CREATE_PARTITIONED_PARQUET = "CREATE TABLE %s (id INT, data STRING) " +
@@ -415,6 +419,17 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String dest = source;
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+  }
+
+  @Test
+  public void testMigrateHiveTableWithSubdir() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    String source = sourceName("migrate_hive_table_with_subdir");
+    String dest = source;
+    createSourceTableWithSubdir(CREATE_HIVE_EXTERNAL_PARQUET, source);
+    SparkSession sparkSession = SparkSession.active();
+    sparkSession.conf().set(TABLE_MIGRATION_FILE_LISTING_RECURSIVE, true);
+    assertMigratedFileCount(SparkActions.get(sparkSession).migrateTable(source), source, dest);
   }
 
   @Test
@@ -802,6 +817,25 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String format = table.provider().get();
     spark.table(baseTableName).write().mode(SaveMode.Append).format(format).partitionBy(partitionColumns.toSeq())
         .saveAsTable(tableName);
+  }
+
+  private void createSourceTableWithSubdir(String createStatement, String tableName)
+          throws IOException, NoSuchTableException, NoSuchDatabaseException, ParseException {
+    File location = temp.newFolder();
+    spark.sql(String.format(createStatement, tableName, location));
+    CatalogTable table = loadSessionTable(tableName);
+    Seq<String> partitionColumns = table.partitionColumnNames();
+    String format = table.provider().get();
+    spark.table(baseTableName).write().mode(SaveMode.Append).format(format).partitionBy(partitionColumns.toSeq())
+            .saveAsTable(tableName);
+    // move all data files under a table to a subdirectory
+    Collection<File> files = FileUtils.listFiles(location, null, true);
+    for (File srcFile : files) {
+      if (!srcFile.toString().endsWith("crc") && !srcFile.toString().equals("_SUCCESS")) {
+        File destDir = new File(srcFile.getParent() + "/subdir");
+        FileUtils.moveFileToDirectory(srcFile, destDir, true);
+      }
+    }
   }
 
   // Counts the number of files in the source table, makes sure the same files exist in the destination table
