@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -34,7 +35,9 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -280,6 +283,120 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
       TestHelpers.assertRows(
           sql("SELECT * FROM %s", tableName),
           Lists.newArrayList(Row.of(6, "aaa", dt), Row.of(7, "bbb", dt)));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  // Can be handled in a follow up... see the TODO in BaseTaskWriter#internalPosDelete
+  //    "TODO attach the previous row if has a positional-delete row schema in appender factory).
+  //
+  // TODO - Update this test to use a timestamp field where the bool is, as that would be more realistic
+  //        in terms of getting multiple upserts on the same batch.
+  @Test
+  public void testMultipleUpsertsToOneRowWithNonPKFieldChanging_OLD() {
+    String tableName = "test_multiple_upserts_with_non_pk_field_changing";
+    LocalDate dt = LocalDate.of(2022, 3, 1);
+
+    // ingestion_time:
+    //   Represents the same record being ingested multiple times, for example due to kafka
+    //   retries etc.
+    // LocalDateTime ts1 = LocalDateTime.of(2022, 3, 1, 2, 1, 1);
+    // LocalDateTime ts2 = LocalDateTime.of(2022, 3, 1, 2, 1, 2);
+    // LocalDateTime ts3 = LocalDateTime.of(2022, 3, 1, 2, 1, 3);
+    try {
+      sql("CREATE TABLE %s" +
+              "(id INT NOT NULL, dt DATE NOT NULL, is_active BOOLEAN NOT NULL, ingestion_time TIMESTAMP(0), " +
+              "PRIMARY KEY(id,dt) NOT ENFORCED) " +
+              "PARTITIONED BY (dt) WITH %s",
+          tableName, toWithClause(tableUpsertProps));
+
+      // Two unique records, both ingested at the same time.
+      sql("INSERT INTO %s VALUES " +
+          "(1, TO_DATE('2022-03-01'), false, TO_TIMESTAMP('2022-03-01 02:01:01'))," +
+          "(2, TO_DATE('2022-03-01'), false, TO_TIMESTAMP('2022-03-01 02:01:01'))",
+          tableName);
+
+      // Ingestion timestamp @ second 1
+      LocalDateTime ts1 = LocalDateTime.of(2022, 3, 1, 2, 1, 1);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of(1, dt, false, ts1), Row.of(2, dt, false, ts1)));
+
+      // Breaks if this record is added first, indicating bad logic in the insertedRowMap
+      //           "('aaa', TO_DATE('2022-03-01'), 6, false)," +
+      sql("INSERT INTO %s VALUES " +
+          "(1, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:02'))," +
+          "(2, TO_DATE('2022-03-01'), false, TO_TIMESTAMP('2022-03-01 02:01:01'))," +
+          "(2, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:03'))," +
+          "(2, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:04'))",
+          // "(2, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:05'))",
+          tableName);
+
+      // Ingestion timestamp @ second 2 and 3
+      LocalDateTime ts2 = LocalDateTime.of(2022, 3, 1, 2, 1, 2);
+      LocalDateTime ts3 = LocalDateTime.of(2022, 3, 1, 2, 1, 3);
+      LocalDateTime ts4 = LocalDateTime.of(2022, 3, 1, 2, 1, 4);
+      LocalDateTime ts5 = LocalDateTime.of(2022, 3, 1, 2, 1, 5);
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of(1, dt, true, ts2), Row.of(2, dt, true, ts4)));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  // Can be handled in a follow up... see the TODO in BaseTaskWriter#internalPosDelete
+  //    "TODO attach the previous row if has a positional-delete row schema in appender factory).
+  //
+  // TODO - Update this test to use a timestamp field where the bool is, as that would be more realistic
+  //        in terms of getting multiple upserts on the same batch.
+  @Test
+  public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging() {
+    String tableName = "test_multiple_upserts_on_one_row";
+    LocalDate dt = LocalDate.of(2022, 3, 1);
+    try {
+      sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT, bool Boolean, " +
+              "PRIMARY KEY(data,dt) NOT ENFORCED) " +
+              "PARTITIONED BY (data) WITH %s",
+          tableName, toWithClause(tableUpsertProps));
+
+      sql("INSERT INTO %s VALUES " +
+          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
+          "('bbb', TO_DATE('2022-03-01'), 3, false)",
+          tableName);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of("aaa", dt, 2, false), Row.of("bbb", dt, 3, false)));
+
+      sql("INSERT INTO %s VALUES " +
+          "('aaa', TO_DATE('2022-03-01'), 4, true)," +
+          "('bbb', TO_DATE('2022-03-01'), 5, true)",
+          tableName);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of("aaa", dt, 4, true), Row.of("bbb", dt, 5, true)));
+
+      // Process several duplicates of the same record with PK ('aaa', TO_DATE('2022-03-01')).
+      // Depending on the number of times that records are inserted for that row, one of the rows
+      // 2 back will be used instead.
+      //
+      // Indicating possibly an issue with insertedRowMap checking (and the schema theree).
+      sql("INSERT INTO %s VALUES " +
+          "('aaa', TO_DATE('2022-03-01'), 6, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 6, true)," +
+          "('bbb', TO_DATE('2022-03-01'), 7, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 6, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 6, false)",
+          tableName);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of("aaa", dt, 6, false), Row.of("bbb", dt, 7, false)));
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
