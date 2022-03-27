@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -35,9 +34,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -288,14 +285,12 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
     }
   }
 
-  // Can be handled in a follow up... see the TODO in BaseTaskWriter#internalPosDelete
-  //    "TODO attach the previous row if has a positional-delete row schema in appender factory)"
   @Test
   public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging() {
     String tableName = "test_multiple_upserts_on_one_row";
     LocalDate dt = LocalDate.of(2022, 3, 1);
     try {
-      sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT, bool Boolean, " +
+      sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT NOT NULL, bool BOOLEAN NOT NULL, " +
               "PRIMARY KEY(data,dt) NOT ENFORCED) " +
               "PARTITIONED BY (data) WITH %s",
           tableName, toWithClause(tableUpsertProps));
@@ -310,31 +305,22 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           sql("SELECT * FROM %s", tableName),
           Lists.newArrayList(Row.of("aaa", dt, 2, false), Row.of("bbb", dt, 3, false)));
 
-      sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 4, true)," +
-          "('bbb', TO_DATE('2022-03-01'), 5, true)",
-          tableName);
-
-      TestHelpers.assertRows(
-          sql("SELECT * FROM %s", tableName),
-          Lists.newArrayList(Row.of("aaa", dt, 4, true), Row.of("bbb", dt, 5, true)));
-
       // Process several duplicates of the same record with PK ('aaa', TO_DATE('2022-03-01')).
-      // Depending on the number of times that records are inserted for that row, one of the rows
-      // 2 back will be used instead.
+      // Depending on the number of times that records are inserted for that row, one of the
+      // rows 2 back will be used instead.
       //
-      // Indicating possibly an issue with insertedRowMap checking (and the schema theree).
+      // Indicating possibly an issue with insertedRowMap checking and/or the positional delete
+      // writer.
       sql("INSERT INTO %s VALUES " +
           "('aaa', TO_DATE('2022-03-01'), 6, false)," +
           "('aaa', TO_DATE('2022-03-01'), 6, true)," +
-          "('bbb', TO_DATE('2022-03-01'), 7, false)," +
           "('aaa', TO_DATE('2022-03-01'), 6, false)," +
           "('aaa', TO_DATE('2022-03-01'), 6, false)",
           tableName);
 
       TestHelpers.assertRows(
           sql("SELECT * FROM %s", tableName),
-          Lists.newArrayList(Row.of("aaa", dt, 6, false), Row.of("bbb", dt, 7, false)));
+          Lists.newArrayList(Row.of("aaa", dt, 6, false), Row.of("bbb", dt, 3, false)));
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
