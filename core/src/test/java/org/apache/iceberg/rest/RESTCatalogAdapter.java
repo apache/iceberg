@@ -327,7 +327,8 @@ public class RESTCatalogAdapter implements RESTClient {
     errorBuilder
         .responseCode(EXCEPTION_ERROR_CODES.getOrDefault(exc.getClass(), 500))
         .withType(exc.getClass().getSimpleName())
-        .withMessage(exc.getMessage());
+        .withMessage(exc.getMessage())
+        .withStackTrace(exc);
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {

@@ -19,7 +19,10 @@
 
 package org.apache.iceberg.rest.responses;
 
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -30,11 +33,13 @@ public class ErrorResponse {
   private String message;
   private String type;
   private int code;
+  private List<String> stack;
 
-  private ErrorResponse(String message, String type, int code) {
+  private ErrorResponse(String message, String type, int code, List<String> stack) {
     this.message = message;
     this.type = type;
     this.code = code;
+    this.stack = stack;
     validate();
   }
 
@@ -54,13 +59,29 @@ public class ErrorResponse {
     return code;
   }
 
+  public List<String> stack() {
+    return stack;
+  }
+
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("message", message)
-        .add("type", type)
-        .add("code", code)
-        .toString();
+    StringBuilder sb = new StringBuilder();
+    sb.append("ErrorResponse(")
+        .append("code=")
+        .append(code)
+        .append(", type=")
+        .append(type)
+        .append(", message=")
+        .append(message)
+        .append(")");
+
+    if (stack != null && !stack.isEmpty()) {
+      for (String line : stack) {
+        sb.append("\n").append(line);
+      }
+    }
+
+    return sb.toString();
   }
 
   public static Builder builder() {
@@ -71,6 +92,7 @@ public class ErrorResponse {
     private String message;
     private String type;
     private Integer code;
+    private List<String> stack;
 
     private Builder() {
     }
@@ -85,6 +107,22 @@ public class ErrorResponse {
       return this;
     }
 
+    public Builder withStackTrace(Throwable throwable) {
+      StringWriter sw = new StringWriter();
+      try (PrintWriter pw = new PrintWriter(sw)) {
+        throwable.printStackTrace(pw);
+      }
+
+      this.stack = Arrays.asList(sw.toString().split("\n"));
+
+      return this;
+    }
+
+    public Builder withStackTrace(List<String> trace) {
+      this.stack = trace;
+      return this;
+    }
+
     public Builder responseCode(Integer responseCode) {
       this.code = responseCode;
       return this;
@@ -92,7 +130,7 @@ public class ErrorResponse {
 
     public ErrorResponse build() {
       Preconditions.checkArgument(code != null, "Invalid response, missing field: code");
-      return new ErrorResponse(message, type, code);
+      return new ErrorResponse(message, type, code, stack);
     }
   }
 }
