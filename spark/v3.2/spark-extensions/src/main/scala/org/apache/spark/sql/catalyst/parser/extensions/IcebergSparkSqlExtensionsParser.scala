@@ -177,7 +177,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private def isIcebergCommand(sqlText: String): Boolean = {
     val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
-      // Catch all SQL comments, including simple comments (that start with --), as well as multiline comments
+      // Catch all SQL comments, including simple comments (that start with --), as well as comments
+      // of the form /* ... */, including those that span multiple lines.
       .replaceAll("(?ms)/\\*.*?\\*/|--.*?\\n", " ")
       // Replace any remaining newlines
       .replaceAll("\\s+", " ")
