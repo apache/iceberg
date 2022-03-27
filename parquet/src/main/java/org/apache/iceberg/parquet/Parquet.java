@@ -113,6 +113,7 @@ public class Parquet {
 
   public static class WriteBuilder {
     private final OutputFile file;
+    private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
@@ -126,6 +127,11 @@ public class Parquet {
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
+      if (file instanceof HadoopOutputFile) {
+        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+      } else {
+        this.conf = new Configuration();
+      }
     }
 
     public WriteBuilder forTable(Table table) {
@@ -258,15 +264,9 @@ public class Parquet {
       if (createWriterFunc != null) {
         Preconditions.checkArgument(writeSupport == null,
             "Cannot write with both write support and Parquet value writer");
-        Configuration conf;
-        if (file instanceof HadoopOutputFile) {
-          conf = ((HadoopOutputFile) file).getConf();
-        } else {
-          conf = new Configuration();
-        }
 
         for (Map.Entry<String, String> entry : config.entrySet()) {
-          conf.set(entry.getKey(), entry.getValue());
+          this.conf.set(entry.getKey(), entry.getValue());
         }
 
         ParquetProperties parquetProperties = ParquetProperties.builder()
