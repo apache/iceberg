@@ -85,7 +85,7 @@ public class HTTPClient implements RESTClient {
   // Per the spec, the only currently defined / used "success" responses are 200 and 202.
   private static boolean isSuccessful(CloseableHttpResponse response) {
     int code = response.getCode();
-    return code ==  HttpStatus.SC_OK || code == HttpStatus.SC_ACCEPTED;
+    return code ==  HttpStatus.SC_OK || code == HttpStatus.SC_ACCEPTED || code == HttpStatus.SC_NO_CONTENT;
   }
 
   private static ErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
@@ -165,7 +165,7 @@ public class HTTPClient implements RESTClient {
     try (CloseableHttpResponse response = httpClient.execute(request)) {
 
       // Skip parsing the response stream for any successful request not expecting a response body
-      if (responseType == null && isSuccessful(response)) {
+      if (response.getCode() == HttpStatus.SC_NO_CONTENT || (responseType == null && isSuccessful(response))) {
         return null;
       }
 
