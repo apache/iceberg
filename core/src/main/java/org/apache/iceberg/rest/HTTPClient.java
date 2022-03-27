@@ -41,6 +41,7 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.exceptions.RESTException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -249,13 +250,8 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
-    // Visible for testing
-    public Builder httpClient(CloseableHttpClient client) {
-      this.httpClient = client;
-      return this;
-    }
-
-    public Builder mapper(ObjectMapper objectMapper) {
+    @VisibleForTesting
+    Builder mapper(ObjectMapper objectMapper) {
       this.mapper = objectMapper;
       return this;
     }
