@@ -527,7 +527,7 @@ paths:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         504:
           description:
-            An server-side gateway timeout occurred; the commit state is unknown.
+            A server-side gateway timeout occurred; the commit state is unknown.
           content:
             application/json:
               schema:
@@ -1640,6 +1640,9 @@ components:
     ServiceUnavailableResponse:
       description:
         The service is not ready to handle the request. The client should wait and retry.
+
+
+        The service may additionally send a Retry-After header to indicate when to retry.
       content:
         application/json:
           schema:
@@ -1654,7 +1657,9 @@ components:
 
     ServerErrorResponse:
       description:
-        A server-side problem that might not be addressable from the client side. Used for server 5xx errors without more specific documentation in individual routes.
+        A server-side problem that might not be addressable from the client
+        side. Used for server 5xx errors without more specific documentation in
+        individual routes.
       content:
         application/json:
           schema:
