@@ -289,69 +289,7 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   }
 
   // Can be handled in a follow up... see the TODO in BaseTaskWriter#internalPosDelete
-  //    "TODO attach the previous row if has a positional-delete row schema in appender factory).
-  //
-  // TODO - Update this test to use a timestamp field where the bool is, as that would be more realistic
-  //        in terms of getting multiple upserts on the same batch.
-  @Test
-  public void testMultipleUpsertsToOneRowWithNonPKFieldChanging_OLD() {
-    String tableName = "test_multiple_upserts_with_non_pk_field_changing";
-    LocalDate dt = LocalDate.of(2022, 3, 1);
-
-    // ingestion_time:
-    //   Represents the same record being ingested multiple times, for example due to kafka
-    //   retries etc.
-    // LocalDateTime ts1 = LocalDateTime.of(2022, 3, 1, 2, 1, 1);
-    // LocalDateTime ts2 = LocalDateTime.of(2022, 3, 1, 2, 1, 2);
-    // LocalDateTime ts3 = LocalDateTime.of(2022, 3, 1, 2, 1, 3);
-    try {
-      sql("CREATE TABLE %s" +
-              "(id INT NOT NULL, dt DATE NOT NULL, is_active BOOLEAN NOT NULL, ingestion_time TIMESTAMP(0), " +
-              "PRIMARY KEY(id,dt) NOT ENFORCED) " +
-              "PARTITIONED BY (dt) WITH %s",
-          tableName, toWithClause(tableUpsertProps));
-
-      // Two unique records, both ingested at the same time.
-      sql("INSERT INTO %s VALUES " +
-          "(1, TO_DATE('2022-03-01'), false, TO_TIMESTAMP('2022-03-01 02:01:01'))," +
-          "(2, TO_DATE('2022-03-01'), false, TO_TIMESTAMP('2022-03-01 02:01:01'))",
-          tableName);
-
-      // Ingestion timestamp @ second 1
-      LocalDateTime ts1 = LocalDateTime.of(2022, 3, 1, 2, 1, 1);
-
-      TestHelpers.assertRows(
-          sql("SELECT * FROM %s", tableName),
-          Lists.newArrayList(Row.of(1, dt, false, ts1), Row.of(2, dt, false, ts1)));
-
-      // Breaks if this record is added first, indicating bad logic in the insertedRowMap
-      //           "('aaa', TO_DATE('2022-03-01'), 6, false)," +
-      sql("INSERT INTO %s VALUES " +
-          "(1, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:02'))," +
-          "(2, TO_DATE('2022-03-01'), false, TO_TIMESTAMP('2022-03-01 02:01:01'))," +
-          "(2, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:03'))," +
-          "(2, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:04'))",
-          // "(2, TO_DATE('2022-03-01'), true, TO_TIMESTAMP('2022-03-01 02:01:05'))",
-          tableName);
-
-      // Ingestion timestamp @ second 2 and 3
-      LocalDateTime ts2 = LocalDateTime.of(2022, 3, 1, 2, 1, 2);
-      LocalDateTime ts3 = LocalDateTime.of(2022, 3, 1, 2, 1, 3);
-      LocalDateTime ts4 = LocalDateTime.of(2022, 3, 1, 2, 1, 4);
-      LocalDateTime ts5 = LocalDateTime.of(2022, 3, 1, 2, 1, 5);
-      TestHelpers.assertRows(
-          sql("SELECT * FROM %s", tableName),
-          Lists.newArrayList(Row.of(1, dt, true, ts2), Row.of(2, dt, true, ts4)));
-    } finally {
-      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
-    }
-  }
-
-  // Can be handled in a follow up... see the TODO in BaseTaskWriter#internalPosDelete
-  //    "TODO attach the previous row if has a positional-delete row schema in appender factory).
-  //
-  // TODO - Update this test to use a timestamp field where the bool is, as that would be more realistic
-  //        in terms of getting multiple upserts on the same batch.
+  //    "TODO attach the previous row if has a positional-delete row schema in appender factory)"
   @Test
   public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging() {
     String tableName = "test_multiple_upserts_on_one_row";
