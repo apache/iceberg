@@ -284,45 +284,4 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
   }
-
-  @Test
-  public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging() {
-    String tableName = "test_multiple_upserts_on_one_row";
-    LocalDate dt = LocalDate.of(2022, 3, 1);
-    try {
-      sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT NOT NULL, bool BOOLEAN NOT NULL, " +
-              "PRIMARY KEY(data,dt) NOT ENFORCED) " +
-              "PARTITIONED BY (data) WITH %s",
-          tableName, toWithClause(tableUpsertProps));
-
-      sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
-          "('bbb', TO_DATE('2022-03-01'), 3, false)",
-          tableName);
-
-      TestHelpers.assertRows(
-          sql("SELECT * FROM %s", tableName),
-          Lists.newArrayList(Row.of("aaa", dt, 2, false), Row.of("bbb", dt, 3, false)));
-
-      // Process several duplicates of the same record with PK ('aaa', TO_DATE('2022-03-01')).
-      // Depending on the number of times that records are inserted for that row, one of the
-      // rows 2 back will be used instead.
-      //
-      // Indicating possibly an issue with insertedRowMap checking and/or the positional delete
-      // writer.
-      sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 6, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 6, true)," +
-          "('aaa', TO_DATE('2022-03-01'), 6, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 6, false)",
-          tableName);
-
-      TestHelpers.assertRows(
-          sql("SELECT * FROM %s", tableName),
-          Lists.newArrayList(Row.of("aaa", dt, 6, false), Row.of("bbb", dt, 3, false)));
-    } finally {
-      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
-    }
-  }
 }
