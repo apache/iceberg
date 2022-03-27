@@ -19,17 +19,29 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.Closeable;
-import java.util.function.Consumer;
-import org.apache.iceberg.rest.responses.ErrorResponse;
+public enum HttpMethod {
+  POST("POST", true, true),
+  GET("GET", false, true),
+  DELETE("DELETE", false, true),
+  HEAD("HEAD", false, false);
 
-/**
- * Interface for a basic HTTP Client for interfacing with the REST catalog.
- */
-public interface RESTClient extends Closeable {
-  <T> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
-  <T> T post(String path, Object body, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
-  <T> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
-  void  head(String path, Consumer<ErrorResponse> errorHandler);
+  HttpMethod(String method, boolean usesRequestBody, boolean usesResponseBody) {
+    this.usesResponseBody = usesResponseBody;
+    this.usesRequestBody = usesRequestBody;
+  }
+
+  // Represents whether we presently use a request / response body with this type or not,
+  // not necessarily if a body is allowed in the request or response for this HTTP verb.
+  //
+  // These are used to build valid test cases with `mock-server`.
+  private final boolean usesRequestBody;
+  private final boolean usesResponseBody;
+
+  public boolean usesResponseBody() {
+    return usesResponseBody;
+  }
+
+  public boolean usesRequestBody() {
+    return usesRequestBody;
+  }
 }
-
