@@ -54,8 +54,8 @@ public class MetastoreUtil {
   }
 
   /**
-   * If possible, call the alter_table method via metaStoreClient with an environment context that turns off stats
-   * updates, to avoid recursive listing.
+   * Calls alter_table method using the metastore client. If possible, an environmental context will be used that
+   * turns off stats updates to avoid recursive listing.
    */
   public static void alterTable(IMetaStoreClient client, String databaseName, String tblName, Table table) {
     EnvironmentContext envContext = new EnvironmentContext(
