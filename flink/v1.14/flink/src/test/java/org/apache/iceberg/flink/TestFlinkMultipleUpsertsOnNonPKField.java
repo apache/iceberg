@@ -31,7 +31,6 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
@@ -56,7 +55,7 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
   private final Map<String, String> tableUpsertProps = Maps.newHashMap();
   private TableEnvironment tEnv;
 
-  public TestFlinkUpsert(String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
+  public TestFlinkMultipleUpsertsOnNonPKField(String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
     super(catalogName, baseNamespace);
     this.isStreamingJob = isStreamingJob;
     tableUpsertProps.put(TableProperties.FORMAT_VERSION, "2");
