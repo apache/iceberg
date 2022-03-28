@@ -118,8 +118,8 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging() {
-    String tableName = "test_multiple_upserts_on_one_row";
+  public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging_fails() {
+    String tableName = "test_multiple_upserts_on_one_row_fails";
     LocalDate dt = LocalDate.of(2022, 3, 1);
     try {
       sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT NOT NULL, bool BOOLEAN NOT NULL, " +
@@ -150,6 +150,52 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
           "('aaa', TO_DATE('2022-03-01'), 6, false)",
           tableName);
 
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of("aaa", dt, 6, false), Row.of("bbb", dt, 3, false)));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+    }
+  }
+
+  /**
+   * This test is the same as the one above, except the non-PK field `id` has increasing
+   * values instead of the same value throughout.
+   *
+   * This one passes while the other one does not.
+   */
+  @Test
+  public void  testMultipleUpsertsToOneRowWithNonPKFieldChanging_succeeds() {
+    String tableName = "test_multiple_upserts_on_one_row_succeeds";
+    LocalDate dt = LocalDate.of(2022, 3, 1);
+    try {
+      sql("CREATE TABLE %s(data STRING NOT NULL, dt DATE NOT NULL, id INT NOT NULL, bool BOOLEAN NOT NULL, " +
+              "PRIMARY KEY(data,dt) NOT ENFORCED) " +
+              "PARTITIONED BY (data) WITH %s",
+          tableName, toWithClause(tableUpsertProps));
+
+      sql("INSERT INTO %s VALUES " +
+          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
+          "('bbb', TO_DATE('2022-03-01'), 3, false)",
+          tableName);
+
+      TestHelpers.assertRows(
+          sql("SELECT * FROM %s", tableName),
+          Lists.newArrayList(Row.of("aaa", dt, 2, false), Row.of("bbb", dt, 3, false)));
+
+      // Process several duplicates of the same record with PK ('aaa', TO_DATE('2022-03-01')).
+      // Depending on the number of times that records are inserted for that row, one of the
+      // rows 2 back will be used instead.
+      //
+      // Indicating possibly an issue with insertedRowMap checking and/or the positional delete
+      // writer.
+      sql("INSERT INTO %s VALUES " +
+          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 3, false)," +
+          "('aaa', TO_DATE('2022-03-01'), 6, false)",
+          tableName);
       TestHelpers.assertRows(
           sql("SELECT * FROM %s", tableName),
           Lists.newArrayList(Row.of("aaa", dt, 6, false), Row.of("bbb", dt, 3, false)));
