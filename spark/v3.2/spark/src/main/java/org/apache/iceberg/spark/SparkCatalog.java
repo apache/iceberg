@@ -29,6 +29,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -135,6 +136,7 @@ public class SparkCatalog extends BaseCatalog {
       Table icebergTable = builder
           .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
           .withLocation(properties.get("location"))
+          .withLocationPrefix(properties.get(TableProperties.TABLE_LOCATION_PREFIX))
           .withProperties(Spark3Util.rebuildCreateProperties(properties))
           .create();
       return new SparkTable(icebergTable, !cacheEnabled);

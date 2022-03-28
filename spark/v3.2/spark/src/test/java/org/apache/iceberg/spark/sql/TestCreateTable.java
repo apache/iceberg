@@ -279,4 +279,42 @@ public class TestCreateTable extends SparkCatalogTestBase {
         "Cannot downgrade v2 table to v1",
         () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
   }
+
+  @Test
+  public void testCreateTableRelativePaths() throws Exception {
+    Assume.assumeTrue(
+            "Cannot set custom locations for Hadoop catalog tables",
+            !(validationCatalog instanceof HadoopCatalog));
+
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    File tableLocationPrefix = temp.newFolder();
+    Assert.assertTrue(tableLocationPrefix.delete());
+
+    String locationPrefix = "file:" + tableLocationPrefix.toString();
+    String relativeTableLocation = tableIdent.namespace() + "/" + tableIdent.name();
+    String location = locationPrefix + "/" + relativeTableLocation;
+
+    sql("CREATE TABLE %s " +
+                    "(id BIGINT NOT NULL, data STRING) " +
+                    "USING iceberg " +
+                    "TBLPROPERTIES ('format-version'='2'," +
+                    "'write.metadata.use.relative-path'='true'," +
+                    "'location-prefix'='%s')" +
+                    "LOCATION '%s'",
+            tableName, locationPrefix, location);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    StructType expectedSchema = StructType.of(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "data", Types.StringType.get()));
+    Assert.assertEquals("Should have the expected schema", expectedSchema, table.schema().asStruct());
+    Assert.assertEquals("Should not be partitioned", 0, table.spec().fields().size());
+    Assert.assertNull("Should not have the default format set",
+            table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
+    Assert.assertEquals("Should have a custom table location",
+            location, table.location());
+  }
 }

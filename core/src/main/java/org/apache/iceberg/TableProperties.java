@@ -236,6 +236,9 @@ public class TableProperties {
   public static final String WRITE_METADATA_USE_RELATIVE_PATH = "write.metadata.use.relative-path";
   public static final boolean WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT = false;
 
+  // Optional location prefix. If relative paths is enabled, this prefix will be removed from paths in metadata
+  public static final String TABLE_LOCATION_PREFIX = "location-prefix";
+
   public static final String UPDATE_MODE = "write.update.mode";
   public static final String UPDATE_MODE_DEFAULT = "copy-on-write";
 

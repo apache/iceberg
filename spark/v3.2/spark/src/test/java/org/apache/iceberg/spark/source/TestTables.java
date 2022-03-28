@@ -61,9 +61,9 @@ class TestTables {
         ImmutableMap.of(
             TableProperties.WRITE_METADATA_USE_RELATIVE_PATH, "true",
             TableProperties.FORMAT_VERSION, "2") : ImmutableMap.of();
-
+    String prefix = locationPrefix == null ? null : locationPrefix.toString();
     ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(),
-        locationPrefix.toString(), properties));
+        prefix, properties));
     return new TestTable(ops, name);
   }
 

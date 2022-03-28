@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -678,6 +679,9 @@ public class TableMetadata implements Serializable {
    * @return updated table metadata
    */
   public TableMetadata convertAbsolutePathsToRelativePaths() {
+    // Convert location to absolute path
+    String relativeTableLocation = MetadataPathUtils.toRelativePath(location, locationPrefix, useRelativePaths());
+
     List<Snapshot> newUpdatedSnapshots = null;
     if (snapshots.size() > 0) {
       newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
@@ -686,12 +690,12 @@ public class TableMetadata implements Serializable {
             useRelativePaths());
         newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
             snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-            snapshot.summary(), snapshot.schemaId(), locationPrefix, location, useRelativePaths(),
+            snapshot.summary(), snapshot.schemaId(), locationPrefix, relativeTableLocation, useRelativePaths(),
             manifestListLocation));
       }
     }
 
-    return new TableMetadata(file, formatVersion, uuid, locationPrefix, location,
+    return new TableMetadata(file, formatVersion, uuid, locationPrefix, relativeTableLocation,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
         newUpdatedSnapshots == null ? snapshots : newUpdatedSnapshots, snapshotLog, previousFiles);
@@ -702,17 +706,21 @@ public class TableMetadata implements Serializable {
    * @return updated table metadata
    */
   public TableMetadata convertRelativePathToAbsolutePaths() {
+
+    // Convert location to absolute path
+    String absoluteLocation = MetadataPathUtils.toAbsolutePath(location, locationPrefix);
+
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
       String newManifestListLocation = MetadataPathUtils.toAbsolutePath(snapshot.manifestListLocation(),
           locationPrefix);
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), snapshot.schemaId(), locationPrefix, location, useRelativePaths(),
+          snapshot.summary(), snapshot.schemaId(), locationPrefix, absoluteLocation, useRelativePaths(),
           newManifestListLocation));
     }
 
-    return new TableMetadata(file, formatVersion, uuid, locationPrefix, location,
+    return new TableMetadata(file, formatVersion, uuid, locationPrefix, absoluteLocation,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, newUpdatedSnapshots,
         snapshotLog, previousFiles);
@@ -722,9 +730,11 @@ public class TableMetadata implements Serializable {
    * Update the prefix in table metadata
    * @param newPrefix new location prefix
    */
-  public TableMetadata updatePrefixInMetadata(String newPrefix) {
+  public TableMetadata updatePrefixInMetadata(FileIO io, String newPrefix, String currentMetadataPath) {
     if (!locationPrefix().equals(newPrefix)) {
-      return new TableMetadata(file, formatVersion, uuid, newPrefix, location,
+      String newMetadataLocation = currentMetadataPath.replace(locationPrefix(), newPrefix);
+      return new TableMetadata(io.newInputFile(newMetadataLocation), formatVersion, uuid, newPrefix,
+              MetadataPathUtils.toRelativePath(location, locationPrefix, true),
           lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
           lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots,
           snapshotLog, previousFiles);

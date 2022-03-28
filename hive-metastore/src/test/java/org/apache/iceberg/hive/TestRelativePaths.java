@@ -79,7 +79,10 @@ public class TestRelativePaths extends HiveTableBaseTest {
     // Create a new location to move
     String newPrefix = createTempDirectory(NON_DEFAULT_DATABASE,
         asFileAttribute(fromString("rwxrwxrwx"))).toFile().getAbsolutePath() + "/" +  DB_NAME;
-    moveTableFiles(tableLocation, newPrefix + "/" + TABLE_NAME);
+
+    String newTableLocation = newPrefix + "/" + TABLE_NAME;
+
+    moveTableFiles(tableLocation, newTableLocation);
 
     // 3. Update prefix
     String oldMetadataFilePath = Paths.get(newPrefix,
@@ -90,11 +93,24 @@ public class TestRelativePaths extends HiveTableBaseTest {
 
     Table newTable = catalog.updatePrefix(TABLE_IDENTIFIER, oldMetadataFilePath, newPrefix);
 
+    Assert.assertEquals("Table location prefix should be updated",
+            newTable.locationPrefix(), newPrefix);
+    Assert.assertEquals("Table location should be updated",
+            newTable.location(), newTableLocation);
+
     org.apache.hadoop.hive.metastore.api.Table newHmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
     Assert.assertNotEquals("Table location in HMS should have changed", oldHmsTable.getSd().getLocation(),
         newHmsTable.getSd().getLocation());
+
   }
 
+  /**
+   * Create a table, insert 3 records and delete a record, creating two snapshots
+   * @param identifier table identifier
+   * @param tableLocationPrefix table location prefix
+   * @param tableLocation table location
+   * @return the newly created table
+   */
   public Table createTable(TableIdentifier identifier, String tableLocationPrefix, String tableLocation) throws
       IOException {
 
@@ -152,9 +168,7 @@ public class TestRelativePaths extends HiveTableBaseTest {
 
     // delete file2
     table.newDelete().deleteFile(file2.path()).commit();
-
     return table;
-
   }
 
   private void moveTableFiles(String sourceDir, String targetDir) throws Exception {

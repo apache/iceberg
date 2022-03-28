@@ -250,6 +250,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
             baseMetadataLocation, metadataLocation, database, tableName);
       }
+      tbl.getParameters().put(METADATA_LOCATION_PROP, metadata.metadataFileLocation());
 
       // get Iceberg props that have been removed
       Set<String> removedProps = Collections.emptySet();
