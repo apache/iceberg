@@ -86,13 +86,13 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             WRITE_DISTRIBUTION_MODE_NONE
         },
         { "testhive", SparkCatalog.class.getName(),
-          ImmutableMap.of(
-              "type", "hive",
-              "default-namespace", "default"
-          ),
-          "parquet",
-          true,
-          WRITE_DISTRIBUTION_MODE_NONE
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default"
+            ),
+            "parquet",
+            true,
+            WRITE_DISTRIBUTION_MODE_NONE
         },
         { "testhadoop", SparkCatalog.class.getName(),
             ImmutableMap.of(

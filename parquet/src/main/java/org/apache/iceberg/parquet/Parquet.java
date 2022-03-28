@@ -266,7 +266,7 @@ public class Parquet {
             "Cannot write with both write support and Parquet value writer");
 
         for (Map.Entry<String, String> entry : config.entrySet()) {
-          this.conf.set(entry.getKey(), entry.getValue());
+          conf.set(entry.getKey(), entry.getValue());
         }
 
         ParquetProperties parquetProperties = ParquetProperties.builder()
