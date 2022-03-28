@@ -235,7 +235,8 @@ public class ORC {
         return compressionStrategy;
       }
 
-      private Context(long stripeSize, long blockSize, int vectorizedRowBatchSize, String codecAsString, String compressionStrategy) {
+      private Context(long stripeSize, long blockSize, int vectorizedRowBatchSize,
+          String codecAsString, String compressionStrategy) {
         this.stripeSize = stripeSize;
         this.blockSize = blockSize;
         this.vectorizedRowBatchSize = vectorizedRowBatchSize;
@@ -278,10 +279,10 @@ public class ORC {
         int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,
             DELETE_ORC_WRITE_BATCH_SIZE, dataContext.vectorizedRowBatchSize());
 
-        String codecAsString = PropertyUtil.propertyAsString(config, ORC_COMPRESSION, dataContext.codecAsString());
+        String codecAsString = config.getOrDefault(DELETE_ORC_COMPRESSION, dataContext.codecAsString());
 
-        String compressionStrategy = PropertyUtil.propertyAsString(config,
-            ORC_COMPRESSION_STRATEGY, dataContext.compressionStrategy());
+        String compressionStrategy = config.getOrDefault(DELETE_ORC_COMPRESSION_STRATEGY,
+            dataContext.compressionStrategy());
 
         return new Context(stripeSize, blockSize, vectorizedRowBatchSize, codecAsString, compressionStrategy);
       }
