@@ -25,7 +25,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -53,13 +52,7 @@ public class FanoutPositionDeleteWriter<T> extends FanoutWriter<PositionDelete<T
 
   @Override
   protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
-    // TODO: support ORC rolling writers.
-    if (fileFormat == FileFormat.ORC) {
-      EncryptedOutputFile outputFile = newOutputFile(fileFactory, spec, partition);
-      return writerFactory.newPositionDeleteWriter(outputFile, spec, partition);
-    } else {
-      return new RollingPositionDeleteWriter<>(writerFactory, fileFactory, io, targetFileSizeBytes, spec, partition);
-    }
+    return new RollingPositionDeleteWriter<>(writerFactory, fileFactory, io, targetFileSizeBytes, spec, partition);
   }
 
   @Override

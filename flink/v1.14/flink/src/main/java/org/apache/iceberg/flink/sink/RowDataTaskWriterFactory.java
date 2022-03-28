@@ -91,6 +91,9 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
           .dataFlinkType(flinkSchema)
           .build();
     } else if (upsert) {
+      // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of the inserted row
+      // may differ from the deleted row other than the primary key fields, and the delete file must contain values
+      // that are correct for the deleted row. Therefore, only write the equality delete fields.
       this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
       this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
           .dataFlinkType(flinkSchema)
