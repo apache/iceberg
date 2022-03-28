@@ -280,9 +280,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     private boolean shouldRollToNewFile() {
-      // TODO: ORC file now not support target file size before closed
-      return !format.equals(FileFormat.ORC) &&
-          currentRows % ROWS_DIVISOR == 0 && length(currentWriter) >= targetFileSize;
+      return currentRows % ROWS_DIVISOR == 0 && length(currentWriter) >= targetFileSize;
     }
 
     private void closeCurrent() throws IOException {

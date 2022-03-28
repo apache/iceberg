@@ -42,7 +42,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.ClusteredDataWriter;
@@ -636,13 +635,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     private UnpartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
                                     FileIO io, PartitionSpec spec, FileFormat format, long targetFileSize) {
-      // TODO: support ORC rolling writers
-      if (format == FileFormat.ORC) {
-        EncryptedOutputFile outputFile = fileFactory.newOutputFile();
-        delegate = writerFactory.newDataWriter(outputFile, spec, null);
-      } else {
-        delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
-      }
+      delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
     }
 
