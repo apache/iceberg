@@ -78,8 +78,8 @@ public class ManifestsTable extends BaseMetadataTable {
         ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
         schema(), scan.schema(), scan.snapshot().allManifests(),
         manifest -> {
-          PartitionSpec partitionSpec = specs.get(manifest.partitionSpecId());
-          return ManifestsTable.manifestFileToRow(partitionSpec, manifest);
+          PartitionSpec spec = specs.get(manifest.partitionSpecId());
+          return ManifestsTable.manifestFileToRow(spec, manifest);
         }
     );
   }
