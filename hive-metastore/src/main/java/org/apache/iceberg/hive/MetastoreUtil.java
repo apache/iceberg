@@ -54,8 +54,8 @@ public class MetastoreUtil {
   }
 
   /**
-   * Invokes alterTable via metaStoreClient without triggering recursive listing.
-   * ref: https://github.com/apache/iceberg/pull/734#issuecomment-574062407
+   * If possible, call the alter_table method via metaStoreClient with an environment context that turns off stats
+   * updates, to avoid recursive listing.
    */
   public static void alterTable(IMetaStoreClient client, String databaseName, String tblName, Table table) {
     EnvironmentContext envContext = new EnvironmentContext(
