@@ -32,6 +32,8 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestEqualityDeltaWriters;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 
@@ -79,6 +81,14 @@ public class TestFlinkEqualityDeleteWriters extends TestEqualityDeltaWriters<Row
     RowDataWrapper wrapper = new RowDataWrapper(flinkType, table.schema().asStruct());
 
     return wrapper.wrap(data);
+  }
+
+  @Override
+  public StructLike asStructLikeKey(List<Integer> keyFieldIds, RowData key) {
+    Schema deleteSchema = TypeUtil.select(table.schema(), Sets.newHashSet(keyFieldIds));
+    RowType keyType = FlinkSchemaUtil.convert(deleteSchema);
+    RowDataWrapper wrapper = new RowDataWrapper(keyType, deleteSchema.asStruct());
+    return wrapper.wrap(key);
   }
 
   @Override

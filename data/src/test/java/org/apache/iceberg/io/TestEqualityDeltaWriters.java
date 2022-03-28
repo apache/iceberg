@@ -103,6 +103,8 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
 
   public abstract StructLike asStructLike(T data);
 
+  public abstract StructLike asStructLikeKey(List<Integer> keyFieldIds, T key);
+
   @Test
   public void testInsertOnly() throws IOException {
     // Commit the first row collection.
@@ -453,6 +455,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
         posWriter,
         schema,
         deleteSchema,
-        this::asStructLike);
+        this::asStructLike,
+        data -> this.asStructLikeKey(equalityFieldIds, data));
   }
 }

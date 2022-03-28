@@ -41,6 +41,7 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
   private final Map<StructLike, PathOffset> insertedRowMap;
 
   private final Function<T, StructLike> asStructLike;
+  private final Function<T, StructLike> asStructLikeKey;
   private final Function<T, StructLike> keyRefFunc;
   private final Function<T, StructLike> keyCopyFunc;
 
@@ -52,13 +53,15 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
       PartitioningWriter<PositionDelete<T>, DeleteWriteResult> positionWriter,
       Schema schema,
       Schema deleteSchema,
-      Function<T, StructLike> asStructLike) {
+      Function<T, StructLike> asStructLike,
+      Function<T, StructLike> asStructLikeKey) {
     this.dataWriter = dataWriter;
     this.equalityWriter = equalityWriter;
     this.positionWriter = positionWriter;
 
     this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     this.asStructLike = asStructLike;
+    this.asStructLikeKey = asStructLikeKey;
 
     StructProjection projection = StructProjection.create(schema, deleteSchema);
     this.keyRefFunc = row -> projection.wrap(asStructLike.apply(row));
@@ -101,7 +104,7 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
 
   @Override
   public void deleteKey(T key, PartitionSpec spec, StructLike partition) {
-    if (!retireOldKey(asStructLike.apply(key), spec, partition)) {
+    if (!retireOldKey(asStructLikeKey.apply(key), spec, partition)) {
       equalityWriter.write(key, spec, partition);
     }
   }

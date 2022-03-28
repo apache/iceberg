@@ -30,7 +30,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.io.BaseEqualityDeltaWriter;
 import org.apache.iceberg.io.ClusteredDataWriter;
 import org.apache.iceberg.io.ClusteredEqualityDeleteWriter;
@@ -144,7 +146,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         case INSERT:
         case UPDATE_AFTER:
           if (upsert) {
-            delete(row);
+            deleteKey(row);
           }
           insert(row);
           break;
@@ -166,13 +168,11 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       }
     }
 
-    protected void delete(RowData row) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement delete.");
-    }
+    protected abstract void delete(RowData row);
 
-    protected void insert(RowData row) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement insert.");
-    }
+    protected abstract void deleteKey(RowData row);
+
+    protected abstract void insert(RowData row);
 
     protected void aggregateResult(DataWriteResult result) {
       writeResultBuilder.addDataFiles(result.dataFiles());
@@ -239,6 +239,16 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
 
     @Override
+    protected void delete(RowData row) {
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement delete.");
+    }
+
+    @Override
+    protected void deleteKey(RowData key) {
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement deleteKey.");
+    }
+
+    @Override
     protected void insert(RowData row) {
       partitionKey.partition(rowDataWrapper.wrap(row));
       delegate.write(row, spec, partitionKey);
@@ -259,6 +269,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     private final PartitionKey partitionKey;
     private final RowDataWrapper rowDataWrapper;
+    private final RowDataWrapper keyWrapper;
+    private final RowDataProjection keyProjection;
 
     private final EqualityDeltaWriter<RowData> delegate;
     private boolean closed = false;
@@ -266,19 +278,31 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     private DeltaWriter(boolean fanoutEnabled) {
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+      this.keyWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
+      this.keyProjection = RowDataProjection.create(schema, deleteSchema);
 
       this.delegate = new BaseEqualityDeltaWriter<>(
           newDataWriter(fanoutEnabled),
           newEqualityWriter(fanoutEnabled),
           newPositionWriter(fanoutEnabled),
-          schema, deleteSchema, rowDataWrapper::wrap);
+          schema, deleteSchema,
+          rowDataWrapper::wrap,
+          keyWrapper::wrap);
     }
 
+    @Override
     protected void delete(RowData row) {
       partitionKey.partition(rowDataWrapper.wrap(row));
       delegate.delete(row, spec, partitionKey);
     }
 
+    @Override
+    protected void deleteKey(RowData row) {
+      partitionKey.partition(rowDataWrapper.wrap(row));
+      delegate.deleteKey(keyProjection.wrap(row), spec, partitionKey);
+    }
+
+    @Override
     protected void insert(RowData row) {
       partitionKey.partition(rowDataWrapper.wrap(row));
       delegate.insert(row, spec, partitionKey);
