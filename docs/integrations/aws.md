@@ -435,10 +435,12 @@ For the above example, the objects in S3 will be saved with tags: `my_key1=my_va
 
 For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
 
-### S3 AccessPoints
+### S3 Access Points
 
-[AccessPoints](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used for operating
-s3 objects from the specified bucket, against which access-point was mapped.
+[Access Points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used for operating
+s3 objects from the specified bucket, against which access-point was mapped. This is useful for multi-region access,
+disaster recovery, etc.
+
 For example, to use S3 access-point with Spark 3.0, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
