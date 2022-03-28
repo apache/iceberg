@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 
 import java.util.List;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -37,17 +36,15 @@ public class ClusteredPositionDeleteWriter<T> extends ClusteredWriter<PositionDe
   private final FileWriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
-  private final FileFormat fileFormat;
   private final long targetFileSizeInBytes;
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
   public ClusteredPositionDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                                       FileIO io, FileFormat fileFormat, long targetFileSizeInBytes) {
+                                       FileIO io, long targetFileSizeInBytes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
-    this.fileFormat = fileFormat;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();
