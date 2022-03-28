@@ -193,13 +193,56 @@ def test_index_by_id_schema_visitor_raise_on_unregistered_type():
     assert "Cannot visit non-type: foo" in str(exc_info.value)
 
 
-def test_index_by_name_schema_visitor_raise_on_unregistered_type():
-    """Test raising a NotImplementedError when an invalid type is provided to the visit function"""
+def test_schema_find_field():
+    """Test finding a field in a schema"""
+    columns = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+    ]
+    table_schema = schema.Schema(*columns)
 
-    class FooVisitor(SchemaVisitor[Dict[int, NestedField]]):
-        pass
+    assert table_schema.find_field(1) == table_schema.find_field("foo") == columns[0]
+    assert table_schema.find_field(2) == table_schema.find_field("bar") == columns[1]
+    assert table_schema.find_field(3) == table_schema.find_field("baz") == columns[2]
 
-    with pytest.raises(NotImplementedError) as exc_info:
-        schema.visit("foo", FooVisitor())
 
-    assert "Cannot visit non-type: foo" in str(exc_info.value)
+def test_schema_find_type():
+    """Test finding the type of a column given its field ID"""
+    columns = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+    ]
+    table_schema = schema.Schema(*columns)
+
+    assert table_schema.find_type(1) == table_schema.find_type("foo") == StringType()
+    assert table_schema.find_type(2) == table_schema.find_type("bar") == IntegerType()
+    assert table_schema.find_type(3) == table_schema.find_type("baz") == BooleanType()
+
+
+def test_schema_find_column_name():
+    """Test finding a column name given its field ID"""
+    columns = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+    ]
+    table_schema = schema.Schema(*columns)
+
+    assert table_schema.find_column_name(1) == "foo"
+    assert table_schema.find_column_name(2) == "bar"
+    assert table_schema.find_column_name(3) == "baz"
+
+
+def test_schema_select():
+    """Test selecting columns in a schema"""
+    columns = [
+        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+    ]
+    table_schema = schema.Schema(*columns)
+
+    projected_schema = table_schema.select(["foo", "bar"])
+    len(projected_schema.columns) == 2

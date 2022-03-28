@@ -15,9 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Dict, Generic, Iterable, List, Optional, TypeVar
+from abc import ABC, abstractmethod
+from typing import Dict, Generic, Iterable, List, TypeVar, Union
 
-from iceberg.types import ListType, MapType, NestedField, PrimitiveType, StructType
+from iceberg.types import (
+    IcebergType,
+    ListType,
+    MapType,
+    NestedField,
+    PrimitiveType,
+    StructType,
+)
+
+T = TypeVar("T")
 
 
 class Schema(object):
@@ -39,8 +49,42 @@ class Schema(object):
     def as_struct(self):
         return self._struct
 
+    def _find_field_by_name(self, index: dict, name: str) -> NestedField:
+        matched_fields = [field for field_id, field in index.items() if field.name == name]
+        if not matched_fields:
+            raise ValueError("Cannot find field: {name_or_id}")
+        return matched_fields[0]
 
-T = TypeVar("T")
+    def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
+        index = index_by_id(self)
+        if isinstance(name_or_id, int):
+            return index[name_or_id]
+        return self._find_field_by_name(index, name_or_id)
+
+    def find_type(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> IcebergType:
+        index = index_by_id(self)
+        if isinstance(name_or_id, int):
+            return index[name_or_id].type
+        return self._find_field_by_name(index, name_or_id).type
+
+    def find_column_name(self, id: int) -> str:
+        index = index_by_id(self)
+        return index[id].name
+
+    def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
+        return (
+            self._case_sensitive_select(schema=self, names=names)
+            if case_sensitive
+            else self._case_insensitive_select(schema=self, names=names)
+        )
+
+    @classmethod
+    def _case_sensitive_select(cls, schema: "Schema", names: List[str]):
+        return cls(*[column for column in schema.columns if column.name.lower() in names])
+
+    @classmethod
+    def _case_insensitive_select(cls, schema: "Schema", names: List[str]):
+        return cls(*[column for column in schema.columns if column.name.lower() in [name.lower() for name in names]])
 
 
 class SchemaVisitor(Generic[T]):
@@ -68,23 +112,29 @@ class SchemaVisitor(Generic[T]):
     def after_map_value(self, value: NestedField) -> None:
         self.after_field(value)
 
-    def schema(self, schema: Schema, struct_result: T) -> Optional[T]:
-        return None
+    @abstractmethod
+    def schema(self, schema: Schema, struct_result: T) -> T:
+        ...
 
-    def struct(self, struct: StructType, field_results: List[T]) -> Optional[T]:
-        return None
+    @abstractmethod
+    def struct(self, struct: StructType, field_results: List[T]) -> T:
+        ...
 
-    def field(self, field: NestedField, field_result: T) -> Optional[T]:
-        return None
+    @abstractmethod
+    def field(self, field: NestedField, field_result: T) -> T:
+        ...
 
-    def list(self, list_type: ListType, element_result: T) -> Optional[T]:
-        return None
+    @abstractmethod
+    def list(self, list_type: ListType, element_result: T) -> T:
+        ...
 
-    def map(self, map_type: MapType, key_result: T, value_result: T) -> Optional[T]:
-        return None
+    @abstractmethod
+    def map(self, map_type: MapType, key_result: T, value_result: T) -> T:
+        ...
 
-    def primitive(self, primitive: PrimitiveType) -> Optional[T]:
-        return None
+    @abstractmethod
+    def primitive(self, primitive: PrimitiveType) -> T:
+        ...
 
 
 def visit(obj, visitor: SchemaVisitor[Optional[T]]) -> Optional[T]:
