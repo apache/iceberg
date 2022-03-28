@@ -140,6 +140,8 @@ subprojects {
       }
     })
 
+    maxHeapSize = "1500m"
+
     testLogging {
       events "failed"
       exceptionFormat "full"
