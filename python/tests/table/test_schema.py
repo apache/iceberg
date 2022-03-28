@@ -39,9 +39,11 @@ def test_schema_str():
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
     ]
     table_schema = schema.Schema(*columns)
-    assert """1: name=foo, type=string, required=True
-2: name=bar, type=int, required=False
-3: name=baz, type=boolean, required=True""" == str(
+    assert """table { 
+ 1: foo: required string
+ 2: bar: optional int
+ 3: baz: required boolean
+ }""" == str(
         table_schema
     )
 

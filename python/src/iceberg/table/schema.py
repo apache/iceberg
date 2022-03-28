@@ -35,10 +35,7 @@ class Schema(object):
         self._struct = StructType(*columns)  # type: ignore
 
     def __str__(self):
-        column_strings = [
-            f"{column.field_id}: name={column.name}, type={column.type}, required={column.is_required}" for column in self.columns
-        ]
-        return "\n".join(column_strings)
+        return "table { \n" + "\n".join([" " + str(field) for field in self.columns]) + "\n }"
 
     def __repr__(self):
         return f"Schema(fields={repr(self.columns)})"
