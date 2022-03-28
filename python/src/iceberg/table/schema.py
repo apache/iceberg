@@ -15,15 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
 from typing import Dict, Generic, Iterable, List, Optional, TypeVar
-
-if sys.version_info >= (3, 8):  # pragma: no cover
-    from functools import singledispatchmethod
-    from typing import Protocol
-else:  # pragma: no cover
-    from typing_extensions import Protocol  # type: ignore
-    from singledispatch import singledispatchmethod  # type: ignore
 
 from iceberg.types import ListType, MapType, NestedField, PrimitiveType, StructType
 
