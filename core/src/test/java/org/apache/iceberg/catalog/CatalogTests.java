@@ -58,7 +58,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
