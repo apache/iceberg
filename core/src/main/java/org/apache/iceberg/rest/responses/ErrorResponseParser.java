@@ -100,7 +100,7 @@ public class ErrorResponseParser {
     JsonNode error = jsonNode.get(ERROR);
     String message = JsonUtil.getStringOrNull(MESSAGE, error);
     String type = JsonUtil.getStringOrNull(TYPE, error);
-    Integer code = JsonUtil.getIntOrNull(CODE, error);
+    int code = JsonUtil.getInt(CODE, error);
     List<String> stack = JsonUtil.getStringListOrNull(STACK, error);
     return ErrorResponse.builder()
         .withMessage(message)

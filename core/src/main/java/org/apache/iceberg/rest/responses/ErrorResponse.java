@@ -57,7 +57,7 @@ public class ErrorResponse implements RESTResponse {
     return type;
   }
 
-  public Integer code() {
+  public int code() {
     return code;
   }
 
@@ -93,7 +93,7 @@ public class ErrorResponse implements RESTResponse {
   public static class Builder {
     private String message;
     private String type;
-    private Integer code;
+    private int code;
     private List<String> stack;
 
     private Builder() {
@@ -125,13 +125,13 @@ public class ErrorResponse implements RESTResponse {
       return this;
     }
 
-    public Builder responseCode(Integer responseCode) {
+    public Builder responseCode(int responseCode) {
       this.code = responseCode;
       return this;
     }
 
     public ErrorResponse build() {
-      Preconditions.checkArgument(code != null, "Invalid response, missing field: code");
+      Preconditions.checkArgument(code != 0, "Invalid response, missing field: code");
       return new ErrorResponse(message, type, code, stack);
     }
   }

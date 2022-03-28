@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.AssertHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -30,7 +31,7 @@ public class TestErrorResponseParser {
   public void testErrorResponseToJson() {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
-    Integer code = 404;
+    int code = 404;
     String errorModelJson = String.format("{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d}", message, type, code);
     String json = "{\"error\":" + errorModelJson + "}";
     ErrorResponse response = ErrorResponse.builder().withMessage(message).withType(type).responseCode(code).build();
@@ -42,7 +43,7 @@ public class TestErrorResponseParser {
   public void testErrorResponseToJsonWithStack() {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
-    Integer code = 404;
+    int code = 404;
     List<String> stack = Arrays.asList("a", "b");
     String errorModelJson = String.format(
         "{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d,\"stack\":[\"a\",\"b\"]}", message, type, code);
@@ -61,7 +62,7 @@ public class TestErrorResponseParser {
   public void testErrorResponseFromJson() {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
-    Integer code = 404;
+    int code = 404;
     String errorModelJson = String.format("{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d}", message, type, code);
     String json = "{\"error\":" + errorModelJson + "}";
 
@@ -73,7 +74,7 @@ public class TestErrorResponseParser {
   public void testErrorResponseFromJsonWithStack() {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
-    Integer code = 404;
+    int code = 404;
     List<String> stack = Arrays.asList("a", "b");
     String errorModelJson = String.format(
         "{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d,\"stack\":[\"a\",\"b\"]}", message, type, code);
@@ -89,10 +90,21 @@ public class TestErrorResponseParser {
   }
 
   @Test
+  public void testErrorResponseFromJsonWithoutCode() {
+    String message = "The given namespace does not exist";
+    String type = "NoSuchNamespaceException";
+    String errorModelJson = String.format("{\"message\":\"%s\",\"type\":\"%s\"}", message, type);
+    String json = "{\"error\":" + errorModelJson + "}";
+
+    AssertHelpers.assertThrows("ErrorResponse should contain code", IllegalArgumentException.class,
+        "Cannot parse missing int code", () -> ErrorResponseParser.fromJson(json));
+  }
+
+  @Test
   public void testErrorResponseFromJsonWithExplicitNullStack() {
     String message = "The given namespace does not exist";
     String type = "NoSuchNamespaceException";
-    Integer code = 404;
+    int code = 404;
     List<String> stack = null;
     String errorModelJson = String.format(
         "{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d,\"stack\":null}", message, type, code);
