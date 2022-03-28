@@ -461,6 +461,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       deltaWriter.delete(row);
     }
 
+    // The caller of this function is responsible for passing in a record with only the key fields
     public void deleteKey(Record key) throws IOException {
       deltaWriter.deleteKey(key);
     }
@@ -478,6 +479,11 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       @Override
       protected StructLike asStructLike(Record row) {
         return row;
+      }
+
+      @Override
+      protected StructLike asStructLikeKey(Record data) {
+        return data;
       }
     }
   }

@@ -109,5 +109,10 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     protected StructLike asStructLike(RowData data) {
       return wrapper.wrap(data);
     }
+
+    @Override
+    protected StructLike asStructLikeKey(RowData data) {
+      return keyWrapper.wrap(data);
+    }
   }
 }
