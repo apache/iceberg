@@ -30,7 +30,7 @@ from iceberg.types import (
 T = TypeVar("T")
 
 
-class Schema(object):
+class Schema:
     """A table Schema"""
 
     def __init__(self, *columns: Iterable[NestedField]):
@@ -87,7 +87,7 @@ class Schema(object):
         return cls(*[column for column in schema.columns if column.name.lower() in [name.lower() for name in names]])
 
 
-class SchemaVisitor(Generic[T]):
+class SchemaVisitor(Generic[T], ABC):
     def before_field(self, field: NestedField) -> None:
         pass
 
@@ -137,7 +137,7 @@ class SchemaVisitor(Generic[T]):
         ...
 
 
-def visit(obj, visitor: SchemaVisitor[Optional[T]]) -> Optional[T]:
+def visit(obj, visitor: SchemaVisitor[T]) -> T:
     if isinstance(obj, Schema):
         return visitor.schema(obj, visit(obj.as_struct(), visitor))
 
@@ -185,8 +185,8 @@ def visit(obj, visitor: SchemaVisitor[Optional[T]]) -> Optional[T]:
         raise NotImplementedError("Cannot visit non-type: %s" % obj)
 
 
-def index_by_id(schema_or_type) -> Optional[Dict[int, NestedField]]:
-    class IndexById(SchemaVisitor[Optional[Dict[int, NestedField]]]):
+def index_by_id(schema_or_type) -> Dict[int, NestedField]:
+    class IndexById(SchemaVisitor[Dict[int, NestedField]]):
         def __init__(self):
             self._index: Dict[int, NestedField] = {}
 

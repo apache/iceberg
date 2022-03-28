@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Dict
 
 import pytest
 
 from iceberg.table import schema
-from iceberg.table.schema import SchemaVisitor
 from iceberg.types import (
     BooleanType,
     IntegerType,
