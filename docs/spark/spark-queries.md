@@ -259,7 +259,7 @@ SELECT * FROM prod.db.table.manifests
 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | [[false,null,2019-05-13,2019-05-15]] |
 
 Note:
-1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](./spec.md#manifest-lists), with the following order:
+1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order:
     - `contains_null`
     - `contains_nan`
     - `lower_bound`
@@ -317,60 +317,13 @@ SELECT * FROM prod.db.table.all_manifests
 | s3:/.../table/data/dt=20210102/xxx.parquet | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 10, 11}, {false, false, 20210101, 20210101}]|
 
 Note:
-1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](./spec.md#manifest-lists), with the following order:
+1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order:
     - `contains_null`
     - `contains_nan`
     - `lower_bound`
     - `upper_bound`
 2. `contains_nan` could return null, which indicates that this information is not available from files' metadata.
     This usually occurs when reading from V1 table, where `contains_nan` is not populated.
-
-### Advanced Usage
-
-#### Entries
-
-To show a table's current manifest entries as rows, for both delete and data files:
-
-```sql
-SELECT * FROM prod.db.table.entries
-```
-
-| status|snapshot_id | sequence_number | data_file |
-| -- | -- | -- | -- |
-|0     |7462238160765527919|0              |{0, s3://.../dt=20211001/age=10/00000-0-38e4b886-b445-40a9-8db0-58653a331aba-00001.parquet, PARQUET, ...}|
-|2     |7462238160765527919|0              |{0, s3://.../dt=20211002/age=11/00001-1-dd95f618-4738-41a4-ba0e-21bbf964d0cc-00001.parquet, PARQUET, ...}|
-
-The field `status` contains the following enums:
-
-- 0 - existed
-- 1 - added
-- 2 - deleted
-
-{{< hint info >}} 
-Diffrent from metadata table [files](#files), this table exposes internal details, like files that have been deleted.
-{{< /hint >}}
-
-#### All Entries
-
-To show entries as rows from any snapshot currently tracked by the table, for both delete and data files:
-
-```sql
-SELECT * FROM prod.db.table.all_entries
-```
-
-| status | snapshot_id | sequence_number | data_file |
-| -- | -- | -- | -- |
-|0     |7462238160765527919|0              |{0, s3://.../dt=20211001/age=10/00000-0-38e4b886-b445-40a9-8db0-58653a331aba-00001.parquet, PARQUET, ...}|
-|2     |7462238160765527919|0              |{0, s3://.../dt=20211002/age=11/00001-1-dd95f618-4738-41a4-ba0e-21bbf964d0cc-00001.parquet, PARQUET, ...}|
-|0     |3830505224908377224|0              |{0, s3://.../dt=20211002/age=11/00001-1-dd95f618-4738-41a4-ba0e-21bbf964d0cc-00001.parquet, PARQUET, ...}|
-
-{{< hint info >}}
-Like metadata table [entries](#entries), this metadata table is different from [all_data_files](#all-data-files) and contains deleted data files.
-{{< /hint >}}
-
-{{< hint danger >}}
-The table's metadata may return **duplicate** rows
-{{< /hint >}}
 
 ## Inspecting with DataFrames
 
