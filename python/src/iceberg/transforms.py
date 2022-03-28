@@ -131,7 +131,7 @@ class BucketNumberTransform(BaseBucketTransform):
     into a bucket partition value
 
     Example:
-        >>> transform = BucketNumberTransform(100)
+        >>> transform = BucketNumberTransform(LongType(), 100)
         >>> transform.apply(81068000000)
         59
     """
@@ -147,7 +147,7 @@ class BucketDecimalTransform(BaseBucketTransform):
     """Transforms a value of DecimalType into a bucket partition value.
 
     Example:
-        >>> transform = BucketDecimalTransform(100)
+        >>> transform = BucketDecimalTransform(DecimalType(9, 2), 100)
         >>> transform.apply(Decimal("14.20"))
         59
     """
@@ -172,6 +172,9 @@ class BucketStringTransform(BaseBucketTransform):
         89
     """
 
+    def __init__(self, num_buckets: int):
+        super().__init__(StringType(), num_buckets)
+
     def can_transform(self, source: IcebergType) -> bool:
         return isinstance(source, StringType)
 
@@ -180,11 +183,11 @@ class BucketStringTransform(BaseBucketTransform):
 
 
 class BucketBytesTransform(BaseBucketTransform):
-    """Transforms a value of BinaryType into a bucket partition value.
+    """Transforms a value of FixedType or BinaryType into a bucket partition value.
 
     Example:
-        >>> transform = BucketBytesTransform(100)
-        >>> transform.apply(b"\x00\x01\x02\x03")
+        >>> transform = BucketBytesTransform(BinaryType(), 100)
+        >>> transform.apply(b"\\x00\\x01\\x02\\x03")
         41
     """
 
@@ -203,6 +206,9 @@ class BucketUUIDTransform(BaseBucketTransform):
         >>> transform.apply(UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"))
         40
     """
+
+    def __init__(self, num_buckets: int):
+        super().__init__(UUIDType(), num_buckets)
 
     def can_transform(self, source: IcebergType) -> bool:
         return isinstance(source, UUIDType)
@@ -223,12 +229,12 @@ def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
     elif isinstance(source_type, DecimalType):
         return BucketDecimalTransform(source_type, num_buckets)
     elif isinstance(source_type, StringType):
-        return BucketStringTransform(source_type, num_buckets)
+        return BucketStringTransform(num_buckets)
     elif isinstance(source_type, BinaryType):
         return BucketBytesTransform(source_type, num_buckets)
     elif isinstance(source_type, FixedType):
         return BucketBytesTransform(source_type, num_buckets)
     elif isinstance(source_type, UUIDType):
-        return BucketUUIDTransform(source_type, num_buckets)
+        return BucketUUIDTransform(num_buckets)
     else:
         raise ValueError(f"Cannot bucket by type: {source_type}")
