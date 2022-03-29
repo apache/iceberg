@@ -62,7 +62,7 @@ import org.apache.iceberg.util.Tasks;
  * An index of {@link DeleteFile delete files} by sequence number.
  * <p>
  * Use {@link #builderFor(FileIO, Iterable)} to construct an index, and {@link #forDataFile(long, DataFile)} or
- * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
+ * {@link #forEntry(ManifestEntry)} to get the delete files to apply to a given data file.
  */
 class DeleteFileIndex {
   private final Map<Integer, PartitionSpec> specsById;
