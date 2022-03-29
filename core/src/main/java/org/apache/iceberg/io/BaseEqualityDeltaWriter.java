@@ -32,7 +32,7 @@ import org.apache.iceberg.util.StructProjection;
 
 public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
 
-  private final ThreadLocal<PositionDelete<T>> posDelete = ThreadLocal.withInitial(PositionDelete::create);
+  private final PositionDelete<T> posDelete = PositionDelete.create();
 
   private final PartitioningWriter<T, DataWriteResult> dataWriter;
   private final PartitioningWriter<T, DeleteWriteResult> equalityWriter;
@@ -40,7 +40,6 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
 
   private final Map<StructLike, PathOffset> insertedRowMap;
 
-  private final Function<T, StructLike> asStructLike;
   private final Function<T, StructLike> asStructLikeKey;
   private final Function<T, StructLike> keyRefFunc;
   private final Function<T, StructLike> keyCopyFunc;
@@ -60,7 +59,6 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
     this.positionWriter = positionWriter;
 
     this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
-    this.asStructLike = asStructLike;
     this.asStructLikeKey = asStructLikeKey;
 
     StructProjection projection = StructProjection.create(schema, deleteSchema);
@@ -78,7 +76,8 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
     // Adding a pos-delete to replace the old path-offset.
     PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
     if (previous != null) {
-      positionWriter.write(posDelete.get().set(previous.path(), previous.rowOffset(), null), spec, partition);
+      posDelete.set(previous.path(), previous.rowOffset(), null);
+      positionWriter.write(posDelete, spec, partition);
     }
   }
 
@@ -88,7 +87,8 @@ public class BaseEqualityDeltaWriter<T> implements EqualityDeltaWriter<T> {
   private boolean retireOldKey(StructLike key, PartitionSpec spec, StructLike partition) {
     PathOffset previous = insertedRowMap.remove(key);
     if (previous != null) {
-      positionWriter.write(posDelete.get().set(previous.path(), previous.rowOffset(), null), spec, partition);
+      posDelete.set(previous.path(), previous.rowOffset(), null);
+      positionWriter.write(posDelete, spec, partition);
       return true;
     } else {
       return false;

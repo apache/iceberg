@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.sink;
 import java.util.List;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
@@ -56,11 +57,11 @@ public class TestFlinkEqualityDeleteWriters extends TestEqualityDeltaWriters<Row
   @Override
   protected RowData toKey(List<Integer> keyFieldIds, Integer id, String data) {
     if (sameElements(fullKey(), keyFieldIds)) {
-      return GenericRowData.of(id, data);
+      return GenericRowData.of(id, StringData.fromString(data));
     } else if (sameElements(idKey(), keyFieldIds)) {
       return GenericRowData.of(id);
     } else if (sameElements(dataKey(), keyFieldIds)) {
-      return GenericRowData.of(data);
+      return GenericRowData.of(StringData.fromString(data));
     } else {
       throw new UnsupportedOperationException("Unknown equality field ids: " + keyFieldIds);
     }
@@ -98,7 +99,7 @@ public class TestFlinkEqualityDeleteWriters extends TestEqualityDeltaWriters<Row
       Schema equalityDeleteRowSchema,
       Schema positionDeleteRowSchema) {
     return FlinkFileWriterFactory.builderFor(table)
-        .dataSchema(table.schema())
+        .dataSchema(dataSchema)
         .dataFileFormat(format())
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))

@@ -38,8 +38,8 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -63,6 +63,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
   private static final int TABLE_FORMAT_VERSION = 2;
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;
   private static final GenericRecord RECORD = GenericRecord.create(SCHEMA);
+  private static final Schema POS_DELETE_SCHEMA = DeleteSchemaUtil.pathPosSchema();
   private static final GenericRecord POS_RECORD = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
 
   private final FileFormat fileFormat;
@@ -109,34 +110,42 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
   @Test
   public void testInsertOnly() throws IOException {
     // Commit the first row collection.
-    EqualityDeltaWriter<T> deltaWriter1 = createEqualityWriter(table.schema(), fullKey(), false);
+    EqualityDeltaWriter<T> deltaWriter = createEqualityWriter(table.schema(), fullKey(), false);
 
-    List<T> rows1 = IntStream.range(0, 20)
+    List<T> rows = IntStream.range(0, 20)
         .mapToObj(i -> toRow(i, String.format("val-%d", i)))
         .collect(Collectors.toList());
-    rows1.forEach(row -> deltaWriter1.insert(row, PartitionSpec.unpartitioned(), null));
+    for (T row : rows) {
+      deltaWriter.insert(row, PartitionSpec.unpartitioned(), null);
+    }
 
-    deltaWriter1.close();
-    WriteResult result1 = deltaWriter1.result();
-    Assert.assertEquals("Should only have a data file.", 1, result1.dataFiles().length);
-    Assert.assertEquals("Should have no delete file", 0, result1.deleteFiles().length);
-    commitTransaction(result1);
-    Assert.assertEquals("Should have expected records", toSet(rows1), actualRowSet("*"));
+    deltaWriter.close();
+    WriteResult result = deltaWriter.result();
+    Assert.assertEquals("Should only have a data file.", 1, result.dataFiles().length);
+    Assert.assertEquals("Should have no delete file", 0, result.deleteFiles().length);
+    commitTransaction(result);
+    Assert.assertEquals("Should have expected records", toSet(rows), actualRowSet("*"));
 
     // Commit the second row collection.
-    EqualityDeltaWriter<T> deltaWriter2 = createEqualityWriter(table.schema(), fullKey(), false);
+    deltaWriter = createEqualityWriter(table.schema(), fullKey(), false);
 
-    List<T> rows2 = IntStream.range(20, 40)
+    rows = IntStream.range(20, 40)
         .mapToObj(i -> toRow(i, String.format("val-%d", i)))
         .collect(Collectors.toList());
-    rows2.forEach(row -> deltaWriter1.insert(row, PartitionSpec.unpartitioned(), null));
+    for (T row : rows) {
+      deltaWriter.insert(row, PartitionSpec.unpartitioned(), null);
+    }
 
-    deltaWriter2.close();
-    WriteResult result2 = deltaWriter2.result();
-    Assert.assertEquals("Should only have a data file.", 1, result2.dataFiles().length);
-    Assert.assertEquals("Should have no delete file", 0, result2.deleteFiles().length);
-    commitTransaction(result2);
-    Assert.assertEquals("Should have expected records", toSet(Iterables.concat(rows1, rows2)), actualRowSet("*"));
+    deltaWriter.close();
+    result = deltaWriter.result();
+    Assert.assertEquals("Should only have a data file.", 1, result.dataFiles().length);
+    Assert.assertEquals("Should have no delete file", 0, result.deleteFiles().length);
+    commitTransaction(result);
+
+    rows = IntStream.range(0, 40)
+        .mapToObj(i -> toRow(i, String.format("val-%d", i)))
+        .collect(Collectors.toList());
+    Assert.assertEquals("Should have expected records", toSet(rows), actualRowSet("*"));
   }
 
   @Test
@@ -152,7 +161,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
         toRow(2, "ggg"),
         toRow(1, "hhh")
     );
-    records.forEach(row -> deltaWriter.delete(row, PartitionSpec.unpartitioned(), null));
+    records.forEach(row -> deltaWriter.insert(row, PartitionSpec.unpartitioned(), null));
 
     deltaWriter.close();
     WriteResult result = deltaWriter.result();
@@ -163,6 +172,9 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
     DeleteFile posDeleteFile = result.deleteFiles()[0];
     Assert.assertEquals("Should be a pos-delete file.", FileContent.POSITION_DELETES, posDeleteFile.content());
     Assert.assertEquals(1, result.referencedDataFiles().length);
+    DataFile dataFile = result.dataFiles()[0];
+    Assert.assertEquals("Should have the expected referenced data file",
+        dataFile.path(), result.referencedDataFiles()[0]);
     Assert.assertEquals("Should have expected records", toSet(ImmutableList.of(
         toRow(4, "eee"),
         toRow(3, "fff"),
@@ -171,18 +183,25 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
     )), actualRowSet("*"));
 
     // Check records in the data file.
-    DataFile dataFile = result.dataFiles()[0];
-    Assert.assertEquals(toSet(records), readFile(fileFormat, table.schema(), dataFile.path()));
+    List<Record> expectedRecords = ImmutableList.of(
+        toRecord(1, "aaa"),
+        toRecord(2, "bbb"),
+        toRecord(3, "ccc"),
+        toRecord(4, "ddd"),
+        toRecord(4, "eee"),
+        toRecord(3, "fff"),
+        toRecord(2, "ggg"),
+        toRecord(1, "hhh")
+    );
+    Assert.assertEquals(expectedRecords, readFile(fileFormat, table.schema(), dataFile.path()));
 
     // Check records in the pos-delete file.
-    Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
-    GenericRecord gRecord = GenericRecord.create(posDeleteSchema);
-    Assert.assertEquals(ImmutableSet.of(
-        gRecord.copy("file_path", dataFile.path(), "pos", 0L),
-        gRecord.copy("file_path", dataFile.path(), "pos", 1L),
-        gRecord.copy("file_path", dataFile.path(), "pos", 2L),
-        gRecord.copy("file_path", dataFile.path(), "pos", 3L)
-    ), actualRowSet("*"));
+    Assert.assertEquals(ImmutableList.of(
+        toPosDelete(dataFile.path(), 3L),
+        toPosDelete(dataFile.path(), 2L),
+        toPosDelete(dataFile.path(), 1L),
+        toPosDelete(dataFile.path(), 0L)
+    ), readFile(fileFormat, POS_DELETE_SCHEMA, posDeleteFile.path()));
   }
 
   @Test
@@ -213,7 +232,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
     DeleteFile posDeleteFile = result.deleteFiles()[0];
     Assert.assertEquals(
         ImmutableList.of(toPosDelete(dataFile.path(), 0L)),
-        readFile(fileFormat, table.schema(), posDeleteFile.path()));
+        readFile(fileFormat, POS_DELETE_SCHEMA, posDeleteFile.path()));
 
     // DELETE the row.
     deltaWriter = createEqualityWriter(table.schema(), fullKey(), false);
@@ -222,8 +241,13 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
     result = deltaWriter.result();
     Assert.assertEquals("Should have 0 data file.", 0, result.dataFiles().length);
     Assert.assertEquals("Should have 1 eq-delete file.", 1, result.deleteFiles().length);
+    Assert.assertEquals(0, result.referencedDataFiles().length);
+    Assert.assertEquals(FileContent.EQUALITY_DELETES, result.deleteFiles()[0].content());
     commitTransaction(result);
     Assert.assertEquals("Should have no record", toSet(ImmutableList.of()), actualRowSet("*"));
+    Assert.assertEquals(
+        ImmutableList.of(toRecord(1, "aaa")),
+        readFile(fileFormat, table.schema(), result.deleteFiles()[0].path()));
   }
 
   @Test
@@ -238,7 +262,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
         toRow(4, "ccc")
     );
     for (T row : rows) {
-      deltaWriter.delete(row, PartitionSpec.unpartitioned(), null);
+      deltaWriter.insert(row, PartitionSpec.unpartitioned(), null);
     }
 
     // Commit the 1th transaction.
@@ -258,7 +282,6 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
 
     // Start the 2nd transaction.
     deltaWriter = createEqualityWriter(table.schema(), dataKey(), false);
-    Schema keySchema = TypeUtil.select(table.schema(), ImmutableSet.copyOf(dataKey()));
 
     // UPSERT <3,'aaa'> to <5,'aaa'> - (by delete the key)
     deltaWriter.deleteKey(toKey(dataKey(), 3, "aaa"), PartitionSpec.unpartitioned(), null);
@@ -295,26 +318,28 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
         toRecord(7, "ccc")
     ), readFile(fileFormat, table.schema(), dataFile.path()));
 
-    // Check records in the equality delete file.
-    DeleteFile eqDeleteFile = result.deleteFiles()[0];
-    Assert.assertEquals(FileContent.EQUALITY_DELETES, eqDeleteFile.content());
-    Assert.assertEquals(ImmutableList.of(
-        toKey(dataKey(), 0, "aaa"),
-        toKey(dataKey(), 0, "ccc"),
-        toKey(dataKey(), 0, "bbb")
-    ), readFile(fileFormat, table.schema(), eqDeleteFile.path()));
-
     // Check records in position delete file.
-    DeleteFile posDeleteFile = result.deleteFiles()[1];
+    DeleteFile posDeleteFile = result.deleteFiles()[0];
     Assert.assertEquals(FileContent.POSITION_DELETES, posDeleteFile.content());
     Assert.assertEquals(ImmutableList.of(
         toPosDelete(dataFile.path(), 0L)
-    ), readFile(fileFormat, DeleteSchemaUtil.pathPosSchema(), posDeleteFile.path()));
+    ), readFile(fileFormat, POS_DELETE_SCHEMA, posDeleteFile.path()));
+
+    // Check records in the equality delete file.
+    DeleteFile eqDeleteFile = result.deleteFiles()[1];
+    Assert.assertEquals(FileContent.EQUALITY_DELETES, eqDeleteFile.content());
+    Schema keySchema = TypeUtil.select(table.schema(), Sets.newHashSet(dataKey()));
+    GenericRecord dataRecord = GenericRecord.create(keySchema.asStruct());
+    Assert.assertEquals(ImmutableList.of(
+        dataRecord.copy("data", "aaa"),
+        dataRecord.copy("data", "ccc"),
+        dataRecord.copy("data", "bbb")
+    ), readFile(fileFormat, keySchema, eqDeleteFile.path()));
   }
 
   @Test
   public void testUpsertDataWithFullRowSchema() throws IOException {
-    EqualityDeltaWriter<T> deltaWriter = createEqualityWriter(table.schema(), dataKey(), false);
+    EqualityDeltaWriter<T> deltaWriter = createEqualityWriter(table.schema(), table.schema(), dataKey(), false);
 
     List<T> rows = ImmutableList.of(
         toRow(1, "aaa"),
@@ -343,7 +368,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
     )), actualRowSet("*"));
 
     // Start the 2nd transaction.
-    deltaWriter = createEqualityWriter(table.schema(), dataKey(), false);
+    deltaWriter = createEqualityWriter(table.schema(), table.schema(), dataKey(), false);
 
     // UPSERT <3, 'aaa'> to <5, 'aaa'> - (by delete the entire row).
     deltaWriter.delete(toRow(3, "aaa"), PartitionSpec.unpartitioned(), null);
@@ -381,21 +406,21 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
         toRecord(7, "ccc")
     ), readFile(fileFormat, table.schema(), dataFile.path()));
 
+    // Check records in the pos-delete file.
+    DeleteFile posDeleteFile = result.deleteFiles()[0];
+    Assert.assertEquals(FileContent.POSITION_DELETES, posDeleteFile.content());
+    Assert.assertEquals(ImmutableList.of(
+        toPosDelete(dataFile.path(), 0L)
+    ), readFile(fileFormat, POS_DELETE_SCHEMA, posDeleteFile.path()));
+
     // Check records in the equality delete file.
-    DeleteFile eqDeleteFile = result.deleteFiles()[0];
+    DeleteFile eqDeleteFile = result.deleteFiles()[1];
     Assert.assertEquals(FileContent.EQUALITY_DELETES, eqDeleteFile.content());
     Assert.assertEquals(ImmutableList.of(
         toRecord(3, "aaa"),
         toRecord(4, "ccc"),
         toRecord(2, "bbb")
     ), readFile(fileFormat, table.schema(), eqDeleteFile.path()));
-
-    // Check records in the pos-delete file.
-    DeleteFile posDeleteFile = result.deleteFiles()[1];
-    Assert.assertEquals(FileContent.POSITION_DELETES, posDeleteFile.content());
-    Assert.assertEquals(ImmutableList.of(
-        toPosDelete(dataFile.path(), 0L)
-    ), readFile(fileFormat, DeleteSchemaUtil.pathPosSchema(), eqDeleteFile.path()));
   }
 
   private Record toRecord(Integer id, String data) {
@@ -432,9 +457,17 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
       Schema schema,
       List<Integer> equalityFieldIds,
       boolean fanoutEnabled) {
-    // Select the equality fields to generate a delete schema.
+    // Select the equality fields to generate the delete schema.
     Schema deleteSchema = TypeUtil.select(schema, ImmutableSet.copyOf(equalityFieldIds));
-    FileWriterFactory<T> writerFactory = newWriterFactory(deleteSchema, equalityFieldIds, deleteSchema, null);
+    return createEqualityWriter(schema, deleteSchema, equalityFieldIds, fanoutEnabled);
+  }
+
+  private EqualityDeltaWriter<T> createEqualityWriter(
+      Schema schema,
+      Schema equalityDeleteSchema,
+      List<Integer> equalityFieldIds,
+      boolean fanoutEnabled) {
+    FileWriterFactory<T> writerFactory = newWriterFactory(schema, equalityFieldIds, equalityDeleteSchema, null);
 
     PartitioningWriter<T, DataWriteResult> dataWriter;
     PartitioningWriter<T, DeleteWriteResult> eqWriter;
@@ -455,7 +488,7 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
         eqWriter,
         posWriter,
         schema,
-        deleteSchema,
+        TypeUtil.select(schema, ImmutableSet.copyOf(equalityFieldIds)),
         this::asStructLike,
         data -> this.asStructLikeKey(equalityFieldIds, data));
   }
