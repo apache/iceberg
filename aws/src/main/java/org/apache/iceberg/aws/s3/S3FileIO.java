@@ -122,7 +122,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
       try {
         tagFileToDelete(path, awsProperties.s3DeleteTags());
       } catch (S3Exception e) {
-        LOG.warn("Failed to add delete tags: {}", path, e);
+        LOG.warn("Failed to add delete tags: {} to {}", awsProperties.s3DeleteTags(), path, e);
       }
     }
 
@@ -152,7 +152,8 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
           .noRetry()
           .executeWith(executorService())
           .suppressFailureWhenFinished()
-          .onFailure((path, exc) -> LOG.warn("Failed to add delete tags: {}", path, exc))
+          .onFailure((path, exc) -> LOG.warn("Failed to add delete tags: {} to {}",
+              awsProperties.s3DeleteTags(), path, exc))
           .run(path -> tagFileToDelete(path, awsProperties.s3DeleteTags()));
     }
 
@@ -191,7 +192,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
   }
 
   private void tagFileToDelete(String path, Set<Tag> deleteTags) throws S3Exception {
-    S3URI location = new S3URI(path);
+    S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
     String bucket = location.bucket();
     String objectKey = location.key();
     GetObjectTaggingRequest getObjectTaggingRequest = GetObjectTaggingRequest.builder()

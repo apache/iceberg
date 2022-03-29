@@ -322,9 +322,9 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_DELETE_THREADS = "s3.delete.num-threads";
 
   /**
-   * Determines if S3FileIO delete the object when io.delete() is called, default to true. Once
-   * disabled, users are expected to set tags through S3_DELETE_TAGS_PREFIX and manage deleted files
-   * through S3 lifecycle policy.
+   * Determines if {@link S3FileIO} deletes the object when io.delete() is called, default to true. Once
+   * disabled, users are expected to set tags through {@link #S3_DELETE_TAGS_PREFIX} and manage
+   * deleted files through S3 lifecycle policy.
    */
   public static final String S3_DELETE_ENABLED = "s3.delete-enabled";
   public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
