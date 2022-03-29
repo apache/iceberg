@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -36,6 +37,7 @@ public class ErrorResponseParser {
   private static final String MESSAGE = "message";
   private static final String TYPE = "type";
   private static final String CODE = "code";
+  private static final String STACK = "stack";
 
   public static String toJson(ErrorResponse errorResponse) {
     return toJson(errorResponse, false);
@@ -64,6 +66,13 @@ public class ErrorResponseParser {
     generator.writeStringField(MESSAGE, errorResponse.message());
     generator.writeStringField(TYPE, errorResponse.type());
     generator.writeNumberField(CODE, errorResponse.code());
+    if (errorResponse.stack() != null) {
+      generator.writeArrayFieldStart(STACK);
+      for (String line : errorResponse.stack()) {
+        generator.writeString(line);
+      }
+      generator.writeEndArray();
+    }
 
     generator.writeEndObject();
 
@@ -92,10 +101,12 @@ public class ErrorResponseParser {
     String message = JsonUtil.getStringOrNull(MESSAGE, error);
     String type = JsonUtil.getStringOrNull(TYPE, error);
     Integer code = JsonUtil.getIntOrNull(CODE, error);
+    List<String> stack = JsonUtil.getStringListOrNull(STACK, error);
     return ErrorResponse.builder()
         .withMessage(message)
         .withType(type)
         .responseCode(code)
+        .withStackTrace(stack)
         .build();
   }
 }

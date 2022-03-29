@@ -180,8 +180,8 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_NAMESPACE:
         if (asNamespaceCatalog != null) {
-          Namespace namespace = namespaceFromPathVars(vars);
-          return castResponse(responseType, CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace));
+          CatalogHandlers.dropNamespace(asNamespaceCatalog, namespaceFromPathVars(vars));
+          return null;
         }
         break;
 
@@ -212,8 +212,8 @@ public class RESTCatalogAdapter implements RESTClient {
       }
 
       case DROP_TABLE: {
-        TableIdentifier ident = identFromPathVars(vars);
-        return castResponse(responseType, CatalogHandlers.dropTable(catalog, ident));
+        CatalogHandlers.dropTable(catalog, identFromPathVars(vars));
+        return null;
       }
 
       case LOAD_TABLE: {
@@ -230,7 +230,7 @@ public class RESTCatalogAdapter implements RESTClient {
       default:
     }
 
-    return null; // will be converted to a 400
+    return null;
   }
 
   public <T> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
@@ -239,16 +239,7 @@ public class RESTCatalogAdapter implements RESTClient {
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
       try {
-        T response = handleRequest(routeAndVars.first(), routeAndVars.second(), body, responseType);
-        if (response != null) {
-          return response;
-        }
-
-        // if a response was not returned, there was no handler for the route
-        errorBuilder
-            .responseCode(400)
-            .withType("BadRequestException")
-            .withMessage(String.format("No handler for request: %s %s", method, path));
+        return handleRequest(routeAndVars.first(), routeAndVars.second(), body, responseType);
 
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
@@ -327,7 +318,8 @@ public class RESTCatalogAdapter implements RESTClient {
     errorBuilder
         .responseCode(EXCEPTION_ERROR_CODES.getOrDefault(exc.getClass(), 500))
         .withType(exc.getClass().getSimpleName())
-        .withMessage(exc.getMessage());
+        .withMessage(exc.getMessage())
+        .withStackTrace(exc);
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {

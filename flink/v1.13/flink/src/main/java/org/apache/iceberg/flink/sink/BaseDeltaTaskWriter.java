@@ -103,5 +103,10 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     protected StructLike asStructLike(RowData data) {
       return wrapper.wrap(data);
     }
+
+    @Override
+    protected StructLike asStructLikeKey(RowData data) {
+      throw new UnsupportedOperationException("Not implemented for Flink 1.13 during PR review");
+    }
   }
 }

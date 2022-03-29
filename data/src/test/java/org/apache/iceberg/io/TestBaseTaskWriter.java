@@ -58,6 +58,7 @@ public class TestBaseTaskWriter extends TableTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
         {"avro"},
+        {"orc"},
         {"parquet"}
     };
   }

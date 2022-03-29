@@ -40,6 +40,8 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -48,8 +50,6 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
-import org.apache.iceberg.rest.responses.DropNamespaceResponse;
-import org.apache.iceberg.rest.responses.DropTableResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -117,11 +117,11 @@ public class CatalogHandlers {
         .build();
   }
 
-  public static DropNamespaceResponse dropNamespace(SupportsNamespaces catalog, Namespace namespace) {
+  public static void dropNamespace(SupportsNamespaces catalog, Namespace namespace) {
     boolean dropped = catalog.dropNamespace(namespace);
-    return DropNamespaceResponse.builder()
-        .dropped(dropped)
-        .build();
+    if (!dropped) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
   }
 
   public static UpdateNamespacePropertiesResponse updateNamespaceProperties(
@@ -199,9 +199,11 @@ public class CatalogHandlers {
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
   }
 
-  public static DropTableResponse dropTable(Catalog catalog, TableIdentifier ident) {
+  public static void dropTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident);
-    return DropTableResponse.builder().dropped(dropped).build();
+    if (!dropped) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
   }
 
   public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
