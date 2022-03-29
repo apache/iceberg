@@ -107,17 +107,17 @@ public class TableMigrationUtil {
 
       if (format.contains("avro")) {
         task.run(index -> {
-          Metrics metrics = getAvroMerics(fileStatus.get(index).getPath(), conf);
+          Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
           datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
         });
       } else if (format.contains("parquet")) {
         task.run(index -> {
-          Metrics metrics = getParquetMerics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+          Metrics metrics = getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
           datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
         });
       } else if (format.contains("orc")) {
         task.run(index -> {
-          Metrics metrics = getOrcMerics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+          Metrics metrics = getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
           datafiles[index] = buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
         });
       } else {
@@ -133,7 +133,7 @@ public class TableMigrationUtil {
     }
   }
 
-  private static Metrics getAvroMerics(Path path,  Configuration conf) {
+  private static Metrics getAvroMetrics(Path path,  Configuration conf) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
       long rowCount = Avro.rowCount(file);
@@ -144,7 +144,7 @@ public class TableMigrationUtil {
     }
   }
 
-  private static Metrics getParquetMerics(Path path,  Configuration conf,
+  private static Metrics getParquetMetrics(Path path,  Configuration conf,
                                           MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
@@ -155,7 +155,7 @@ public class TableMigrationUtil {
     }
   }
 
-  private static Metrics getOrcMerics(Path path,  Configuration conf,
+  private static Metrics getOrcMetrics(Path path,  Configuration conf,
                                           MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf),

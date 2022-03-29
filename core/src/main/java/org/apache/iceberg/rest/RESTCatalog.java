@@ -53,8 +53,6 @@ import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
-import org.apache.iceberg.rest.responses.DropNamespaceResponse;
-import org.apache.iceberg.rest.responses.DropTableResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -105,9 +103,12 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     String tablePath = tablePath(identifier);
     // TODO: support purge flagN
-    DropTableResponse response = client.delete(
-        tablePath, DropTableResponse.class, ErrorHandlers.tableErrorHandler());
-    return response.isDropped();
+    try {
+      client.delete(tablePath, null, ErrorHandlers.tableErrorHandler());
+      return true;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
   }
 
   @Override
@@ -162,9 +163,12 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
     String ns = RESTUtil.urlEncode(namespace);
-    DropNamespaceResponse response = client
-        .delete("v1/namespaces/" + ns, DropNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
-    return response.isDropped();
+    try {
+      client.delete("v1/namespaces/" + ns, null, ErrorHandlers.namespaceErrorHandler());
+      return true;
+    } catch (NoSuchNamespaceException e) {
+      return false;
+    }
   }
 
   @Override

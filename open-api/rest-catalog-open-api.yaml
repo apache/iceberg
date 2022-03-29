@@ -115,6 +115,12 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/namespaces:
 
@@ -158,6 +164,10 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -194,6 +204,10 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -225,6 +239,10 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -251,6 +269,10 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -308,6 +330,10 @@ paths:
               examples:
                 UnprocessableEntityDuplicateKey:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -339,6 +365,10 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -380,6 +410,10 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -420,6 +454,10 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -469,12 +507,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-        5XX:
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
           description:
-            A server-side problem that might not be addressable from the client side.
-
-            Error codes 500 and 504 indicate that the commit state is unknown and the client should
-            check the table state before considering the commit successful or failed.
+            An unknown server-side problem occurred; the commit state is unknown.
           content:
             application/json:
               schema:
@@ -482,8 +519,38 @@ paths:
               example: {
                 "error": {
                   "message": "Internal Server Error",
-                  "type": "InternalServerError",
+                  "type": "CommitStateUnknownException",
                   "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        504:
+          description:
+            A server-side gateway timeout occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
+                }
+              }
+        5XX:
+          description:
+            A server-side problem that might not be addressable on the client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
                 }
               }
 
@@ -520,6 +587,10 @@ paths:
               examples:
                 TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -539,6 +610,12 @@ paths:
           description: Unauthorized
         404:
           description: Not Found
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/tables/rename:
 
@@ -593,6 +670,10 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
               example:
                 $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -651,6 +732,10 @@ components:
           maximum: 600
           description: HTTP response code
           example: 404
+        stack:
+          type: array
+          items:
+            type: string
 
     CatalogConfiguration:
       type: object
@@ -1505,9 +1590,44 @@ components:
             EmptyResponse:
               $ref: '#/components/examples/ListNamespacesEmptyExample'
 
+    AuthenticationTimeoutResponse:
+      description:
+        Credentials have timed out. If possible, the client should refresh credentials and retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorModel'
+          example: {
+            "error": {
+              "message": "Credentials have timed out",
+              "type": "AuthenticationTimeoutException",
+              "code": 419
+            }
+          }
+
+    ServiceUnavailableResponse:
+      description:
+        The service is not ready to handle the request. The client should wait and retry.
+
+
+        The service may additionally send a Retry-After header to indicate when to retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorModel'
+          example: {
+            "error": {
+              "message": "Slow down",
+              "type": "SlowDownException",
+              "code": 503
+            }
+          }
+
     ServerErrorResponse:
       description:
-        A server-side problem that might not be addressable from the client side. Used for server 5xx errors.
+        A server-side problem that might not be addressable from the client
+        side. Used for server 5xx errors without more specific documentation in
+        individual routes.
       content:
         application/json:
           schema:

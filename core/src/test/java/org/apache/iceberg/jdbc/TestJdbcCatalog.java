@@ -59,16 +59,15 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
+public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   static final Schema SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get(), "unique ID"),
@@ -82,9 +81,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
   private static JdbcCatalog catalog;
   private static String warehouseLocation;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-  File tableDir = null;
+  @TempDir
+  java.nio.file.Path tableDir;
 
   @Override
   protected JdbcCatalog catalog() {
@@ -114,17 +112,15 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
         ;
   }
 
-  @Before
+  @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = temp.newFolder();
-    tableDir.delete(); // created by table create
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
 
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
-    warehouseLocation = this.tableDir.getAbsolutePath();
+    warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     catalog = new JdbcCatalog();
     catalog.setConf(conf);
@@ -134,7 +130,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
   @Test
   public void testInitialize() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
     properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
@@ -295,7 +291,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
     // append file and commit!
-    String data = temp.newFile("data.parquet").getPath();
+    String data = tableDir.resolve("data.parquet").toAbsolutePath().toString();
     Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
@@ -305,7 +301,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
     table.newAppend().appendFile(dataFile).commit();
     Assert.assertEquals(1, table.history().size());
     catalog.dropTable(tableIdentifier);
-    data = temp.newFile("data2.parquet").getPath();
+    data = tableDir.resolve("data2.parquet").toAbsolutePath().toString();
     Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile2 = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
@@ -324,7 +320,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     Table table = catalog.loadTable(testTable);
 
-    String data = temp.newFile("data.parquet").getPath();
+    String data = tableDir.resolve("data.parquet").toAbsolutePath().toString();
     Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
@@ -334,7 +330,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
     table.newAppend().appendFile(dataFile).commit();
     Assert.assertEquals(1, table.history().size());
 
-    data = temp.newFile("data2.parquet").getPath();
+    data = tableDir.resolve("data2.parquet").toAbsolutePath().toString();
     Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
@@ -344,7 +340,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog>  {
     table.newAppend().appendFile(dataFile).commit();
     Assert.assertEquals(2, table.history().size());
 
-    data = temp.newFile("data3.parquet").getPath();
+    data = tableDir.resolve("data3.parquet").toAbsolutePath().toString();
     Files.write(Paths.get(data), Lists.newArrayList(), StandardCharsets.UTF_8);
     dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(data)
