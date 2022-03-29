@@ -94,7 +94,8 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     table.updateProperties()
         .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(8 * 1024))
-        .defaultFormat(format)
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format.toString().toLowerCase())
+        .set(TableProperties.DELETE_DEFAULT_FILE_FORMAT, format.toString().toLowerCase())
         .commit();
   }
 
@@ -340,6 +341,6 @@ public class TestDeltaTaskWriter extends TableTestBase {
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
-        128 * 1024 * 1024, format, equalityFieldIds, false);
+        128 * 1024 * 1024, equalityFieldIds, false);
   }
 }

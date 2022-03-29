@@ -33,6 +33,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -87,6 +88,11 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
 
     this.metadataDir = new File(tableDir, "metadata");
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
+    this.table.updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.toString().toLowerCase())
+        .set(TableProperties.DELETE_DEFAULT_FILE_FORMAT, fileFormat.toString().toLowerCase())
+        .commit();
+
     this.io = table.io();
 
     this.idFieldId = table.schema().findField("id").fieldId();
@@ -474,13 +480,13 @@ public abstract class TestEqualityDeltaWriters<T> extends WriterTestBase<T> {
     PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posWriter;
 
     if (fanoutEnabled) {
-      dataWriter = new FanoutDataWriter<>(writerFactory, fileFactory, io, fileFormat, TARGET_FILE_SIZE);
-      eqWriter = new FanoutEqualityDeleteWriter<>(writerFactory, fileFactory, io, fileFormat, TARGET_FILE_SIZE);
-      posWriter = new FanoutPositionDeleteWriter<>(writerFactory, fileFactory, io, fileFormat, TARGET_FILE_SIZE);
+      dataWriter = new FanoutDataWriter<>(writerFactory, fileFactory, io, TARGET_FILE_SIZE);
+      eqWriter = new FanoutEqualityDeleteWriter<>(writerFactory, fileFactory, io, TARGET_FILE_SIZE);
+      posWriter = new FanoutPositionDeleteWriter<>(writerFactory, fileFactory, io, TARGET_FILE_SIZE);
     } else {
-      dataWriter = new ClusteredDataWriter<>(writerFactory, fileFactory, io, fileFormat, TARGET_FILE_SIZE);
-      eqWriter = new ClusteredEqualityDeleteWriter<>(writerFactory, fileFactory, io, fileFormat, TARGET_FILE_SIZE);
-      posWriter = new ClusteredPositionDeleteWriter<>(writerFactory, fileFactory, io, fileFormat, TARGET_FILE_SIZE);
+      dataWriter = new ClusteredDataWriter<>(writerFactory, fileFactory, io, TARGET_FILE_SIZE);
+      eqWriter = new ClusteredEqualityDeleteWriter<>(writerFactory, fileFactory, io, TARGET_FILE_SIZE);
+      posWriter = new ClusteredPositionDeleteWriter<>(writerFactory, fileFactory, io, TARGET_FILE_SIZE);
     }
 
     return new BaseEqualityDeltaWriter<>(

@@ -24,7 +24,6 @@ import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -64,7 +63,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema deleteSchema;
 
   private final long targetFileSizeBytes;
-  private final FileFormat format;
   private final boolean upsert;
 
   private final FlinkFileWriterFactory fileWriterFactory;
@@ -74,7 +72,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       Table table,
       RowType flinkSchema,
       long targetFileSizeBytes,
-      FileFormat format,
       List<Integer> equalityFieldIds,
       boolean upsert) {
     this.table = table;
@@ -84,7 +81,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.io = table.io();
 
     this.targetFileSizeBytes = targetFileSizeBytes;
-    this.format = format;
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
@@ -204,25 +200,25 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private PartitioningWriter<RowData, DataWriteResult> newDataWriter(boolean fanoutEnabled) {
     if (fanoutEnabled) {
-      return new FanoutDataWriter<>(fileWriterFactory, outputFileFactory, io, format, targetFileSizeBytes);
+      return new FanoutDataWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
     } else {
-      return new ClusteredDataWriter<>(fileWriterFactory, outputFileFactory, io, format, targetFileSizeBytes);
+      return new ClusteredDataWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
     }
   }
 
   private PartitioningWriter<RowData, DeleteWriteResult> newEqualityWriter(boolean fanoutEnabled) {
     if (fanoutEnabled) {
-      return new FanoutEqualityDeleteWriter<>(fileWriterFactory, outputFileFactory, io, format, targetFileSizeBytes);
+      return new FanoutEqualityDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
     } else {
-      return new ClusteredEqualityDeleteWriter<>(fileWriterFactory, outputFileFactory, io, format, targetFileSizeBytes);
+      return new ClusteredEqualityDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
     }
   }
 
   private PartitioningWriter<PositionDelete<RowData>, DeleteWriteResult> newPositionWriter(boolean fanoutEnabled) {
     if (fanoutEnabled) {
-      return new FanoutPositionDeleteWriter<>(fileWriterFactory, outputFileFactory, io, format, targetFileSizeBytes);
+      return new FanoutPositionDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
     } else {
-      return new ClusteredPositionDeleteWriter<>(fileWriterFactory, outputFileFactory, io, format, targetFileSizeBytes);
+      return new ClusteredPositionDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
     }
   }
 

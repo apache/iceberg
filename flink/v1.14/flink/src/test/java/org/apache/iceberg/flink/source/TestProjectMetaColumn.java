@@ -74,6 +74,10 @@ public class TestProjectMetaColumn {
     Table table = SimpleDataUtil.createTable(location,
         ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
         false);
+    table.updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format.toString().toLowerCase())
+        .set(TableProperties.DELETE_DEFAULT_FILE_FORMAT, format.toString().toLowerCase())
+        .commit();
 
     List<RowData> rows = Lists.newArrayList(
         SimpleDataUtil.createInsert(1, "AAA"),
@@ -170,7 +174,6 @@ public class TestProjectMetaColumn {
         SerializableTable.copyOf(table),
         SimpleDataUtil.ROW_TYPE,
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT,
-        format,
         equalityFieldIds,
         upsert);
 
