@@ -90,6 +90,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.deleteSchema = null;
       this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
           .dataFlinkType(flinkSchema)
           .build();
     } else if (upsert) {
@@ -98,6 +99,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
       this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
       this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
           .dataFlinkType(flinkSchema)
           .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
           .equalityDeleteRowSchema(deleteSchema)
@@ -105,6 +107,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     } else {
       this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
       this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
           .dataFlinkType(flinkSchema)
           .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
           .equalityDeleteRowSchema(schema)
