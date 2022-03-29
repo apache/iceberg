@@ -33,8 +33,6 @@ if sys.version_info >= (3, 8):
 else:
     from singledispatch import singledispatchmethod  # pragma: no cover
 
-import pytz
-
 from iceberg.types import (
     BinaryType,
     BooleanType,
@@ -110,7 +108,7 @@ def literal(value) -> Literal:
     Example:
         from iceberg.expressions.literals import literal
         >>> literal(123)
-        IntegerLiteral(123)
+        LongLiteral(123)
     """
     raise TypeError(f"Unimplemented Type Literal for value: {str(value)}")
 
@@ -121,23 +119,15 @@ def _(value: bool) -> Literal[bool]:
 
 
 @literal.register(int)
-def _(value: int) -> Literal[int]:
-    """
-    Upgrade to long if python int is outside the JAVA_MIN_INT and JAVA_MAX_INT
-    """
-    if value < IntegerType.min or value > IntegerType.max:
-        return LongLiteral(value)
-    return IntegerLiteral(value)
+def _(value: int) -> "LongLiteral":
+    # expression binding can convert to IntegerLiteral if needed
+    return LongLiteral(value)
 
 
 @literal.register(float)
-def _(value: float) -> Literal[float]:
-    """
-    Upgrade to double if python float is outside the JAVA_MIN_FLOAT and JAVA_MAX_FLOAT
-    """
-    if value < FloatType.min or value > FloatType.max:
-        return DoubleLiteral(value)
-    return FloatLiteral(value)
+def _(value: float) -> "DoubleLiteral":
+    # expression binding can convert to FloatLiteral if needed
+    return DoubleLiteral(value)
 
 
 @literal.register(str)
@@ -152,7 +142,8 @@ def _(value: uuid.UUID) -> Literal[uuid.UUID]:
 
 @literal.register(bytes)
 def _(value: bytes) -> Literal[bytes]:
-    return FixedLiteral(value)
+    # expression binding can convert to FixedLiteral if needed
+    return BinaryLiteral(value)
 
 
 @literal.register(bytearray)
@@ -200,9 +191,6 @@ class BelowMin(Literal[None], Singleton):
 
 
 class BooleanLiteral(Literal[bool]):
-    def __init__(self, value):
-        self._value = value
-
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -213,9 +201,6 @@ class BooleanLiteral(Literal[bool]):
 
 
 class IntegerLiteral(Literal[int]):
-    def __init__(self, value):
-        self._value = value
-
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -245,11 +230,7 @@ class IntegerLiteral(Literal[int]):
         if type_var.scale == 0:
             return DecimalLiteral(Decimal(self.value))
         else:
-            return DecimalLiteral(
-                Decimal(self.value).quantize(
-                    Decimal("." + "".join(["0" for _ in range(1, type_var.scale)]) + "1"), rounding=ROUND_HALF_UP
-                )
-            )
+            return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
 
 
 class LongLiteral(Literal[int]):
@@ -271,7 +252,7 @@ class LongLiteral(Literal[int]):
 
     @to.register(FloatType)
     def _(self, type_var: FloatType) -> "FloatLiteral":
-        return FloatLiteral(self.value)
+        return FloatLiteral(float(self.value))
 
     @to.register(DoubleType)
     def _(self, type_var: DoubleType) -> "DoubleLiteral":
@@ -299,7 +280,19 @@ class FloatLiteral(Literal[float]):
         self._value32 = struct.unpack("<f", struct.pack("<f", value))[0]
 
     def __eq__(self, other):
-        self._value32 == other
+        return self._value32 == other
+
+    def __lt__(self, other):
+        return self._value32 < other
+
+    def __gt__(self, other):
+        return self._value32 > other
+
+    def __le__(self, other):
+        return self._value32 <= other
+
+    def __ge__(self, other):
+        return self._value32 >= other
 
     @singledispatchmethod
     def to(self, type_var):
@@ -340,10 +333,7 @@ class DoubleLiteral(Literal[float]):
 
     @to.register(DecimalType)
     def _(self, type_var: DecimalType) -> "DecimalLiteral":
-        if type_var.scale == 0:
-            return DecimalLiteral(Decimal(self.value).quantize(Decimal("1."), rounding=ROUND_HALF_UP))
-        else:
-            return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
+        return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
 
 
 class DateLiteral(Literal[int]):
@@ -377,7 +367,7 @@ class TimestampLiteral(Literal[int]):
 
     @to.register(DateType)
     def _(self, type_var: DateType) -> "DateLiteral":
-        return DateLiteral((datetime.datetime.fromtimestamp(self.value / 1000000) - EPOCH).days)
+        return DateLiteral((datetime.datetime.fromtimestamp(self.value / 1_000_000) - EPOCH).days)
 
 
 class DecimalLiteral(Literal[Decimal]):
@@ -403,44 +393,48 @@ class StringLiteral(Literal[str]):
 
     @to.register(DateType)
     def _(self, type_var: DateType) -> "DateLiteral":
-        return DateLiteral((datetime.datetime.strptime(self.value, "%Y-%m-%d") - EPOCH).days)
+        from datetime import date
+
+        EPOCH_DATE = date.fromisoformat("1970-01-01")
+        return DateLiteral((date.fromisoformat(self.value) - EPOCH_DATE).days)
 
     @to.register(TimeType)
     def _(self, type_var: TimeType) -> "TimeLiteral":
-        return TimeLiteral(
-            int(
-                (
-                    datetime.datetime.strptime((EPOCH.strftime("%Y-%m-%d ") + self.value), "%Y-%m-%d %H:%M:%S.%f") - EPOCH
-                ).total_seconds()
-                * 1000000
-            )
-        )
+        from datetime import time
+
+        t = time.fromisoformat(self.value)
+        return TimeLiteral((((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond)
 
     @to.register(TimestampType)
-    def _(self, type_var: TimestampType) -> TimestampLiteral:
-        try:
-            timestamp = datetime.datetime.strptime(self.value, "%Y-%m-%dT%H:%M:%S.%f")
-        except ValueError as e:
-            try:
-                timestamp = datetime.datetime.strptime(self.value, "%Y-%m-%dT%H:%M:%S.%f%z")
-                raise TypeError(f"Cannot convert String to Timestamp when timezone is included: {self.value}")
-            except:
-                raise
+    def _(self, type_var: TimestampType) -> Optional[TimestampLiteral]:
+        import re
+        from datetime import datetime
 
-        return TimestampLiteral(int((timestamp - EPOCH).total_seconds() * 1_000_000))
+        EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
+        ISO_TIMESTAMP = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?")
+        if ISO_TIMESTAMP.fullmatch(self.value):
+            try:
+                delta = datetime.fromisoformat(self.value) - EPOCH_TIMESTAMP
+                return TimestampLiteral((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds)
+            except TypeError:
+                return None
+        return None
 
     @to.register(TimestamptzType)
-    def _(self, type_var: TimestamptzType) -> "TimestampLiteral":
-        try:
-            timestamp = datetime.datetime.strptime(self.value, "%Y-%m-%dT%H:%M:%S.%f%z")
-        except ValueError as e:
+    def _(self, type_var: TimestamptzType) -> Optional[TimestampLiteral]:
+        import re
+        from datetime import datetime
+
+        EPOCH_TIMESTAMPTZ = datetime.fromisoformat("1970-01-01T00:00:00.000000+00:00")
+        ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\d\d:\d\d")
+        ...
+        if ISO_TIMESTAMPTZ.fullmatch(self.value):
             try:
-                timestamp = datetime.datetime.strptime(self.value, "%Y-%m-%dT%H:%M:%S.%f")
-            except:
-                raise e
-            raise TypeError(f"Cannot convert String to Timestamptz, missing timezone: {self.value}")
-        utc_epoch = EPOCH.replace(tzinfo=pytz.UTC)
-        return TimestampLiteral(int((timestamp - utc_epoch).total_seconds() * 1_000_000))
+                delta = datetime.fromisoformat(self.value) - EPOCH_TIMESTAMPTZ
+                return TimestampLiteral((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds)
+            except TypeError:
+                return None
+        return None
 
     @to.register(UUIDType)
     def _(self, type_var: UUIDType) -> "UUIDLiteral":
@@ -448,15 +442,10 @@ class StringLiteral(Literal[str]):
 
     @to.register(DecimalType)
     def _(self, type_var: DecimalType) -> DecimalLiteral:
-        dec_val = Decimal(str(self.value))
+        dec_val = Decimal(self.value)
         value_scale = abs(dec_val.as_tuple().exponent)
         if value_scale == type_var.scale:
-            if type_var.scale == 0:
-                return DecimalLiteral(Decimal(str(self.value)).quantize(Decimal("1."), rounding=ROUND_HALF_UP))
-            else:
-                return DecimalLiteral(
-                    Decimal(str(self.value)).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP)
-                )
+            return DecimalLiteral(Decimal(self.value))
         raise ValueError(f"Cannot cast string to decimal, incorrect scale: got {value_scale} expected {type_var.scale}")
 
 
@@ -476,10 +465,11 @@ class FixedLiteral(Literal[bytes]):
         return None
 
     @to.register(FixedType)
-    def _(self, type_var: FixedType) -> "FixedLiteral":
+    def _(self, type_var: FixedType) -> Optional["FixedLiteral"]:
         if len(self.value) == type_var.length:
             return self
-        raise TypeError(f"Cannot cast to fixed with different length: {type_var.length}")
+        else:
+            return None
 
     @to.register(BinaryType)
     def _(self, type_var: BinaryType) -> "BinaryLiteral":
@@ -496,7 +486,8 @@ class BinaryLiteral(Literal[bytes]):
         return self
 
     @to.register(FixedType)
-    def _(self, type_var: FixedType) -> FixedLiteral:
+    def _(self, type_var: FixedType) -> Optional["FixedLiteral"]:
         if type_var.length >= len(self.value):
             return FixedLiteral(self.value)
-        raise ValueError(f"Cannot cast binary to fixed of smaller size: {type_var.length}")
+        else:
+            return None

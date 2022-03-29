@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import datetime
 import uuid
 from decimal import Decimal
 
 import pytest
-from pytest import raises
 
 from iceberg.expression.literals import (
     EPOCH,
@@ -27,7 +26,9 @@ from iceberg.expression.literals import (
     BelowMin,
     DateLiteral,
     FixedLiteral,
+    IntegerLiteral,
     StringLiteral,
+    TimeLiteral,
     TimestampLiteral,
     literal,
 )
@@ -78,21 +79,21 @@ def test_numeric_literal_comparison():
 
 
 def test_integer_to_long_conversion():
-    lit = literal(34)
+    lit = literal(34).to(IntegerType())
     long_lit = lit.to(LongType())
 
     assert lit.value == long_lit.value
 
 
 def test_integer_to_float_conversion():
-    lit = literal(34)
+    lit = literal(34).to(IntegerType())
     float_lit = lit.to(FloatType())
 
     assert lit.value == float_lit.value
 
 
 def test_integer_to_double_conversion():
-    lit = literal(34)
+    lit = literal(34).to(IntegerType())
     dbl_lit = lit.to(DoubleType())
 
     assert lit.value == dbl_lit.value
@@ -102,17 +103,18 @@ def test_integer_to_double_conversion():
     "decimalType, decimalValue", [(DecimalType(9, 0), "34"), (DecimalType(9, 2), "34.00"), (DecimalType(9, 4), "34.0000")]
 )
 def test_integer_to_decimal_conversion(decimalType, decimalValue):
-    lit = literal(34)
+    lit = literal(34).to(IntegerType())
 
     assert lit.to(decimalType).value.as_tuple() == Decimal(decimalValue).as_tuple()
 
 
 def test_integer_to_date_conversion():
-    lit = literal(20220303)
-    date_lit = lit.to(DateType())
+    one_day = "2022-03-28"
+    date_delta = (datetime.date.fromisoformat(one_day) - datetime.date.fromisoformat("1970-01-01")).days
+    date_lit = IntegerLiteral(date_delta).to(DateType())
 
-    assert lit.value == date_lit.value
     assert isinstance(date_lit, DateLiteral)
+    assert date_lit.value == date_delta
 
 
 def test_long_to_integer_within_bound():
@@ -150,6 +152,7 @@ def test_long_to_time():
     long_lit = literal(51661919000).to(LongType())
     time_lit = long_lit.to(TimeType())
 
+    assert isinstance(time_lit, TimeLiteral)
     assert time_lit.value == long_lit.value
 
 
@@ -170,7 +173,7 @@ def test_long_to_decimal_conversion(decimalType, decimalValue):
 
 
 def test_float_to_double():
-    lit = literal(34.56)
+    lit = literal(34.56).to(FloatType())
     dbl_lit = lit.to(DoubleType())
 
     assert lit.value == dbl_lit.value
@@ -180,7 +183,7 @@ def test_float_to_double():
     "decimalType, decimalValue", [(DecimalType(9, 1), "34.6"), (DecimalType(9, 2), "34.56"), (DecimalType(9, 4), "34.5600")]
 )
 def test_float_to_decimal_conversion(decimalType, decimalValue):
-    lit = literal(34.56)
+    lit = literal(34.56).to(FloatType())
 
     assert lit.to(decimalType).value.as_tuple() == Decimal(decimalValue).as_tuple()
 
@@ -253,11 +256,11 @@ def test_string_to_string_literal():
 
 
 def test_string_to_date_literal():
-    date_str = literal("2017-08-18")
-    date = date_str.to(DateType())
+    one_day = "2017-08-18"
+    date_lit = literal(one_day).to(DateType())
 
-    avro_val = 17396
-    assert avro_val == date.value
+    date_delta = (datetime.date.fromisoformat(one_day) - datetime.date.fromisoformat("1970-01-01")).days
+    assert date_delta == date_lit.value
 
 
 def test_string_to_time_literal():
@@ -266,6 +269,7 @@ def test_string_to_time_literal():
 
     avro_val = 51661919000
 
+    assert isinstance(time_lit, TimeLiteral)
     assert avro_val == time_lit.value
 
 
@@ -287,15 +291,13 @@ def test_string_to_timestamp_literal():
 
 
 def test_timestamp_with_zone_without_zone_in_literal():
-    with raises(TypeError):
-        timestamp_str = literal("2017-08-18T14:21:01.919")
-        timestamp_str.to(TimestamptzType())
+    timestamp_str = literal("2017-08-18T14:21:01.919")
+    assert timestamp_str.to(TimestamptzType()) is None
 
 
 def test_timestamp_without_zone_with_zone_in_literal():
-    with raises(TypeError):
-        timestamp_str = literal("2017-08-18T14:21:01.919+07:00")
-        timestamp_str.to(TimestampType())
+    timestamp_str = literal("2017-08-18T14:21:01.919+07:00")
+    assert timestamp_str.to(TimestampType()) is None
 
 
 def test_string_to_uuid_literal():
@@ -400,20 +402,21 @@ def test_binary_to_fixed():
     assert lit.to(FixedType(4)) == FixedLiteral(value=bytearray([0x00, 0x01, 0x02]))
 
 
-def test_raise_on_binary_to_smaller_fixed():
+def test_binary_to_smaller_fixed_none():
     lit = literal(bytearray([0x00, 0x01, 0x02]))
-
-    with pytest.raises(ValueError) as exc_info:
-        lit.to(FixedType(2))
-
-    assert "Cannot cast binary to fixed of smaller size: 2" in str(exc_info.value)
+    assert lit.to(FixedType(2)) is None
 
 
 def test_fixed_to_binary():
-    lit = literal(bytes([0x00, 0x01, 0x02]))
+    lit = literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3))
     binary_lit = lit.to(BinaryType())
     assert binary_lit is not None
     assert lit.value == binary_lit.value
+
+
+def test_fixed_to_smaller_fixed_none():
+    lit = literal(bytearray([0x00, 0x01, 0x02])).to(FixedType(3))
+    assert lit.to(FixedType(2)) is None
 
 
 def test_above_max():
@@ -421,6 +424,7 @@ def test_above_max():
     # singleton
     assert a == AboveMax()
     assert str(a) == "AboveMax"
+    assert repr(a) == "AboveMax()"
     with pytest.raises(ValueError) as e:
         a.value()
     assert "AboveMax has no value" in str(e.value)
@@ -434,6 +438,7 @@ def test_below_min():
     # singleton
     assert b == BelowMin()
     assert str(b) == "BelowMin"
+    assert repr(b) == "BelowMin()"
     with pytest.raises(ValueError) as e:
         b.value()
     assert "BelowMin has no value" in str(e.value)
@@ -464,7 +469,7 @@ def test_invalid_boolean_conversions():
 
 def test_invalid_integer_conversions():
     assert_invalid_conversions(
-        literal(34),
+        literal(34).to(IntegerType()),
         [BooleanType(), TimeType(), TimestampType(), TimestamptzType(), StringType(), UUIDType(), FixedType(1), BinaryType()],
     )
 
@@ -479,7 +484,7 @@ def test_invalid_long_conversions():
 @pytest.mark.parametrize(
     "lit",
     [
-        literal(34.11),
+        literal(34.11).to(FloatType()),
         # double
         literal(34.11).to(DoubleType()),
     ],
@@ -619,7 +624,7 @@ def test_invalid_uuid_conversions():
 
 def test_invalid_fixed_conversions():
     assert_invalid_conversions(
-        literal(bytes([0x00, 0x01, 0x02])),
+        literal(bytes([0x00, 0x01, 0x02])).to(FixedType(3)),
         [
             BooleanType(),
             IntegerType(),
