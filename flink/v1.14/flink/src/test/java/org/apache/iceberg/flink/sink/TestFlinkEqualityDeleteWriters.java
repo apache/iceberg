@@ -43,14 +43,14 @@ public class TestFlinkEqualityDeleteWriters extends TestEqualityDeltaWriters<Row
     super(fileFormat);
   }
 
-  private boolean sameElements(List<Integer> a, List<Integer> b) {
-    if (a == b) {
+  private boolean sameElements(List<Integer> left, List<Integer> right) {
+    if (left == right) {
       return true;
     }
-    if (a == null || b == null) {
+    if (left == null || right == null) {
       return false;
     }
-    return ImmutableSet.copyOf(a).equals(ImmutableSet.copyOf(b));
+    return ImmutableSet.copyOf(left).equals(ImmutableSet.copyOf(right));
   }
 
   @Override
