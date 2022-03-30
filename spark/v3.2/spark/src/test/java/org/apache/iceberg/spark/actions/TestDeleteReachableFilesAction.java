@@ -323,24 +323,14 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testEmptyIOThrowsException() {
-    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .deleteReachableFiles(metadataLocation(table))
-        .io(null);
-    AssertHelpers.assertThrows("FileIO needs to be set to use RemoveFiles action",
-        IllegalArgumentException.class, "File IO cannot be null",
-        baseRemoveFilesSparkAction::execute);
-  }
-
-  @Test
   public void testRemoveFilesActionWhenGarbageCollectionDisabled() {
     table.updateProperties()
         .set(TableProperties.GC_ENABLED, "false")
         .commit();
 
     AssertHelpers.assertThrows("Should complain about removing files when GC is disabled",
-        ValidationException.class, "Cannot remove files: GC is disabled (deleting files may corrupt other tables)",
-        () -> sparkActions().deleteReachableFiles(metadataLocation(table)));
+        ValidationException.class, "Cannot delete files: GC is disabled (deleting files may corrupt other tables)",
+        () -> sparkActions().deleteReachableFiles(metadataLocation(table)).execute());
   }
 
   private String metadataLocation(Table tbl) {
