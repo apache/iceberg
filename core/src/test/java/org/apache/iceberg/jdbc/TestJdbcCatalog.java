@@ -385,8 +385,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
-        "Failed to execute", () -> catalog.renameTable(from2, to)
+    AssertHelpers.assertThrows("should throw exception", AlreadyExistsException.class,
+        "Table already exists", () -> catalog.renameTable(from2, to)
     );
   }
 

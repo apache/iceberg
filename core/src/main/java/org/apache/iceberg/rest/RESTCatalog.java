@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -129,7 +130,13 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
+    RenameTableRequest request = RenameTableRequest.builder()
+        .withSource(from)
+        .withDestination(to)
+        .build();
 
+    // for now, ignore the response because there is no way to return it.
+    client.post("v1/tables/rename", request, null, ErrorHandlers.tableErrorHandler());
   }
 
   private LoadTableResponse loadInternal(TableIdentifier identifier) {
