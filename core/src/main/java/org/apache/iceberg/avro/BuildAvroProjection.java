@@ -49,7 +49,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     this.current = expectedSchema.asStruct();
   }
 
-  BuildAvroProjection(org.apache.iceberg.types.Type expectedType, Map<String, String> renames) {
+  BuildAvroProjection(Type expectedType, Map<String, String> renames) {
     this.renames = renames;
     this.current = expectedType;
   }
