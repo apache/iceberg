@@ -42,7 +42,7 @@ import org.apache.iceberg.types.Types;
  */
 class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Field> {
   private final Map<String, String> renames;
-  private Type current = null;
+  private Type current;
 
   BuildAvroProjection(org.apache.iceberg.Schema expectedSchema, Map<String, String> renames) {
     this.renames = renames;

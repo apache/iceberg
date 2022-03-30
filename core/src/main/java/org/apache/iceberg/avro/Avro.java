@@ -218,7 +218,7 @@ public class Avro {
       }
 
       private static CodecFactory toCodec(String codecAsString, String compressionLevel) {
-        CodecFactory codecFactory = null;
+        CodecFactory codecFactory;
         try {
           switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
             case UNCOMPRESSED:
