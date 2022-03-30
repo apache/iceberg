@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from textwrap import dedent
 
 import pytest
 
@@ -29,20 +30,15 @@ from iceberg.types import (
 )
 
 
-def test_schema_str():
+def test_schema_str(table_schema_simple):
     """Test casting a schema to a string"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-    assert """table { 
- 1: foo: required string
- 2: bar: optional int
- 3: baz: required boolean
- }""" == str(
-        table_schema
+    assert str(table_schema_simple) == dedent(
+        """\
+    table { 
+     1: foo: required string
+     2: bar: optional int
+     3: baz: required boolean
+     }"""
     )
 
 
@@ -64,30 +60,87 @@ def test_schema_repr(schema, expected_repr):
     assert repr(schema) == expected_repr
 
 
-def test_schema_find_field_name_by_field_id():
+def test_schema_index_by_id_visitor(table_schema_nested):
+    """Test index_by_id visitor function"""
+    index = schema.index_by_id(table_schema_nested)
+    assert index == {
+        1: NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+        2: NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+        3: NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        4: NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
+            is_optional=True,
+        ),
+        5: NestedField(field_id=5, name="element", field_type=StringType(), is_optional=True),
+        6: NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(
+                    key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True
+                ),
+                value_is_optional=True,
+            ),
+            is_optional=True,
+        ),
+        7: NestedField(field_id=7, name="key", field_type=StringType(), is_optional=False),
+        9: NestedField(field_id=9, name="key", field_type=StringType(), is_optional=False),
+        8: NestedField(
+            field_id=8,
+            name="value",
+            field_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True),
+            is_optional=True,
+        ),
+        10: NestedField(field_id=10, name="value", field_type=IntegerType(), is_optional=True),
+    }
+
+
+def test_schema_index_by_name_visitor(table_schema_nested):
+    """Test index_by_name visitor function"""
+    index = schema.index_by_name(table_schema_nested)
+    assert index == {
+        "foo": 1,
+        "bar": 2,
+        "baz": 3,
+        "qux": 4,
+        "qux.element": 5,
+        "quux": 6,
+        "quux.key": 7,
+        "quux.value": 8,
+        "quux.value.key": 9,
+        "quux.value.value": 10,
+    }
+
+
+def test_schema_find_column_name(table_schema_nested):
     """Test finding a column name using its field ID"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-    index = schema.index_by_id(table_schema)
+    assert table_schema_nested.find_column_name(1) == "foo"
+    assert table_schema_nested.find_column_name(2) == "bar"
+    assert table_schema_nested.find_column_name(3) == "baz"
+    assert table_schema_nested.find_column_name(4) == "qux"
+    assert table_schema_nested.find_column_name(5) == "qux.element"
+    assert table_schema_nested.find_column_name(6) == "quux"
+    assert table_schema_nested.find_column_name(7) == "quux.key"
+    assert table_schema_nested.find_column_name(8) == "quux.value"
+    assert table_schema_nested.find_column_name(9) == "quux.value.key"
+    assert table_schema_nested.find_column_name(10) == "quux.value.value"
 
-    assert index[1].name == "foo"
-    assert index[2].name == "bar"
-    assert index[3].name == "baz"
+
+def test_schema_find_column_name_raise_on_id_not_found(table_schema_nested):
+    """Test raising an error when a field ID cannot be found"""
+    with pytest.raises(ValueError) as exc_info:
+        table_schema_nested.find_column_name(99)
+    assert "Cannot find column name: 99" in str(exc_info.value)
 
 
-def test_schema_find_field_by_id():
+def test_schema_find_field_by_id(table_schema_simple):
     """Test finding a column using its field ID"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-    index = schema.index_by_id(table_schema)
+    index = schema.index_by_id(table_schema_simple)
 
     column1 = index[1]
     assert isinstance(column1, NestedField)
@@ -108,59 +161,25 @@ def test_schema_find_field_by_id():
     assert column3.is_optional == False
 
 
-def test_schema_find_field_by_id_raise_on_unknown_field():
+def test_schema_find_field_by_id_raise_on_unknown_field(table_schema_simple):
     """Test raising when the field ID is not found among columns"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-    index = schema.index_by_id(table_schema)
-
+    index = schema.index_by_id(table_schema_simple)
     with pytest.raises(Exception) as exc_info:
         index[4]
-
     assert str(exc_info.value) == "4"
 
 
-def test_schema_find_field_type_by_id():
+def test_schema_find_field_type_by_id(table_schema_simple):
     """Test retrieving a columns's type using its field ID"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-    index = schema.index_by_id(table_schema)
-
-    assert index[1] == columns[0]
-    assert index[2] == columns[1]
-    assert index[3] == columns[2]
+    index = schema.index_by_id(table_schema_simple)
+    assert index[1] == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    assert index[2] == NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True)
+    assert index[3] == NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False)
 
 
-def test_index_by_id_schema_visitor():
+def test_index_by_id_schema_visitor(table_schema_nested):
     """Test the index_by_id function that uses the IndexById schema visitor"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-        NestedField(
-            field_id=4,
-            name="qux",
-            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
-            is_optional=False,
-        ),
-        NestedField(
-            field_id=6,
-            name="quux",
-            field_type=MapType(key_id=7, key_type=StringType(), value_id=8, value_type=IntegerType(), value_is_optional=True),
-            is_optional=False,
-        ),
-    ]
-    table_schema = schema.Schema(*columns)
-
-    assert schema.index_by_id(table_schema) == {
+    assert schema.index_by_id(table_schema_nested) == {
         1: NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
         2: NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
         3: NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
@@ -168,79 +187,70 @@ def test_index_by_id_schema_visitor():
             field_id=4,
             name="qux",
             field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
-            is_optional=False,
+            is_optional=True,
         ),
         5: NestedField(field_id=5, name="element", field_type=StringType(), is_optional=True),
         6: NestedField(
             field_id=6,
             name="quux",
-            field_type=MapType(key_id=7, key_type=StringType(), value_id=8, value_type=IntegerType(), value_is_optional=True),
-            is_optional=False,
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(
+                    key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True
+                ),
+                value_is_optional=True,
+            ),
+            is_optional=True,
         ),
         7: NestedField(field_id=7, name="key", field_type=StringType(), is_optional=False),
-        8: NestedField(field_id=8, name="value", field_type=IntegerType(), is_optional=True),
+        8: NestedField(
+            field_id=8,
+            name="value",
+            field_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True),
+            is_optional=True,
+        ),
+        9: NestedField(field_id=9, name="key", field_type=StringType(), is_optional=False),
+        10: NestedField(field_id=10, name="value", field_type=IntegerType(), is_optional=True),
     }
 
 
 def test_index_by_id_schema_visitor_raise_on_unregistered_type():
     """Test raising a NotImplementedError when an invalid type is provided to the index_by_id function"""
-
     with pytest.raises(NotImplementedError) as exc_info:
         schema.index_by_id("foo")
-
     assert "Cannot visit non-type: foo" in str(exc_info.value)
 
 
-def test_schema_find_field():
+def test_schema_find_field(table_schema_simple):
     """Test finding a field in a schema"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
+    assert (
+        table_schema_simple.find_field(1)
+        == table_schema_simple.find_field("foo")
+        == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    )
+    assert (
+        table_schema_simple.find_field(2)
+        == table_schema_simple.find_field("bar")
+        == NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True)
+    )
+    assert (
+        table_schema_simple.find_field(3)
+        == table_schema_simple.find_field("baz")
+        == NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False)
+    )
 
-    assert table_schema.find_field(1) == table_schema.find_field("foo") == columns[0]
-    assert table_schema.find_field(2) == table_schema.find_field("bar") == columns[1]
-    assert table_schema.find_field(3) == table_schema.find_field("baz") == columns[2]
 
-
-def test_schema_find_type():
+def test_schema_find_type(table_schema_simple):
     """Test finding the type of a column given its field ID"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-
-    assert table_schema.find_type(1) == table_schema.find_type("foo") == StringType()
-    assert table_schema.find_type(2) == table_schema.find_type("bar") == IntegerType()
-    assert table_schema.find_type(3) == table_schema.find_type("baz") == BooleanType()
+    assert table_schema_simple.find_type(1) == table_schema_simple.find_type("foo") == StringType()
+    assert table_schema_simple.find_type(2) == table_schema_simple.find_type("bar") == IntegerType()
+    assert table_schema_simple.find_type(3) == table_schema_simple.find_type("baz") == BooleanType()
 
 
-def test_schema_find_column_name():
+def test_schema_find_column_name(table_schema_simple):
     """Test finding a column name given its field ID"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-
-    assert table_schema.find_column_name(1) == "foo"
-    assert table_schema.find_column_name(2) == "bar"
-    assert table_schema.find_column_name(3) == "baz"
-
-
-def test_schema_select():
-    """Test selecting columns in a schema"""
-    columns = [
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
-    ]
-    table_schema = schema.Schema(*columns)
-
-    projected_schema = table_schema.select(["foo", "bar"])
-    len(projected_schema.columns) == 2
+    assert table_schema_simple.find_column_name(1) == "foo"
+    assert table_schema_simple.find_column_name(2) == "bar"
+    assert table_schema_simple.find_column_name(3) == "baz"

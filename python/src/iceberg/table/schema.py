@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, Iterable, List, TypeVar, Union
+from typing import Dict, Generic, Iterable, List, TypeVar
 
 from iceberg.types import (
     IcebergType,
@@ -49,42 +51,43 @@ class Schema:
     def as_struct(self):
         return self._struct
 
-    def _find_field_by_name(self, index: dict, name: str) -> NestedField:
-        matched_fields = [field for field_id, field in index.items() if field.name == name]
-        if not matched_fields:
-            raise ValueError("Cannot find field: {name_or_id}")
-        return matched_fields[0]
-
-    def find_field(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> NestedField:
-        index = index_by_id(self)
+    def find_field(self, name_or_id: str | int, case_sensitive: bool = True) -> NestedField:
+        id_index = index_by_id(self)
         if isinstance(name_or_id, int):
-            return index[name_or_id]
-        return self._find_field_by_name(index, name_or_id)
+            return id_index[name_or_id]
+        name_index = index_by_name(self)
+        field_id = name_index[name_or_id]
+        return id_index[field_id]
 
-    def find_type(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> IcebergType:
-        index = index_by_id(self)
+    def find_type(self, name_or_id: str | int, case_sensitive: bool = True) -> IcebergType:
+        id_index = index_by_id(self)
         if isinstance(name_or_id, int):
-            return index[name_or_id].type
-        return self._find_field_by_name(index, name_or_id).type
+            return id_index[name_or_id].type
+        name_index = index_by_name(self)
+        field_id = name_index[name_or_id]
+        return id_index[field_id].type
 
-    def find_column_name(self, id: int) -> str:
-        index = index_by_id(self)
-        return index[id].name
+    def find_column_name(self, column_id: int) -> str:
+        index = index_by_name(self)
+        matched_column = [name for name, field_id in index.items() if field_id == column_id]
+        if not matched_column:
+            raise ValueError(f"Cannot find column name: {column_id}")
+        return matched_column[0]
 
     def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
-        return (
-            self._case_sensitive_select(schema=self, names=names)
-            if case_sensitive
-            else self._case_insensitive_select(schema=self, names=names)
-        )
+        if case_sensitive:
+            return self._case_sensitive_select(schema=self, names=names)
+        return self._case_insensitive_select(schema=self, names=names)
 
     @classmethod
     def _case_sensitive_select(cls, schema: "Schema", names: List[str]):
-        return cls(*[column for column in schema.columns if column.name.lower() in names])
+        # TODO: Add a PruneColumns schema visitor and use it here
+        raise NotImplementedError()
 
     @classmethod
     def _case_insensitive_select(cls, schema: "Schema", names: List[str]):
-        return cls(*[column for column in schema.columns if column.name.lower() in [name.lower() for name in names]])
+        # TODO: Add a PruneColumns schema visitor and use it here
+        raise NotImplementedError()
 
 
 class SchemaVisitor(Generic[T], ABC):
@@ -213,3 +216,46 @@ def index_by_id(schema_or_type) -> Dict[int, NestedField]:
             return self._index
 
     return visit(schema_or_type, IndexById())
+
+
+def index_by_name(schema_or_type) -> Dict[str, int]:
+    class IndexByName(SchemaVisitor[Dict[str, int]]):
+        def __init__(self):
+            self._index: Dict[str, int] = {}
+            self._field_names = []
+
+        def before_field(self, field: NestedField) -> None:
+            self._field_names.append(field.name)
+
+        def after_field(self, field: NestedField) -> None:
+            self._field_names.pop()
+
+        def schema(self, schema, struct_result):
+            return self._index
+
+        def struct(self, struct, field_results):
+            return self._index
+
+        def field(self, field, field_result):
+            self._add_field(field.name, field.field_id)
+
+        def list(self, list_type, result):
+            self._add_field(list_type.element.name, list_type.element.field_id)
+
+        def map(self, map_type, key_result, value_result):
+            self._add_field(map_type.key.name, map_type.key.field_id)
+            self._add_field(map_type.value.name, map_type.value.field_id)
+
+        def _add_field(self, name, field_id):
+            full_name = name
+            if self._field_names:
+                full_name = ".".join([".".join(self._field_names), name])
+
+            if full_name in self._index:
+                raise ValueError(f"Invalid schema, multiple fields for name {full_name}: {index[full_name]} and {field_id}")
+            self._index[full_name] = field_id
+
+        def primitive(self, primitive):
+            return self._index
+
+    return visit(schema_or_type, IndexByName())
