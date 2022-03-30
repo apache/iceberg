@@ -46,11 +46,13 @@ def test_schema_str(table_schema_simple):
     "schema, expected_repr",
     [
         (
-            schema.Schema(NestedField(1, "foo", StringType())),
+            schema.Schema(NestedField(1, "foo", StringType()), schema_id=1),
             "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), is_optional=True),))",
         ),
         (
-            schema.Schema(NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), is_optional=False)),
+            schema.Schema(
+                NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), is_optional=False), schema_id=1
+            ),
             "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), is_optional=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), is_optional=False)))",
         ),
     ],

@@ -35,8 +35,10 @@ T = TypeVar("T")
 class Schema:
     """A table Schema"""
 
-    def __init__(self, *columns: Iterable[NestedField]):
+    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: List[int] = []):
         self._struct = StructType(*columns)  # type: ignore
+        self._schema_id = schema_id
+        self._identifier_field_ids = identifier_field_ids
 
     def __str__(self):
         return "table { \n" + "\n".join([" " + str(field) for field in self.columns]) + "\n }"
@@ -45,8 +47,16 @@ class Schema:
         return f"Schema(fields={repr(self.columns)})"
 
     @property
-    def columns(self):
+    def columns(self) -> Iterable[NestedField]:
         return self._struct.fields
+
+    @property
+    def id(self) -> int:
+        return self._schema_id
+
+    @property
+    def identifier_field_ids(self) -> List[int]:
+        return self._identifier_field_ids
 
     def as_struct(self):
         return self._struct

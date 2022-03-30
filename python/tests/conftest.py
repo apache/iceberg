@@ -34,6 +34,8 @@ def table_schema_simple():
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        schema_id=1,
+        identifier_field_ids=[1],
     )
 
 
@@ -63,4 +65,6 @@ def table_schema_nested():
             ),
             is_optional=True,
         ),
+        schema_id=1,
+        identifier_field_ids=[1],
     )
