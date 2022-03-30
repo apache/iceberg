@@ -287,9 +287,5 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
         client.close();
       }
     }
-
-    if (executorService != null) {
-      executorService.shutdown();
-    }
   }
 }
