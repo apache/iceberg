@@ -240,6 +240,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public Map<String, SnapshotRef> refs() {
+    return ops.current().refs();
+  }
+
+  @Override
   public String toString() {
     return name();
   }
