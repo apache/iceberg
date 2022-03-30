@@ -24,7 +24,11 @@ import com.aliyun.oss.model.GetObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -44,10 +48,20 @@ public class OSSInputStream extends SeekableInputStream {
   private long next = 0;
   private boolean closed = false;
 
+  private final Counter<Long> readBytes;
+  private final Counter<Integer> readOperations;
+
   public OSSInputStream(OSS client, OSSURI uri) {
+    this(client, uri, MetricsContext.nullMetrics());
+  }
+
+  OSSInputStream(OSS client, OSSURI uri, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.createStack = Thread.currentThread().getStackTrace();
+
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
   }
 
   @Override
@@ -71,6 +85,8 @@ public class OSSInputStream extends SeekableInputStream {
 
     pos += 1;
     next += 1;
+    readBytes.increment();
+    readOperations.increment();
 
     return stream.read();
   }
@@ -83,6 +99,8 @@ public class OSSInputStream extends SeekableInputStream {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
+    readBytes.increment((long) bytesRead);
+    readOperations.increment();
 
     return bytesRead;
   }
