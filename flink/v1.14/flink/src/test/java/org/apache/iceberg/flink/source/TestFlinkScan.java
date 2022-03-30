@@ -311,7 +311,8 @@ public abstract class TestFlinkScan {
   public void testCustomizedFlinkDataTypes() throws Exception {
     Schema schema = new Schema(
         Types.NestedField.required(
-            1, "map", Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())));
+            1, "map", Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
+        Types.NestedField.required(4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
     Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, schema);
     List<Record> records = RandomGenericData.generate(schema, 10, 0L);
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
