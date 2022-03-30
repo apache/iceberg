@@ -19,10 +19,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
+from datetime import datetime, date, time
 import struct
 import sys
-import uuid
+import re
+from uuid import UUID
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch
@@ -51,7 +52,12 @@ from iceberg.types import (
     UUIDType,
 )
 
-EPOCH = datetime.datetime.utcfromtimestamp(0)
+
+EPOCH_DATE = date.fromisoformat("1970-01-01")
+EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
+ISO_TIMESTAMP = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?")
+EPOCH_TIMESTAMPTZ = datetime.fromisoformat("1970-01-01T00:00:00.000000+00:00")
+ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\d\d:\d\d")
 T = TypeVar("T")
 
 
@@ -110,7 +116,7 @@ def literal(value) -> Literal:
         >>> literal(123)
         LongLiteral(123)
     """
-    raise TypeError(f"Unimplemented Type Literal for value: {str(value)}")
+    raise TypeError(f"Invalid literal value: {repr(value)}")
 
 
 @literal.register(bool)
@@ -119,13 +125,12 @@ def _(value: bool) -> Literal[bool]:
 
 
 @literal.register(int)
-def _(value: int) -> "LongLiteral":
-    # expression binding can convert to IntegerLiteral if needed
+def _(value: int) -> Literal[int]:
     return LongLiteral(value)
 
 
 @literal.register(float)
-def _(value: float) -> "DoubleLiteral":
+def _(value: float) -> Literal[float]:
     # expression binding can convert to FloatLiteral if needed
     return DoubleLiteral(value)
 
@@ -135,8 +140,8 @@ def _(value: str) -> Literal[str]:
     return StringLiteral(value)
 
 
-@literal.register(uuid.UUID)
-def _(value: uuid.UUID) -> Literal[uuid.UUID]:
+@literal.register(UUID)
+def _(value: UUID) -> Literal[UUID]:
     return UUIDLiteral(value)
 
 
@@ -148,7 +153,7 @@ def _(value: bytes) -> Literal[bytes]:
 
 @literal.register(bytearray)
 def _(value: bytearray) -> Literal[bytes]:
-    return BinaryLiteral(value)
+    return BinaryLiteral(bytes(value))
 
 
 @literal.register(Decimal)
@@ -200,78 +205,52 @@ class BooleanLiteral(Literal[bool]):
         return self
 
 
-class IntegerLiteral(Literal[int]):
-    @singledispatchmethod
-    def to(self, type_var):
-        return None
-
-    @to.register(IntegerType)
-    def _(self, type_var: IntegerType) -> "IntegerLiteral":
-        return self
-
-    @to.register(LongType)
-    def _(self, type_var: LongType) -> "LongLiteral":
-        return LongLiteral(self.value)
-
-    @to.register(FloatType)
-    def _(self, type_var: FloatType) -> "FloatLiteral":
-        return FloatLiteral(float(self.value))
-
-    @to.register(DoubleType)
-    def _(self, type_var: DoubleType) -> "DoubleLiteral":
-        return DoubleLiteral(self.value)
-
-    @to.register(DateType)
-    def _(self, type_var: DateType) -> "DateLiteral":
-        return DateLiteral(self.value)
-
-    @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> "DecimalLiteral":
-        if type_var.scale == 0:
-            return DecimalLiteral(Decimal(self.value))
-        else:
-            return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
-
-
 class LongLiteral(Literal[int]):
     @singledispatchmethod
     def to(self, type_var):
         return None
 
     @to.register(LongType)
-    def _(self, type_var: LongType) -> "LongLiteral":
+    def _(self, type_var: LongType) -> Literal[int]:
         return self
 
     @to.register(IntegerType)
-    def _(self, type_var: IntegerType) -> Union[AboveMax, BelowMin, IntegerLiteral]:
+    def _(self, type_var: IntegerType) -> Union[AboveMax, BelowMin, Literal[int]]:
         if IntegerType.max < self.value:
             return AboveMax()
         elif IntegerType.min > self.value:
             return BelowMin()
-        return IntegerLiteral(self.value)
+        return self
 
     @to.register(FloatType)
-    def _(self, type_var: FloatType) -> "FloatLiteral":
+    def _(self, type_var: FloatType) -> Literal[float]:
         return FloatLiteral(float(self.value))
 
     @to.register(DoubleType)
-    def _(self, type_var: DoubleType) -> "DoubleLiteral":
-        return DoubleLiteral(self.value)
+    def _(self, type_var: DoubleType) -> Literal[float]:
+        return DoubleLiteral(float(self.value))
+
+    @to.register(DateType)
+    def _(self, type_var: DateType) -> Literal[int]:
+        return DateLiteral(self.value)
 
     @to.register(TimeType)
-    def _(self, type_var: TimeType) -> "TimeLiteral":
+    def _(self, type_var: TimeType) -> Literal[int]:
         return TimeLiteral(self.value)
 
     @to.register(TimestampType)
-    def _(self, type_var: TimestampType) -> "TimestampLiteral":
+    def _(self, type_var: TimestampType) -> Literal[int]:
         return TimestampLiteral(self.value)
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> "DecimalLiteral":
+    def _(self, type_var: DecimalType) -> Literal[Decimal]:
+        unscaled = Decimal(self.value)
         if type_var.scale == 0:
-            return DecimalLiteral(Decimal(self.value))
+            return DecimalLiteral(unscaled)
         else:
-            return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
+            sign, digits, _ = unscaled.as_tuple()
+            zeros = (0,) * type_var.scale
+            return DecimalLiteral(Decimal((sign, digits + zeros, -type_var.scale)))
 
 
 class FloatLiteral(Literal[float]):
@@ -299,19 +278,16 @@ class FloatLiteral(Literal[float]):
         return None
 
     @to.register(FloatType)
-    def _(self, type_var: FloatType) -> "FloatLiteral":
+    def _(self, type_var: FloatType) -> Literal[float]:
         return self
 
     @to.register(DoubleType)
-    def _(self, type_var: DoubleType) -> "DoubleLiteral":
+    def _(self, type_var: DoubleType) -> Literal[float]:
         return DoubleLiteral(self.value)
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> "DecimalLiteral":
-        if type_var.scale == 0:
-            return DecimalLiteral(Decimal(self.value).quantize(Decimal("1."), rounding=ROUND_HALF_UP))
-        else:
-            return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
+    def _(self, type_var: DecimalType) -> Literal[Decimal]:
+        return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
 
 
 class DoubleLiteral(Literal[float]):
@@ -320,11 +296,11 @@ class DoubleLiteral(Literal[float]):
         return None
 
     @to.register(DoubleType)
-    def _(self, type_var: DoubleType) -> "DoubleLiteral":
+    def _(self, type_var: DoubleType) -> Literal[float]:
         return self
 
     @to.register(FloatType)
-    def _(self, type_var: FloatType) -> Union[AboveMax, BelowMin, FloatLiteral]:
+    def _(self, type_var: FloatType) -> Union[AboveMax, BelowMin, Literal[float]]:
         if FloatType.max < self.value:
             return AboveMax()
         elif FloatType.min > self.value:
@@ -332,7 +308,7 @@ class DoubleLiteral(Literal[float]):
         return FloatLiteral(self.value)
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> "DecimalLiteral":
+    def _(self, type_var: DecimalType) -> Literal[Decimal]:
         return DecimalLiteral(Decimal(self.value).quantize(Decimal((0, (1,), -type_var.scale)), rounding=ROUND_HALF_UP))
 
 
@@ -342,7 +318,7 @@ class DateLiteral(Literal[int]):
         return None
 
     @to.register(DateType)
-    def _(self, type_var: DateType) -> "DateLiteral":
+    def _(self, type_var: DateType) -> Literal[int]:
         return self
 
 
@@ -352,7 +328,7 @@ class TimeLiteral(Literal[int]):
         return None
 
     @to.register(TimeType)
-    def _(self, type_var: TimeType) -> "TimeLiteral":
+    def _(self, type_var: TimeType) -> Literal[int]:
         return self
 
 
@@ -362,12 +338,12 @@ class TimestampLiteral(Literal[int]):
         return None
 
     @to.register(TimestampType)
-    def _(self, type_var: TimestampType) -> "TimestampLiteral":
+    def _(self, type_var: TimestampType) -> Literal[int]:
         return self
 
     @to.register(DateType)
-    def _(self, type_var: DateType) -> "DateLiteral":
-        return DateLiteral((datetime.datetime.fromtimestamp(self.value / 1_000_000) - EPOCH).days)
+    def _(self, type_var: DateType) -> Literal[int]:
+        return DateLiteral((datetime.fromtimestamp(self.value / 1_000_000) - EPOCH_TIMESTAMP).days)
 
 
 class DecimalLiteral(Literal[Decimal]):
@@ -376,7 +352,7 @@ class DecimalLiteral(Literal[Decimal]):
         return None
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> Optional["DecimalLiteral"]:
+    def _(self, type_var: DecimalType) -> Optional[Literal[Decimal]]:
         if type_var.scale == abs(self.value.as_tuple().exponent):
             return self
         return None
@@ -388,30 +364,20 @@ class StringLiteral(Literal[str]):
         return None
 
     @to.register(StringType)
-    def _(self, type_var: StringType) -> "StringLiteral":
+    def _(self, type_var: StringType) -> Literal[str]:
         return self
 
     @to.register(DateType)
-    def _(self, type_var: DateType) -> "DateLiteral":
-        from datetime import date
-
-        EPOCH_DATE = date.fromisoformat("1970-01-01")
+    def _(self, type_var: DateType) -> Literal[int]:
         return DateLiteral((date.fromisoformat(self.value) - EPOCH_DATE).days)
 
     @to.register(TimeType)
-    def _(self, type_var: TimeType) -> "TimeLiteral":
-        from datetime import time
-
+    def _(self, type_var: TimeType) -> Literal[int]:
         t = time.fromisoformat(self.value)
         return TimeLiteral((((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond)
 
     @to.register(TimestampType)
-    def _(self, type_var: TimestampType) -> Optional[TimestampLiteral]:
-        import re
-        from datetime import datetime
-
-        EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
-        ISO_TIMESTAMP = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?")
+    def _(self, type_var: TimestampType) -> Optional[Literal[int]]:
         if ISO_TIMESTAMP.fullmatch(self.value):
             try:
                 delta = datetime.fromisoformat(self.value) - EPOCH_TIMESTAMP
@@ -421,13 +387,7 @@ class StringLiteral(Literal[str]):
         return None
 
     @to.register(TimestamptzType)
-    def _(self, type_var: TimestamptzType) -> Optional[TimestampLiteral]:
-        import re
-        from datetime import datetime
-
-        EPOCH_TIMESTAMPTZ = datetime.fromisoformat("1970-01-01T00:00:00.000000+00:00")
-        ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\d\d:\d\d")
-        ...
+    def _(self, type_var: TimestamptzType) -> Optional[Literal[int]]:
         if ISO_TIMESTAMPTZ.fullmatch(self.value):
             try:
                 delta = datetime.fromisoformat(self.value) - EPOCH_TIMESTAMPTZ
@@ -437,25 +397,25 @@ class StringLiteral(Literal[str]):
         return None
 
     @to.register(UUIDType)
-    def _(self, type_var: UUIDType) -> "UUIDLiteral":
-        return UUIDLiteral(uuid.UUID(self.value))
+    def _(self, type_var: UUIDType) -> Literal[UUID]:
+        return UUIDLiteral(UUID(self.value))
 
     @to.register(DecimalType)
-    def _(self, type_var: DecimalType) -> DecimalLiteral:
-        dec_val = Decimal(self.value)
-        value_scale = abs(dec_val.as_tuple().exponent)
-        if value_scale == type_var.scale:
-            return DecimalLiteral(Decimal(self.value))
-        raise ValueError(f"Cannot cast string to decimal, incorrect scale: got {value_scale} expected {type_var.scale}")
+    def _(self, type_var: DecimalType) -> Optional[Literal[Decimal]]:
+        dec = Decimal(self.value)
+        if type_var.scale == abs(dec.as_tuple().exponent):
+            return DecimalLiteral(dec)
+        else:
+            return None
 
 
-class UUIDLiteral(Literal[uuid.UUID]):
+class UUIDLiteral(Literal[UUID]):
     @singledispatchmethod
     def to(self, type_var):
         return None
 
     @to.register(UUIDType)
-    def _(self, type_var: UUIDType) -> "UUIDLiteral":
+    def _(self, type_var: UUIDType) -> Literal[UUID]:
         return self
 
 
@@ -465,14 +425,14 @@ class FixedLiteral(Literal[bytes]):
         return None
 
     @to.register(FixedType)
-    def _(self, type_var: FixedType) -> Optional["FixedLiteral"]:
+    def _(self, type_var: FixedType) -> Optional[Literal[bytes]]:
         if len(self.value) == type_var.length:
             return self
         else:
             return None
 
     @to.register(BinaryType)
-    def _(self, type_var: BinaryType) -> "BinaryLiteral":
+    def _(self, type_var: BinaryType) -> Literal[bytes]:
         return BinaryLiteral(self.value)
 
 
@@ -482,12 +442,12 @@ class BinaryLiteral(Literal[bytes]):
         return None
 
     @to.register(BinaryType)
-    def _(self, type_var: BinaryType) -> "BinaryLiteral":
+    def _(self, type_var: BinaryType) -> Literal[bytes]:
         return self
 
     @to.register(FixedType)
-    def _(self, type_var: FixedType) -> Optional["FixedLiteral"]:
-        if type_var.length >= len(self.value):
+    def _(self, type_var: FixedType) -> Optional[Literal[bytes]]:
+        if type_var.length == len(self.value):
             return FixedLiteral(self.value)
         else:
             return None
