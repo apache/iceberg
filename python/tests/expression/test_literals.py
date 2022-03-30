@@ -23,17 +23,17 @@ import pytest
 from iceberg.expression.literals import (
     AboveMax,
     BelowMin,
+    BinaryLiteral,
     BooleanLiteral,
-    LongLiteral,
-    FloatLiteral,
-    DoubleLiteral,
     DateLiteral,
+    DecimalLiteral,
+    DoubleLiteral,
+    FixedLiteral,
+    FloatLiteral,
+    LongLiteral,
+    StringLiteral,
     TimeLiteral,
     TimestampLiteral,
-    DecimalLiteral,
-    StringLiteral,
-    FixedLiteral,
-    BinaryLiteral,
     literal,
 )
 from iceberg.types import (
@@ -75,8 +75,9 @@ def test_literal_from_none_error():
         DecimalLiteral,
         StringLiteral,
         FixedLiteral,
-        BinaryLiteral
-    ])
+        BinaryLiteral,
+    ],
+)
 def test_string_literal_with_none_value_error(literalClass):
     with pytest.raises(TypeError) as e:
         literalClass(None)

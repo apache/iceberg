@@ -19,15 +19,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import datetime, date, time
+import re
 import struct
 import sys
-import re
-from uuid import UUID
 from abc import ABC, abstractmethod
+from datetime import date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch
 from typing import Generic, Optional, TypeVar, Union
+from uuid import UUID
 
 if sys.version_info >= (3, 8):
     from functools import singledispatchmethod  # pragma: no cover
@@ -51,7 +51,6 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-
 
 EPOCH_DATE = date.fromisoformat("1970-01-01")
 EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
