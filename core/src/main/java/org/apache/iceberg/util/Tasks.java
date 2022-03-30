@@ -34,7 +34,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -566,7 +565,7 @@ public class Tasks {
   }
 
   public static <I> Builder<I> foreach(Stream<I> items) {
-    return new Builder<>(items.collect(Collectors.toList()));
+    return new Builder<>(items::iterator);
   }
 
   private static <E extends Exception> void throwOne(

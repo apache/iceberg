@@ -488,7 +488,6 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private static List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
-    List<String> partitionKeys = Lists.newArrayList();
     ImmutableList.Builder<String> partitionKeysBuilder = ImmutableList.builder();
     for (PartitionField field : spec.fields()) {
       if (field.transform().isIdentity()) {
@@ -497,11 +496,10 @@ public class FlinkCatalog extends AbstractCatalog {
         // Not created by Flink SQL.
         // For compatibility with iceberg tables, return empty.
         // TODO modify this after Flink support partition transform.
-        return partitionKeys;
+        return Collections.emptyList();
       }
     }
-    partitionKeys = partitionKeysBuilder.build();
-    return partitionKeys;
+    return partitionKeysBuilder.build();
   }
 
   private static void commitChanges(Table table, String setLocation, String setSnapshotId,

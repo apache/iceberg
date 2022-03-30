@@ -50,15 +50,12 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
   }
 
   @Override
-  @SuppressWarnings("JavaLocalDateTimeGetNano")
   public Timestamp getPrimitiveJavaObject(Object o) {
     if (o == null) {
       return null;
     }
     LocalDateTime time = (LocalDateTime) o;
-    Timestamp timestamp = Timestamp.ofEpochMilli(time.toInstant(ZoneOffset.UTC).toEpochMilli());
-    timestamp.setNanos(time.getNano());
-    return timestamp;
+    return Timestamp.valueOf(time);
   }
 
   @Override
