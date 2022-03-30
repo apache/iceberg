@@ -59,8 +59,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile;
+import org.apache.orc.OrcFile.CompressionStrategy;
 import org.apache.orc.OrcFile.ReaderOptions;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -199,8 +201,8 @@ public class ORC {
 
       OrcConf.STRIPE_SIZE.setLong(conf, context.stripeSize());
       OrcConf.BLOCK_SIZE.setLong(conf, context.blockSize());
-      OrcConf.COMPRESS.setString(conf, context.codecAsString().toUpperCase(Locale.ENGLISH));
-      OrcConf.COMPRESSION_STRATEGY.setString(conf, context.compressionStrategy().toUpperCase(Locale.ENGLISH));
+      OrcConf.COMPRESS.setString(conf, context.compressionKind().name());
+      OrcConf.COMPRESSION_STRATEGY.setString(conf, context.compressionStrategy().name());
       OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, overwrite);
 
       return new OrcFileAppender<>(schema,
@@ -212,8 +214,8 @@ public class ORC {
       private final long stripeSize;
       private final long blockSize;
       private final int vectorizedRowBatchSize;
-      private final String codecAsString;
-      private final String compressionStrategy;
+      private final CompressionKind compressionKind;
+      private final CompressionStrategy compressionStrategy;
 
       public long stripeSize() {
         return stripeSize;
@@ -227,20 +229,20 @@ public class ORC {
         return vectorizedRowBatchSize;
       }
 
-      public String codecAsString() {
-        return codecAsString;
+      public CompressionKind compressionKind() {
+        return compressionKind;
       }
 
-      public String compressionStrategy() {
+      public CompressionStrategy compressionStrategy() {
         return compressionStrategy;
       }
 
       private Context(long stripeSize, long blockSize, int vectorizedRowBatchSize,
-          String codecAsString, String compressionStrategy) {
+          CompressionKind compressionKind, CompressionStrategy compressionStrategy) {
         this.stripeSize = stripeSize;
         this.blockSize = blockSize;
         this.vectorizedRowBatchSize = vectorizedRowBatchSize;
-        this.codecAsString = codecAsString;
+        this.compressionKind = compressionKind;
         this.compressionStrategy = compressionStrategy;
       }
 
@@ -259,14 +261,17 @@ public class ORC {
             ORC_WRITE_BATCH_SIZE, ORC_WRITE_BATCH_SIZE_DEFAULT);
         Preconditions.checkArgument(vectorizedRowBatchSize > 0, "VectorizedRow batch size must be > 0");
 
-        String codecAsString = config.getOrDefault(OrcConf.COMPRESS.getAttribute(), ORC_COMPRESSION_DEFAULT);
-        codecAsString = config.getOrDefault(ORC_COMPRESSION, codecAsString);
+        String codecAsString = PropertyUtil.propertyAsString(config, OrcConf.COMPRESS.getAttribute(),
+            ORC_COMPRESSION_DEFAULT);
+        codecAsString = PropertyUtil.propertyAsString(config, ORC_COMPRESSION, codecAsString);
+        CompressionKind compressionKind = toCompressionKind(codecAsString);
 
-        String compressionStrategy = config.getOrDefault(OrcConf.COMPRESSION_STRATEGY.getAttribute(),
+        String strategyAsString = PropertyUtil.propertyAsString(config, OrcConf.COMPRESSION_STRATEGY.getAttribute(),
             ORC_COMPRESSION_STRATEGY_DEFAULT);
-        compressionStrategy = config.getOrDefault(ORC_COMPRESSION_STRATEGY, compressionStrategy);
+        strategyAsString = PropertyUtil.propertyAsString(config, ORC_COMPRESSION_STRATEGY, strategyAsString);
+        CompressionStrategy compressionStrategy = toCompressionStrategy(strategyAsString);
 
-        return new Context(stripeSize, blockSize, vectorizedRowBatchSize, codecAsString, compressionStrategy);
+        return new Context(stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -279,12 +284,31 @@ public class ORC {
         int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,
             DELETE_ORC_WRITE_BATCH_SIZE, dataContext.vectorizedRowBatchSize());
 
-        String codecAsString = config.getOrDefault(DELETE_ORC_COMPRESSION, dataContext.codecAsString());
+        String codecAsString = config.get(DELETE_ORC_COMPRESSION);
+        CompressionKind compressionKind = codecAsString != null ? toCompressionKind(codecAsString) :
+            dataContext.compressionKind();
 
-        String compressionStrategy = config.getOrDefault(DELETE_ORC_COMPRESSION_STRATEGY,
-            dataContext.compressionStrategy());
+        String strategyAsString = config.get(DELETE_ORC_COMPRESSION_STRATEGY);
+        CompressionStrategy compressionStrategy =
+            strategyAsString != null ? toCompressionStrategy(strategyAsString) : dataContext.compressionStrategy();
 
-        return new Context(stripeSize, blockSize, vectorizedRowBatchSize, codecAsString, compressionStrategy);
+        return new Context(stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+      }
+
+      private static CompressionKind toCompressionKind(String codecAsString) {
+        try {
+          return CompressionKind.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+        }
+      }
+
+      private static CompressionStrategy toCompressionStrategy(String strategyAsString) {
+        try {
+          return CompressionStrategy.valueOf(strategyAsString.toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException("Unsupported compression strategy: " + strategyAsString);
+        }
       }
     }
   }

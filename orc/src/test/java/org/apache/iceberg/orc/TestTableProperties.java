@@ -20,6 +20,7 @@
 package org.apache.iceberg.orc;
 
 import java.io.File;
+import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
@@ -35,7 +36,9 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcConf;
+import org.apache.orc.OrcFile.CompressionStrategy;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -53,12 +56,20 @@ public class TestTableProperties {
 
   @Test
   public void testOrcTableProperties() throws Exception {
-    Long stripeSizeBytes = 32L * 1024 * 1024;
-    Long blockSizeBytes = 128L * 1024 * 1024;
+    Random random = new Random();
+    int numOfCodecs = CompressionKind.values().length;
+    int numOfStrategies = CompressionStrategy.values().length;
+
+    long stripeSizeBytes = 32L * 1024 * 1024;
+    long blockSizeBytes = 128L * 1024 * 1024;
+    String codecAsString = CompressionKind.values()[random.nextInt(numOfCodecs)].name();
+    String strategyAsString = CompressionStrategy.values()[random.nextInt(numOfStrategies)].name();
 
     ImmutableMap<String, String> properties = ImmutableMap.of(
         TableProperties.ORC_STRIPE_SIZE_BYTES, String.valueOf(stripeSizeBytes),
         TableProperties.ORC_BLOCK_SIZE_BYTES, String.valueOf(blockSizeBytes),
+        TableProperties.ORC_COMPRESSION, codecAsString,
+        TableProperties.ORC_COMPRESSION_STRATEGY, strategyAsString,
         TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name());
 
     File folder = TEMPORARY_FOLDER.newFolder();
@@ -82,19 +93,29 @@ public class TestTableProperties {
         DynFields.builder().hiddenImpl(writer.getClass(), "conf").build(writer);
 
     Configuration configuration = confField.get();
-    Assert.assertEquals(String.valueOf(blockSizeBytes), configuration.get(OrcConf.BLOCK_SIZE.getAttribute()));
-    Assert.assertEquals(String.valueOf(stripeSizeBytes), configuration.get(OrcConf.STRIPE_SIZE.getAttribute()));
+    Assert.assertEquals(blockSizeBytes, OrcConf.BLOCK_SIZE.getLong(configuration));
+    Assert.assertEquals(stripeSizeBytes, OrcConf.STRIPE_SIZE.getLong(configuration));
+    Assert.assertEquals(codecAsString, OrcConf.COMPRESS.getString(configuration));
+    Assert.assertEquals(strategyAsString, OrcConf.COMPRESSION_STRATEGY.getString(configuration));
     Assert.assertEquals(FileFormat.ORC.name(), configuration.get(TableProperties.DEFAULT_FILE_FORMAT));
   }
 
   @Test
   public void testOrcTableDeleteProperties() throws Exception {
-    Long stripeSizeBytes = 32L * 1024 * 1024;
-    Long blockSizeBytes = 128L * 1024 * 1024;
+    Random random = new Random();
+    int numOfCodecs = CompressionKind.values().length;
+    int numOfStrategies = CompressionStrategy.values().length;
+
+    long stripeSizeBytes = 32L * 1024 * 1024;
+    long blockSizeBytes = 128L * 1024 * 1024;
+    String codecAsString = CompressionKind.values()[random.nextInt(numOfCodecs)].name();
+    String strategyAsString = CompressionStrategy.values()[random.nextInt(numOfStrategies)].name();
 
     ImmutableMap<String, String> properties = ImmutableMap.of(
         TableProperties.DELETE_ORC_STRIPE_SIZE_BYTES, String.valueOf(stripeSizeBytes),
         TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES, String.valueOf(blockSizeBytes),
+        TableProperties.DELETE_ORC_COMPRESSION, codecAsString,
+        TableProperties.DELETE_ORC_COMPRESSION_STRATEGY, strategyAsString,
         TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name());
 
     File folder = TEMPORARY_FOLDER.newFolder();
@@ -123,8 +144,10 @@ public class TestTableProperties {
         DynFields.builder().hiddenImpl(orcFileAppender.getClass(), "conf").build(orcFileAppender);
 
     Configuration configuration = confField.get();
-    Assert.assertEquals(String.valueOf(blockSizeBytes), configuration.get(OrcConf.BLOCK_SIZE.getAttribute()));
-    Assert.assertEquals(String.valueOf(stripeSizeBytes), configuration.get(OrcConf.STRIPE_SIZE.getAttribute()));
+    Assert.assertEquals(blockSizeBytes, OrcConf.BLOCK_SIZE.getLong(configuration));
+    Assert.assertEquals(stripeSizeBytes, OrcConf.STRIPE_SIZE.getLong(configuration));
+    Assert.assertEquals(codecAsString, OrcConf.COMPRESS.getString(configuration));
+    Assert.assertEquals(strategyAsString, OrcConf.COMPRESSION_STRATEGY.getString(configuration));
     Assert.assertEquals(FileFormat.ORC.name(), configuration.get(TableProperties.DEFAULT_FILE_FORMAT));
   }
 }
