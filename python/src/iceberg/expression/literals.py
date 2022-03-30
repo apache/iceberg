@@ -63,9 +63,9 @@ T = TypeVar("T")
 class Literal(Generic[T], ABC):
     """Literal which has a value and can be converted between types"""
 
-    def __init__(self, value: T):
-        if value is None:
-            raise TypeError(f"Invalid literal value: {value}")
+    def __init__(self, value: T, value_type: type):
+        if value is None or not isinstance(value, value_type):
+            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
         self._value = value
 
     @property
@@ -195,6 +195,9 @@ class BelowMin(Literal[None], Singleton):
 
 
 class BooleanLiteral(Literal[bool]):
+    def __init__(self, value: bool):
+        super().__init__(value, bool)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -205,6 +208,9 @@ class BooleanLiteral(Literal[bool]):
 
 
 class LongLiteral(Literal[int]):
+    def __init__(self, value: int):
+        super().__init__(value, int)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -254,7 +260,7 @@ class LongLiteral(Literal[int]):
 
 class FloatLiteral(Literal[float]):
     def __init__(self, value: float):
-        super().__init__(value=value)
+        super().__init__(value, float)
         self._value32 = struct.unpack("<f", struct.pack("<f", value))[0]
 
     def __eq__(self, other):
@@ -290,6 +296,9 @@ class FloatLiteral(Literal[float]):
 
 
 class DoubleLiteral(Literal[float]):
+    def __init__(self, value: float):
+        super().__init__(value, float)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -312,6 +321,9 @@ class DoubleLiteral(Literal[float]):
 
 
 class DateLiteral(Literal[int]):
+    def __init__(self, value: int):
+        super().__init__(value, int)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -322,6 +334,9 @@ class DateLiteral(Literal[int]):
 
 
 class TimeLiteral(Literal[int]):
+    def __init__(self, value: int):
+        super().__init__(value, int)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -332,6 +347,9 @@ class TimeLiteral(Literal[int]):
 
 
 class TimestampLiteral(Literal[int]):
+    def __init__(self, value: int):
+        super().__init__(value, int)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -346,6 +364,9 @@ class TimestampLiteral(Literal[int]):
 
 
 class DecimalLiteral(Literal[Decimal]):
+    def __init__(self, value: Decimal):
+        super().__init__(value, Decimal)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -358,6 +379,9 @@ class DecimalLiteral(Literal[Decimal]):
 
 
 class StringLiteral(Literal[str]):
+    def __init__(self, value: str):
+        super().__init__(value, str)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -409,6 +433,9 @@ class StringLiteral(Literal[str]):
 
 
 class UUIDLiteral(Literal[UUID]):
+    def __init__(self, value: UUID):
+        super().__init__(value, UUID)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -419,6 +446,9 @@ class UUIDLiteral(Literal[UUID]):
 
 
 class FixedLiteral(Literal[bytes]):
+    def __init__(self, value: bytes):
+        super().__init__(value, bytes)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
@@ -436,6 +466,9 @@ class FixedLiteral(Literal[bytes]):
 
 
 class BinaryLiteral(Literal[bytes]):
+    def __init__(self, value: bytes):
+        super().__init__(value, bytes)
+
     @singledispatchmethod
     def to(self, type_var):
         return None
