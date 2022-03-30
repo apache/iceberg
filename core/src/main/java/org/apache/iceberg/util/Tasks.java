@@ -212,7 +212,9 @@ public class Tasks {
           I item = iterator.next();
           try {
             runTaskWithRetry(task, item);
-            succeeded.add(item);
+            if (revertTask != null) {
+              succeeded.add(item);
+            }
           } catch (Exception e) {
             exceptions.add(e);
 
@@ -308,8 +310,9 @@ public class Tasks {
               boolean threw = true;
               try {
                 runTaskWithRetry(task, item);
-
-                succeeded.add(item);
+                if (revertTask != null) {
+                  succeeded.add(item);
+                }
 
                 threw = false;
 
