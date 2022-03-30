@@ -157,6 +157,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
+  public Map<String, SnapshotRef> refs() {
+    return table().refs();
+  }
+
+  @Override
   public UpdateSchema updateSchema() {
     throw new UnsupportedOperationException("Cannot update the schema of a metadata table");
   }

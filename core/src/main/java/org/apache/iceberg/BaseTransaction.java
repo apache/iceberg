@@ -734,6 +734,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Map<String, SnapshotRef> refs() {
+      return current.refs();
+    }
+
+    @Override
     public String toString() {
       return name();
     }
