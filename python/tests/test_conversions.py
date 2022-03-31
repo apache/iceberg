@@ -97,6 +97,43 @@ from iceberg.types import (
 
 
 @pytest.mark.parametrize(
+    "value, expected_result",
+    [
+        (Decimal("1.2345"), 12345),
+        (Decimal("12.345"), 12345),
+        (Decimal("1234.5"), 12345),
+        (Decimal("9999999.9999"), 99999999999),
+        (Decimal("1.0"), 10),
+        (Decimal("1"), 1),
+        (Decimal("0.1"), 1),
+        (Decimal("0.12345"), 12345),
+        (Decimal("0.0000001"), 1),
+    ],
+)
+def test_decimal_to_unscaled(value, expected_result):
+    """Test converting a decimal to an unscaled value"""
+    assert conversions.decimal_to_unscaled(value=value) == expected_result
+
+
+@pytest.mark.parametrize(
+    "unscaled, scale, expected_result",
+    [
+        (12345, 4, Decimal("1.2345")),
+        (12345, 3, Decimal("12.345")),
+        (12345, 1, Decimal("1234.5")),
+        (99999999999, 4, Decimal("9999999.9999")),
+        (1, 1, Decimal("0.1")),
+        (1, 0, Decimal("1")),
+        (12345, 5, Decimal("0.12345")),
+        (1, 7, Decimal("0.0000001")),
+    ],
+)
+def test_unscaled_to_decimal(unscaled, scale, expected_result):
+    """Test converting an unscaled value to a decimal with a specified scale"""
+    assert conversions.unscaled_to_decimal(unscaled=unscaled, scale=scale) == expected_result
+
+
+@pytest.mark.parametrize(
     "primitive_type, value_str, expected_result",
     [
         (BooleanType(), "true", True),

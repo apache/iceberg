@@ -78,7 +78,8 @@ def decimal_to_unscaled(value: Decimal) -> int:
     Returns:
         int: The unscaled value
     """
-    return int(value.to_integral_value())
+    sign, digits, _ = value.as_tuple()
+    return int(Decimal((sign, digits, 0)).to_integral_value())
 
 
 def unscaled_to_decimal(unscaled: int, scale: int) -> Decimal:
@@ -92,7 +93,7 @@ def unscaled_to_decimal(unscaled: int, scale: int) -> Decimal:
         Decimal: A scaled Decimal instance
     """
     sign, digits, _ = Decimal(unscaled).as_tuple()
-    return Decimal((sign, digits, scale))
+    return Decimal((sign, digits, -scale))
 
 
 @singledispatch
@@ -315,4 +316,4 @@ def _(primitive_type, b: bytes) -> bytes:
 @from_bytes.register(DecimalType)
 def _(primitive_type, buf: bytes) -> Decimal:
     unscaled = int.from_bytes(buf, "big", signed=True)
-    return unscaled_to_decimal(unscaled, -primitive_type.scale)
+    return unscaled_to_decimal(unscaled, primitive_type.scale)
