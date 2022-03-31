@@ -39,6 +39,8 @@ class Schema:
         self._struct = StructType(*columns)  # type: ignore
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids
+        self._name_index: Dict[str, int] = index_by_name(self)
+        self._id_index: Dict[int, NestedField] = {}  # Will be lazily set when self.id_index property method is called
 
     def __str__(self):
         return "table { \n" + "\n".join([" " + str(field) for field in self.columns]) + "\n }"
@@ -58,28 +60,41 @@ class Schema:
     def identifier_field_ids(self) -> List[int]:
         return self._identifier_field_ids
 
+    @property
+    def id_index(self) -> Dict[int, NestedField]:
+        if not self._id_index:
+            self._id_index = index_by_id(self)
+        return self._id_index
+
+    @property
+    def name_index(self) -> Dict[str, int]:
+        return self._name_index
+
     def as_struct(self):
         return self._struct
 
     def find_field(self, name_or_id: str | int, case_sensitive: bool = True) -> NestedField:
-        id_index = index_by_id(self)
         if isinstance(name_or_id, int):
-            return id_index[name_or_id]
-        name_index = index_by_name(self)
-        field_id = name_index[name_or_id]
-        return id_index[field_id]
+            return self.id_index[name_or_id]
+        if case_sensitive:
+            field_id = self.name_index[name_or_id]
+        else:
+            name_index_lower = {name.lower(): field_id for name, field_id in self.name_index.items()}
+            field_id = name_index_lower[name_or_id.lower()]
+        return self.id_index[field_id]
 
     def find_type(self, name_or_id: str | int, case_sensitive: bool = True) -> IcebergType:
-        id_index = index_by_id(self)
         if isinstance(name_or_id, int):
-            return id_index[name_or_id].type
-        name_index = index_by_name(self)
-        field_id = name_index[name_or_id]
-        return id_index[field_id].type
+            return self.id_index[name_or_id].type
+        if case_sensitive:
+            field_id = self.name_index[name_or_id]
+        else:
+            name_index_lower = {name.lower(): field_id for name, field_id in self.name_index.items()}
+            field_id = name_index_lower[name_or_id.lower()]
+        return self.id_index[field_id].type
 
     def find_column_name(self, column_id: int) -> str:
-        index = index_by_name(self)
-        matched_column = [name for name, field_id in index.items() if field_id == column_id]
+        matched_column = [name for name, field_id in self.name_index.items() if field_id == column_id]
         if not matched_column:
             raise ValueError(f"Cannot find column name: {column_id}")
         return matched_column[0]

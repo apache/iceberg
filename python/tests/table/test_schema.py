@@ -230,25 +230,43 @@ def test_schema_find_field(table_schema_simple):
     assert (
         table_schema_simple.find_field(1)
         == table_schema_simple.find_field("foo")
+        == table_schema_simple.find_field("FOO", case_sensitive=False)
         == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
     )
     assert (
         table_schema_simple.find_field(2)
         == table_schema_simple.find_field("bar")
+        == table_schema_simple.find_field("BAR", case_sensitive=False)
         == NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True)
     )
     assert (
         table_schema_simple.find_field(3)
         == table_schema_simple.find_field("baz")
+        == table_schema_simple.find_field("BAZ", case_sensitive=False)
         == NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False)
     )
 
 
 def test_schema_find_type(table_schema_simple):
     """Test finding the type of a column given its field ID"""
-    assert table_schema_simple.find_type(1) == table_schema_simple.find_type("foo") == StringType()
-    assert table_schema_simple.find_type(2) == table_schema_simple.find_type("bar") == IntegerType()
-    assert table_schema_simple.find_type(3) == table_schema_simple.find_type("baz") == BooleanType()
+    assert (
+        table_schema_simple.find_type(1)
+        == table_schema_simple.find_type("foo")
+        == table_schema_simple.find_type("FOO", case_sensitive=False)
+        == StringType()
+    )
+    assert (
+        table_schema_simple.find_type(2)
+        == table_schema_simple.find_type("bar")
+        == table_schema_simple.find_type("BAR", case_sensitive=False)
+        == IntegerType()
+    )
+    assert (
+        table_schema_simple.find_type(3)
+        == table_schema_simple.find_type("baz")
+        == table_schema_simple.find_type("BAZ", case_sensitive=False)
+        == BooleanType()
+    )
 
 
 def test_schema_find_column_name(table_schema_simple):
