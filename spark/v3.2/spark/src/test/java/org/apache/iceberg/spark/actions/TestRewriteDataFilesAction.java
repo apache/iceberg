@@ -1084,14 +1084,14 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     List<Pair<Pair<T, T>, Pair<T, T>>>
         overlappingFiles = checkForOverlappingFiles(table, column);
 
-    Assert.assertEquals("Found overlapping files", Collections.emptyList(), overlappingFiles);
+    Assert.assertEquals("Found no overlapping files", Collections.emptyList(), overlappingFiles);
   }
 
   protected <T> void shouldHaveLastCommitUnsorted(Table table, String column) {
     List<Pair<Pair<T, T>, Pair<T, T>>>
         overlappingFiles = checkForOverlappingFiles(table, column);
 
-    Assert.assertNotEquals("Found no overlapping files", Collections.emptyList(), overlappingFiles);
+    Assert.assertNotEquals("Found overlapping files", Collections.emptyList(), overlappingFiles);
   }
 
   private <T> Pair<T, T> boundsOf(DataFile file, NestedField field, Class<T> javaClass) {
