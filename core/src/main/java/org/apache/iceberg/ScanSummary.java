@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -295,7 +295,7 @@ public class ScanSummary {
     @Override
     public String toString() {
       String dataTimestamp = dataTimestampMillis != null ?
-          new Date(dataTimestampMillis).toString() : null;
+         Instant.ofEpochMilli(dataTimestampMillis).toString() : null;
       return "PartitionMetrics(fileCount=" + fileCount +
           ", recordCount=" + recordCount +
           ", totalSize=" + totalSize +
