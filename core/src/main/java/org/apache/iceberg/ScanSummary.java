@@ -294,8 +294,7 @@ public class ScanSummary {
 
     @Override
     public String toString() {
-      String dataTimestamp = dataTimestampMillis != null ?
-         Instant.ofEpochMilli(dataTimestampMillis).toString() : null;
+      String dataTimestamp = dataTimestampMillis != null ? Instant.ofEpochMilli(dataTimestampMillis).toString() : null;
       return "PartitionMetrics(fileCount=" + fileCount +
           ", recordCount=" + recordCount +
           ", totalSize=" + totalSize +
