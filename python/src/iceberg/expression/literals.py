@@ -70,7 +70,7 @@ class Literal(Generic[T], ABC):
 
     @property
     def value(self) -> T:
-        return self._value
+        return self._value  # type: ignore
 
     @abstractmethod
     def to(self, type_var):
