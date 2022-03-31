@@ -421,7 +421,7 @@ This is turned off by default.
 
 ### S3 Tags
 
-Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing.
+Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.
 For example, to write S3 tags with Spark 3.0, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
@@ -431,7 +431,27 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key1=my_val1 \
     --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key2=my_val2
 ```
-For the above example, the objects in S3 will be saved with tags: `my_key1=my_val1` and `my_key2=my_val2`.
+For the above example, the objects in S3 will be saved with tags: `my_key1=my_val1` and `my_key2=my_val2`. Do note that the specified write tags will be saved only while object creation.
+
+When the catalog property `s3.delete-enabled` is set to `false`, the objects are not hard-deleted from S3.
+This is expected to be used in combination with S3 delete tagging, so objects are tagged and removed using [S3 lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html).
+The property is set to `true` by default.
+
+With the `s3.delete.tags` config, objects are tagged with the configured key-value pairs before deletion.
+Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers.
+For example, to add S3 delete tags with Spark 3.0, you can start the Spark SQL shell with: 
+
+```
+sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://iceberg-warehouse/s3-tagging \
+    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.delete.tags.my_key3=my_val3 \
+    --conf spark.sql.catalog.my_catalog.s3.delete-enabled=false
+```
+
+For the above example, the objects in S3 will be saved with tags: `my_key3=my_val3` before deletion.
+Users can also use the catalog property `s3.delete.num-threads` to mention the number of threads to be used for adding delete tags to the S3 objects.
 
 For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
 
