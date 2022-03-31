@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -186,7 +187,7 @@ public class BaseDeleteOrphanFilesSparkAction
     } else {
       itr = orphanDF.collectAsList().iterator();
     }
-    List<String> orphanFiles = Lists.newArrayList();
+    List<String> orphanFiles = Collections.synchronizedList(Lists.newArrayList());
     Tasks.foreach(itr)
             .noRetry()
             .executeWith(deleteExecutorService)
