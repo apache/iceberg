@@ -287,6 +287,7 @@ public class Tasks {
       }
     }
 
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private <E extends Exception> boolean runParallel(final Task<I, E> task,
                                                       Class<E> exceptionClass)
         throws E {
@@ -300,49 +301,46 @@ public class Tasks {
 
       for (final I item : items) {
         // submit a task for each item that will either run or abort the task
-        futures.add(service.submit(new Runnable() {
-          @Override
-          public void run() {
-            if (!(stopOnFailure && taskFailed.get())) {
-              // run the task with retries
-              boolean threw = true;
-              try {
-                runTaskWithRetry(task, item);
+        futures.add(service.submit(() -> {
+          if (!(stopOnFailure && taskFailed.get())) {
+            // run the task with retries
+            boolean threw = true;
+            try {
+              runTaskWithRetry(task, item);
 
-                succeeded.add(item);
+              succeeded.add(item);
 
-                threw = false;
+              threw = false;
 
-              } catch (Exception e) {
+            } catch (Exception e) {
+              taskFailed.set(true);
+              exceptions.add(e);
+
+              if (onFailure != null) {
+                tryRunOnFailure(item, e);
+              }
+            } finally {
+              if (threw) {
                 taskFailed.set(true);
-                exceptions.add(e);
-
-                if (onFailure != null) {
-                  tryRunOnFailure(item, e);
-                }
-              } finally {
-                if (threw) {
-                  taskFailed.set(true);
-                }
               }
+            }
 
-            } else if (abortTask != null) {
-              // abort the task instead of running it
-              if (stopAbortsOnFailure && abortFailed.get()) {
-                return;
-              }
+          } else if (abortTask != null) {
+            // abort the task instead of running it
+            if (stopAbortsOnFailure && abortFailed.get()) {
+              return;
+            }
 
-              boolean failed = true;
-              try {
-                abortTask.run(item);
-                failed = false;
-              } catch (Exception e) {
-                LOG.error("Failed to abort task", e);
-                // swallow the exception
-              } finally {
-                if (failed) {
-                  abortFailed.set(true);
-                }
+            boolean failed = true;
+            try {
+              abortTask.run(item);
+              failed = false;
+            } catch (Exception e) {
+              LOG.error("Failed to abort task", e);
+              // swallow the exception
+            } finally {
+              if (failed) {
+                abortFailed.set(true);
               }
             }
           }
@@ -356,24 +354,21 @@ public class Tasks {
       if (taskFailed.get() && revertTask != null) {
         // at least one task failed, revert any that succeeded
         for (final I item : succeeded) {
-          futures.add(service.submit(new Runnable() {
-            @Override
-            public void run() {
-              if (stopRevertsOnFailure && revertFailed.get()) {
-                return;
-              }
+          futures.add(service.submit(() -> {
+            if (stopRevertsOnFailure && revertFailed.get()) {
+              return;
+            }
 
-              boolean failed = true;
-              try {
-                revertTask.run(item);
-                failed = false;
-              } catch (Exception e) {
-                LOG.error("Failed to revert task", e);
-                // swallow the exception
-              } finally {
-                if (failed) {
-                  revertFailed.set(true);
-                }
+            boolean failed = true;
+            try {
+              revertTask.run(item);
+              failed = false;
+            } catch (Exception e) {
+              LOG.error("Failed to revert task", e);
+              // swallow the exception
+            } finally {
+              if (failed) {
+                revertFailed.set(true);
               }
             }
           }));

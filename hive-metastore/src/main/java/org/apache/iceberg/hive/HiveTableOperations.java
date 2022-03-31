@@ -413,6 +413,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
+  @SuppressWarnings("ReverseDnsLookup")
   long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
