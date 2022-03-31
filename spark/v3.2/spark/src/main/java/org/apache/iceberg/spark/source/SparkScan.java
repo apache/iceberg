@@ -149,7 +149,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
         // TODO: if possible, take deletes also into consideration.
-        double fractionOfFileScanned = ((double) file.length() / file.file().fileSizeInBytes());
+        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
         numRows += (fractionOfFileScanned * file.file().recordCount());
       }
     }
