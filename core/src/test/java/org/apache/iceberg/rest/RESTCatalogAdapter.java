@@ -151,7 +151,8 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
-  public <T> T handleRequest(Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+  public <T extends RESTResponse> T handleRequest(Route route, Map<String, String> vars,
+                                                  Object body, Class<T> responseType) {
     switch (route) {
       case CONFIG:
         // TODO: use the correct response object
@@ -233,8 +234,8 @@ public class RESTCatalogAdapter implements RESTClient {
     return null;
   }
 
-  public <T> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
-                       Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
+                                            Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
@@ -260,17 +261,18 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
-  public <T> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, responseType, errorHandler);
   }
 
   @Override
-  public <T> T post(String path, Object body, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
+                                         Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, body, responseType, errorHandler);
   }
 
   @Override
-  public <T> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.GET, path, null, responseType, errorHandler);
   }
 
@@ -306,7 +308,7 @@ public class RESTCatalogAdapter implements RESTClient {
     throw new BadRequestType(requestType, request);
   }
 
-  public static <T> T castResponse(Class<T> responseType, Object response) {
+  public static <T extends RESTResponse> T castResponse(Class<T> responseType, Object response) {
     if (responseType.isInstance(response)) {
       return responseType.cast(response);
     }
