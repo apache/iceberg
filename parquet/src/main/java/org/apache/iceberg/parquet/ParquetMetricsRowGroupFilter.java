@@ -293,7 +293,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -323,7 +323,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -373,7 +373,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be

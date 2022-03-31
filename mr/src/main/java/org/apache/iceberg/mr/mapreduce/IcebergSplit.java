@@ -35,7 +35,7 @@ import org.apache.iceberg.util.SerializationUtil;
 // and v2 file formats.
 public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred.InputSplit, IcebergSplitContainer {
 
-  public static final String[] ANYWHERE = new String[]{"*"};
+  private static final String[] ANYWHERE = new String[] { "*" };
 
   private Table table;
   private CombinedScanTask task;
