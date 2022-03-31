@@ -145,10 +145,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
 
     long numRows = 0L;
+    long defaultRowSizeInBytes = readSchema().defaultSize();
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        numRows += file.file().recordCount();
+        // TODO: if possible, take deletes also into consideration.
+        numRows += Math.min(file.length() / defaultRowSizeInBytes, file.file().recordCount());
       }
     }
 
