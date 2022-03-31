@@ -166,7 +166,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public CustomMetric[] supportedCustomMetrics() {
-    return new CustomMetric[] { new NumFiles() };
+    return new CustomMetric[] { new NumSplits() };
   }
 
   static class ReaderFactory implements PartitionReaderFactory {
@@ -209,32 +209,32 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
-    private long numFilesToRead;
+    private long numSplits;
 
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
-      numFilesToRead = numFilesToScan(task.task);
-      LOG.debug("reading {} files for table {}", numFilesToRead, task.table().name());
+      numSplits = numFilesToScan(task.task);
+      LOG.debug("reading {} file splits for table {}", numSplits, task.table().name());
     }
 
     @Override
     public CustomTaskMetric[] currentMetricsValues() {
-      return new CustomTaskMetric[] { new TaskNumFiles(numFilesToRead) };
+      return new CustomTaskMetric[] { new TaskNumSplits(numSplits) };
     }
   }
 
   private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
-    private long numFilesToRead;
+    private long numSplits;
 
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
-      numFilesToRead = numFilesToScan(task.task);
-      LOG.debug("reading {} files for table {}", numFilesToRead, task.table().name());
+      numSplits = numFilesToScan(task.task);
+      LOG.debug("reading {} file splits for table {}", numSplits, task.table().name());
     }
 
     @Override
     public CustomTaskMetric[] currentMetricsValues() {
-      return new CustomTaskMetric[] { new TaskNumFiles(numFilesToRead) };
+      return new CustomTaskMetric[] { new TaskNumSplits(numSplits) };
     }
   }
 

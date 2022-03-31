@@ -19,22 +19,27 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+import java.text.NumberFormat;
+import org.apache.spark.sql.connector.metric.CustomMetric;
 
-public class TaskNumFiles implements CustomTaskMetric {
-  private long value;
-
-  TaskNumFiles(long value) {
-    this.value = value;
-  }
+public class NumSplits implements CustomMetric {
 
   @Override
   public String name() {
-    return "numFiles";
+    return "numSplits";
   }
 
   @Override
-  public long value() {
-    return value;
+  public String description() {
+    return "number of file splits read";
+  }
+
+  @Override
+  public String aggregateTaskMetrics(long[] taskMetrics) {
+    long sum = initialValue;
+    for (int i = 0; i < taskMetrics.length; i++) {
+      sum += taskMetrics[i];
+    }
+    return NumberFormat.getIntegerInstance().format(sum);
   }
 }

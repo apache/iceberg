@@ -95,7 +95,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
 
   @Override
   public String description() {
-    return "IcebergScan " + super.description();
+    return "IcebergBatchScan " + super.description();
   }
 
   Long snapshotId() {
@@ -274,7 +274,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   @Override
   public String toString() {
     return String.format(
-        "IcebergScan(table=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
+        "IcebergBatchScan(table=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
         table(), expectedSchema().asStruct(), filterExpressions(), runtimeFilterExpressions, caseSensitive());
   }
 }
