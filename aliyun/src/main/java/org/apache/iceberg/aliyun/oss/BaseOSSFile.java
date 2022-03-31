@@ -24,6 +24,7 @@ import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.SimplifiedObjectMeta;
 import org.apache.iceberg.aliyun.AliyunProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 abstract class BaseOSSFile {
@@ -31,11 +32,13 @@ abstract class BaseOSSFile {
   private final OSSURI uri;
   private AliyunProperties aliyunProperties;
   private SimplifiedObjectMeta metadata;
+  private final MetricsContext metrics;
 
-  BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+  BaseOSSFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.aliyunProperties = aliyunProperties;
+    this.metrics = metrics;
   }
 
   public String location() {
@@ -74,6 +77,10 @@ abstract class BaseOSSFile {
     }
 
     return metadata;
+  }
+
+  protected MetricsContext metrics() {
+    return metrics;
   }
 
   @Override

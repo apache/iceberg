@@ -397,7 +397,17 @@ class FloatType(PrimitiveType, Singleton):
         >>> column_foo = FloatType()
         >>> isinstance(column_foo, FloatType)
         True
+
+    Attributes:
+        max (float): The maximum allowed value for Floats, inherited from the canonical Iceberg implementation
+          in Java. (returns `3.4028235e38`)
+        min (float): The minimum allowed value for Floats, inherited from the canonical Iceberg implementation
+          in Java (returns `-3.4028235e38`)
     """
+
+    max: float = 3.4028235e38
+
+    min: float = -3.4028235e38
 
     def __init__(self):
         if not self._initialized:
