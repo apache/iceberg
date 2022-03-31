@@ -70,7 +70,7 @@ class Schema:
     def name_index(self) -> Dict[str, int]:
         return self._name_index
 
-    def as_struct(self):
+    def as_struct(self) -> StructType:
         return self._struct
 
     def find_field(self, name_or_id: str | int, case_sensitive: bool = True) -> NestedField:
@@ -215,7 +215,7 @@ def visit(obj, visitor: SchemaVisitor[T]) -> T:
 
 def index_by_id(schema_or_type) -> Dict[int, NestedField]:
     class IndexById(SchemaVisitor[Dict[int, NestedField]]):
-        def __init__(self):
+        def __init__(self) -> None:
             self._index: Dict[int, NestedField] = {}
 
         def schema(self, schema, result):
@@ -245,9 +245,9 @@ def index_by_id(schema_or_type) -> Dict[int, NestedField]:
 
 def index_by_name(schema_or_type) -> Dict[str, int]:
     class IndexByName(SchemaVisitor[Dict[str, int]]):
-        def __init__(self):
+        def __init__(self) -> None:
             self._index: Dict[str, int] = {}
-            self._field_names = []
+            self._field_names: List[str] = []
 
         def before_field(self, field: NestedField) -> None:
             self._field_names.append(field.name)
