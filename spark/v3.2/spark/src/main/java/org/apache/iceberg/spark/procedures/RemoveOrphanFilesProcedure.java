@@ -49,7 +49,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("location", DataTypes.StringType),
       ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
-      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType)
+      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+      ProcedureParameter.optional("stream_results", DataTypes.BooleanType),
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -80,12 +81,14 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   }
 
   @Override
+  @SuppressWarnings("CyclomaticComplexity")
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     String location = args.isNullAt(2) ? null : args.getString(2);
-    boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
+    boolean dryRun = !args.isNullAt(3) && args.getBoolean(3);
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
+    boolean streamResults = !args.isNullAt(5) && args.getBoolean(5);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -111,6 +114,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
       if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+      }
+
+      if (streamResults) {
+        action.option("stream-results", "true");
       }
 
       DeleteOrphanFiles.Result result = action.execute();

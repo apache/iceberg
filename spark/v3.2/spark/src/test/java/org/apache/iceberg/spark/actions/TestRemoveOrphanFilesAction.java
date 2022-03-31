@@ -703,4 +703,32 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         ValidationException.class, "Cannot remove orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
   }
+
+  @Test
+  public void testRemoveOrphanFilesWithStreamResultsEnabled() throws InterruptedException {
+    Table table = catalog.createTable(TableIdentifier.of("default", "test_table"), SCHEMA, SPEC, tableLocation,
+            Maps.newHashMap());
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save("default.test_table");
+
+    df.write().mode("append").parquet(table.location() + "/data/orphan_files");
+    Thread.sleep(1000);
+    DeleteOrphanFiles.Result result1 = SparkActions.get().deleteOrphanFiles(table)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {
+            }).execute();
+    DeleteOrphanFiles.Result result2 =
+            SparkActions.get().deleteOrphanFiles(table)
+                    .olderThan(System.currentTimeMillis())
+                    .option("stream-results", "true").execute();
+    Assert.assertEquals(result1.orphanFileLocations(), result2.orphanFileLocations());
+    Assert.assertEquals(1, Iterables.size(result2.orphanFileLocations()));
+  }
 }

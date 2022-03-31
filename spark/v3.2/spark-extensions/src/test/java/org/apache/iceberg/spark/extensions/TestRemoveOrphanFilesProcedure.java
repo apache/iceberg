@@ -360,4 +360,29 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         .collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
+
+  @Test
+  public void testRemoveOrphanFilesWithStreamResultsEnabled() throws Exception {
+    sql("CREATE TABLE %s (id bigint NOT NULL) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1)", tableName);
+    Dataset<Row> df = spark.sql(String.format("select * from %s", tableName));
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    df.write().parquet(table.location() + "/data/orphan_files");
+    Thread.sleep(1000);
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+    List<Object[]> output1 = sql(
+            "CALL %s.system.remove_orphan_files(" +
+                    "table => '%s'," +
+                    "older_than => TIMESTAMP '%s'," +
+                    "dry_run => true)",
+            catalogName, tableIdent, currentTimestamp);
+    List<Object[]> output2 = sql(
+            "CALL %s.system.remove_orphan_files(" +
+                    "table => '%s'," +
+                    "older_than => TIMESTAMP '%s'," +
+                    "stream_results => true)",
+            catalogName, tableIdent, currentTimestamp);
+    Assert.assertEquals(output1, output2);
+    Assert.assertEquals(1, output2.get(0).length);
+  }
 }
