@@ -24,11 +24,12 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RESTResponse;
 
 /**
  * Standard response body for all API errors
  */
-public class ErrorResponse {
+public class ErrorResponse implements RESTResponse {
 
   private String message;
   private String type;
@@ -43,8 +44,9 @@ public class ErrorResponse {
     validate();
   }
 
-  ErrorResponse validate() {
-    return this;
+  @Override
+  public void validate() {
+    // Because we use the `ErrorResponseParser`, validation is done there.
   }
 
   public String message() {

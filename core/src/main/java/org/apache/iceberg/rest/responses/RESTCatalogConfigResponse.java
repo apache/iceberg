@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTResponse;
 
 /**
  * Represents a response to requesting server-side provided configuration for the REST catalog.
@@ -39,7 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *   <li> overrides - properties that should be used to override client configuration </li>
  * </ul>
  */
-public class RESTCatalogConfigResponse {
+public class RESTCatalogConfigResponse implements RESTResponse {
 
   private Map<String, String> defaults;
   private Map<String, String> overrides;
@@ -54,8 +55,8 @@ public class RESTCatalogConfigResponse {
     validate();
   }
 
-  RESTCatalogConfigResponse validate() {
-    return this;
+  @Override
+  public void validate() {
   }
 
   /**

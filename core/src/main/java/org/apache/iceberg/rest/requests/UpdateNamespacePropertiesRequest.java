@@ -32,11 +32,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTRequest;
 
 /**
  * A REST request to set and/or remove properties on a namespace.
  */
-public class UpdateNamespacePropertiesRequest {
+public class UpdateNamespacePropertiesRequest implements RESTRequest {
 
   private List<String> removals;
   private Map<String, String> updates;
@@ -51,14 +52,13 @@ public class UpdateNamespacePropertiesRequest {
     validate();
   }
 
-  public UpdateNamespacePropertiesRequest validate() {
+  @Override
+  public void validate() {
     Set<String> commonKeys = Sets.intersection(updates().keySet(), Sets.newHashSet(removals()));
     if (!commonKeys.isEmpty()) {
       throw new UnprocessableEntityException(
           "Invalid namespace update, cannot simultaneously set and remove keys: %s", commonKeys);
     }
-
-    return this;
   }
 
   public List<String> removals() {
