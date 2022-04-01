@@ -642,6 +642,51 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
   }
 
+  @Test
+  public void testHiddenPathsStartingWithPartitionNamesAreIgnored() throws InterruptedException, IOException {
+    Schema schema = new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "_c2", Types.StringType.get()),
+            optional(3, "c3", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+            .truncate("_c2", 2)
+            .identity("c3")
+            .build();
+    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+
+    StructType structType = new StructType()
+            .add("c1", DataTypes.IntegerType)
+            .add("_c2", DataTypes.StringType)
+            .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(
+            RowFactory.create(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+
+    df.select("c1", "_c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save(tableLocation);
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    Path pathToFileInHiddenFolder = new Path(dataPath, "_c2_trunc/file.txt");
+    fs.createNewFile(pathToFileInHiddenFolder);
+
+    Thread.sleep(1000);
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+            .olderThan(System.currentTimeMillis())
+            .execute();
+
+    Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFileLocations()));
+    Assert.assertTrue(fs.exists(pathToFileInHiddenFolder));
+  }
+
   private List<String> snapshotFiles(long snapshotId) {
     return spark.read().format("iceberg")
         .option("snapshot-id", snapshotId)

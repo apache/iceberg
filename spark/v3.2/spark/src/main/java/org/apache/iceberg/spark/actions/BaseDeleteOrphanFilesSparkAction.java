@@ -36,7 +36,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
@@ -199,7 +198,7 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> matchingFiles = Lists.newArrayList();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-    PathFilter pathFilter = PartitionAwareHiddenPathFilter.build(table.specs());
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
 
     // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
     listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, pathFilter, matchingFiles);
@@ -301,7 +300,12 @@ public class BaseDeleteOrphanFilesSparkAction
       return isHiddenPartitionPath || HiddenPathFilter.get().accept(path);
     }
 
-    static PathFilter build(Map<Integer, PartitionSpec> specs) {
+    /**
+     * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be marked
+     * as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of the characters that
+     * indicate a hidden path.
+     */
+    static PathFilter forSpecs(Map<Integer, PartitionSpec> specs) {
       if (specs == null) {
         return HiddenPathFilter.get();
       }
@@ -310,7 +314,7 @@ public class BaseDeleteOrphanFilesSparkAction
           .map(PartitionSpec::fields)
           .flatMap(List::stream)
           .filter(partitionField -> partitionField.name().startsWith("_") || partitionField.name().startsWith("."))
-          .map(PartitionField::name)
+          .map(partitionField -> partitionField.name() + "=")
           .collect(Collectors.toSet());
 
       return partitionNames.isEmpty() ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
