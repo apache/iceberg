@@ -25,6 +25,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.client.NessieClientBuilder;
+import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApi;
 import org.projectnessie.client.auth.NessieAuthentication;
 import org.projectnessie.client.http.HttpClientBuilder;
@@ -51,7 +52,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
     catalog.initialize("nessie",
         ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
             CatalogProperties.URI, uri,
-            NessieUtil.CONFIG_CLIENT_BUILDER_IMPL, HttpClientBuilder.class.getName()));
+            NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL, HttpClientBuilder.class.getName()));
   }
 
   @Test
@@ -62,7 +63,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
       catalog.initialize("nessie",
           ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
               CatalogProperties.URI, uri,
-              NessieUtil.CONFIG_CLIENT_BUILDER_IMPL, nonExistingClass));
+              NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL, nonExistingClass));
     })
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(nonExistingClass);
@@ -75,7 +76,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
       catalog.initialize("nessie",
           ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
               CatalogProperties.URI, uri,
-              NessieUtil.CONFIG_CLIENT_BUILDER_IMPL, DummyClientBuilderImpl.class.getName()));
+              NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL, DummyClientBuilderImpl.class.getName()));
     })
         .isInstanceOf(RuntimeException.class)
         .hasMessage("BUILD CALLED");
