@@ -368,14 +368,7 @@ public class BaseTransaction implements Transaction {
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
           .run(underlyingOps -> {
-            if (base != underlyingOps.refresh()) {
-              this.base = underlyingOps.current(); // just refreshed
-              this.current = base;
-              for (PendingUpdate update : updates) {
-                // re-commit each update in the chain to apply it and update current
-                update.commit();
-              }
-            }
+            applyUpdates(underlyingOps);
 
             if (current.currentSnapshot() != null) {
               currentSnapshotId.set(current.currentSnapshot().snapshotId());
@@ -434,6 +427,25 @@ public class BaseTransaction implements Transaction {
 
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
+    }
+  }
+
+  private void applyUpdates(TableOperations underlyingOps) {
+    if (base != underlyingOps.refresh()) {
+      TableMetadata oldBase = base;
+      // use refreshed the metadata
+      this.base = underlyingOps.current();
+      this.current = underlyingOps.current();
+      for (PendingUpdate update : updates) {
+        // re-commit each update in the chain to apply it and update current
+        try {
+          update.commit();
+        } catch (CommitFailedException e) {
+          // fallback to old base, so that it refreshes again on retry and apply pending updates.
+          base = oldBase;
+          throw  e;
+        }
+      }
     }
   }
 
