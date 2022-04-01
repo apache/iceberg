@@ -81,3 +81,5 @@ ALIYUN:
   - aliyun/**/*
 GCP:
   - gcp/**/*
+DELL:
+  - dell/**/*
