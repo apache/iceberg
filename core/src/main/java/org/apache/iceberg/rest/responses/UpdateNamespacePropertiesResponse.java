@@ -25,11 +25,12 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.rest.RESTResponse;
 
 /**
  * A REST response to a request to set and/or remove properties on a namespace.
  */
-public class UpdateNamespacePropertiesResponse {
+public class UpdateNamespacePropertiesResponse implements RESTResponse {
 
   // List of namespace property keys that were removed
   private List<String> removed;
@@ -49,8 +50,8 @@ public class UpdateNamespacePropertiesResponse {
     validate();
   }
 
-  UpdateNamespacePropertiesResponse validate() {
-    return this;
+  @Override
+  public void validate() {
   }
 
   public List<String> removed() {

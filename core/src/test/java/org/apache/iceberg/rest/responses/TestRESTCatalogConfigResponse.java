@@ -268,6 +268,8 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
 
   @Override
   public RESTCatalogConfigResponse deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, RESTCatalogConfigResponse.class).validate();
+    RESTCatalogConfigResponse resp = mapper().readValue(json, RESTCatalogConfigResponse.class);
+    resp.validate();
+    return resp;
   }
 }

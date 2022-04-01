@@ -26,8 +26,9 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.rest.RESTResponse;
 
-public class ListNamespacesResponse {
+public class ListNamespacesResponse implements RESTResponse {
 
   private List<Namespace> namespaces;
 
@@ -40,9 +41,9 @@ public class ListNamespacesResponse {
     validate();
   }
 
-  ListNamespacesResponse validate() {
+  @Override
+  public void validate() {
     Preconditions.checkArgument(namespaces != null, "Invalid namespace: null");
-    return this;
   }
 
 

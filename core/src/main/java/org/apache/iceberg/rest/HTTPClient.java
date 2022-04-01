@@ -201,17 +201,20 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public <T> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T get(String path, Class<T> responseType,
+                                        Consumer<ErrorResponse> errorHandler) {
     return execute(Method.GET, path, null, responseType, errorHandler);
   }
 
   @Override
-  public <T> T post(String path, Object body, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
+                                         Consumer<ErrorResponse> errorHandler) {
     return execute(Method.POST, path, body, responseType, errorHandler);
   }
 
   @Override
-  public <T> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType,
+                                           Consumer<ErrorResponse> errorHandler) {
     return execute(Method.DELETE, path, null, responseType, errorHandler);
   }
 

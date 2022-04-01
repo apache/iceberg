@@ -19,22 +19,16 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.Closeable;
-import java.util.function.Consumer;
-import org.apache.iceberg.rest.responses.ErrorResponse;
-
 /**
- * Interface for a basic HTTP Client for interfacing with the REST catalog.
+ * Interface to mark both REST requests and responses.
  */
-public interface RESTClient extends Closeable {
+public interface RESTMessage {
 
-  void head(String path, Consumer<ErrorResponse> errorHandler);
-
-  <T extends RESTResponse> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
-
-  <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
-
-  <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                  Consumer<ErrorResponse> errorHandler);
+  /**
+   * Ensures that a constructed instance of a REST message is valid according to the REST spec.
+   * <p>
+   * This is needed when parsing data that comes from external sources and the object might have
+   * been constructed without all the required fields present.
+   */
+  void validate();
 }
-
