@@ -338,7 +338,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            "Commit failed: Reference hash is out of date. Update the reference iceberg-table-test and try again");
+            "Cannot commit: Reference hash is out of date. Update the reference iceberg-table-test and try again");
   }
 
   @Test

@@ -597,6 +597,7 @@ project(':iceberg-nessie') {
     testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 
