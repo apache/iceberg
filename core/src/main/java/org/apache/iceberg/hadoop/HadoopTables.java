@@ -44,6 +44,7 @@ import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -68,12 +69,23 @@ public class HadoopTables implements Tables, Configurable {
 
   private Configuration conf;
 
+  private FileIO fileIO;
+
   public HadoopTables() {
     this(new Configuration());
   }
 
+  public HadoopTables(FileIO fileIO) {
+    this(new Configuration(), fileIO);
+  }
+
   public HadoopTables(Configuration conf) {
+    this(conf, null);
+  }
+
+  public HadoopTables(Configuration conf, FileIO fileIO) {
     this.conf = conf;
+    this.fileIO = fileIO;
   }
 
   /**
@@ -202,9 +214,9 @@ public class HadoopTables implements Tables, Configurable {
   @VisibleForTesting
   TableOperations newTableOps(String location) {
     if (location.contains(METADATA_JSON)) {
-      return new StaticTableOperations(location, new HadoopFileIO(conf));
+      return new StaticTableOperations(location, fileIO == null? new HadoopFileIO(conf): fileIO);
     } else {
-      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf,
+      return new HadoopTableOperations(new Path(location), fileIO == null? new HadoopFileIO(conf): fileIO, conf,
           createOrGetLockManager(this));
     }
   }

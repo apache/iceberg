@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -33,6 +35,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
@@ -162,6 +167,20 @@ public class TestHadoopTables {
 
     Table snapshotsTable = TABLES.load(location + "#snapshots");
     Assert.assertEquals("Name must match", location + "#snapshots", snapshotsTable.name());
+  }
+
+  @Test
+  public void testDynamicFileIO(){
+    FileIO testFileIO = new HadoopFileIO(new Configuration());
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+            .bucket("data", 16)
+            .build();
+    String location = tableDir.toURI().toString();
+    HadoopTables hadoopTables = new HadoopTables(testFileIO);
+    hadoopTables.create(SCHEMA, spec, location);
+    Table table = hadoopTables.load(location);
+    Assert.assertEquals("Name must match", testFileIO, table.io());
+    Assert.assertTrue("FileIO must match", testFileIO == table.io());
   }
 
   private static void createDummyTable(File tableDir, File dataDir) throws IOException {
