@@ -16,32 +16,32 @@
 # under the License.
 import pytest
 
-from iceberg.expression.operations import (And, Or, Not, TrueExp, FalseExp
-)
+from iceberg.expression.operations import And, FalseExp, Not, Or, TrueExp
 
 
 @pytest.mark.parametrize(
     "op, rep",
     [
-        (And(TrueExp(), FalseExp()), 'And(True, False)'),
-        (Or(TrueExp(), FalseExp()), 'Or(True, False)'),
-        (Not(TrueExp()), 'Not(True)'),
+        (And(TrueExp(), FalseExp()), "And(True, False)"),
+        (Or(TrueExp(), FalseExp()), "Or(True, False)"),
+        (Not(TrueExp()), "Not(True)"),
     ],
 )
 def test_reprs(op, rep):
-    assert repr(op)==rep
+    assert repr(op) == rep
 
 
 @pytest.mark.parametrize(
     "op, string",
     [
-        (And(TrueExp(), FalseExp()), '(true and false)'),
-        (Or(TrueExp(), FalseExp()), '(true or false)'),
-        (Not(TrueExp()), '(not true)'),
+        (And(TrueExp(), FalseExp()), "(true and false)"),
+        (Or(TrueExp(), FalseExp()), "(true or false)"),
+        (Not(TrueExp()), "(not true)"),
     ],
 )
 def test_strs(op, string):
-    assert str(op)==string
+    assert str(op) == string
+
 
 @pytest.mark.parametrize(
     "input, true, false",
@@ -50,11 +50,12 @@ def test_strs(op, string):
         (Or(TrueExp(), FalseExp()), Or(TrueExp(), FalseExp()), And(TrueExp(), FalseExp())),
         (Not(TrueExp()), Not(TrueExp()), FalseExp()),
         (TrueExp(), TrueExp(), FalseExp()),
-        (FalseExp(), FalseExp(), TrueExp())
+        (FalseExp(), FalseExp(), TrueExp()),
     ],
 )
 def test_eq(input, true, false):
-    assert input==true and input!=false
+    assert input == true and input != false
+
 
 @pytest.mark.parametrize(
     "input, exp",
@@ -62,8 +63,8 @@ def test_eq(input, true, false):
         (And(TrueExp(), FalseExp()), Or(FalseExp(), TrueExp())),
         (Or(TrueExp(), FalseExp()), And(FalseExp(), TrueExp())),
         (Not(TrueExp()), TrueExp()),
-        (TrueExp(), FalseExp())
+        (TrueExp(), FalseExp()),
     ],
 )
 def test_negate(input, exp):
-    assert ~input==exp
+    assert ~input == exp

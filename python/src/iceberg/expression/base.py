@@ -14,7 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from abc import ABC, abstractmethod
 
 
-class BooleanExpression:
-    ...
+class BooleanExpression(ABC):
+    """base class for all boolean expressions"""
+
+    @abstractmethod
+    def __invert__(self) -> "BooleanExpression":
+        ...
