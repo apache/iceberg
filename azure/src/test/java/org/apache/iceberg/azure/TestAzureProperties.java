@@ -41,10 +41,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureProperties {
 
-  public static final Integer STORAGE_READ_BLOCK_SIZE_DEFAULT = 32 * 1024 * 1024;
-  public static final Long STORAGE_WRITE_BLOCK_SIZE_DEFAULT = 32L * 1024 * 1024;
-  public static final Integer STORAGE_WRITE_MAX_CONCURRENCY_DEFAULT = 4;
-  public static final Long STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE_DEFAULT = 32L * 1024 * 1024;
+  public static final Integer STORAGE_READ_BLOCK_SIZE_DEFAULT = 8 * 1024 * 1024;
+  public static final Long STORAGE_WRITE_BLOCK_SIZE_DEFAULT = 4L * 1024 * 1024;
+  public static final Integer STORAGE_WRITE_MAX_CONCURRENCY_DEFAULT = 8;
+  public static final Long STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE_DEFAULT = 4L * 1024 * 1024;
 
   private Map<String, String> properties;
 
@@ -111,21 +111,21 @@ public class TestAzureProperties {
     final Random random = AzureTestUtils.random("testMultipleStorageAccountProperties");
     final String[] storageAccounts = {"sa-1", "sa-2", "sa-3"};
 
-    // Storage account 1 auth config.
+    // Storage account 1 auth config (SharedKey).
     final String sa1 = storageAccounts[0];
     final AuthType sa1AuthType = AuthType.SharedKey;
     properties.put(format(STORAGE_AUTH_TYPE, sa1), sa1AuthType.toString());
     final String sa1AccountKey = "rand-key-0987654321-mnbvcxz";
     properties.put(format(STORAGE_ACCOUNT_KEY, sa1), sa1AccountKey);
 
-    // Storage account 2 auth config.
+    // Storage account 2 auth config (SharedAccessSignature).
     final String sa2 = storageAccounts[1];
     final AuthType sa2AuthType = AuthType.SharedAccessSignature;
     properties.put(format(STORAGE_AUTH_TYPE, sa2), sa2AuthType.toString());
     final String sa2SharedAccessSignature = "rand-signature-0987654321-mnbvcxz-weriouweiorufnsdkjf";
     properties.put(format(STORAGE_SHARED_ACCESS_SIGNATURE, sa2), sa2SharedAccessSignature);
 
-    // Storage account 3 auth config.
+    // Storage account 3 auth config (None).
     final String sa3 = storageAccounts[2];
     final AuthType sa3AuthType = AuthType.None;
     final String sa3Endpoint = "https://test-endpoint";
@@ -203,6 +203,22 @@ public class TestAzureProperties {
       final Long maxSingleUploadSize = Long.parseLong(maxSingleUploadSizeStr);
       assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(maxSingleUploadSize);
     }
+  }
+
+  @Test
+  public void testInvalidStorageAuth() {
+    final String storageAccount = "testing";
+    final String invalidAuthType = "invalid-value";
+    properties.put(format(STORAGE_AUTH_TYPE, storageAccount), invalidAuthType);
+    final AzureProperties azureProperties = new AzureProperties(properties);
+
+    AssertHelpers.assertThrows(
+        "Should not allow invalid auth type",
+        IllegalArgumentException.class,
+        String.format("No enum constant org.apache.iceberg.azure.AuthType.%s", invalidAuthType),
+        () -> {
+          azureProperties.authType(storageAccount);
+        });
   }
 
   @Test

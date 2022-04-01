@@ -28,7 +28,7 @@ import org.apache.iceberg.io.PositionOutputStream;
 
 public class AzureBlobOutputFile extends BaseAzureBlobFile implements OutputFile {
 
-  public AzureBlobOutputFile(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
+  private AzureBlobOutputFile(AzureURI azureURI, BlobClient blobClient, AzureProperties azureProperties) {
     super(azureURI, blobClient, azureProperties);
   }
 

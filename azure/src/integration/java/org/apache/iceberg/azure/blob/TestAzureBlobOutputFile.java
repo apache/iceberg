@@ -39,15 +39,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureBlobOutputFile {
 
-  private AzureURI uri;
-  private BlobClient blobClient;
-  private OutputFile outputFile;
-
   private static AzureProperties azureProperties;
   private static String storageAccount;
   private static BlobServiceClient service;
   private static String containerName;
   private static BlobContainerClient container;
+
+  private AzureURI uri;
+  private BlobClient blobClient;
+  private OutputFile outputFile;
 
   @BeforeClass
   public static void beforeClass() {
@@ -99,7 +99,8 @@ public class TestAzureBlobOutputFile {
     try (PositionOutputStream output = outputFile.create()) {
       output.write("1234567890".getBytes(StandardCharsets.UTF_8));
     }
-    AssertHelpers.assertThrows("Create should throw exception",
+    AssertHelpers.assertThrows(
+        "Create should throw exception",
         AlreadyExistsException.class,
         outputFile.location(),
         outputFile::create);

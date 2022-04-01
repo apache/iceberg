@@ -61,8 +61,8 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
   @Override
   public void seek(long newPos) {
-    Preconditions.checkState(!closed, "Stream already closed");
-    Preconditions.checkArgument(newPos >= 0, "New position cannot be negative: %s", newPos);
+    Preconditions.checkState(!closed, "Stream already closed.");
+    Preconditions.checkArgument(newPos >= 0, "New position cannot be negative: %s.", newPos);
 
     if (newPos == pos) {
       // Already at the specified position.
@@ -86,14 +86,14 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
   @Override
   public int read() throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: stream already closed");
+    Preconditions.checkState(!closed, "Cannot read: stream already closed.");
     pos++;
     return stream.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: stream already closed");
+    Preconditions.checkState(!closed, "Cannot read: stream already closed.");
     int numOfBytesRead = stream.read(b, off, len);
     pos += numOfBytesRead;
     return numOfBytesRead;

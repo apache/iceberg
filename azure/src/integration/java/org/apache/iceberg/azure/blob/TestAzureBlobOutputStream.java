@@ -60,20 +60,20 @@ public class TestAzureBlobOutputStream {
   }
 
   @Test
-  public void testWrite() {
+  public void testWriteRandomBytes() {
     final Random random = AzureTestUtils.random("testWrite");
     // Run tests for both byte and array write paths
     Stream.of(true, false).forEach(arrayWrite -> {
       // Test small file write
       writeAndVerify(
           AzureBlobTestUtils.randomAzureURI(storageAccount, containerName),
-          AzureTestUtils.randomData(1024, random),
+          AzureTestUtils.randomBytes(1024, random),
           arrayWrite);
 
       // Test large file
       writeAndVerify(
           AzureBlobTestUtils.randomAzureURI(storageAccount, containerName),
-          AzureTestUtils.randomData(10 * 1024 * 1024, random),
+          AzureTestUtils.randomBytes(10 * 1024 * 1024, random),
           arrayWrite);
     });
   }
@@ -88,7 +88,7 @@ public class TestAzureBlobOutputStream {
   }
 
   @Test
-  public void testBaseObjectWrite() throws IOException {
+  public void testSimpleWrite() throws IOException {
     final AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
     final BlobClient blobClient = container.getBlobClient(azureURI.path());
     try (PositionOutputStream stream = new AzureBlobOutputStream(azureURI, azureProperties, blobClient)) {
@@ -96,9 +96,9 @@ public class TestAzureBlobOutputStream {
       stream.write('1');
       // write 3 bytes
       stream.write("123".getBytes(StandardCharsets.UTF_8));
-      // write 7 bytes, totally 11 bytes > local buffer limit (10)
+      // write 7 bytes
       stream.write("1234567".getBytes(StandardCharsets.UTF_8));
-      // write 11 bytes, flush remain 7 bytes and new 11 bytes
+      // write 11 bytes
       stream.write("12345678901".getBytes(StandardCharsets.UTF_8));
     }
 

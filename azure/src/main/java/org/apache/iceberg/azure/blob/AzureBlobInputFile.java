@@ -28,7 +28,7 @@ public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
 
   private Long length; // lazy cache of file length
 
-  public AzureBlobInputFile(AzureURI uri, BlobClient blobClient, AzureProperties azureProperties) {
+  private AzureBlobInputFile(AzureURI uri, BlobClient blobClient, AzureProperties azureProperties) {
     super(uri, blobClient, azureProperties);
   }
 

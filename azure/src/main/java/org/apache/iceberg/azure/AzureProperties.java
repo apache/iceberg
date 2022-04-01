@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class AzureProperties implements Serializable {
 
+  // Start of storage account configuration
   public static final String STORAGE_CONNECTION_STRING = "azure.storage.%s.connection-string";
 
   public static final String STORAGE_ENDPOINT = "azure.storage.%s.endpoint";
@@ -39,21 +40,22 @@ public class AzureProperties implements Serializable {
   public static final String STORAGE_SHARED_ACCESS_SIGNATURE = "azure.storage.%s.shared-access-signature";
 
   public static final String STORAGE_READ_BLOCK_SIZE = "azure.storage.%s.read.block-size";
-  public static final Integer STORAGE_READ_BLOCK_SIZE_DEFAULT = 32 * 1024 * 1024;
+  public static final Integer STORAGE_READ_BLOCK_SIZE_DEFAULT = 8 * 1024 * 1024;
 
   public static final String STORAGE_WRITE_BLOCK_SIZE = "azure.storage.%s.write.block-size";
-  public static final Long STORAGE_WRITE_BLOCK_SIZE_DEFAULT = 32L * 1024 * 1024;
+  public static final Long STORAGE_WRITE_BLOCK_SIZE_DEFAULT = 4L * 1024 * 1024;
 
   public static final String STORAGE_WRITE_MAX_CONCURRENCY = "azure.storage.%s.write.max-concurrency";
-  public static final Integer STORAGE_WRITE_MAX_CONCURRENCY_DEFAULT = 4;
+  public static final Integer STORAGE_WRITE_MAX_CONCURRENCY_DEFAULT = 8;
 
   public static final String STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE = "azure.storage.%s.write.max-single-upload-size";
-  public static final Long STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE_DEFAULT = 32L * 1024 * 1024;
+  public static final Long STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE_DEFAULT = 4L * 1024 * 1024;
+  // End of storage account configurations
 
   private final Map<String, String> properties;
 
   public AzureProperties(Map<String, String> properties) {
-    Preconditions.checkNotNull(properties, "Properties map cannot be null");
+    Preconditions.checkNotNull(properties, "Properties map cannot be null.");
     // Immutable Map raises exceptions during kryo serialization in Spark, thus using unmodifiable map.
     this.properties = Collections.unmodifiableMap(Maps.newHashMap(properties));
   }
@@ -102,7 +104,7 @@ public class AzureProperties implements Serializable {
   private Optional<String> getProperty(String storageAccount, String propertyTemplate) {
     Preconditions.checkArgument(
         storageAccount != null && !storageAccount.isEmpty(),
-        "Storage Account cannot be null or empty");
+        "Storage Account cannot be null or empty.");
     return Optional.ofNullable(properties.get(String.format(propertyTemplate, storageAccount)));
   }
 }

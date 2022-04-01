@@ -624,14 +624,13 @@ project(':iceberg-dell') {
 
 project(':iceberg-azure') {
   apply plugin: "com.bmuschko.docker-remote-api"
+  apply plugin: "com.github.johnrengelman.shadow"
 
   dependencies {
     api project(':iceberg-api')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation platform('com.azure:azure-sdk-bom')
     implementation 'com.azure:azure-storage-blob'
-
-    // TODO shade netty
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -640,6 +639,25 @@ project(':iceberg-azure') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
+  // Azure sdk is included in the iceberg-azure jar since the SDK internally uses netty. The netty version expected by
+  // the azure sdk might not be same as the netty version present on the classpath.
+  // The netty and jackson dependencies are shaded to avoid NoClassDefFoundError and NoSuchMethodError errors that might
+  // arise due to multiple versions of the corresponding jars available on the classpath.
+  // E.g. Netty 4.1.72.Final imported by Azure storage SDK and Netty 4.1.75.Final imported by Spark.
+  shadowJar {
+    zip64 true
+    relocate "io.netty", "org.apache.iceberg.azure.shaded.io.netty"
+    relocate "org.codehaus.jackson", "org.apache.iceberg.azure.shaded.org.codehaus.jackson"
+    relocate "com.fasterxml.jackson", "org.apache.iceberg.azure.shaded.com.fasterxml.jackson"
+    classifier null
+  }
+
+  jar {
+    enabled = false
+  }
+
+  tasks.jar.dependsOn tasks.shadowJar
 
   sourceSets {
     integration {

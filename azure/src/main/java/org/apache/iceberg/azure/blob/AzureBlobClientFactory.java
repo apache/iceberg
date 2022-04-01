@@ -27,8 +27,12 @@ import java.util.Optional;
 import org.apache.iceberg.azure.AuthType;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AzureBlobClientFactory {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AzureBlobClientFactory.class);
 
   private AzureBlobClientFactory() {
   }
@@ -40,10 +44,13 @@ public class AzureBlobClientFactory {
     final Optional<String> connectionString = azureProperties.connectionString(storageAccount);
     // Connection string should contain storage endpoint and required auth properties.
     if (connectionString.isPresent()) {
+      LOG.debug("Using azure storage connection string to build the blob client for {}", storageAccount);
       Preconditions.checkArgument(!connectionString.get().isEmpty(), "Connection string cannot be empty.");
       builder.connectionString(connectionString.get());
     } else {
-      builder.endpoint(storageEndpoint(storageAccount, azureProperties));
+      final String endpoint = storageEndpoint(storageAccount, azureProperties);
+      LOG.debug("Using {} endpoint for {}", endpoint, storageAccount);
+      builder.endpoint(endpoint);
       final AuthType authType = azureProperties.authType(storageAccount);
       setAuth(storageAccount, authType, azureProperties, builder);
     }
@@ -55,16 +62,19 @@ public class AzureBlobClientFactory {
       String storageAccount, AuthType authType, AzureProperties azureProperties, BlobClientBuilder builder) {
     switch (authType) {
       case SharedKey:
+        LOG.debug("Using SharedKey method for {} authentication", storageAccount);
         final Optional<String> accountKey = azureProperties.accountKey(storageAccount);
         Preconditions.checkArgument(accountKey.isPresent(), "Account key must be set.");
         builder.credential(new StorageSharedKeyCredential(storageAccount, accountKey.get()));
         break;
       case SharedAccessSignature:
+        LOG.debug("Using SharedAccessSignature method for {} authentication", storageAccount);
         final Optional<String> sharedAccessSignature = azureProperties.sharedAccessSignature(storageAccount);
         Preconditions.checkArgument(sharedAccessSignature.isPresent(), "Shared access signature must be set.");
         builder.credential(new AzureSasCredential(sharedAccessSignature.get()));
         break;
       case None:
+        LOG.debug("Using no authentication for {}", storageAccount);
         break;
     }
   }

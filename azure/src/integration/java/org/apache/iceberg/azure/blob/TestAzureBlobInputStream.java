@@ -68,7 +68,7 @@ public class TestAzureBlobInputStream {
     final BlobClient blobClient = container.getBlobClient(uri.path());
 
     final int dataSize = 1024 * 1024 * 10;
-    final byte[] data = AzureTestUtils.randomData(dataSize, random);
+    final byte[] data = AzureTestUtils.randomBytes(dataSize, random);
     writeAzureBlobData(blobClient, data);
 
     try (SeekableInputStream in = new AzureBlobInputStream(uri, azureProperties, blobClient)) {
@@ -103,7 +103,7 @@ public class TestAzureBlobInputStream {
     final String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/seek.dat");
     final AzureURI uri = AzureURI.from(location);
     final BlobClient blobClient = container.getBlobClient(uri.path());
-    final byte[] data = AzureTestUtils.randomData(1024 * 1024, random);
+    final byte[] data = AzureTestUtils.randomBytes(1024 * 1024, random);
 
     writeAzureBlobData(blobClient, data);
 
@@ -124,7 +124,7 @@ public class TestAzureBlobInputStream {
     final String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/closed.dat");
     final AzureURI uri = AzureURI.from(location);
     final BlobClient blobClient = container.getBlobClient(uri.path());
-    writeAzureBlobData(blobClient, AzureTestUtils.randomData(1, random));
+    writeAzureBlobData(blobClient, AzureTestUtils.randomBytes(1, random));
     SeekableInputStream closed = new AzureBlobInputStream(uri, azureProperties, blobClient);
     closed.close();
     assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);

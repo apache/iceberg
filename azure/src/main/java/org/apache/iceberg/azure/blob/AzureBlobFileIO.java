@@ -25,21 +25,19 @@ import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * FileIO implementation backed by Azure Blob Storage.
+ * <p>
+ * Locations follow the conventions used by ABFS URI:
+ * https://docs.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri
+ * that follow the following convention
+ * <pre>{@code abfs://<container-name>@<storage-account-name>.dfs.core.windows.net/<blob_path>}</pre>
+ *
+ * <p>
+ * See <a href="https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction">Azure Blob storage</a>
  */
-// TODO check all the Interfaces and their contracts
-// TODO add logging traces
-// TODO end all assertion error message with full stop
-// TODO enable encryption
-// TODO remove warnings
-// TODO reformat code
 public class AzureBlobFileIO implements FileIO {
-
-  private static final Logger LOG = LoggerFactory.getLogger(AzureBlobFileIO.class);
 
   private AzureProperties azureProperties;
 

@@ -65,11 +65,12 @@ public class TestAzureBlobFileIO {
   @Test
   public void testNewInputFile() throws IOException {
     final Random random = AzureTestUtils.random("testNewInputFile");
-    final String location = AzureBlobTestUtils.abfsLocation(AzureBlobTestUtils.STORAGE_ACCOUNT_1,
+    final String location = AzureBlobTestUtils.abfsLocation(
+        AzureBlobTestUtils.STORAGE_ACCOUNT_1,
         containerName,
         "/does/this/work/test.dat");
     int dataSize = 1024 * 1024;
-    final byte[] expected = AzureTestUtils.randomData(dataSize, random);
+    final byte[] expected = AzureTestUtils.randomBytes(dataSize, random);
     final FileIO io = new AzureBlobFileIO();
     io.initialize(properties);
     checkSimpleReadWriteWorks(location, expected, io);
@@ -113,10 +114,11 @@ public class TestAzureBlobFileIO {
       AzureBlobTestUtils.deleteAndCreateContainer(containerClient);
 
       try {
-        final String location = AzureBlobTestUtils.abfsLocation(storageServices[i].getAccountName(),
+        final String location = AzureBlobTestUtils.abfsLocation(
+            storageServices[i].getAccountName(),
             testContainerName,
             String.format("/location/for/storage-account-%s/data" + "-%s.dat", i, i));
-        final byte[] expected = AzureTestUtils.randomData(dataSize, random);
+        final byte[] expected = AzureTestUtils.randomBytes(dataSize, random);
         checkSimpleReadWriteWorks(location, expected, io);
       } finally {
         AzureBlobTestUtils.deleteContainerIfExists(containerClient);

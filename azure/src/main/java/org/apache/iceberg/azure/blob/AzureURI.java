@@ -26,6 +26,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * This class represents an immutable fully qualified location in Azure Blob Storage for input/output operations
+ * expressed as URI. This implementation is provided to ensure compatibility with Hadoop Path implementations.
+ */
 public class AzureURI {
 
   private static final Logger LOG = LoggerFactory.getLogger(AzureURI.class);
@@ -37,7 +41,7 @@ public class AzureURI {
       "%s://[<container name>%s]<account name>.dfs.core.windows.net/<file path>",
       ABFS_SCHEME,
       AUTHORITY_DELIMITER);
-  private static final String INVALID_URI_MESSAGE = "Invalid Azure URI. Expected form is '%s': %s";
+  private static final String INVALID_URI_MESSAGE = "Invalid Azure URI. Expected form is '%s': %s.";
 
   private final String location;
   private final String container;
@@ -50,13 +54,13 @@ public class AzureURI {
     try {
       uri = new URI(location);
     } catch (URISyntaxException e) {
-      throw new ValidationException("Invalid Azure URI: %s", location);
+      throw new ValidationException("Invalid Azure URI: %s.", location);
     }
     this.location = location;
 
     ValidationException.check(
         ABFS_SCHEME.equals(uri.getScheme()),
-        "Invalid Azure URI scheme, Expected scheme is 'afbs': %s",
+        "Invalid Azure URI scheme, Expected scheme is 'afbs': %s.",
         location);
 
     final String rawAuthority = uri.getRawAuthority();
@@ -85,13 +89,24 @@ public class AzureURI {
     final String rawPath = uri.getRawPath();
     ValidationException.check(
         rawPath != null && !rawPath.isEmpty() && !rawPath.equals(PATH_DELIMITER),
-        "Invalid Azure URI, empty path: %s",
+        "Invalid Azure URI, empty path: %s.",
         location);
     this.path = rawPath;
 
     LOG.debug("Parsed AzureURI: {}", this);
   }
 
+  /**
+   * Creates a new {@link AzureURI} based on the storage account, container and blob path parsed from the location.
+   * <p>
+   * Locations follow the conventions used by ABFS URI:
+   * https://docs.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri
+   * that follow the following convention
+   * <pre>{@code abfs://<container-name>@<storage-account-name>.dfs.core.windows.net/<blob_path>}</pre>
+   *
+   * @param location fully qualified ABFS URI.
+   * @return AzureURI
+   */
   public static AzureURI from(String location) {
     return new AzureURI(location);
   }
@@ -106,18 +121,30 @@ public class AzureURI {
         this.path);
   }
 
+  /**
+   * Returns the original, unmodified ABFS URI location.
+   */
   public String location() {
     return location;
   }
 
+  /**
+   * Returns the azure storage container name.
+   */
   public String container() {
     return container;
   }
 
+  /**
+   * Returns the azure storage account name.
+   */
   public String storageAccount() {
     return storageAccount;
   }
 
+  /**
+   * Returns the azure storage blob path
+   */
   public String path() {
     return path;
   }
