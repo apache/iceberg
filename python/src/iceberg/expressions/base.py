@@ -14,7 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from abc import ABC, abstractmethod
 from enum import Enum, auto
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
 
 
 class Operation(Enum):
@@ -77,3 +81,44 @@ OPERATION_NEGATIONS = {
     Operation.IN: Operation.NOT_IN,
     Operation.NOT_IN: Operation.IN,
 }
+
+
+class Literal(Generic[T], ABC):
+    """Literal which has a value and can be converted between types"""
+
+    def __init__(self, value: T, value_type: type):
+        if value is None or not isinstance(value, value_type):
+            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
+        self._value = value
+
+    @property
+    def value(self) -> T:
+        return self._value  # type: ignore
+
+    @abstractmethod
+    def to(self, type_var):
+        ...  # pragma: no cover
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.value})"
+
+    def __str__(self):
+        return str(self.value)
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __gt__(self, other):
+        return self.value > other.value
+
+    def __le__(self, other):
+        return self.value <= other.value
+
+    def __ge__(self, other):
+        return self.value >= other.value

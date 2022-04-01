@@ -17,26 +17,26 @@
 
 import pytest
 
-from iceberg import expressions
+from iceberg.expressions import base
 
 
 @pytest.mark.parametrize(
     "operation,opposite_operation",
     [
-        (expressions.Operation.TRUE, expressions.Operation.FALSE),
-        (expressions.Operation.FALSE, expressions.Operation.TRUE),
-        (expressions.Operation.IS_NULL, expressions.Operation.NOT_NULL),
-        (expressions.Operation.NOT_NULL, expressions.Operation.IS_NULL),
-        (expressions.Operation.IS_NAN, expressions.Operation.NOT_NAN),
-        (expressions.Operation.NOT_NAN, expressions.Operation.IS_NAN),
-        (expressions.Operation.LT, expressions.Operation.GT_EQ),
-        (expressions.Operation.LT_EQ, expressions.Operation.GT),
-        (expressions.Operation.GT, expressions.Operation.LT_EQ),
-        (expressions.Operation.GT_EQ, expressions.Operation.LT),
-        (expressions.Operation.EQ, expressions.Operation.NOT_EQ),
-        (expressions.Operation.NOT_EQ, expressions.Operation.EQ),
-        (expressions.Operation.IN, expressions.Operation.NOT_IN),
-        (expressions.Operation.NOT_IN, expressions.Operation.IN),
+        (base.Operation.TRUE, base.Operation.FALSE),
+        (base.Operation.FALSE, base.Operation.TRUE),
+        (base.Operation.IS_NULL, base.Operation.NOT_NULL),
+        (base.Operation.NOT_NULL, base.Operation.IS_NULL),
+        (base.Operation.IS_NAN, base.Operation.NOT_NAN),
+        (base.Operation.NOT_NAN, base.Operation.IS_NAN),
+        (base.Operation.LT, base.Operation.GT_EQ),
+        (base.Operation.LT_EQ, base.Operation.GT),
+        (base.Operation.GT, base.Operation.LT_EQ),
+        (base.Operation.GT_EQ, base.Operation.LT),
+        (base.Operation.EQ, base.Operation.NOT_EQ),
+        (base.Operation.NOT_EQ, base.Operation.EQ),
+        (base.Operation.IN, base.Operation.NOT_IN),
+        (base.Operation.NOT_IN, base.Operation.IN),
     ],
 )
 def test_negation_of_operations(operation, opposite_operation):
@@ -46,9 +46,9 @@ def test_negation_of_operations(operation, opposite_operation):
 @pytest.mark.parametrize(
     "operation",
     [
-        expressions.Operation.NOT,
-        expressions.Operation.AND,
-        expressions.Operation.OR,
+        base.Operation.NOT,
+        base.Operation.AND,
+        base.Operation.OR,
     ],
 )
 def test_raise_on_no_negation_for_operation(operation):
