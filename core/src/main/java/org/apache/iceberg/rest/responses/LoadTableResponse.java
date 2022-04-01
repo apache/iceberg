@@ -27,10 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
-public class LoadTableResponse {
-/**
- *
- */
 public class LoadTableResponse implements RESTResponse {
 
   private String metadataLocation;
