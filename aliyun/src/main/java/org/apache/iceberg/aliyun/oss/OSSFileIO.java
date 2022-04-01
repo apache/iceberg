@@ -47,7 +47,7 @@ public class OSSFileIO implements FileIO {
 
   private SerializableSupplier<OSS> oss;
   private AliyunProperties aliyunProperties;
-  private transient OSS client;
+  private transient volatile OSS client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
@@ -89,7 +89,11 @@ public class OSSFileIO implements FileIO {
 
   private OSS client() {
     if (client == null) {
-      client = oss.get();
+      synchronized (this) {
+        if (client == null) {
+          client = oss.get();
+        }
+      }
     }
     return client;
   }
