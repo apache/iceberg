@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 
-from iceberg.expression.operations import And, FalseExp, Not, Or, TrueExp
+from iceberg.expression.base import And, FalseExp, Not, Or, TrueExp
 
 
 @pytest.mark.parametrize(
