@@ -720,15 +720,15 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     df.write().mode("append").parquet(table.location() + "/data/orphan_files");
     Thread.sleep(1000);
-    DeleteOrphanFiles.Result result1 = SparkActions.get().deleteOrphanFiles(table)
+    DeleteOrphanFiles.Result dryRunResult = SparkActions.get().deleteOrphanFiles(table)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {
             }).execute();
-    DeleteOrphanFiles.Result result2 =
+    DeleteOrphanFiles.Result streamResultsResult =
             SparkActions.get().deleteOrphanFiles(table)
                     .olderThan(System.currentTimeMillis())
                     .option("stream-results", "true").execute();
-    Assert.assertEquals(result1.orphanFileLocations(), result2.orphanFileLocations());
-    Assert.assertEquals(1, Iterables.size(result2.orphanFileLocations()));
+    Assert.assertEquals(dryRunResult.orphanFileLocations(), streamResultsResult.orphanFileLocations());
+    Assert.assertEquals(1, Iterables.size(streamResultsResult.orphanFileLocations()));
   }
 }

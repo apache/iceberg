@@ -370,19 +370,19 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     df.write().parquet(table.location() + "/data/orphan_files");
     Thread.sleep(1000);
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
-    List<Object[]> output1 = sql(
+    List<Object[]> dryRunOutput = sql(
             "CALL %s.system.remove_orphan_files(" +
                     "table => '%s'," +
                     "older_than => TIMESTAMP '%s'," +
                     "dry_run => true)",
             catalogName, tableIdent, currentTimestamp);
-    List<Object[]> output2 = sql(
+    List<Object[]> streamResultsOutput = sql(
             "CALL %s.system.remove_orphan_files(" +
                     "table => '%s'," +
                     "older_than => TIMESTAMP '%s'," +
                     "stream_results => true)",
             catalogName, tableIdent, currentTimestamp);
-    Assert.assertEquals(output1, output2);
-    Assert.assertEquals(1, output2.get(0).length);
+    Assert.assertEquals(dryRunOutput, streamResultsOutput);
+    Assert.assertEquals(1, streamResultsOutput.get(0).length);
   }
 }
