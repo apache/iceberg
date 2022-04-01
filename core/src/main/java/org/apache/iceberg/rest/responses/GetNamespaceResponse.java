@@ -26,11 +26,12 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTResponse;
 
 /**
  * Represents a REST response to fetch a namespace and its metadata properties
  */
-public class GetNamespaceResponse {
+public class GetNamespaceResponse implements RESTResponse {
 
   private Namespace namespace;
   private Map<String, String> properties;
@@ -45,9 +46,9 @@ public class GetNamespaceResponse {
     validate();
   }
 
-  GetNamespaceResponse validate() {
+  @Override
+  public void validate() {
     Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
-    return this;
   }
 
   public Namespace namespace() {

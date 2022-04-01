@@ -226,6 +226,8 @@ public class TestUpdateNamespacePropertiesRequest extends RequestResponseTestBas
 
   @Override
   public UpdateNamespacePropertiesRequest deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, UpdateNamespacePropertiesRequest.class).validate();
+    UpdateNamespacePropertiesRequest request = mapper().readValue(json, UpdateNamespacePropertiesRequest.class);
+    request.validate();
+    return request;
   }
 }

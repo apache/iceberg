@@ -25,8 +25,13 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTResponse;
 
 public class LoadTableResponse {
+/**
+ *
+ */
+public class LoadTableResponse implements RESTResponse {
 
   private String metadataLocation;
   private TableMetadata meta;
@@ -40,6 +45,10 @@ public class LoadTableResponse {
     this.metadataLocation = metadataLocation;
     this.meta = meta;
     this.config = config;
+  }
+
+  @Override
+  public void validate() {
   }
 
   public String metadataLocation() {

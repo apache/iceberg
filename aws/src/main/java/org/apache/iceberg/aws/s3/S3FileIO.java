@@ -72,7 +72,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
 
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-  private transient S3Client client;
+  private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
@@ -240,7 +240,11 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
 
   private S3Client client() {
     if (client == null) {
-      client = s3.get();
+      synchronized (this) {
+        if (client == null) {
+          client = s3.get();
+        }
+      }
     }
     return client;
   }

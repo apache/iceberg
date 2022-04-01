@@ -157,6 +157,8 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
 
   @Override
   public GetNamespaceResponse deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, GetNamespaceResponse.class).validate();
+    GetNamespaceResponse resp = mapper().readValue(json, GetNamespaceResponse.class);
+    resp.validate();
+    return resp;
   }
 }
