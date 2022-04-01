@@ -585,7 +585,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
 
-    Thread.sleep(1000);
+    // Thread.sleep(1000);
 
     SparkActions actions = SparkActions.get();
 
@@ -631,7 +631,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/_c1=1");
 
-    Thread.sleep(1000);
+    // Thread.sleep(1000);
 
     SparkActions actions = SparkActions.get();
 
@@ -675,7 +675,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Path pathToFileInHiddenFolder = new Path(dataPath, "_c2_trunc/file.txt");
     fs.createNewFile(pathToFileInHiddenFolder);
 
-    Thread.sleep(1000);
+    // Thread.sleep(1000);
 
     SparkActions actions = SparkActions.get();
 
