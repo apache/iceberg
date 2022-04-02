@@ -79,6 +79,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean skipDelete;
   private final boolean skipOverwrite;
   private final Long fromTimestamp;
+  private final InitialOffsetStore initialOffsetStore;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf,
                         Schema expectedSchema, String checkpointLocation) {
@@ -92,7 +93,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitOpenFileCost = readConf.splitOpenFileCost();
     this.fromTimestamp = readConf.streamFromTimestamp();
 
-    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
+    this.initialOffsetStore = new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
@@ -163,6 +164,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public void commit(Offset end) {
+    initialOffsetStore.writeOffset((StreamingOffset) end);
   }
 
   @Override
@@ -273,14 +275,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       table.refresh();
       StreamingOffset offset = determineStartingOffset(table, fromTimestamp);
 
-      OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
-      writeOffset(offset, outputFile);
-
+      writeOffset(offset);
       return offset;
     }
 
-    private void writeOffset(StreamingOffset offset, OutputFile file) {
-      try (OutputStream outputStream = file.create()) {
+    private void writeOffset(StreamingOffset offset) {
+      OutputFile file = io.newOutputFile(initialOffsetLocation);
+      try (OutputStream outputStream = file.createOrOverwrite()) {
         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
         writer.write(offset.json());
         writer.flush();
