@@ -104,7 +104,7 @@ The value of these properties are not persisted as a part of the table metadata.
 
 | Property       | Default  | Description                                                   |
 | -------------- | -------- | ------------------------------------------------------------- |
-| format-version | 1        | Table's format version (can be 1 or 2) as defined in the [Spec](../../format/spec.md#format-versioning). |
+| format-version | 1        | Table's format version (can be 1 or 2) as defined in the [Spec](../../../spec/#format-versioning). |
 
 ### Compatibility flags
 
