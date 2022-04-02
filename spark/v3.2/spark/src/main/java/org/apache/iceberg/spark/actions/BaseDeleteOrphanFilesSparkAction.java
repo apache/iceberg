@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -181,13 +180,14 @@ public class BaseDeleteOrphanFilesSparkAction
 
   private BaseDeleteOrphanFilesActionResult deleteFiles(Dataset<String> orphanDF) {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    Iterator<String> itr;
+    Iterable<String> itr;
     if (streamResults) {
-      itr = orphanDF.toLocalIterator();
+      // cache df to avoid recomputing
+      orphanDF.cache();
+      itr = () -> orphanDF.toLocalIterator();
     } else {
-      itr = orphanDF.collectAsList().iterator();
+      itr = orphanDF.collectAsList();
     }
-    List<String> orphanFiles = Collections.synchronizedList(Lists.newArrayList());
     Tasks.foreach(itr)
             .noRetry()
             .executeWith(deleteExecutorService)
@@ -195,9 +195,12 @@ public class BaseDeleteOrphanFilesSparkAction
             .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
             .run(file -> {
               deleteFunc.accept(file);
-              orphanFiles.add(file);
             });
-    return new BaseDeleteOrphanFilesActionResult(orphanFiles);
+    if (streamResults) {
+      return new BaseDeleteOrphanFilesActionResult(() -> orphanDF.toLocalIterator());
+    } else {
+      return new BaseDeleteOrphanFilesActionResult(itr);
+    }
   }
 
   private Dataset<Row> buildActualFileDF() {

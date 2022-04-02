@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,6 +49,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -718,17 +720,69 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .mode("append")
             .save("default.test_table");
 
-    df.write().mode("append").parquet(table.location() + "/data/orphan_files");
+    df.write().mode("append").parquet(table.location() + "/data/" + UUID.randomUUID());
+    // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
+
     DeleteOrphanFiles.Result dryRunResult = SparkActions.get().deleteOrphanFiles(table)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {
             }).execute();
+
     DeleteOrphanFiles.Result streamResultsResult =
             SparkActions.get().deleteOrphanFiles(table)
                     .olderThan(System.currentTimeMillis())
                     .option("stream-results", "true").execute();
-    Assert.assertEquals(dryRunResult.orphanFileLocations(), streamResultsResult.orphanFileLocations());
+
+    Assert.assertEquals(Lists.newArrayList(dryRunResult.orphanFileLocations()),
+            Lists.newArrayList(streamResultsResult.orphanFileLocations()));
     Assert.assertEquals(1, Iterables.size(streamResultsResult.orphanFileLocations()));
+
+    Dataset<Row> dfAfter = spark.read().format("iceberg").load("default.test_table");
+    Assert.assertEquals("Rows must match", df.collectAsList(), dfAfter.collectAsList());
+  }
+
+  @Test
+  public void testRemoveOrphanFilesUseLocalIterator() throws Exception {
+    Table table = catalog.createTable(TableIdentifier.of("default", "test_table"), SCHEMA, SPEC, tableLocation,
+            Maps.newHashMap());
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save("default.test_table");
+
+    df.write().mode("append").parquet(table.location() + "/data/" + UUID.randomUUID());
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    int jobsBeforeStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
+
+    Map<String, String> testSparkConf = ImmutableMap.of("spark.sql.autoBroadcastJoinThreshold", "-1",
+                    "spark.sql.shuffle.partitions", "2");
+    withSQLConf(testSparkConf, () -> {
+      DeleteOrphanFiles.Result streamResultsResult =
+              SparkActions.get().deleteOrphanFiles(table)
+                      .olderThan(System.currentTimeMillis())
+                      .option("stream-results", "true").execute();
+
+      int jobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
+      int jobsRunDuringStreamResults = jobsAfterStreamResults - jobsBeforeStreamResults;
+      Assert.assertEquals("Jobs number must match", 2, jobsRunDuringStreamResults);
+
+      Assert.assertEquals(1, Iterables.size(streamResultsResult.orphanFileLocations()));
+      int jobsAfterAssertResult = spark.sparkContext().dagScheduler().nextJobId().get();
+      int jobsRunDuringAssertResult = jobsAfterAssertResult - jobsAfterStreamResults;
+      Assert.assertEquals("Jobs number must match", 2, jobsRunDuringAssertResult);
+
+      // check result
+      Dataset<Row> dfAfter = spark.read().format("iceberg").load("default.test_table");
+      Assert.assertEquals("Rows must match", df.collectAsList(), dfAfter.collectAsList());
+    });
   }
 }

@@ -24,6 +24,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -367,8 +368,10 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1)", tableName);
     Dataset<Row> df = spark.sql(String.format("select * from %s", tableName));
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    df.write().parquet(table.location() + "/data/orphan_files");
-    Thread.sleep(1000);
+    df.write().parquet(table.location() + "/data/" + UUID.randomUUID());
+    // wait to ensure files are old enough
+    waitUntilAfter(System.currentTimeMillis());
+
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
     List<Object[]> dryRunOutput = sql(
             "CALL %s.system.remove_orphan_files(" +
@@ -376,13 +379,18 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
                     "older_than => TIMESTAMP '%s'," +
                     "dry_run => true)",
             catalogName, tableIdent, currentTimestamp);
+
     List<Object[]> streamResultsOutput = sql(
             "CALL %s.system.remove_orphan_files(" +
                     "table => '%s'," +
                     "older_than => TIMESTAMP '%s'," +
                     "stream_results => true)",
             catalogName, tableIdent, currentTimestamp);
-    Assert.assertEquals(dryRunOutput, streamResultsOutput);
-    Assert.assertEquals(1, streamResultsOutput.get(0).length);
+
+    Assert.assertEquals(1, streamResultsOutput.size());
+    Assert.assertArrayEquals(dryRunOutput.get(0), streamResultsOutput.get(0));
+
+    Dataset<Row> dfAfter = spark.read().format("iceberg").load(tableName);
+    Assert.assertEquals("Rows must match", df.collectAsList(), dfAfter.collectAsList());
   }
 }
