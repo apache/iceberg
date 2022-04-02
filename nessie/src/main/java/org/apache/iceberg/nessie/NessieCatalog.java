@@ -38,6 +38,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -55,10 +56,15 @@ import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNamespaceAlreadyExistsException;
+import org.projectnessie.error.NessieNamespaceNotEmptyException;
+import org.projectnessie.error.NessieNamespaceNotFoundException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.error.NessieReferenceNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
+import org.projectnessie.model.GetNamespacesResponse;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
@@ -100,7 +106,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     // remove nessie prefix
     final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
 
-    this.api = createNessieClientBuilder(options.get(NessieUtil.CONFIG_CLIENT_BUILDER_IMPL))
+    this.api = createNessieClientBuilder(options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
         .fromConfig(x -> options.get(removePrefix.apply(x)))
         .build(NessieApiV1.class);
 
@@ -281,46 +287,78 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     // behavior. So better be safe than sorry.
   }
 
-  /**
-   * creating namespaces in nessie is implicit, therefore this is a no-op. Metadata is ignored.
-   *
-   * @param namespace a multi-part namespace
-   * @param metadata  a string Map of properties for the given namespace
-   */
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    try {
+      reference.checkMutable();
+      api.createNamespace()
+          .reference(reference.getReference())
+          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .create();
+      refresh();
+    } catch (NessieNamespaceAlreadyExistsException e) {
+      throw new AlreadyExistsException(e, "Namespace '%s' already exists.", namespace);
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException(String.format("Cannot create Namespace '%s': ref is no longer valid.", namespace), e);
+    }
   }
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    return tableStream(namespace)
-        .map(TableIdentifier::namespace)
-        .filter(n -> !n.isEmpty())
-        .distinct()
-        .collect(Collectors.toList());
+    try {
+      GetNamespacesResponse response = api.getMultipleNamespaces()
+          .reference(reference.getReference())
+          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .get();
+      return response.getNamespaces().stream()
+          .map(ns -> Namespace.of(ns.getElements().toArray(new String[0])))
+          .collect(Collectors.toList());
+    } catch (NessieReferenceNotFoundException e) {
+      throw new RuntimeException(
+          String.format("Cannot list Namespaces starting from '%s': ref is no longer valid.", namespace), e);
+    }
   }
 
   /**
-   * namespace metadata is not supported in Nessie, thus we return an empty map.
+   * Load the given namespace but return an empty map because namespace properties are currently not supported.
    *
    * @param namespace a namespace. {@link Namespace}
    * @return an empty map
+   * @throws NoSuchNamespaceException If the namespace does not exist
    */
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+    try {
+      api.getNamespace()
+          .reference(reference.getReference())
+          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .get();
+    } catch (NessieNamespaceNotFoundException e) {
+      throw new NoSuchNamespaceException(e, "Namespace '%s' does not exist.", namespace);
+    } catch (NessieReferenceNotFoundException e) {
+      throw new RuntimeException(String.format("Cannot load Namespace '%s': ref is no longer valid.", namespace), e);
+    }
     return ImmutableMap.of();
   }
 
-  /**
-   * Namespaces in Nessie are implicit and therefore cannot be dropped
-   *
-   * @param namespace The {@link Namespace} to drop.
-   * @throws UnsupportedOperationException Namespaces in Nessie are implicit and thus cannot be dropped.
-   */
   @Override
-  public boolean dropNamespace(Namespace namespace) {
-    throw new UnsupportedOperationException(
-        "Cannot drop namespace '" + namespace + "': dropNamespace is not supported by the NessieCatalog");
+  public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
+    try {
+      reference.checkMutable();
+      api.deleteNamespace()
+          .reference(reference.getReference())
+          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .delete();
+      refresh();
+      return true;
+    } catch (NessieNamespaceNotFoundException e) {
+      return false;
+    } catch (NessieNotFoundException e) {
+      LOG.error("Cannot drop Namespace '{}': ref is no longer valid.", namespace, e);
+      return false;
+    } catch (NessieNamespaceNotEmptyException e) {
+      throw new NamespaceNotEmptyException(e, "Namespace '%s' is not empty. One or more tables exist.", namespace);
+    }
   }
 
   @Override
