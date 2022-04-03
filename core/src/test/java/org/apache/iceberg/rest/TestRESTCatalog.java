@@ -20,7 +20,7 @@
 package org.apache.iceberg.rest;
 
 import java.io.File;
-import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
@@ -28,19 +28,18 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
   private RESTCatalog restCatalog;
 
-  @Before
-  public void createCatalog() throws IOException {
-    File warehouse = temp.newFolder();
+  @BeforeEach
+  public void createCatalog() {
+    File warehouse = temp.toFile();
     Configuration conf = new Configuration();
 
     JdbcCatalog backendCatalog = new JdbcCatalog();

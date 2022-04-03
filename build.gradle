@@ -29,7 +29,7 @@ buildscript {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.1'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.2.2'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
@@ -140,6 +140,8 @@ subprojects {
       }
     })
 
+    maxHeapSize = "1500m"
+
     testLogging {
       events "failed"
       exceptionFormat "full"
@@ -203,6 +205,9 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
@@ -455,6 +460,7 @@ project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
@@ -591,6 +597,7 @@ project(':iceberg-nessie') {
     testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 

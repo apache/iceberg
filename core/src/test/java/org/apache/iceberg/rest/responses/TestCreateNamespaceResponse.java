@@ -169,7 +169,9 @@ public class TestCreateNamespaceResponse extends RequestResponseTestBase<CreateN
 
   @Override
   public CreateNamespaceResponse deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, CreateNamespaceResponse.class).validate();
+    CreateNamespaceResponse response = mapper().readValue(json, CreateNamespaceResponse.class);
+    response.validate();
+    return response;
   }
 }
 

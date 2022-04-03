@@ -151,7 +151,8 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
-  public <T> T handleRequest(Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+  public <T extends RESTResponse> T handleRequest(Route route, Map<String, String> vars,
+                                                  Object body, Class<T> responseType) {
     switch (route) {
       case CONFIG:
         // TODO: use the correct response object
@@ -180,8 +181,8 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_NAMESPACE:
         if (asNamespaceCatalog != null) {
-          Namespace namespace = namespaceFromPathVars(vars);
-          return castResponse(responseType, CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace));
+          CatalogHandlers.dropNamespace(asNamespaceCatalog, namespaceFromPathVars(vars));
+          return null;
         }
         break;
 
@@ -212,8 +213,8 @@ public class RESTCatalogAdapter implements RESTClient {
       }
 
       case DROP_TABLE: {
-        TableIdentifier ident = identFromPathVars(vars);
-        return castResponse(responseType, CatalogHandlers.dropTable(catalog, ident));
+        CatalogHandlers.dropTable(catalog, identFromPathVars(vars));
+        return null;
       }
 
       case LOAD_TABLE: {
@@ -230,25 +231,16 @@ public class RESTCatalogAdapter implements RESTClient {
       default:
     }
 
-    return null; // will be converted to a 400
+    return null;
   }
 
-  public <T> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
-                       Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
+                                            Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
       try {
-        T response = handleRequest(routeAndVars.first(), routeAndVars.second(), body, responseType);
-        if (response != null) {
-          return response;
-        }
-
-        // if a response was not returned, there was no handler for the route
-        errorBuilder
-            .responseCode(400)
-            .withType("BadRequestException")
-            .withMessage(String.format("No handler for request: %s %s", method, path));
+        return handleRequest(routeAndVars.first(), routeAndVars.second(), body, responseType);
 
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
@@ -269,17 +261,18 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
-  public <T> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, responseType, errorHandler);
   }
 
   @Override
-  public <T> T post(String path, Object body, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
+                                         Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, body, responseType, errorHandler);
   }
 
   @Override
-  public <T> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.GET, path, null, responseType, errorHandler);
   }
 
@@ -315,7 +308,7 @@ public class RESTCatalogAdapter implements RESTClient {
     throw new BadRequestType(requestType, request);
   }
 
-  public static <T> T castResponse(Class<T> responseType, Object response) {
+  public static <T extends RESTResponse> T castResponse(Class<T> responseType, Object response) {
     if (responseType.isInstance(response)) {
       return responseType.cast(response);
     }
@@ -327,7 +320,8 @@ public class RESTCatalogAdapter implements RESTClient {
     errorBuilder
         .responseCode(EXCEPTION_ERROR_CODES.getOrDefault(exc.getClass(), 500))
         .withType(exc.getClass().getSimpleName())
-        .withMessage(exc.getMessage());
+        .withMessage(exc.getMessage())
+        .withStackTrace(exc);
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {

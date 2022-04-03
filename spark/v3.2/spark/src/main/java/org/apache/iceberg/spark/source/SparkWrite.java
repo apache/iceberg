@@ -42,7 +42,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.ClusteredDataWriter;
@@ -613,12 +612,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
           .build();
 
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, format, targetFileSize);
+        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, targetFileSize);
 
       } else {
         return new PartitionedDataWriter(
-            writerFactory, fileFactory, io, spec, writeSchema, dsSchema,
-            format, targetFileSize, partitionedFanoutEnabled);
+            writerFactory, fileFactory, io, spec, writeSchema, dsSchema, targetFileSize, partitionedFanoutEnabled);
       }
     }
   }
@@ -635,14 +633,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final FileIO io;
 
     private UnpartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
-                                    FileIO io, PartitionSpec spec, FileFormat format, long targetFileSize) {
-      // TODO: support ORC rolling writers
-      if (format == FileFormat.ORC) {
-        EncryptedOutputFile outputFile = fileFactory.newOutputFile();
-        delegate = writerFactory.newDataWriter(outputFile, spec, null);
-      } else {
-        delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
-      }
+                                    FileIO io, PartitionSpec spec, long targetFileSize) {
+      this.delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
     }
 
@@ -684,12 +676,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     private PartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
                                   FileIO io, PartitionSpec spec, Schema dataSchema,
-                                  StructType dataSparkType, FileFormat format,
-                                  long targetFileSize, boolean fanoutEnabled) {
+                                  StructType dataSparkType, long targetFileSize, boolean fanoutEnabled) {
       if (fanoutEnabled) {
-        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       } else {
-        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       }
       this.io = io;
       this.spec = spec;

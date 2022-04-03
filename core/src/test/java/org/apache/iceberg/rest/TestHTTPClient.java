@@ -217,17 +217,22 @@ public class TestHTTPClient {
     }
   }
 
-  public static class Item {
+  public static class Item implements RESTRequest, RESTResponse {
     private Long id;
     private String data;
 
     // Required for Jackson deserialization
+    @SuppressWarnings("unused")
     public Item() {
     }
 
     public Item(Long id, String data) {
       this.id = id;
       this.data = data;
+    }
+
+    @Override
+    public void validate() {
     }
 
     @Override
