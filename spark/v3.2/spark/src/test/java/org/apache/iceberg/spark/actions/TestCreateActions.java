@@ -492,6 +492,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assert.assertTrue("Location isn't correct", table.properties().get("location").endsWith(destTableName));
     Assert.assertEquals("Sort-order isn't correct", "id ASC NULLS FIRST, data DESC NULLS LAST",
         table.properties().get("sort-order"));
+    Assert.assertNull("Identifier fields should be null", table.properties().get("identifier-fields"));
+
+    table.table().updateSchema().allowIncompatibleChanges().requireColumn("id").setIdentifierFields("id").commit();
+    Assert.assertEquals("Identifier fields aren't correct", "[id]", table.properties().get("identifier-fields"));
   }
 
   @Test
