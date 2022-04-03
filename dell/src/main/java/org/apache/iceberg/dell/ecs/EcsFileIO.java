@@ -42,7 +42,7 @@ public class EcsFileIO implements FileIO {
   private SerializableSupplier<S3Client> s3;
   private DellProperties dellProperties;
   private DellClientFactory dellClientFactory;
-  private transient S3Client client;
+  private transient volatile S3Client client;
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
   @Override
@@ -64,7 +64,11 @@ public class EcsFileIO implements FileIO {
 
   private S3Client client() {
     if (client == null) {
-      client = s3.get();
+      synchronized (this) {
+        if (client == null) {
+          client = s3.get();
+        }
+      }
     }
     return client;
   }
