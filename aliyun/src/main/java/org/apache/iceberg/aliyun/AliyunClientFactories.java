@@ -24,6 +24,7 @@ import com.aliyun.oss.OSSClientBuilder;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class AliyunClientFactories {
 
@@ -36,12 +37,10 @@ public class AliyunClientFactories {
     return ALIYUN_CLIENT_FACTORY_DEFAULT;
   }
 
-  public static AliyunClientFactory load(Map<String, String> properties) {
-    if (properties.containsKey(AliyunProperties.CLIENT_FACTORY)) {
-      return load(properties.get(AliyunProperties.CLIENT_FACTORY), properties);
-    } else {
-      return defaultFactory();
-    }
+  public static AliyunClientFactory from(Map<String, String> properties) {
+    String factoryImpl = PropertyUtil.propertyAsString(
+        properties, AliyunProperties.CLIENT_FACTORY, DefaultAliyunClientFactory.class.getName());
+    return loadClientFactory(factoryImpl, properties);
   }
 
   /**
@@ -51,10 +50,10 @@ public class AliyunClientFactories {
    * @param properties to initialize the factory.
    * @return an initialized {@link AliyunClientFactory}.
    */
-  private static AliyunClientFactory load(String impl, Map<String, String> properties) {
+  private static AliyunClientFactory loadClientFactory(String impl, Map<String, String> properties) {
     DynConstructors.Ctor<AliyunClientFactory> ctor;
     try {
-      ctor = DynConstructors.builder(AliyunClientFactory.class).impl(impl).buildChecked();
+      ctor = DynConstructors.builder(AliyunClientFactory.class).hiddenImpl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
           "Cannot initialize AliyunClientFactory, missing no-arg constructor: %s", impl), e);

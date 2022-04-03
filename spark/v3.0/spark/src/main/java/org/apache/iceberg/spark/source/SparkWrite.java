@@ -43,7 +43,6 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.ClusteredDataWriter;
@@ -61,8 +60,11 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.TaskContext;
+import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.executor.OutputMetrics;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -497,6 +499,24 @@ class SparkWrite {
       this.taskFiles = taskFiles;
     }
 
+    // Reports bytesWritten and recordsWritten to the Spark output metrics.
+    // Can only be called in executor.
+    void reportOutputMetrics() {
+      long bytesWritten = 0L;
+      long recordsWritten = 0L;
+      for (DataFile dataFile : taskFiles) {
+        bytesWritten += dataFile.fileSizeInBytes();
+        recordsWritten += dataFile.recordCount();
+      }
+
+      TaskContext taskContext = TaskContext$.MODULE$.get();
+      if (taskContext != null) {
+        OutputMetrics outputMetrics = taskContext.taskMetrics().outputMetrics();
+        outputMetrics.setBytesWritten(bytesWritten);
+        outputMetrics.setRecordsWritten(recordsWritten);
+      }
+    }
+
     DataFile[] files() {
       return taskFiles;
     }
@@ -541,12 +561,11 @@ class SparkWrite {
           .build();
 
       if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, format, targetFileSize);
+        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, targetFileSize);
 
       } else {
         return new PartitionedDataWriter(
-            writerFactory, fileFactory, io, spec, writeSchema, dsSchema,
-            format, targetFileSize, partitionedFanoutEnabled);
+            writerFactory, fileFactory, io, spec, writeSchema, dsSchema, targetFileSize, partitionedFanoutEnabled);
       }
     }
   }
@@ -563,14 +582,8 @@ class SparkWrite {
     private final FileIO io;
 
     private UnpartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
-                                    FileIO io, PartitionSpec spec, FileFormat format, long targetFileSize) {
-      // TODO: support ORC rolling writers
-      if (format == FileFormat.ORC) {
-        EncryptedOutputFile outputFile = fileFactory.newOutputFile();
-        delegate = writerFactory.newDataWriter(outputFile, spec, null);
-      } else {
-        delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
-      }
+                                    FileIO io, PartitionSpec spec, long targetFileSize) {
+      this.delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
       this.io = io;
     }
 
@@ -584,7 +597,9 @@ class SparkWrite {
       close();
 
       DataWriteResult result = delegate.result();
-      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      taskCommit.reportOutputMetrics();
+      return taskCommit;
     }
 
     @Override
@@ -610,12 +625,11 @@ class SparkWrite {
 
     private PartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
                                   FileIO io, PartitionSpec spec, Schema dataSchema,
-                                  StructType dataSparkType, FileFormat format,
-                                  long targetFileSize, boolean fanoutEnabled) {
+                                  StructType dataSparkType, long targetFileSize, boolean fanoutEnabled) {
       if (fanoutEnabled) {
-        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       } else {
-        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       }
       this.io = io;
       this.spec = spec;
@@ -634,7 +648,9 @@ class SparkWrite {
       close();
 
       DataWriteResult result = delegate.result();
-      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      TaskCommit taskCommit =  new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
+      taskCommit.reportOutputMetrics();
+      return taskCommit;
     }
 
     @Override

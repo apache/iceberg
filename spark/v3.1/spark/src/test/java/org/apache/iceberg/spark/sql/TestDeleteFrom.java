@@ -19,13 +19,21 @@
 
 package org.apache.iceberg.spark.sql;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 public class TestDeleteFrom extends SparkCatalogTestBase {
@@ -36,6 +44,29 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @Test
+  public void testDeleteFromTableAtSnapshot() throws NoSuchTableException {
+    Assume.assumeFalse(
+        "Spark session catalog does not support extended table names",
+        "spark_catalog".equals(catalogName));
+
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
+
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    String prefix = "snapshot_id_";
+    AssertHelpers.assertThrows("Should not be able to delete from a table at a specific snapshot",
+        IllegalArgumentException.class, "Cannot delete from table at a specific snapshot",
+        () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
   }
 
   @Test

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 from enum import Enum, auto
 
 
@@ -22,10 +21,10 @@ class Operation(Enum):
     """Operations to be used as components in expressions
 
     Operations can be negated by calling the negate method.
-    >>> print(Operation.TRUE.negate())
-    Operation.FALSE
-    >>> print(Operation.IS_NULL.negate())
-    Operation.NOT_NULL
+    >>> Operation.TRUE.negate()
+    <Operation.FALSE: 2>
+    >>> Operation.IS_NULL.negate()
+    <Operation.NOT_NULL: 4>
 
     The above example uses the OPERATION_NEGATIONS map which maps each enum
     to it's opposite enum.
@@ -53,7 +52,7 @@ class Operation(Enum):
     AND = auto()
     OR = auto()
 
-    def negate(self):
+    def negate(self) -> "Operation":
         """Returns the operation used when this is negated."""
 
         try:

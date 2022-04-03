@@ -96,12 +96,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType array, Type elementType) {
-    GroupType repeated = array.getType(0).asGroupType();
-    org.apache.parquet.schema.Type element = repeated.getType(0);
-
-    Preconditions.checkArgument(
-        !element.isRepetition(Repetition.REPEATED),
-        "Elements cannot have repetition REPEATED: %s", element);
+    org.apache.parquet.schema.Type element = ParquetSchemaUtil.determineListElementType(array);
 
     Integer elementFieldId = getId(element);
 

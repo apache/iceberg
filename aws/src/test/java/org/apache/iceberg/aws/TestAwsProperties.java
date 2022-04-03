@@ -97,4 +97,24 @@ public class TestAwsProperties {
         () -> new AwsProperties(map));
   }
 
+  @Test
+  public void testS3FileIoDeleteBatchSizeTooLarge() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_DELETE_BATCH_SIZE, "2000");
+    AssertHelpers.assertThrows("should not accept batch size greater than 1000",
+        IllegalArgumentException.class,
+        "Deletion batch size must be between 1 and 1000",
+        () -> new AwsProperties(map));
+  }
+
+  @Test
+  public void testS3FileIoDeleteBatchSizeTooSmall() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_DELETE_BATCH_SIZE, "0");
+    AssertHelpers.assertThrows("should not accept batch size less than 1",
+        IllegalArgumentException.class,
+        "Deletion batch size must be between 1 and 1000",
+        () -> new AwsProperties(map));
+  }
+
 }

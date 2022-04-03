@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +36,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.SparkException;
@@ -250,7 +250,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore // TODO: fails due to SPARK-33267
+  @Test
   public void testUpdateWithInAndNotInConditions() {
     createAndInitTable("id INT, dep STRING");
 
@@ -285,7 +285,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 100);
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, SPLIT_SIZE, 100);
 
-    List<Integer> ids = new ArrayList<>();
+    List<Integer> ids = Lists.newArrayList();
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }

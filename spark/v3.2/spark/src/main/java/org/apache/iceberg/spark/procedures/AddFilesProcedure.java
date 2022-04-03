@@ -159,7 +159,8 @@ class AddFilesProcedure extends BaseProcedure {
   private void importFileTable(Table table, Path tableLocation, String format, Map<String, String> partitionFilter,
                                boolean checkDuplicateFiles) {
     // List Partitions via Spark InMemory file search interface
-    List<SparkPartition> partitions = Spark3Util.getPartitions(spark(), tableLocation, format);
+    List<SparkPartition> partitions =
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(partitions.isEmpty(), "Cannot add partitioned files to an unpartitioned table");
@@ -171,12 +172,8 @@ class AddFilesProcedure extends BaseProcedure {
       importPartitions(table, ImmutableList.of(partition), checkDuplicateFiles);
     } else {
       Preconditions.checkArgument(!partitions.isEmpty(),
-          "Cannot find any partitions in table %s", partitions);
-      List<SparkPartition> filteredPartitions = SparkTableUtil.filterPartitions(partitions, partitionFilter);
-      Preconditions.checkArgument(!filteredPartitions.isEmpty(),
-          "Cannot find any partitions which match the given filter. Partition filter is %s",
-          MAP_JOINER.join(partitionFilter));
-      importPartitions(table, filteredPartitions, checkDuplicateFiles);
+          "Cannot find any matching partitions in table %s", partitions);
+      importPartitions(table, partitions, checkDuplicateFiles);
     }
   }
 

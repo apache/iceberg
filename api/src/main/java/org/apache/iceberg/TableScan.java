@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -158,6 +159,15 @@ public interface TableScan {
    * exclusive and up to current snapshot inclusive
    */
   TableScan appendsAfter(long fromSnapshotId);
+
+  /**
+   * Create a new {@link TableScan} to use a particular executor to plan. The default worker pool will be
+   * used by default.
+   *
+   * @param executorService the provided executor
+   * @return a table scan that uses the provided executor to access manifests
+   */
+  TableScan planWith(ExecutorService executorService);
 
   /**
    * Plan the {@link FileScanTask files} that will be read by this scan.

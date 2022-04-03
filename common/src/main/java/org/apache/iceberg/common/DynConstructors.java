@@ -24,10 +24,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 
 /**
@@ -122,7 +122,7 @@ public class DynConstructors {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Ctor ctor = null;
-    private Map<String, Throwable> problems = new HashMap<String, Throwable>();
+    private Map<String, Throwable> problems = Maps.newHashMap();
 
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;
@@ -223,8 +223,7 @@ public class DynConstructors {
       if (ctor != null) {
         return ctor;
       }
-      throw new NoSuchMethodException("Cannot find constructor for " +
-          baseClass + "\n" + formatProblems(problems));
+      throw buildCheckedException(baseClass, problems);
     }
 
     @SuppressWarnings("unchecked")
@@ -232,8 +231,7 @@ public class DynConstructors {
       if (ctor != null) {
         return ctor;
       }
-      throw new RuntimeException("Cannot find constructor for " +
-          baseClass + "\n" + formatProblems(problems));
+      throw buildRuntimeException(baseClass, problems);
     }
   }
 
@@ -249,6 +247,20 @@ public class DynConstructors {
       hidden.setAccessible(true);
       return null;
     }
+  }
+
+  private static NoSuchMethodException buildCheckedException(Class<?> baseClass, Map<String, Throwable> problems) {
+    NoSuchMethodException exc = new NoSuchMethodException(
+        "Cannot find constructor for " + baseClass + "\n" + formatProblems(problems));
+    problems.values().forEach(exc::addSuppressed);
+    return exc;
+  }
+
+  private static RuntimeException buildRuntimeException(Class<?> baseClass, Map<String, Throwable> problems) {
+    RuntimeException exc = new RuntimeException(
+        "Cannot find constructor for " + baseClass + "\n" + formatProblems(problems));
+    problems.values().forEach(exc::addSuppressed);
+    return exc;
   }
 
   private static String formatProblems(Map<String, Throwable> problems) {

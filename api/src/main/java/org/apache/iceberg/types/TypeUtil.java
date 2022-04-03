@@ -273,7 +273,13 @@ public class TypeUtil {
    * @throws IllegalArgumentException if a field cannot be found (by name) in the source schema
    */
   public static Schema reassignIds(Schema schema, Schema idSourceSchema) {
-    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema)).asStructType();
+    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema, null)).asStructType();
+    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
+  }
+
+  public static Schema reassignOrRefreshIds(Schema schema, Schema idSourceSchema) {
+    AtomicInteger highest = new AtomicInteger(schema.highestFieldId());
+    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema, highest::incrementAndGet)).asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
@@ -319,20 +325,45 @@ public class TypeUtil {
    */
   public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
                                          Boolean checkNullability, Boolean checkOrdering) {
+    String errMsg = "Cannot write incompatible dataset to table with schema:";
+    checkSchemaCompatibility(errMsg, tableSchema, writeSchema, checkNullability, checkOrdering);
+  }
+
+  /**
+   * Validates whether the provided schema is compatible with the expected schema.
+   *
+   * @param context the schema context (e.g. row ID)
+   * @param expectedSchema the expected schema
+   * @param providedSchema the provided schema
+   * @param checkNullability whether to check field nullability
+   * @param checkOrdering whether to check field ordering
+   */
+  public static void validateSchema(String context, Schema expectedSchema, Schema providedSchema,
+                                    boolean checkNullability, boolean checkOrdering) {
+    String errMsg = String.format("Provided %s schema is incompatible with expected schema:", context);
+    checkSchemaCompatibility(errMsg, expectedSchema, providedSchema, checkNullability, checkOrdering);
+  }
+
+  private static void checkSchemaCompatibility(String errMsg, Schema schema, Schema providedSchema,
+                                               boolean checkNullability, boolean checkOrdering) {
     List<String> errors;
     if (checkNullability) {
-      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+      errors = CheckCompatibility.writeCompatibilityErrors(schema, providedSchema, checkOrdering);
     } else {
-      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+      errors = CheckCompatibility.typeCompatibilityErrors(schema, providedSchema, checkOrdering);
     }
 
     if (!errors.isEmpty()) {
       StringBuilder sb = new StringBuilder();
-      sb.append("Cannot write incompatible dataset to table with schema:\n")
-          .append(tableSchema)
-          .append("\nwrite schema:")
-          .append(writeSchema)
-          .append("\nProblems:");
+      sb.append(errMsg)
+          .append("\n")
+          .append(schema)
+          .append("\n")
+          .append("Provided schema:")
+          .append("\n")
+          .append(providedSchema)
+          .append("\n")
+          .append("Problems:");
       for (String error : errors) {
         sb.append("\n* ").append(error);
       }

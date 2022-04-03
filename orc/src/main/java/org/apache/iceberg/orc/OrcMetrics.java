@@ -22,7 +22,6 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -134,7 +133,7 @@ public class OrcMetrics {
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap = Optional.ofNullable(fieldMetricsStream)
         .map(stream -> stream.collect(Collectors.toMap(FieldMetrics::id, Function.identity())))
-        .orElseGet(HashMap::new);
+        .orElseGet(Maps::newHashMap);
 
     for (int i = 0; i < colStats.length; i++) {
       final ColumnStatistics colStat = colStats[i];

@@ -188,6 +188,7 @@ public class TestDataSourceOptions {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SPLIT_SIZE, String.valueOf(128L * 1024 * 1024)); // 128Mb
+    options.put(TableProperties.DEFAULT_FILE_FORMAT, String.valueOf(FileFormat.AVRO)); // Arbitrarily splittable
     Table icebergTable = tables.create(SCHEMA, spec, options, tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(

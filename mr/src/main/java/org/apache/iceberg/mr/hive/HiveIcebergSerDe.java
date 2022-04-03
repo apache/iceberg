@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +44,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -170,9 +170,9 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
         !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
       // Parse the configuration parameters
-      List<String> names = new ArrayList<>();
+      List<String> names = Lists.newArrayList();
       Collections.addAll(names, columnNames.split(columnNameDelimiter));
-      List<String> comments = new ArrayList<>();
+      List<String> comments = Lists.newArrayList();
       if (columnComments != null) {
         Collections.addAll(comments, columnComments.split(Character.toString(Character.MIN_VALUE)));
       }

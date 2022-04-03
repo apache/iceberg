@@ -55,8 +55,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.TaskContext;
@@ -87,11 +87,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Function2;
 import scala.Option;
-import scala.Predef;
 import scala.Some;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
-import scala.collection.Seq;
+import scala.collection.immutable.Map$;
+import scala.collection.immutable.Seq;
+import scala.collection.mutable.Builder;
 import scala.runtime.AbstractPartialFunction;
 
 import static org.apache.spark.sql.functions.col;
@@ -178,12 +179,14 @@ public class SparkTableUtil {
 
       Option<scala.collection.immutable.Map<String, String>> scalaPartitionFilter;
       if (partitionFilter != null && !partitionFilter.isEmpty()) {
-        scalaPartitionFilter = Option.apply(JavaConverters.mapAsScalaMapConverter(partitionFilter).asScala()
-            .toMap(Predef.conforms()));
+        Builder<Tuple2<String, String>, scala.collection.immutable.Map<String, String>> builder =
+            Map$.MODULE$.<String, String>newBuilder();
+        partitionFilter.forEach((key, value) -> builder.$plus$eq(Tuple2.apply(key, value)));
+        scalaPartitionFilter = Option.apply(builder.result());
       } else {
         scalaPartitionFilter = Option.empty();
       }
-      Seq<CatalogTablePartition> partitions = catalog.listPartitions(tableIdent, scalaPartitionFilter);
+      Seq<CatalogTablePartition> partitions = catalog.listPartitions(tableIdent, scalaPartitionFilter).toIndexedSeq();
       return JavaConverters
           .seqAsJavaListConverter(partitions)
           .asJava()
@@ -246,9 +249,9 @@ public class SparkTableUtil {
       }
       Seq<Expression> predicates = JavaConverters
           .collectionAsScalaIterableConverter(ImmutableList.of(resolvedPredicateExpr))
-          .asScala().toSeq();
+          .asScala().toIndexedSeq();
 
-      Seq<CatalogTablePartition> partitions = catalog.listPartitionsByFilter(tableIdent, predicates);
+      Seq<CatalogTablePartition> partitions = catalog.listPartitionsByFilter(tableIdent, predicates).toIndexedSeq();
 
       return JavaConverters
           .seqAsJavaListConverter(partitions)
@@ -647,7 +650,7 @@ public class SparkTableUtil {
     private final String format;
 
     public SparkPartition(Map<String, String> values, String uri, String format) {
-      this.values = ImmutableMap.copyOf(values);
+      this.values = Maps.newHashMap(values);
       this.uri = uri;
       this.format = format;
     }

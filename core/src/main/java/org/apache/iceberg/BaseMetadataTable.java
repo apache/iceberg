@@ -56,13 +56,13 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
    * When this spec is used to project an expression for the given metadata table, the projection will remove
    * predicates for non-partition fields (not in the spec) and will remove the "$partitionPrefix." prefix from fields.
    *
-   * @param metadataTableSchena schema of the metadata table
+   * @param metadataTableSchema schema of the metadata table
    * @param spec spec on which the metadata table schema is based
    * @param partitionPrefix prefix to remove from each field in the partition spec
    * @return a spec used to rewrite the metadata table filters to partition filters using an inclusive projection
    */
-  static PartitionSpec transformSpec(Schema metadataTableSchena, PartitionSpec spec, String partitionPrefix) {
-    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchena);
+  static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec, String partitionPrefix) {
+    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
     spec.fields().forEach(pf -> identitySpecBuilder.identity(partitionPrefix + pf.name(), pf.name()));
     return identitySpecBuilder.build();
   }

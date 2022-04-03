@@ -21,8 +21,6 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +41,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -557,7 +556,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    Set<String> deletedFiles = new HashSet<>();
+    Set<String> deletedFiles = Sets.newHashSet();
 
     // Expire all commits including dangling staged snapshot.
     ExpireSnapshots.Result result = SparkActions.get().expireSnapshots(table)
@@ -567,7 +566,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     checkExpirationResults(1L, 1L, 2L, result);
 
-    Set<String> expectedDeletes = new HashSet<>();
+    Set<String> expectedDeletes = Sets.newHashSet();
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
@@ -604,7 +603,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Snapshot snapshotA = table.currentSnapshot();
 
     // `B` commit
-    Set<String> deletedAFiles = new HashSet<>();
+    Set<String> deletedAFiles = Sets.newHashSet();
     table.newOverwrite()
         .addFile(FILE_B)
         .deleteFile(FILE_A)
@@ -636,7 +635,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     table.manageSnapshots()
         .setCurrentSnapshot(snapshotC.snapshotId())
         .commit();
-    List<String> deletedFiles = new ArrayList<>();
+    List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `C`
     ExpireSnapshots.Result result = SparkActions.get().expireSnapshots(table)
@@ -691,7 +690,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     base = ((BaseTable) table).operations().current();
     Snapshot snapshotD = base.snapshots().get(3);
 
-    List<String> deletedFiles = new ArrayList<>();
+    List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `B` commit.
     ExpireSnapshots.Result firstResult = SparkActions.get().expireSnapshots(table)
@@ -1043,20 +1042,19 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     long end = rightAfterSnapshot();
 
-    int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
+    int jobsBeforeStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    ExpireSnapshots.Result results =
-        SparkActions.get().expireSnapshots(table).expireOlderThan(end).execute();
+    withSQLConf(ImmutableMap.of("spark.sql.adaptive.enabled", "false"), () -> {
+      ExpireSnapshots.Result results = SparkActions.get().expireSnapshots(table).expireOlderThan(end)
+          .option("stream-results", "true").execute();
 
-    Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
+      int jobsAfterStreamResults = spark.sparkContext().dagScheduler().nextJobId().get();
+      int jobsRunDuringStreamResults = jobsAfterStreamResults - jobsBeforeStreamResults;
 
-    int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
-    int totalJobsRun = jobsAfter - jobsBefore;
+      checkExpirationResults(1L, 1L, 2L, results);
 
-    checkExpirationResults(1L, 1L, 2L, results);
-
-    Assert.assertTrue(
-        String.format("Expected more than %d jobs when using local iterator, ran %d", SHUFFLE_PARTITIONS, totalJobsRun),
-        totalJobsRun > SHUFFLE_PARTITIONS);
+      Assert.assertEquals("Expected total number of jobs with stream-results should match the expected number",
+          5L, jobsRunDuringStreamResults);
+    });
   }
 }

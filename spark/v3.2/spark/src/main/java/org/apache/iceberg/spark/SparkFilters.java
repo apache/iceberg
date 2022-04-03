@@ -65,6 +65,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -168,9 +169,23 @@ public class SparkFilters {
 
         case NOT:
           Not notFilter = (Not) filter;
-          Expression child = convert(notFilter.child());
-          if (child != null) {
-            return not(child);
+          Filter childFilter = notFilter.child();
+          Operation childOp = FILTERS.get(childFilter.getClass());
+          if (childOp == Operation.IN) {
+            // infer an extra notNull predicate for Spark NOT IN filters
+            // as Iceberg expressions don't follow the 3-value SQL boolean logic
+            // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in Iceberg
+            In childInFilter = (In) childFilter;
+            Expression notIn = notIn(unquote(childInFilter.attribute()),
+                Stream.of(childInFilter.values())
+                    .map(SparkFilters::convertLiteral)
+                    .collect(Collectors.toList()));
+            return and(notNull(childInFilter.attribute()), notIn);
+          } else if (hasNoInFilter(childFilter)) {
+            Expression child = convert(childFilter);
+            if (child != null) {
+              return not(child);
+            }
           }
           return null;
 
@@ -228,5 +243,29 @@ public class SparkFilters {
   private static String unquote(String attributeName) {
     Matcher matcher = BACKTICKS_PATTERN.matcher(attributeName);
     return matcher.replaceAll("$2");
+  }
+
+  private static boolean hasNoInFilter(Filter filter) {
+    Operation op = FILTERS.get(filter.getClass());
+
+    if (op != null) {
+      switch (op) {
+        case AND:
+          And andFilter = (And) filter;
+          return hasNoInFilter(andFilter.left()) && hasNoInFilter(andFilter.right());
+        case OR:
+          Or orFilter = (Or) filter;
+          return hasNoInFilter(orFilter.left()) && hasNoInFilter(orFilter.right());
+        case NOT:
+          Not notFilter = (Not) filter;
+          return hasNoInFilter(notFilter.child());
+        case IN:
+          return false;
+        default:
+          return true;
+      }
+    }
+
+    return false;
   }
 }

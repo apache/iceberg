@@ -341,6 +341,30 @@ public interface Catalog {
   Table loadTable(TableIdentifier identifier);
 
   /**
+   * Invalidate cached table metadata from current catalog.
+   * <p>
+   * If the table is already loaded or cached, drop cached data. If the table does not exist or is
+   * not cached, do nothing.
+   *
+   * @param identifier a table identifier
+   */
+  default void invalidateTable(TableIdentifier identifier) {
+  }
+
+  /**
+   * Register a table with the catalog if it does not exist.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists in the catalog.
+   */
+  default Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Registering tables is not supported");
+  }
+
+  /**
+  /**
    * Instantiate a builder to either create a table or start a create/replace transaction.
    *
    * @param identifier a table identifier

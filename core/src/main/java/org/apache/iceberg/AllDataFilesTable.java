@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -31,7 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ParallelIterable;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
  * A {@link Table} implementation that exposes a table's valid data files as rows.
@@ -110,21 +111,24 @@ public class AllDataFilesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter,
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allDataManifestFiles(ops.current().snapshots());
+      CloseableIterable<ManifestFile> manifests = allDataManifestFiles(
+          ops.current().snapshots(), context().planExecutor());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new DataFilesTable.ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
+          new ManifestReadTask(ops.io(), ops.current().specsById(), manifest, schema(),
+              schemaString, specString, residuals));
     }
   }
 
-  private static CloseableIterable<ManifestFile> allDataManifestFiles(List<Snapshot> snapshots) {
+  private static CloseableIterable<ManifestFile> allDataManifestFiles(
+      List<Snapshot> snapshots, ExecutorService workerPool) {
     try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
         Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
-        ThreadPools.getWorkerPool())) {
+        workerPool)) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");

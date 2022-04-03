@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +35,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -304,7 +304,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     validateSnapshot(currentSnapshot, "delete", "1", "1", null);
   }
 
-  @Ignore // TODO: fails due to SPARK-33267
+  @Test
   public void testDeleteWithInAndNotInConditions() {
     createAndInitUnpartitionedTable();
 
@@ -335,7 +335,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 100);
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, SPLIT_SIZE, 100);
 
-    List<Integer> ids = new ArrayList<>();
+    List<Integer> ids = Lists.newArrayList();
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }
@@ -593,6 +593,18 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
+    // Pre-populate the table to force it to use the Spark Writers instead of Metadata-Only Delete
+    // for more consistent exception stack
+    List<Integer> ids = ImmutableList.of(1, 2);
+    Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hr"));
+    try {
+      inputDF.coalesce(1).writeTo(tableName).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException(e);
+    }
+
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
@@ -615,7 +627,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
         }
-        sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+
+        try {
+          inputDF.coalesce(1).writeTo(tableName).append();
+        } catch (NoSuchTableException e) {
+          throw new RuntimeException(e);
+        }
+
         barrier.incrementAndGet();
       }
     });

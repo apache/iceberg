@@ -58,6 +58,7 @@ public class TestBaseTaskWriter extends TableTestBase {
   public static Object[][] parameters() {
     return new Object[][] {
         {"avro"},
+        {"orc"},
         {"parquet"}
     };
   }
@@ -67,6 +68,7 @@ public class TestBaseTaskWriter extends TableTestBase {
     this.format = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
+  @Override
   @Before
   public void setupTable() throws IOException {
     this.tableDir = temp.newFolder();

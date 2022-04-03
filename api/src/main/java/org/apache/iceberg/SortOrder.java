@@ -135,6 +135,16 @@ public class SortOrder implements Serializable {
     return fieldList;
   }
 
+  UnboundSortOrder toUnbound() {
+    UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
+
+    for (SortField field : fields) {
+      builder.addSortField(field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+    }
+
+    return builder.build();
+  }
+
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
@@ -244,7 +254,7 @@ public class SortOrder implements Serializable {
       return this;
     }
 
-    Builder addSortField(Term term, SortDirection direction, NullOrder nullOrder) {
+    private Builder addSortField(Term term, SortDirection direction, NullOrder nullOrder) {
       Preconditions.checkArgument(term instanceof UnboundTerm, "Term must be unbound");
       // ValidationException is thrown by bind if binding fails so we assume that boundTerm is correct
       BoundTerm<?> boundTerm = ((UnboundTerm<?>) term).bind(schema.asStruct(), caseSensitive);
@@ -256,14 +266,24 @@ public class SortOrder implements Serializable {
 
     Builder addSortField(String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
       Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      ValidationException.check(column != null, "Cannot find source column: %s", sourceId);
       Transform<?, ?> transform = Transforms.fromString(column.type(), transformAsString);
+      return addSortField(transform, sourceId, direction, nullOrder);
+    }
+
+    Builder addSortField(Transform<?, ?> transform, int sourceId, SortDirection direction, NullOrder nullOrder) {
       SortField sortField = new SortField(transform, sourceId, direction, nullOrder);
       fields.add(sortField);
       return this;
     }
 
     public SortOrder build() {
+      SortOrder sortOrder = buildUnchecked();
+      checkCompatibility(sortOrder, schema);
+      return sortOrder;
+    }
+
+    SortOrder buildUnchecked() {
       if (fields.isEmpty()) {
         if (orderId != null && orderId != 0) {
           throw new IllegalArgumentException("Unsorted order ID must be 0");
@@ -277,9 +297,7 @@ public class SortOrder implements Serializable {
 
       // default ID to 1 as 0 is reserved for unsorted order
       int actualOrderId = orderId != null ? orderId : 1;
-      SortOrder sortOrder = new SortOrder(schema, actualOrderId, fields);
-      checkCompatibility(sortOrder, schema);
-      return sortOrder;
+      return new SortOrder(schema, actualOrderId, fields);
     }
 
     private Transform<?, ?> toTransform(BoundTerm<?> term) {

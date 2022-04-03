@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -33,6 +31,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.hive.serde.objectinspector.WriteObjectInspector;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -126,13 +126,17 @@ class Deserializer {
 
     @Override
     public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
+      Preconditions.checkNotNull(type, "Can not create reader for null type");
+      GenericRecord template = GenericRecord.create(type);
       return o -> {
         if (o == null) {
           return null;
         }
 
         List<Object> data = ((StructObjectInspector) pair.sourceInspector()).getStructFieldsDataAsList(o);
-        Record result = GenericRecord.create(type);
+        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since NAME_MAP_CACHE access
+        // is eliminated. Using copy here to gain performance.
+        Record result = template.copy();
 
         for (int i = 0; i < deserializers.size(); i++) {
           Object fieldValue = data.get(i);
@@ -154,7 +158,7 @@ class Deserializer {
           return null;
         }
 
-        List<Object> result = new ArrayList<>();
+        List<Object> result = Lists.newArrayList();
         ListObjectInspector listInspector = (ListObjectInspector) pair.sourceInspector();
 
         for (Object val : listInspector.getList(o)) {
@@ -173,7 +177,7 @@ class Deserializer {
           return null;
         }
 
-        Map<Object, Object> result = new HashMap<>();
+        Map<Object, Object> result = Maps.newHashMap();
         MapObjectInspector mapObjectInspector = (MapObjectInspector) pair.sourceInspector();
 
         for (Map.Entry<?, ?> entry : mapObjectInspector.getMap(o).entrySet()) {

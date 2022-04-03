@@ -22,11 +22,14 @@ package org.apache.iceberg.util;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 public class CharSequenceSet implements Set<CharSequence>, Serializable {
   private static final ThreadLocal<CharSequenceWrapper> wrappers = ThreadLocal.withInitial(
@@ -151,5 +154,29 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public void clear() {
     wrapperSet.clear();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    CharSequenceSet that = (CharSequenceSet) o;
+    return wrapperSet.equals(that.wrapperSet);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(wrapperSet);
+  }
+
+  @Override
+  public String toString() {
+    return Streams.stream(iterator()).collect(Collectors.joining("CharSequenceSet({", ", ", "})"));
   }
 }

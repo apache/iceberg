@@ -74,6 +74,25 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testDeleteFromTableAtSnapshot() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
+
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    String prefix = "snapshot_id_";
+    AssertHelpers.assertThrows("Should not be able to delete from a table at a specific snapshot",
+        IllegalArgumentException.class, "Cannot delete from table at a specific snapshot",
+        () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
+  }
+
+  @Test
   public void testDeleteFromPartitionedTable() throws NoSuchTableException {
     sql("CREATE TABLE %s (id bigint, data string) " +
         "USING iceberg " +

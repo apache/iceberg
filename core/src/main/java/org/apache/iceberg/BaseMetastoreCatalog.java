@@ -196,7 +196,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private Transaction newReplaceTableTransaction(boolean orCreate) {
       TableOperations ops = newTableOps(identifier);
       if (!orCreate && ops.current() == null) {
-        throw new NoSuchTableException("No such table: %s", identifier);
+        throw new NoSuchTableException("Table does not exist: %s", identifier);
       }
 
       TableMetadata metadata;

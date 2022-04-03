@@ -23,9 +23,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -61,6 +63,12 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final String commitLockEntityId;
   private final FileIO fileIO;
   private final LockManager lockManager;
+
+  // Attempt to set versionId if available on the path
+  private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
+      .hiddenImpl("software.amazon.awssdk.services.glue.model.UpdateTableRequest$Builder", String.class)
+      .orNoop()
+      .build();
 
   GlueTableOperations(GlueClient glue, LockManager lockManager, String catalogName, AwsProperties awsProperties,
                       FileIO fileIO, TableIdentifier tableIdentifier) {
@@ -113,6 +121,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
       persistGlueTable(glueTable, properties, metadata);
       commitStatus = CommitStatus.SUCCESS;
+    } catch (CommitFailedException e) {
+      throw e;
     } catch (ConcurrentModificationException e) {
       throw new CommitFailedException(e, "Cannot commit %s because Glue detected concurrent update", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
@@ -138,7 +148,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void lock(String newMetadataLocation) {
-    if (!lockManager.acquire(commitLockEntityId, newMetadataLocation)) {
+    if (lockManager != null && !lockManager.acquire(commitLockEntityId, newMetadataLocation)) {
       throw new IllegalStateException(String.format("Fail to acquire lock %s to commit new metadata at %s",
           commitLockEntityId, newMetadataLocation));
     }
@@ -182,7 +192,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   void persistGlueTable(Table glueTable, Map<String, String> parameters, TableMetadata metadata) {
     if (glueTable != null) {
       LOG.debug("Committing existing Glue table: {}", tableName());
-      glue.updateTable(UpdateTableRequest.builder()
+      UpdateTableRequest.Builder updateTableRequest = UpdateTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .databaseName(databaseName)
           .skipArchive(awsProperties.glueCatalogSkipArchive())
@@ -191,8 +201,13 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .name(tableName)
               .tableType(GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(parameters)
-              .build())
-          .build());
+              .build());
+      // Use Optimistic locking with table version id while updating table
+      if (!SET_VERSION_ID.isNoop() && lockManager == null) {
+        SET_VERSION_ID.invoke(updateTableRequest, glueTable.versionId());
+      }
+
+      glue.updateTable(updateTableRequest.build());
     } else {
       LOG.debug("Committing new Glue table: {}", tableName());
       glue.createTable(CreateTableRequest.builder()
@@ -219,7 +234,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
       throw e;
     } finally {
-      lockManager.release(commitLockEntityId, metadataLocation);
+      if (lockManager != null) {
+        lockManager.release(commitLockEntityId, metadataLocation);
+      }
     }
   }
 }

@@ -107,8 +107,8 @@ public final class ORCSchemaUtil {
     final TypeDescription root = TypeDescription.createStruct();
     final Types.StructType schemaRoot = schema.asStruct();
     for (Types.NestedField field : schemaRoot.asStructType().fields()) {
-      TypeDescription orcColumType = convert(field.fieldId(), field.type(), field.isRequired());
-      root.addField(field.name(), orcColumType);
+      TypeDescription orcColumnType = convert(field.fieldId(), field.type(), field.isRequired());
+      root.addField(field.name(), orcColumnType);
     }
     return root;
   }

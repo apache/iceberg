@@ -22,15 +22,47 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestDeleteFiles extends TableTestBase {
+
+  private static final DataFile DATA_FILE_BUCKET_0_IDS_0_2 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-1.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0")
+        .withMetrics(new Metrics(5L,
+            null, // no column sizes
+      ImmutableMap.of(1, 5L, 2, 5L), // value count
+            ImmutableMap.of(1, 0L, 2, 0L), // null count
+                null, // no nan value counts
+                ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+      ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
+      ))
+      .build();
+
+  private static final DataFile DATA_FILE_BUCKET_0_IDS_8_10 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-2.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=0")
+      .withMetrics(new Metrics(5L,
+          null, // no column sizes
+          ImmutableMap.of(1, 5L, 2, 5L), // value count
+          ImmutableMap.of(1, 0L, 2, 0L), // null count
+          null, // no nan value counts
+          ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
+          ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+      ))
+      .build();
+
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] { 1, 2 };
@@ -148,7 +180,129 @@ public class TestDeleteFiles extends TableTestBase {
         statuses(Status.DELETED));
   }
 
-  private ByteBuffer longToBuffer(long value) {
+  @Test
+  public void testDeleteSomeFilesByRowFilterWithoutPartitionPredicates() {
+    // add both data files
+    table.newFastAppend()
+        .appendFile(DATA_FILE_BUCKET_0_IDS_0_2)
+        .appendFile(DATA_FILE_BUCKET_0_IDS_8_10)
+        .commit();
+
+    Snapshot initialSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
+    validateManifestEntries(initialSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // delete the second one using a metrics filter (no partition filter)
+    table.newDelete()
+        .deleteFromRowFilter(Expressions.greaterThan("id", 5))
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
+        statuses(Status.EXISTING, Status.DELETED));
+  }
+
+  @Test
+  public void testDeleteSomeFilesByRowFilterWithCombinedPredicates() {
+    // add both data files
+    table.newFastAppend()
+        .appendFile(DATA_FILE_BUCKET_0_IDS_0_2)
+        .appendFile(DATA_FILE_BUCKET_0_IDS_8_10)
+        .commit();
+
+    Snapshot initialSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
+    validateManifestEntries(initialSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // delete the second one using a filter that relies on metrics and partition data
+    Expression partPredicate = Expressions.equal(Expressions.bucket("data", 16), 0);
+    Expression rowPredicate = Expressions.greaterThan("id", 5);
+    Expression predicate = Expressions.and(partPredicate, rowPredicate);
+    table.newDelete()
+        .deleteFromRowFilter(predicate)
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
+        files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
+        statuses(Status.EXISTING, Status.DELETED));
+  }
+
+  @Test
+  public void testCannotDeleteFileWhereNotAllRowsMatchPartitionFilter() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.truncate("data", 2))
+        .commit();
+
+    PartitionSpec spec = table.spec();
+
+    DataFile dataFile = DataFiles.builder(spec)
+        .withPath("/path/to/data-1.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_trunc_2=aa")
+        .build();
+
+    table.newFastAppend()
+        .appendFile(dataFile)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject as not all rows match filter",
+        ValidationException.class, "Cannot delete file where some, but not all, rows match filter",
+        () -> table.newDelete()
+            .deleteFromRowFilter(Expressions.equal("data", "aa"))
+            .commit());
+  }
+
+  @Test
+  public void testDeleteCaseSensitivity() {
+    table.newFastAppend()
+        .appendFile(DATA_FILE_BUCKET_0_IDS_0_2)
+        .commit();
+
+    Expression rowFilter = Expressions.lessThan("iD", 5);
+
+    AssertHelpers.assertThrows("Should use case sensitive binding by default",
+        ValidationException.class, "Cannot find field 'iD'",
+        () -> table.newDelete()
+            .deleteFromRowFilter(rowFilter)
+            .commit());
+
+    AssertHelpers.assertThrows("Should fail with case sensitive binding",
+        ValidationException.class, "Cannot find field 'iD'",
+        () -> table.newDelete()
+            .deleteFromRowFilter(rowFilter)
+            .caseSensitive(true)
+            .commit());
+
+    table.newDelete()
+        .deleteFromRowFilter(rowFilter)
+        .caseSensitive(false)
+        .commit();
+
+    Snapshot deleteSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
+    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+        ids(deleteSnapshot.snapshotId()),
+        files(DATA_FILE_BUCKET_0_IDS_0_2),
+        statuses(Status.DELETED));
+  }
+
+  private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
 }
