@@ -29,6 +29,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -289,5 +290,48 @@ public class TestCreateTable extends SparkCatalogTestBase {
         IllegalArgumentException.class,
         "Cannot downgrade v2 table to v1",
         () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+  }
+
+  @Test
+  public void testCreateTableWithIdentifierFields() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, name STRING NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('identifier-fields'='id,name')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("should have identifier fields id,name",
+        ImmutableSet.of("id", "name"), table.schema().identifierFieldNames());
+  }
+
+  @Test
+  public void testCreateTableWithOptionalIdentifierFields() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    AssertHelpers.assertThrows("Creating table with optional identifier field should fail",
+        IllegalArgumentException.class,
+        "not a required field",
+        () -> sql("CREATE TABLE %s " +
+                "(id BIGINT NOT NULL, data STRING) " +
+                "USING iceberg " +
+                "TBLPROPERTIES ('identifier-fields'='data')",
+            tableName));
+  }
+
+  @Test
+  public void testCreateTableWithNonexistentIdentifierFields() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    AssertHelpers.assertThrows("Creating table with nonexistent identifier field should fail",
+        IllegalArgumentException.class,
+        "Identifier field named nonexistent does not exist",
+        () -> sql("CREATE TABLE %s " +
+                "(id BIGINT NOT NULL, data STRING) " +
+                "USING iceberg " +
+                "TBLPROPERTIES ('identifier-fields'='nonexistent')",
+            tableName));
   }
 }

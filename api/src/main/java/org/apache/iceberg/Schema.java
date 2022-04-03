@@ -129,6 +129,22 @@ public class Schema implements Serializable {
     }
   }
 
+  public static Set<Integer> identifierFieldNamesToIds(StructType struct, Set<String> identifierFiledNames) {
+    Map<String, Integer> nameToId = TypeUtil.indexByName(struct);
+    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    // Validate identifier field by name exists
+    for (String identifierName : identifierFiledNames) {
+      Preconditions.checkArgument(nameToId.containsKey(identifierName),
+          "Identifier field named %s does not exist", identifierName);
+      identifierFieldIds.add(nameToId.get(identifierName));
+    }
+    // Validate field by id can be an identifier field
+    Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(struct);
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
+    identifierFieldIds.forEach(id -> validateIdentifierField(id, idToField, idToParent));
+    return identifierFieldIds;
+  }
+
   public Schema(NestedField... columns) {
     this(DEFAULT_SCHEMA_ID, Arrays.asList(columns));
   }

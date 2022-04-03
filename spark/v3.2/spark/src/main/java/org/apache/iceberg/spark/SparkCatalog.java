@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -100,6 +101,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
+  private static final String IDENTIFIER_FIELD_NAMES = "identifier-fields";
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -149,7 +151,7 @@ public class SparkCatalog extends BaseCatalog {
   public SparkTable createTable(Identifier ident, StructType schema,
                                 Transform[] transforms,
                                 Map<String, String> properties) throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone, identifierFieldNames(properties));
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Table icebergTable = builder
@@ -161,6 +163,14 @@ public class SparkCatalog extends BaseCatalog {
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
+  }
+
+  private static Set<String> identifierFieldNames(Map<String, String> properties) {
+    return Optional.ofNullable(properties.get(IDENTIFIER_FIELD_NAMES))
+        .filter(s -> !s.isEmpty())
+        .map(COMMA::splitToList)
+        .map(ImmutableSet::copyOf)
+        .orElseGet(ImmutableSet::of);
   }
 
   @Override
@@ -182,7 +192,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] transforms,
                                   Map<String, String> properties) throws NoSuchTableException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone, identifierFieldNames(properties));
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
@@ -198,7 +208,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone, identifierFieldNames(properties));
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
         .withLocation(properties.get("location"))

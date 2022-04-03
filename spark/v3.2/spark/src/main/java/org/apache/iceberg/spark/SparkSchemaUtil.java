@@ -130,6 +130,10 @@ public class SparkSchemaUtil {
     return convert(sparkType, false);
   }
 
+  public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
+    return convert(sparkType, useTimestampWithoutZone, ImmutableSet.of());
+  }
+
   /**
    * Convert a Spark {@link StructType struct} to a {@link Schema} with new field ids.
    * <p>
@@ -145,9 +149,12 @@ public class SparkSchemaUtil {
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted
    */
-  public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
+  public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone,
+                               Set<String> identifierFieldNames) {
     Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
-    Schema schema = new Schema(converted.asNestedType().asStructType().fields());
+    Set<Integer> identifierIds = Schema.identifierFieldNamesToIds(converted.asNestedType().asStructType(),
+        identifierFieldNames);
+    Schema schema = new Schema(converted.asNestedType().asStructType().fields(), identifierIds);
     if (useTimestampWithoutZone) {
       schema = SparkFixupTimestampType.fixup(schema);
     }
