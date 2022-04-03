@@ -18,6 +18,7 @@
 from decimal import Decimal
 from uuid import UUID
 
+import mmh3 as mmh3
 import pytest
 
 from iceberg import transforms
@@ -117,3 +118,10 @@ def test_bucket_method(type_var):
     assert bucket_transform.num_buckets == 8
     assert bucket_transform.apply(None) is None
     assert bucket_transform.to_human_string("test") == "test"
+
+
+def test_string_with_surrogate_pair():
+    string_with_surrogate_pair = "string with a surrogate pair: 💰"
+    as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
+    bucket_transform = transforms.bucket(StringType(), 100)
+    assert bucket_transform.hash(string_with_surrogate_pair) == mmh3.hash(as_bytes)
