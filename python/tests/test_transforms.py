@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import datetime
-from decimal import Decimal, getcontext
+from decimal import Decimal
 from uuid import UUID
 
 import pytest
@@ -35,6 +34,12 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
+from iceberg.utils.datetime import (
+    date_to_days,
+    time_to_micros,
+    timestamp_to_micros,
+    timestamptz_to_micros,
+)
 
 
 @pytest.mark.parametrize(
@@ -43,15 +48,15 @@ from iceberg.types import (
         (1, IntegerType(), 1392991556),
         (34, IntegerType(), 2017239379),
         (34, LongType(), 2017239379),
-        (17486, DateType(), -653330422),
-        (81068000000, TimeType(), -662762989),
+        (date_to_days("2017-11-16"), DateType(), -653330422),
+        (time_to_micros("22:31:08"), TimeType(), -662762989),
         (
-            int(datetime.fromisoformat("2017-11-16T22:31:08+00:00").timestamp() * 1000000),
+            timestamp_to_micros("2017-11-16T22:31:08"),
             TimestampType(),
             -2047944441,
         ),
         (
-            int(datetime.fromisoformat("2017-11-16T14:31:08-08:00").timestamp() * 1000000),
+            timestamptz_to_micros("2017-11-16T14:31:08-08:00"),
             TimestamptzType(),
             -2047944441,
         ),
@@ -63,25 +68,6 @@ from iceberg.types import (
 )
 def test_bucket_hash_values(test_input, test_type, expected):
     assert transforms.bucket(test_type, 8).hash(test_input) == expected
-
-
-@pytest.mark.parametrize(
-    "test_input,test_type,scale_factor,expected_hash,expected",
-    [
-        (Decimal("14.20"), DecimalType(9, 2), Decimal(10) ** -2, -500754589, 59),
-        (
-            Decimal("137302769811943318102518958871258.37580"),
-            DecimalType(38, 5),
-            Decimal(10) ** -5,
-            -32334285,
-            63,
-        ),
-    ],
-)
-def test_decimal_bucket(test_input, test_type, scale_factor, expected_hash, expected):
-    getcontext().prec = 38
-    assert transforms.bucket(test_type, 100).hash(test_input.quantize(scale_factor)) == expected_hash
-    assert transforms.bucket(test_type, 100).apply(test_input.quantize(scale_factor)) == expected
 
 
 @pytest.mark.parametrize(
