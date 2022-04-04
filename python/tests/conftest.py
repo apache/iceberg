@@ -17,14 +17,16 @@
 
 import pytest
 
-from iceberg.table import schema
+from iceberg import schema
 from iceberg.types import (
     BooleanType,
+    FloatType,
     IntegerType,
     ListType,
     MapType,
     NestedField,
     StringType,
+    StructType,
 )
 
 
@@ -62,6 +64,19 @@ def table_schema_nested():
                     key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True
                 ),
                 value_is_optional=True,
+            ),
+            is_optional=True,
+        ),
+        NestedField(
+            field_id=11,
+            name="location",
+            field_type=ListType(
+                element_id=12,
+                element_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+                ),
+                element_is_optional=True,
             ),
             is_optional=True,
         ),

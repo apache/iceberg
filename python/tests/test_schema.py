@@ -19,14 +19,16 @@ from textwrap import dedent
 
 import pytest
 
-from iceberg.table import schema
+from iceberg import schema
 from iceberg.types import (
     BooleanType,
+    FloatType,
     IntegerType,
     ListType,
     MapType,
     NestedField,
     StringType,
+    StructType,
 )
 
 
@@ -34,11 +36,11 @@ def test_schema_str(table_schema_simple):
     """Test casting a schema to a string"""
     assert str(table_schema_simple) == dedent(
         """\
-    table { 
-     1: foo: required string
-     2: bar: optional int
-     3: baz: required boolean
-     }"""
+    table {
+      1: foo: required string
+      2: bar: optional int
+      3: baz: required boolean
+    }"""
     )
 
 
@@ -47,13 +49,13 @@ def test_schema_str(table_schema_simple):
     [
         (
             schema.Schema(NestedField(1, "foo", StringType()), schema_id=1),
-            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), is_optional=True),))",
+            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), is_optional=True),), schema_id=1, identifier_field_ids=[])",
         ),
         (
             schema.Schema(
                 NestedField(1, "foo", StringType()), NestedField(2, "bar", IntegerType(), is_optional=False), schema_id=1
             ),
-            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), is_optional=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), is_optional=False)))",
+            "Schema(fields=(NestedField(field_id=1, name='foo', field_type=StringType(), is_optional=True), NestedField(field_id=2, name='bar', field_type=IntegerType(), is_optional=False)), schema_id=1, identifier_field_ids=[])",
         ),
     ],
 )
@@ -99,6 +101,30 @@ def test_schema_index_by_id_visitor(table_schema_nested):
             is_optional=True,
         ),
         10: NestedField(field_id=10, name="value", field_type=IntegerType(), is_optional=True),
+        11: NestedField(
+            field_id=11,
+            name="location",
+            field_type=ListType(
+                element_id=12,
+                element_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+                ),
+                element_is_optional=True,
+            ),
+            is_optional=True,
+        ),
+        12: NestedField(
+            field_id=12,
+            name="element",
+            field_type=StructType(
+                NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+                NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+            ),
+            is_optional=True,
+        ),
+        13: NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+        14: NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
     }
 
 
@@ -116,6 +142,12 @@ def test_schema_index_by_name_visitor(table_schema_nested):
         "quux.value": 8,
         "quux.value.key": 9,
         "quux.value.value": 10,
+        "location": 11,
+        "location.element": 12,
+        "location.element.latitude": 13,
+        "location.element.longitude": 14,
+        "location.latitude": 13,
+        "location.longitude": 14,
     }
 
 
@@ -133,11 +165,9 @@ def test_schema_find_column_name(table_schema_nested):
     assert table_schema_nested.find_column_name(10) == "quux.value.value"
 
 
-def test_schema_find_column_name_raise_on_id_not_found(table_schema_nested):
+def test_schema_find_column_name_on_id_not_found(table_schema_nested):
     """Test raising an error when a field ID cannot be found"""
-    with pytest.raises(ValueError) as exc_info:
-        table_schema_nested.find_column_name(99)
-    assert "Cannot find column name: 99" in str(exc_info.value)
+    assert table_schema_nested.find_column_name(99) is None
 
 
 def test_schema_find_field_by_id(table_schema_simple):
@@ -215,6 +245,30 @@ def test_index_by_id_schema_visitor(table_schema_nested):
         ),
         9: NestedField(field_id=9, name="key", field_type=StringType(), is_optional=False),
         10: NestedField(field_id=10, name="value", field_type=IntegerType(), is_optional=True),
+        11: NestedField(
+            field_id=11,
+            name="location",
+            field_type=ListType(
+                element_id=12,
+                element_type=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+                ),
+                element_is_optional=True,
+            ),
+            is_optional=True,
+        ),
+        12: NestedField(
+            field_id=12,
+            name="element",
+            field_type=StructType(
+                NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+                NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+            ),
+            is_optional=True,
+        ),
+        13: NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
+        14: NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
     }
 
 
