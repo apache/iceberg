@@ -336,6 +336,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
       Map<String, String> tableProperties = propertiesBuilder.build();
 
       CreateTableRequest request = CreateTableRequest.builder()
+          .stageCreate()
           .withName(ident.name())
           .withSchema(schema)
           .withPartitionSpec(spec)
@@ -344,10 +345,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
           .setProperties(tableProperties)
           .build();
 
-      // TODO: will this be a specific route or a modified create?
       return client.post(
-          paths.stageCreate(ident.namespace()),
-          request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+          paths.tables(ident.namespace()), request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
     }
   }
 

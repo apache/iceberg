@@ -58,10 +58,6 @@ public class ResourcePaths {
     return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "tables");
   }
 
-  public String stageCreate(Namespace ns) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "stageCreate");
-  }
-
   public String table(TableIdentifier ident) {
     return SLASH.join(
         "v1", prefix, "namespaces", RESTUtil.encodeNamespace(ident.namespace()), "tables",
