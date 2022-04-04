@@ -130,7 +130,7 @@ class Schema:
         field = self.find_field(name_or_id=name_or_id, case_sensitive=case_sensitive)
         return field.type  # type: ignore
 
-    def find_column_name(self, column_id: int) -> str:
+    def find_column_name(self, column_id: int):
         """Find a column name given a column ID
 
         Args:
@@ -142,8 +142,7 @@ class Schema:
         Returns:
             str: The column name
         """
-        column = self._lazy_id_to_field().get(column_id)
-        return None if column is None else column.name  # type: ignore
+        raise NotImplementedError()
 
     def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
         """Return a new schema instance pruned to a subset of columns

@@ -151,23 +151,30 @@ def test_schema_index_by_name_visitor(table_schema_nested):
     }
 
 
-def test_schema_find_column_name(table_schema_nested):
-    """Test finding a column name using its field ID"""
-    assert table_schema_nested.find_column_name(1) == "foo"
-    assert table_schema_nested.find_column_name(2) == "bar"
-    assert table_schema_nested.find_column_name(3) == "baz"
-    assert table_schema_nested.find_column_name(4) == "qux"
-    assert table_schema_nested.find_column_name(5) == "qux.element"
-    assert table_schema_nested.find_column_name(6) == "quux"
-    assert table_schema_nested.find_column_name(7) == "quux.key"
-    assert table_schema_nested.find_column_name(8) == "quux.value"
-    assert table_schema_nested.find_column_name(9) == "quux.value.key"
-    assert table_schema_nested.find_column_name(10) == "quux.value.value"
+# def test_schema_find_column_name(table_schema_nested):
+#     """Test finding a column name using its field ID"""
+#     assert table_schema_nested.find_column_name(1) == "foo"
+#     assert table_schema_nested.find_column_name(2) == "bar"
+#     assert table_schema_nested.find_column_name(3) == "baz"
+#     assert table_schema_nested.find_column_name(4) == "qux"
+#     assert table_schema_nested.find_column_name(5) == "qux.element"
+#     assert table_schema_nested.find_column_name(6) == "quux"
+#     assert table_schema_nested.find_column_name(7) == "quux.key"
+#     assert table_schema_nested.find_column_name(8) == "quux.value"
+#     assert table_schema_nested.find_column_name(9) == "quux.value.key"
+#     assert table_schema_nested.find_column_name(10) == "quux.value.value"
 
 
-def test_schema_find_column_name_on_id_not_found(table_schema_nested):
-    """Test raising an error when a field ID cannot be found"""
-    assert table_schema_nested.find_column_name(99) is None
+# def test_schema_find_column_name_on_id_not_found(table_schema_nested):
+#     """Test raising an error when a field ID cannot be found"""
+#     assert table_schema_nested.find_column_name(99) is None
+
+
+# def test_schema_find_column_name(table_schema_simple):
+#     """Test finding a column name given its field ID"""
+#     assert table_schema_simple.find_column_name(1) == "foo"
+#     assert table_schema_simple.find_column_name(2) == "bar"
+#     assert table_schema_simple.find_column_name(3) == "baz"
 
 
 def test_schema_find_field_by_id(table_schema_simple):
@@ -321,10 +328,3 @@ def test_schema_find_type(table_schema_simple):
         == table_schema_simple.find_type("BAZ", case_sensitive=False)
         == BooleanType()
     )
-
-
-def test_schema_find_column_name(table_schema_simple):
-    """Test finding a column name given its field ID"""
-    assert table_schema_simple.find_column_name(1) == "foo"
-    assert table_schema_simple.find_column_name(2) == "bar"
-    assert table_schema_simple.find_column_name(3) == "baz"
