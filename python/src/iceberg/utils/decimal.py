@@ -66,5 +66,12 @@ def min_size(value: Union[int, Decimal]) -> int:
 
 
 def decimal_to_bytes(value: Decimal) -> bytes:
+    """Returns a byte representation of a decimal
+
+    Args:
+        value (Decimal): a decimal value
+    Returns:
+        bytes: the unscaled value of the Decimal as bytes
+    """
     unscaled_value = decimal_to_unscaled(value)
     return unscaled_value.to_bytes(min_size(unscaled_value), byteorder="big", signed=True)
