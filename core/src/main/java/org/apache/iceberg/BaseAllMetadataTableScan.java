@@ -53,6 +53,6 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    return super.planAllFiles();
+    return super.planFilesAllSnapshots();
   }
 }

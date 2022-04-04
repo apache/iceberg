@@ -90,7 +90,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     @Override
     protected CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
+                                                        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       CloseableIterable<ManifestFile> filtered = filterManifests(manifests(), rowFilter, caseSensitive);
 
       String schemaString = SchemaParser.toJson(schema());
@@ -108,7 +108,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     /**
-     * @return list of manifest files to explore for this files metadata table scan
+     * Returns an iterable of manifest files to explore for this Files metadata table scan
      */
     protected abstract CloseableIterable<ManifestFile> manifests();
 

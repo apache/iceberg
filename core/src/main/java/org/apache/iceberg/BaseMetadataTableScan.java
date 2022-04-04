@@ -46,9 +46,9 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
   }
 
   /**
-   * Alternative to {@link #planFiles()}, allows exploring old snapshots even for empty table.
+   * Alternative to {@link #planFiles()}, allows exploring old snapshots even for an empty table.
    */
-  protected CloseableIterable<FileScanTask> planAllFiles() {
+  protected CloseableIterable<FileScanTask> planFilesAllSnapshots() {
     LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
     Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
 

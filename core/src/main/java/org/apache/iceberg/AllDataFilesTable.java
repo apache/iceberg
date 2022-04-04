@@ -81,14 +81,13 @@ public class AllDataFilesTable extends BaseFilesTable {
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
-      return super.planAllFiles();
+      return super.planFilesAllSnapshots();
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
       try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-          Iterables.transform(table().snapshots(),
-              snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
+          Iterables.transform(table().snapshots(), snapshot -> () -> snapshot.dataManifests().iterator()),
           context().planExecutor())) {
         return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
       } catch (IOException e) {

@@ -200,7 +200,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
-    Assert.assertEquals("Should have 2 data files", 1, expectedDataManifests.size());
+    Assert.assertEquals("Should have 1 data manifest", 1, expectedDataManifests.size());
 
     // Clear table to test whether 'all_files' can read past files
     List<Object[]> results = sql("DELETE FROM %s", tableName);
@@ -248,7 +248,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
-    Assert.assertEquals("Should have 2 data files", 2, expectedDataManifests.size());
+    Assert.assertEquals("Should have 2 data manifests", 2, expectedDataManifests.size());
 
     // Clear table to test whether 'all_files' can read past files
     List<Object[]> results = sql("DELETE FROM %s", tableName);
