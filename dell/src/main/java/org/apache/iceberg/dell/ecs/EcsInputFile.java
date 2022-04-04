@@ -23,19 +23,25 @@ import com.emc.object.s3.S3Client;
 import org.apache.iceberg.dell.DellProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
 class EcsInputFile extends BaseEcsFile implements InputFile {
 
   public static EcsInputFile fromLocation(String location, S3Client client) {
-    return new EcsInputFile(client, new EcsURI(location), new DellProperties());
+    return new EcsInputFile(client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
   }
 
   public static EcsInputFile fromLocation(String location, S3Client client, DellProperties dellProperties) {
-    return new EcsInputFile(client, new EcsURI(location), dellProperties);
+    return new EcsInputFile(client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
   }
 
-  EcsInputFile(S3Client client, EcsURI uri, DellProperties dellProperties) {
-    super(client, uri, dellProperties);
+  static EcsInputFile fromLocation(String location, S3Client client, DellProperties dellProperties,
+      MetricsContext metrics) {
+    return new EcsInputFile(client, new EcsURI(location), dellProperties, metrics);
+  }
+
+  EcsInputFile(S3Client client, EcsURI uri, DellProperties dellProperties, MetricsContext metrics) {
+    super(client, uri, dellProperties, metrics);
   }
 
   /**
@@ -50,6 +56,6 @@ class EcsInputFile extends BaseEcsFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new EcsSeekableInputStream(client(), uri());
+    return new EcsSeekableInputStream(client(), uri(), metrics());
   }
 }
