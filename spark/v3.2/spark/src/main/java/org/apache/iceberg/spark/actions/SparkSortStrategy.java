@@ -47,7 +47,7 @@ import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.internal.SQLConf;
 
-public class Spark3SortStrategy extends SortStrategy {
+public class SparkSortStrategy extends SortStrategy {
 
   /**
    * The number of shuffle partitions and consequently the number of output files
@@ -68,7 +68,7 @@ public class Spark3SortStrategy extends SortStrategy {
 
   private double sizeEstimateMultiple;
 
-  public Spark3SortStrategy(Table table, SparkSession spark) {
+  public SparkSortStrategy(Table table, SparkSession spark) {
     this.table = table;
     this.spark = spark;
   }
