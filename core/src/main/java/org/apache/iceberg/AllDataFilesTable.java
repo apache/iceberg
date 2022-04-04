@@ -87,7 +87,8 @@ public class AllDataFilesTable extends BaseFilesTable {
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
       try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-          Iterables.transform(table().snapshots(), snapshot -> () -> snapshot.dataManifests().iterator()),
+          Iterables.transform(table().snapshots(),
+              snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
           context().planExecutor())) {
         return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
       } catch (IOException e) {
