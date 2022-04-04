@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.io.CloseableIterable;
+
 abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
 
   BaseAllMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
@@ -50,7 +52,7 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
   }
 
   @Override
-  protected boolean allScan() {
-    return true;
+  public CloseableIterable<FileScanTask> planFiles() {
+    return super.planAllFiles();
   }
 }

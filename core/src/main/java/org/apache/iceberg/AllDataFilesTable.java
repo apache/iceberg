@@ -65,11 +65,6 @@ public class AllDataFilesTable extends BaseFilesTable {
     }
 
     @Override
-    public boolean allScan() {
-      return true;
-    }
-
-    @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new AllDataFilesTableScan(ops, table, schema, fileSchema(), context);
     }
@@ -82,6 +77,11 @@ public class AllDataFilesTable extends BaseFilesTable {
     @Override
     public TableScan asOfTime(long timestampMillis) {
       throw new UnsupportedOperationException("Cannot select snapshot: all_data_files is for all snapshots");
+    }
+
+    @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      return super.planAllFiles();
     }
 
     @Override
