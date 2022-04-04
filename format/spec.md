@@ -209,7 +209,7 @@ Default value can be set for any column types, when a querying a struct column w
 
 Say there is an existing struct column with default `{ "a": 1, "b": 12.34 }`, and user adds a column `c` with default `foo` into the struct, then the **effective** default value for the struct column is `{ "a": 1, "b": 12.34, "c": "foo"}`, as it delegates the default value of `c` to the one defined at its child level.
 
-Default value is treated as an attribute of a nested field in the table schema and serialized together with it, and default value is also encoded in JSON format, see Appendix C.
+Default value is treated as an attribute of a nested field in the table schema and serialized together with it using JSON format, see Appendix C.
 
 #### Schema Evolution
 
