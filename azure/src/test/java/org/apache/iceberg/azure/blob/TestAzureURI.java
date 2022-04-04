@@ -20,10 +20,8 @@
 package org.apache.iceberg.azure.blob;
 
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.exceptions.ValidationException;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureURI {
 
@@ -38,10 +36,10 @@ public class TestAzureURI {
     final String expectedLocation =
         String.format("abfs://%s@%s.dfs.core.windows.net%s", expectedContainer, expectedStorageAccount, expectedPath);
     final AzureURI uri = AzureURI.from(expectedLocation);
-    assertThat(uri.location()).isEqualTo(expectedLocation);
-    assertThat(uri.container()).isEqualTo(expectedContainer);
-    assertThat(uri.storageAccount()).isEqualTo(expectedStorageAccount);
-    assertThat(uri.path()).isEqualTo(expectedPath);
+    Assertions.assertThat(uri.location()).isEqualTo(expectedLocation);
+    Assertions.assertThat(uri.container()).isEqualTo(expectedContainer);
+    Assertions.assertThat(uri.storageAccount()).isEqualTo(expectedStorageAccount);
+    Assertions.assertThat(uri.path()).isEqualTo(expectedPath);
   }
 
   @Test
@@ -62,8 +60,8 @@ public class TestAzureURI {
     for (final String invalidSchemeURI : invalidSchemeURIs) {
       AssertHelpers.assertThrows(
           "Should not allow invalid scheme",
-          ValidationException.class,
-          String.format("Invalid Azure URI scheme, Expected scheme is 'afbs': %s", invalidSchemeURI),
+          IllegalArgumentException.class,
+          String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidSchemeURI),
           () -> {
             AzureURI.from(invalidSchemeURI);
           });
@@ -75,8 +73,8 @@ public class TestAzureURI {
     final String invalidURI = ":/testContainer@testStorageAccount.dfs.core.windows.net";
     AssertHelpers.assertThrows(
         "Should not allow invalid URI syntax",
-        ValidationException.class,
-        String.format("Invalid Azure URI: %s", invalidURI),
+        IllegalArgumentException.class,
+        String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidURI),
         () -> {
           AzureURI.from(invalidURI);
         });
@@ -87,7 +85,7 @@ public class TestAzureURI {
     final String invalidAuthorityURI = "abfs:/testContainer@testStorageAccount.dfs.core.windows.net/dir1/test.txt";
     AssertHelpers.assertThrows(
         "Should not allow null authority",
-        ValidationException.class,
+        IllegalArgumentException.class,
         String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidAuthorityURI),
         () -> {
           AzureURI.from(invalidAuthorityURI);
@@ -101,7 +99,7 @@ public class TestAzureURI {
     for (final String invalidAuthorityURI : invalidAuthorityURIs) {
       AssertHelpers.assertThrows(
           "Should not allow invalid authority",
-          ValidationException.class,
+          IllegalArgumentException.class,
           String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidAuthorityURI),
           () -> {
             AzureURI.from(invalidAuthorityURI);
@@ -114,7 +112,7 @@ public class TestAzureURI {
     final String invalidAuthorityURI = "abfs://@testStorageAccount.dfs.core.windows.net/dir1/test.txt";
     AssertHelpers.assertThrows(
         "Should not allow invalid container name",
-        ValidationException.class,
+        IllegalArgumentException.class,
         String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidAuthorityURI),
         () -> {
           AzureURI.from(invalidAuthorityURI);
@@ -126,7 +124,7 @@ public class TestAzureURI {
     final String invalidAuthorityURI = "abfs://testContainer@/dir1/test.txt";
     AssertHelpers.assertThrows(
         "Should not allow invalid storage endpoint",
-        ValidationException.class,
+        IllegalArgumentException.class,
         String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidAuthorityURI),
         () -> {
           AzureURI.from(invalidAuthorityURI);
@@ -138,7 +136,7 @@ public class TestAzureURI {
     final String invalidAuthorityURI = "abfs://testContainer@testStorageAccount/dir1/test.txt";
     AssertHelpers.assertThrows(
         "Should not allow invalid authority",
-        ValidationException.class,
+        IllegalArgumentException.class,
         String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidAuthorityURI),
         () -> {
           AzureURI.from(invalidAuthorityURI);
@@ -150,7 +148,7 @@ public class TestAzureURI {
     final String invalidAuthorityURI = "abfs://testContainer@.testStorageAccount/dir1/test.txt";
     AssertHelpers.assertThrows(
         "Should not allow invalid storage account name",
-        ValidationException.class,
+        IllegalArgumentException.class,
         String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, invalidAuthorityURI),
         () -> {
           AzureURI.from(invalidAuthorityURI);
@@ -164,8 +162,8 @@ public class TestAzureURI {
     for (final String emptyPathURI : emptyPathURIs) {
       AssertHelpers.assertThrows(
           "Should not allow invalid file path",
-          ValidationException.class,
-          String.format("Invalid Azure URI, empty path: %s", emptyPathURI),
+          IllegalArgumentException.class,
+          String.format("Invalid Azure URI. Expected form is '%s': %s", EXPECTED_ABFS_URI_FORM, emptyPathURI),
           () -> {
             AzureURI.from(emptyPathURI);
           });

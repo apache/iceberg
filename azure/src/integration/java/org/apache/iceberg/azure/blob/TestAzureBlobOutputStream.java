@@ -31,11 +31,10 @@ import java.util.stream.Stream;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.azure.AzureTestUtils;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureBlobOutputStream {
   private static AzureProperties azureProperties;
@@ -61,7 +60,7 @@ public class TestAzureBlobOutputStream {
 
   @Test
   public void testWriteRandomBytes() {
-    final Random random = AzureTestUtils.random("testWrite");
+    Random random = AzureTestUtils.random("testWrite");
     // Run tests for both byte and array write paths
     Stream.of(true, false).forEach(arrayWrite -> {
       // Test small file write
@@ -80,17 +79,17 @@ public class TestAzureBlobOutputStream {
 
   @Test
   public void testMultipleClose() throws IOException {
-    final AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
-    final BlobClient blobClient = container.getBlobClient(azureURI.path());
-    final AzureBlobOutputStream stream = new AzureBlobOutputStream(azureURI, azureProperties, blobClient);
+    AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
+    BlobClient blobClient = container.getBlobClient(azureURI.path());
+    AzureBlobOutputStream stream = new AzureBlobOutputStream(azureURI, azureProperties, blobClient);
     stream.close();
     stream.close();
   }
 
   @Test
   public void testSimpleWrite() throws IOException {
-    final AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
-    final BlobClient blobClient = container.getBlobClient(azureURI.path());
+    AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
+    BlobClient blobClient = container.getBlobClient(azureURI.path());
     try (PositionOutputStream stream = new AzureBlobOutputStream(azureURI, azureProperties, blobClient)) {
       // write 1 byte
       stream.write('1');
@@ -102,15 +101,15 @@ public class TestAzureBlobOutputStream {
       stream.write("12345678901".getBytes(StandardCharsets.UTF_8));
     }
 
-    final String expected = "1" + "123" + "1234567" + "12345678901";
-    final String actual = blobClient.downloadContent().toString();
-    assertThat(actual).isEqualTo(expected);
+    String expected = "1" + "123" + "1234567" + "12345678901";
+    String actual = blobClient.downloadContent().toString();
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   @Test
   public void testRewrite() throws IOException {
-    final AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
-    final BlobClient blobClient = container.getBlobClient(azureURI.path());
+    AzureURI azureURI = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
+    BlobClient blobClient = container.getBlobClient(azureURI.path());
     try (PositionOutputStream stream = new AzureBlobOutputStream(azureURI, azureProperties, blobClient)) {
       // write 7 bytes
       stream.write("7654321".getBytes(StandardCharsets.UTF_8));
@@ -122,28 +121,28 @@ public class TestAzureBlobOutputStream {
       stream.write("1234567".getBytes(StandardCharsets.UTF_8));
     }
 
-    final String expected = "1234567" + "1234567";
-    final String actual = blobClient.downloadContent().toString();
-    assertThat(actual).isEqualTo(expected);
+    String expected = "1234567" + "1234567";
+    String actual = blobClient.downloadContent().toString();
+    Assertions.assertThat(actual).isEqualTo(expected);
   }
 
   private void writeAndVerify(AzureURI uri, byte[] data, boolean arrayWrite) {
-    final BlobClient blobClient = container.getBlobClient(uri.path());
+    BlobClient blobClient = container.getBlobClient(uri.path());
     try (PositionOutputStream stream = new AzureBlobOutputStream(uri, azureProperties, blobClient)) {
       if (arrayWrite) {
         stream.write(data);
-        assertThat(stream.getPos()).isEqualTo(data.length);
+        Assertions.assertThat(stream.getPos()).isEqualTo(data.length);
       } else {
         for (int i = 0; i < data.length; i++) {
           stream.write(data[i]);
-          assertThat(stream.getPos()).isEqualTo(i + 1);
+          Assertions.assertThat(stream.getPos()).isEqualTo(i + 1);
         }
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
 
-    final byte[] actual = blobClient.downloadContent().toBytes();
-    assertThat(actual).isEqualTo(data);
+    byte[] actual = blobClient.downloadContent().toBytes();
+    Assertions.assertThat(actual).isEqualTo(data);
   }
 }

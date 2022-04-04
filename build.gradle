@@ -42,8 +42,16 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  // Since 7.x gradle-docker-plugin is compiled using JDK11, thus using the latest version will fail Java8 builds
+
+  // Starting from 7.x, gradle-docker-plugin is compiled using JDK11.
   // https://bmuschko.github.io/gradle-docker-plugin/current/user-guide/#change_log
+  // If we use a version >= 7.x of this plugin, then the iceberg build using JDK8 fails with the following error:
+  //
+  // What went wrong: java.lang.UnsupportedClassVersionError: com/bmuschko/gradle/docker/DockerRemoteApiPlugin has
+  // been compiled by a more recent version of the Java Runtime (class file version 55.0), this version of the Java
+  // Runtime only recognizes class file versions up to 52.0
+  //
+  // Thus using the 6.7.0 version. 6.7.0 is the highest version of this plugin that supports JDK8.
   id 'com.bmuschko.docker-remote-api' version '6.7.0'
 }
 
@@ -629,7 +637,6 @@ project(':iceberg-azure') {
   dependencies {
     api project(':iceberg-api')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation platform('com.azure:azure-sdk-bom')
     implementation 'com.azure:azure-storage-blob'
 
     compileOnly("org.apache.hadoop:hadoop-common") {

@@ -86,7 +86,7 @@ public class AzureBlobTestUtils {
   }
 
   public static AzureURI randomAzureURI(String storageAccount, String container) {
-    final String location =
+    String location =
         AzureBlobTestUtils.abfsLocation(storageAccount, container, String.format("/data/%s.dat", UUID.randomUUID()));
     return AzureURI.from(location);
   }

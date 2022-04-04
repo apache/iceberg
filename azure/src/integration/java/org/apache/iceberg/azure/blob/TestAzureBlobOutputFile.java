@@ -30,12 +30,11 @@ import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureBlobOutputFile {
 
@@ -77,8 +76,8 @@ public class TestAzureBlobOutputFile {
     try (PositionOutputStream output = outputFile.create()) {
       output.write("1234567890".getBytes(StandardCharsets.UTF_8));
     }
-    final String actual = blobClient.downloadContent().toString();
-    assertThat(actual).isEqualTo("1234567890");
+    String actual = blobClient.downloadContent().toString();
+    Assertions.assertThat(actual).isEqualTo("1234567890");
   }
 
   @Test
@@ -90,8 +89,8 @@ public class TestAzureBlobOutputFile {
     try (PositionOutputStream output = outputFile.createOrOverwrite()) {
       output.write("abcdefghij".getBytes(StandardCharsets.UTF_8));
     }
-    final String actual = blobClient.downloadContent().toString();
-    assertThat(actual).isEqualTo("abcdefghij");
+    String actual = blobClient.downloadContent().toString();
+    Assertions.assertThat(actual).isEqualTo("abcdefghij");
   }
 
   @Test

@@ -25,6 +25,7 @@ import java.util.Random;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -37,7 +38,6 @@ import static org.apache.iceberg.azure.AzureProperties.STORAGE_SHARED_ACCESS_SIG
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_WRITE_BLOCK_SIZE;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_WRITE_MAX_CONCURRENCY;
 import static org.apache.iceberg.azure.AzureProperties.STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE;
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureProperties {
 
@@ -58,16 +58,17 @@ public class TestAzureProperties {
     final String storageAccount = "test-storage-account";
     AzureProperties azureProperties = new AzureProperties(ImmutableMap.of());
 
-    assertThat(azureProperties.authType(storageAccount)).isEqualTo(AuthType.None);
-    assertThat(azureProperties.connectionString(storageAccount)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.endpoint(storageAccount)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.accountKey(storageAccount)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.sharedAccessSignature(storageAccount)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(STORAGE_READ_BLOCK_SIZE_DEFAULT);
-    assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(STORAGE_WRITE_BLOCK_SIZE_DEFAULT);
-    assertThat(azureProperties.maxWriteConcurrency(storageAccount)).isEqualTo(STORAGE_WRITE_MAX_CONCURRENCY_DEFAULT);
-    assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(
-        STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE_DEFAULT);
+    Assertions.assertThat(azureProperties.authType(storageAccount)).isEqualTo(AuthType.None);
+    Assertions.assertThat(azureProperties.connectionString(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.endpoint(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.accountKey(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.sharedAccessSignature(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(STORAGE_READ_BLOCK_SIZE_DEFAULT);
+    Assertions.assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(STORAGE_WRITE_BLOCK_SIZE_DEFAULT);
+    Assertions.assertThat(azureProperties.maxWriteConcurrency(storageAccount))
+        .isEqualTo(STORAGE_WRITE_MAX_CONCURRENCY_DEFAULT);
+    Assertions.assertThat(azureProperties.maxSingleUploadSize(storageAccount))
+        .isEqualTo(STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE_DEFAULT);
   }
 
   @Test
@@ -93,17 +94,17 @@ public class TestAzureProperties {
     properties.put(format(STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE, storageAccount), String.valueOf(maxSingleUploadSize));
 
     final AzureProperties azureProperties = new AzureProperties(properties);
-    assertThat(azureProperties.authType(storageAccount)).isEqualTo(authType);
-    assertThat(azureProperties.accountKey(storageAccount)).isEqualTo(Optional.of(storageAccountKey));
-    assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(readBlockSize);
-    assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(writeBlockSize);
-    assertThat(azureProperties.maxWriteConcurrency(storageAccount)).isEqualTo(maxWriteConcurrency);
-    assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(maxSingleUploadSize);
+    Assertions.assertThat(azureProperties.authType(storageAccount)).isEqualTo(authType);
+    Assertions.assertThat(azureProperties.accountKey(storageAccount)).isEqualTo(Optional.of(storageAccountKey));
+    Assertions.assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(readBlockSize);
+    Assertions.assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(writeBlockSize);
+    Assertions.assertThat(azureProperties.maxWriteConcurrency(storageAccount)).isEqualTo(maxWriteConcurrency);
+    Assertions.assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(maxSingleUploadSize);
 
     // Should be empty since the auth type is SharedKey
-    assertThat(azureProperties.connectionString(storageAccount)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.endpoint(storageAccount)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.sharedAccessSignature(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.connectionString(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.endpoint(storageAccount)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.sharedAccessSignature(storageAccount)).isEqualTo(Optional.empty());
   }
 
   @Test
@@ -162,38 +163,38 @@ public class TestAzureProperties {
     final AzureProperties azureProperties = new AzureProperties(properties);
 
     // Assert auth config for storage account 1.
-    assertThat(azureProperties.authType(sa1)).isEqualTo(sa1AuthType);
-    assertThat(azureProperties.accountKey(sa1)).isEqualTo(Optional.of(sa1AccountKey));
+    Assertions.assertThat(azureProperties.authType(sa1)).isEqualTo(sa1AuthType);
+    Assertions.assertThat(azureProperties.accountKey(sa1)).isEqualTo(Optional.of(sa1AccountKey));
 
     // Assert auth config for storage account 2.
-    assertThat(azureProperties.authType(sa2)).isEqualTo(sa2AuthType);
-    assertThat(azureProperties.sharedAccessSignature(sa2)).isEqualTo(Optional.of(sa2SharedAccessSignature));
+    Assertions.assertThat(azureProperties.authType(sa2)).isEqualTo(sa2AuthType);
+    Assertions.assertThat(azureProperties.sharedAccessSignature(sa2)).isEqualTo(Optional.of(sa2SharedAccessSignature));
 
     // Assert auth config for storage account 3.
-    assertThat(azureProperties.authType(sa3)).isEqualTo(sa3AuthType);
-    assertThat(azureProperties.accountKey(sa3)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.sharedAccessSignature(sa3)).isEqualTo(Optional.empty());
-    assertThat(azureProperties.endpoint(sa3)).isEqualTo(Optional.of(sa3Endpoint));
+    Assertions.assertThat(azureProperties.authType(sa3)).isEqualTo(sa3AuthType);
+    Assertions.assertThat(azureProperties.accountKey(sa3)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.sharedAccessSignature(sa3)).isEqualTo(Optional.empty());
+    Assertions.assertThat(azureProperties.endpoint(sa3)).isEqualTo(Optional.of(sa3Endpoint));
 
     // Assert read block size config for all storage accounts.
     for (String storageAccount : storageAccounts) {
       final String readBlockSizeStr = properties.get(format(STORAGE_READ_BLOCK_SIZE, storageAccount));
       final Integer expectedReadBlockSize = Integer.parseInt(readBlockSizeStr);
-      assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(expectedReadBlockSize);
+      Assertions.assertThat(azureProperties.readBlockSize(storageAccount)).isEqualTo(expectedReadBlockSize);
     }
 
     // Assert write block size config for all storage accounts.
     for (String storageAccount : storageAccounts) {
       final String writeBlockSizeStr = properties.get(format(STORAGE_WRITE_BLOCK_SIZE, storageAccount));
       final Long expectedWriteBlockSize = Long.parseLong(writeBlockSizeStr);
-      assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(expectedWriteBlockSize);
+      Assertions.assertThat(azureProperties.writeBlockSize(storageAccount)).isEqualTo(expectedWriteBlockSize);
     }
 
     // Assert max write concurrency size config for all storage accounts.
     for (String storageAccount : storageAccounts) {
       final String maxWriteConcurrencyStr = properties.get(format(STORAGE_WRITE_MAX_CONCURRENCY, storageAccount));
       final Integer expectedMaxWriteConcurrency = Integer.parseInt(maxWriteConcurrencyStr);
-      assertThat(azureProperties.maxWriteConcurrency(storageAccount)).isEqualTo(expectedMaxWriteConcurrency);
+      Assertions.assertThat(azureProperties.maxWriteConcurrency(storageAccount)).isEqualTo(expectedMaxWriteConcurrency);
     }
 
     // Assert max single upload size config for all storage accounts.
@@ -201,7 +202,7 @@ public class TestAzureProperties {
       final String maxSingleUploadSizeStr =
           properties.get(format(STORAGE_WRITE_MAX_SINGLE_UPLOAD_SIZE, storageAccount));
       final Long maxSingleUploadSize = Long.parseLong(maxSingleUploadSizeStr);
-      assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(maxSingleUploadSize);
+      Assertions.assertThat(azureProperties.maxSingleUploadSize(storageAccount)).isEqualTo(maxSingleUploadSize);
     }
   }
 

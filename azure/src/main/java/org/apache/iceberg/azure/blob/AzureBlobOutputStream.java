@@ -63,21 +63,21 @@ public class AzureBlobOutputStream extends PositionOutputStream {
 
   @Override
   public void write(int b) throws IOException {
-    Preconditions.checkState(!closed, "Cannot write: stream already closed.");
+    Preconditions.checkState(!closed, "Cannot write: stream already closed");
     stream.write(b);
     pos++;
   }
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "Cannot write: stream already closed.");
+    Preconditions.checkState(!closed, "Cannot write: stream already closed");
     stream.write(b, off, len);
     pos += len;
   }
 
   @Override
   public void flush() throws IOException {
-    Preconditions.checkState(!closed, "Cannot flush: stream already closed.");
+    Preconditions.checkState(!closed, "Cannot flush: stream already closed");
     super.flush();
     stream.flush();
   }
@@ -107,7 +107,7 @@ public class AzureBlobOutputStream extends PositionOutputStream {
   }
 
   private void openStream() {
-    final ParallelTransferOptions options = new ParallelTransferOptions()
+    ParallelTransferOptions options = new ParallelTransferOptions()
         .setBlockSizeLong(azureProperties.writeBlockSize(azureURI.storageAccount()))
         .setMaxConcurrency(azureProperties.maxWriteConcurrency(azureURI.storageAccount()))
         .setMaxSingleUploadSizeLong(azureProperties.maxSingleUploadSize(azureURI.storageAccount()));

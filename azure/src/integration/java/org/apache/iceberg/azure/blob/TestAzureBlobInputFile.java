@@ -23,18 +23,20 @@ import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureBlobInputFile {
   private static AzureProperties azureProperties;
@@ -60,25 +62,54 @@ public class TestAzureBlobInputFile {
 
   @Test
   public void testAbsentFile() {
-    final AzureURI uri = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
-    final BlobClient blobClient = container.getBlobClient(uri.path());
-    final InputFile inputFile = AzureBlobInputFile.from(uri, blobClient, azureProperties);
-    assertThat(inputFile.exists()).isFalse();
+    AzureURI uri = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
+    BlobClient blobClient = container.getBlobClient(uri.path());
+    InputFile inputFile = AzureBlobInputFile.from(uri, blobClient, azureProperties);
+    Assertions.assertThat(inputFile.exists()).isFalse();
   }
 
   @Test
   public void testFileRead() throws IOException {
-    final AzureURI uri = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
-    final BlobClient blobClient = container.getBlobClient(uri.path());
-    final InputFile inputFile = AzureBlobInputFile.from(uri, blobClient, azureProperties);
-    final String expected = "0123456789";
+    AzureURI uri = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
+    BlobClient blobClient = container.getBlobClient(uri.path());
+    InputFile inputFile = AzureBlobInputFile.from(uri, blobClient, azureProperties);
+    String expected = "0123456789";
     blobClient.upload(BinaryData.fromString(expected));
 
-    assertThat(inputFile.exists()).isTrue();
-    assertThat(inputFile.getLength()).isEqualTo(10);
+    Assertions.assertThat(inputFile.exists()).isTrue();
+    Assertions.assertThat(inputFile.getLength()).isEqualTo(10);
     try (InputStream inputStream = inputFile.newStream()) {
-      final String actual = new String(ByteStreams.toByteArray(inputStream), StandardCharsets.UTF_8);
-      assertThat(actual).isEqualTo(expected);
+      String actual = new String(ByteStreams.toByteArray(inputStream), StandardCharsets.UTF_8);
+      Assertions.assertThat(actual).isEqualTo(expected);
     }
+  }
+
+  @Test
+  public void testThrowsNotFoundExceptionWhenBlobDoesNotExist() {
+    AzureURI uri = AzureBlobTestUtils.randomAzureURI(storageAccount, containerName);
+    BlobClient blobClient = container.getBlobClient(uri.path());
+    InputFile inputFile = AzureBlobInputFile.from(uri, blobClient, azureProperties);
+    Assertions.assertThatThrownBy(inputFile::getLength)
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(String.format("File does not exists: %s", uri.location()));
+    Assertions.assertThatThrownBy(inputFile::newStream)
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(String.format("File does not exists: %s", uri.location()));
+  }
+
+  @Test
+  public void testThrowsNotFoundExceptionWhenContainerDoesNotExist() {
+    String nonExistentContainer = "nonExistentContainer";
+    AzureURI uri = AzureBlobTestUtils.randomAzureURI(storageAccount, nonExistentContainer);
+    BlobContainerClient containerClient = service.getBlobContainerClient(nonExistentContainer);
+    BlobClient blobClient = containerClient.getBlobClient(uri.path());
+    InputFile inputFile = AzureBlobInputFile.from(uri, blobClient, azureProperties);
+    Assertions.setMaxStackTraceElementsDisplayed(400);
+    Assertions.assertThatThrownBy(inputFile::getLength)
+        .isInstanceOf(BlobStorageException.class)
+        .hasMessageContaining(BlobErrorCode.INVALID_RESOURCE_NAME.toString());
+    Assertions.assertThatThrownBy(inputFile::newStream)
+        .isInstanceOf(BlobStorageException.class)
+        .hasMessageContaining(BlobErrorCode.INVALID_RESOURCE_NAME.toString());
   }
 }

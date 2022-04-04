@@ -22,7 +22,7 @@ package org.apache.iceberg.azure.blob;
 import com.azure.storage.blob.BlobClient;
 import org.apache.iceberg.azure.AzureProperties;
 
-public abstract class BaseAzureBlobFile {
+abstract class BaseAzureBlobFile {
 
   private final AzureURI azureURI;
   private final BlobClient blobClient;

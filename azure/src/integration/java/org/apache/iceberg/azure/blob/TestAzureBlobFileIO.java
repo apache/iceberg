@@ -35,11 +35,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestAzureBlobFileIO {
 
@@ -64,61 +63,61 @@ public class TestAzureBlobFileIO {
 
   @Test
   public void testNewInputFile() throws IOException {
-    final Random random = AzureTestUtils.random("testNewInputFile");
-    final String location = AzureBlobTestUtils.abfsLocation(
+    Random random = AzureTestUtils.random("testNewInputFile");
+    String location = AzureBlobTestUtils.abfsLocation(
         AzureBlobTestUtils.STORAGE_ACCOUNT_1,
         containerName,
         "/does/this/work/test.dat");
     int dataSize = 1024 * 1024;
-    final byte[] expected = AzureTestUtils.randomBytes(dataSize, random);
-    final FileIO io = new AzureBlobFileIO();
+    byte[] expected = AzureTestUtils.randomBytes(dataSize, random);
+    FileIO io = new AzureBlobFileIO();
     io.initialize(properties);
     checkSimpleReadWriteWorks(location, expected, io);
   }
 
   @Test
   public void testDelete() {
-    final String location =
+    String location =
         AzureBlobTestUtils.abfsLocation(AzureBlobTestUtils.STORAGE_ACCOUNT_1, containerName, "/delete/path/data.dat");
-    final AzureURI uri = AzureURI.from(location);
-    final BlobClient blobClient = container.getBlobClient(uri.path());
+    AzureURI uri = AzureURI.from(location);
+    BlobClient blobClient = container.getBlobClient(uri.path());
     blobClient.upload(BinaryData.fromBytes(new byte[] {1, 2, 3, 4, 5, 6}));
-    assertThat(blobClient.exists()).isTrue();
+    Assertions.assertThat(blobClient.exists()).isTrue();
 
-    final FileIO io = new AzureBlobFileIO();
+    FileIO io = new AzureBlobFileIO();
     io.initialize(properties);
     io.deleteFile(location);
-    assertThat(blobClient.exists()).isFalse();
+    Assertions.assertThat(blobClient.exists()).isFalse();
   }
 
   @Test
   public void testFileIoOnMultipleStorageAccount() throws IOException {
-    final Random random = AzureTestUtils.random("testMultipleStorageAccountOps");
-    final int dataSize = 1024 * 1024;
+    Random random = AzureTestUtils.random("testMultipleStorageAccountOps");
+    int dataSize = 1024 * 1024;
 
-    final Map<String, String> combinedProperties = ImmutableMap.<String, String>builder()
+    Map<String, String> combinedProperties = ImmutableMap.<String, String>builder()
         .putAll(AzureBlobTestUtils.storageAccount1AuthProperties())
         .putAll(AzureBlobTestUtils.storageAccount2AuthProperties())
         .putAll(AzureBlobTestUtils.storageAccount3AuthProperties())
         .build();
-    final FileIO io = new AzureBlobFileIO();
+    FileIO io = new AzureBlobFileIO();
     io.initialize(combinedProperties);
 
-    final BlobServiceClient[] storageServices =
+    BlobServiceClient[] storageServices =
         {AzureBlobTestUtils.storageAccount1BlobServiceClient(), AzureBlobTestUtils.storageAccount2BlobServiceClient(),
          AzureBlobTestUtils.storageAccount3BlobServiceClient()};
 
     for (int i = 0; i < storageServices.length; i++) {
-      final String testContainerName = String.format("container-for-storage-account-%s", i);
-      final BlobContainerClient containerClient = storageServices[i].getBlobContainerClient(testContainerName);
+      String testContainerName = String.format("container-for-storage-account-%s", i);
+      BlobContainerClient containerClient = storageServices[i].getBlobContainerClient(testContainerName);
       AzureBlobTestUtils.deleteAndCreateContainer(containerClient);
 
       try {
-        final String location = AzureBlobTestUtils.abfsLocation(
+        String location = AzureBlobTestUtils.abfsLocation(
             storageServices[i].getAccountName(),
             testContainerName,
             String.format("/location/for/storage-account-%s/data" + "-%s.dat", i, i));
-        final byte[] expected = AzureTestUtils.randomBytes(dataSize, random);
+        byte[] expected = AzureTestUtils.randomBytes(dataSize, random);
         checkSimpleReadWriteWorks(location, expected, io);
       } finally {
         AzureBlobTestUtils.deleteContainerIfExists(containerClient);
@@ -127,24 +126,24 @@ public class TestAzureBlobFileIO {
   }
 
   private void checkSimpleReadWriteWorks(String location, byte[] expected, FileIO io) throws IOException {
-    final int dataSize = expected.length;
+    int dataSize = expected.length;
 
-    final InputFile in = io.newInputFile(location);
-    assertThat(in.exists()).isFalse();
+    InputFile in = io.newInputFile(location);
+    Assertions.assertThat(in.exists()).isFalse();
 
-    final OutputFile out = io.newOutputFile(location);
+    OutputFile out = io.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtils.write(expected, os);
     }
-    assertThat(in.exists()).isTrue();
+    Assertions.assertThat(in.exists()).isTrue();
 
-    final byte[] actual = new byte[dataSize];
+    byte[] actual = new byte[dataSize];
     try (InputStream is = in.newStream()) {
       IOUtils.readFully(is, actual);
     }
-    assertThat(expected).isEqualTo(actual);
+    Assertions.assertThat(expected).isEqualTo(actual);
 
     io.deleteFile(in);
-    assertThat(io.newInputFile(location).exists()).isFalse();
+    Assertions.assertThat(io.newInputFile(location).exists()).isFalse();
   }
 }

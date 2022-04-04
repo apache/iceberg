@@ -51,13 +51,13 @@ public class AzureBlobFileIO implements FileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    final AzureURI azureURI = AzureURI.from(path);
+    AzureURI azureURI = AzureURI.from(path);
     return AzureBlobInputFile.from(azureURI, client(azureURI), azureProperties);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    final AzureURI azureURI = AzureURI.from(path);
+    AzureURI azureURI = AzureURI.from(path);
     return AzureBlobOutputFile.from(azureURI, client(azureURI), azureProperties);
   }
 

@@ -20,7 +20,10 @@
 package org.apache.iceberg.azure.blob;
 
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
@@ -38,14 +41,30 @@ public class AzureBlobInputFile extends BaseAzureBlobFile implements InputFile {
 
   @Override
   public long getLength() {
-    if (length == null) {
-      length = blobClient().getProperties().getBlobSize();
+    try {
+      if (length == null) {
+        length = blobClient().getProperties().getBlobSize();
+      }
+      return length;
+    } catch (BlobStorageException e) {
+      if (BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
+        throw new NotFoundException(e, "File does not exists: %s", location());
+      } else {
+        throw e;
+      }
     }
-    return length;
   }
 
   @Override
   public SeekableInputStream newStream() {
-    return new AzureBlobInputStream(azureURI(), azureProperties(), blobClient());
+    try {
+      return new AzureBlobInputStream(azureURI(), azureProperties(), blobClient());
+    } catch (BlobStorageException e) {
+      if (BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
+        throw new NotFoundException(e, "File does not exists: %s", location());
+      } else {
+        throw e;
+      }
+    }
   }
 }

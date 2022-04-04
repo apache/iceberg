@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.azure.blob;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,12 +33,12 @@ public class AzureURI {
   private static final String AUTHORITY_DELIMITER = "@";
   private static final String ENDPOINT_DELIMITER = "\\.";
   private static final String PATH_DELIMITER = "/";
-  private static final String ABFS_SCHEME = "abfs";
+  private static final String ABFS_SCHEME = "abfs://";
   private static final String EXPECTED_URI_FORM = String.format(
-      "%s://[<container name>%s]<account name>.dfs.core.windows.net/<file path>",
+      "%s[<container name>%s]<account name>.dfs.core.windows.net/<file path>",
       ABFS_SCHEME,
       AUTHORITY_DELIMITER);
-  private static final String INVALID_URI_MESSAGE = "Invalid Azure URI. Expected form is '%s': %s.";
+  private static final String INVALID_URI_MESSAGE = "Invalid Azure URI. Expected form is '%s': %s";
 
   private final String location;
   private final String container;
@@ -49,49 +46,45 @@ public class AzureURI {
   private final String path;
 
   private AzureURI(String location) {
-    Preconditions.checkNotNull(location, "Location cannot be null.");
-    final URI uri;
-    try {
-      uri = new URI(location);
-    } catch (URISyntaxException e) {
-      throw new ValidationException("Invalid Azure URI: %s.", location);
-    }
+    Preconditions.checkNotNull(location, "Location cannot be null");
+    Preconditions.checkArgument(location.startsWith(ABFS_SCHEME), INVALID_URI_MESSAGE, EXPECTED_URI_FORM, location);
+    // abfs://<container-name>@<storage-account-name>.dfs.core.windows.net/<blob-path>
     this.location = location;
 
-    ValidationException.check(
-        ABFS_SCHEME.equals(uri.getScheme()),
-        "Invalid Azure URI scheme, Expected scheme is 'afbs': %s.",
-        location);
+    // <container-name>@<storage-account-name>.dfs.core.windows.net/<blob-path>
+    String locationWithoutScheme = location.substring(ABFS_SCHEME.length());
 
-    final String rawAuthority = uri.getRawAuthority();
-    ValidationException.check(
-        rawAuthority != null && !rawAuthority.isEmpty(),
-        INVALID_URI_MESSAGE,
-        EXPECTED_URI_FORM,
-        location);
-    final String[] authoritySplit = rawAuthority.split(AUTHORITY_DELIMITER, 2);
-    ValidationException.check(
+    // first index if "/"
+    int authorityEndIndex = locationWithoutScheme.indexOf(PATH_DELIMITER);
+    Preconditions.checkArgument(authorityEndIndex > 0, INVALID_URI_MESSAGE, EXPECTED_URI_FORM, location);
+
+    // <container-name>@<storage-account-name>.dfs.core.windows.net
+    String authority = locationWithoutScheme.substring(0, authorityEndIndex + 1);
+    String[] authoritySplit = authority.split(AUTHORITY_DELIMITER, 2);
+    Preconditions.checkArgument(
         authoritySplit.length == 2 && !authoritySplit[0].isEmpty(),
         INVALID_URI_MESSAGE,
         EXPECTED_URI_FORM,
         location);
     this.container = authoritySplit[0];
 
-    final String endpoint = authoritySplit[1];
-    final String[] endpointSplit = endpoint.split(ENDPOINT_DELIMITER, 2);
-    ValidationException.check(
+    String endpoint = authoritySplit[1];
+    String[] endpointSplit = endpoint.split(ENDPOINT_DELIMITER, 2);
+    Preconditions.checkArgument(
         endpointSplit.length == 2 && !endpointSplit[0].isEmpty(),
         INVALID_URI_MESSAGE,
         EXPECTED_URI_FORM,
         location);
     this.storageAccount = endpointSplit[0];
 
-    final String rawPath = uri.getRawPath();
-    ValidationException.check(
-        rawPath != null && !rawPath.isEmpty() && !rawPath.equals(PATH_DELIMITER),
-        "Invalid Azure URI, empty path: %s.",
+    // /<file-path>
+    String filePath = locationWithoutScheme.substring(authorityEndIndex);
+    Preconditions.checkArgument(
+        !filePath.isEmpty() && !filePath.equals(PATH_DELIMITER),
+        INVALID_URI_MESSAGE,
+        EXPECTED_URI_FORM,
         location);
-    this.path = rawPath;
+    this.path = filePath;
 
     LOG.debug("Parsed AzureURI: {}", this);
   }

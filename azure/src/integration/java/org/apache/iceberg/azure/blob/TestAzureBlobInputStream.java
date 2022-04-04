@@ -31,12 +31,10 @@ import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.azure.AzureTestUtils;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestAzureBlobInputStream {
   private static AzureProperties azureProperties;
@@ -62,23 +60,23 @@ public class TestAzureBlobInputStream {
 
   @Test
   public void testRead() throws Exception {
-    final Random random = AzureTestUtils.random("testRead");
-    final String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/read.dat");
-    final AzureURI uri = AzureURI.from(location);
-    final BlobClient blobClient = container.getBlobClient(uri.path());
+    Random random = AzureTestUtils.random("testRead");
+    String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/read.dat");
+    AzureURI uri = AzureURI.from(location);
+    BlobClient blobClient = container.getBlobClient(uri.path());
 
-    final int dataSize = 1024 * 1024 * 10;
-    final byte[] data = AzureTestUtils.randomBytes(dataSize, random);
+    int dataSize = 1024 * 1024 * 10;
+    byte[] data = AzureTestUtils.randomBytes(dataSize, random);
     writeAzureBlobData(blobClient, data);
 
     try (SeekableInputStream in = new AzureBlobInputStream(uri, azureProperties, blobClient)) {
-      final int readSize = 1024;
+      int readSize = 1024;
 
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
 
       // Seek forward in current stream
-      final int seekSize = 1024;
+      int seekSize = 1024;
       readAndCheck(in, in.getPos() + seekSize, readSize, data, false);
       readAndCheck(in, in.getPos() + seekSize, readSize, data, true);
 
@@ -87,7 +85,7 @@ public class TestAzureBlobInputStream {
       readAndCheck(in, in.getPos(), readSize, data, false);
 
       // Seek with new stream
-      final long seekNewStreamPosition = 2 * 1024 * 1024;
+      long seekNewStreamPosition = 2 * 1024 * 1024;
       readAndCheck(in, in.getPos() + seekNewStreamPosition, readSize, data, true);
       readAndCheck(in, in.getPos() + seekNewStreamPosition, readSize, data, false);
 
@@ -99,44 +97,44 @@ public class TestAzureBlobInputStream {
 
   @Test
   public void testSeek() throws Exception {
-    final Random random = AzureTestUtils.random("testSeek");
-    final String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/seek.dat");
-    final AzureURI uri = AzureURI.from(location);
-    final BlobClient blobClient = container.getBlobClient(uri.path());
-    final byte[] data = AzureTestUtils.randomBytes(1024 * 1024, random);
+    Random random = AzureTestUtils.random("testSeek");
+    String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/seek.dat");
+    AzureURI uri = AzureURI.from(location);
+    BlobClient blobClient = container.getBlobClient(uri.path());
+    byte[] data = AzureTestUtils.randomBytes(1024 * 1024, random);
 
     writeAzureBlobData(blobClient, data);
 
     try (SeekableInputStream in = new AzureBlobInputStream(uri, azureProperties, blobClient)) {
       in.seek(data.length / 2);
-      final byte[] actual = new byte[data.length / 2];
+      byte[] actual = new byte[data.length / 2];
 
       IOUtils.readFully(in, actual, 0, data.length / 2);
 
-      final byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
-      assertThat(actual).isEqualTo(expected);
+      byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
+      Assertions.assertThat(actual).isEqualTo(expected);
     }
   }
 
   @Test
   public void testClose() throws Exception {
-    final Random random = AzureTestUtils.random("testClose");
-    final String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/closed.dat");
-    final AzureURI uri = AzureURI.from(location);
-    final BlobClient blobClient = container.getBlobClient(uri.path());
+    Random random = AzureTestUtils.random("testClose");
+    String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName, "/path/to/closed.dat");
+    AzureURI uri = AzureURI.from(location);
+    BlobClient blobClient = container.getBlobClient(uri.path());
     writeAzureBlobData(blobClient, AzureTestUtils.randomBytes(1, random));
     SeekableInputStream closed = new AzureBlobInputStream(uri, azureProperties, blobClient);
     closed.close();
-    assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);
+    Assertions.assertThatThrownBy(() -> closed.seek(0)).isInstanceOf(IllegalStateException.class);
   }
 
   private void readAndCheck(SeekableInputStream in, long rangeStart, int size, byte[] original, boolean buffered)
       throws IOException {
     in.seek(rangeStart);
-    assertThat(in.getPos()).isEqualTo(rangeStart);
+    Assertions.assertThat(in.getPos()).isEqualTo(rangeStart);
 
-    final long rangeEnd = rangeStart + size;
-    final byte[] actual = new byte[size];
+    long rangeEnd = rangeStart + size;
+    byte[] actual = new byte[size];
 
     if (buffered) {
       IOUtils.readFully(in, actual);
@@ -147,8 +145,8 @@ public class TestAzureBlobInputStream {
       }
     }
 
-    assertThat(in.getPos()).isEqualTo(rangeEnd);
-    assertThat(actual).isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
+    Assertions.assertThat(in.getPos()).isEqualTo(rangeEnd);
+    Assertions.assertThat(actual).isEqualTo(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd));
   }
 
   private void writeAzureBlobData(BlobClient blobClient, byte[] data) {

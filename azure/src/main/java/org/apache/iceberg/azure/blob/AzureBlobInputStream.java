@@ -61,8 +61,8 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
   @Override
   public void seek(long newPos) {
-    Preconditions.checkState(!closed, "Stream already closed.");
-    Preconditions.checkArgument(newPos >= 0, "New position cannot be negative: %s.", newPos);
+    Preconditions.checkState(!closed, "Stream already closed");
+    Preconditions.checkArgument(newPos >= 0, "New position cannot be negative: %s", newPos);
 
     if (newPos == pos) {
       // Already at the specified position.
@@ -71,10 +71,10 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
     if (newPos > pos) {
       // Seeking forward.
-      final long bytesToSkip = newPos - pos;
+      long bytesToSkip = newPos - pos;
       // BlobInputStream#skip only repositions the internal pointers,
       // the actual bytes are skipped when BlobInputStream#read is invoked.
-      final long bytesSkipped = stream.skip(bytesToSkip);
+      long bytesSkipped = stream.skip(bytesToSkip);
     } else {
       // Seeking backward.
       stream.close();
@@ -86,14 +86,14 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
   @Override
   public int read() throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: stream already closed.");
+    Preconditions.checkState(!closed, "Cannot read: stream already closed");
     pos++;
     return stream.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: stream already closed.");
+    Preconditions.checkState(!closed, "Cannot read: stream already closed");
     int numOfBytesRead = stream.read(b, off, len);
     pos += numOfBytesRead;
     return numOfBytesRead;
@@ -122,7 +122,8 @@ public class AzureBlobInputStream extends SeekableInputStream {
   }
 
   private void openStream(long offset) {
-    final BlobInputStreamOptions options = new BlobInputStreamOptions().setRange(new BlobRange(offset))
+    BlobInputStreamOptions options = new BlobInputStreamOptions()
+        .setRange(new BlobRange(offset))
         .setBlockSize(azureProperties.readBlockSize(azureURI.storageAccount()));
     stream = blobClient.openInputStream(options);
     pos = offset;
