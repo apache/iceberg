@@ -88,6 +88,7 @@ public class BaseDeleteOrphanFilesSparkAction
   }, DataTypes.StringType);
 
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
+  private static final String STREAM_RESULTS = "stream-results";
 
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
@@ -172,18 +173,34 @@ public class BaseDeleteOrphanFilesSparkAction
     Column nameEqual = actualFileName.equalTo(validFileName);
     Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
     Column joinCond = nameEqual.and(actualContains);
-    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-        .as(Encoders.STRING())
-        .collectAsList();
+    Dataset<String> orphanDF = actualFileDF.join(validFileDF, joinCond, "leftanti")
+            .as(Encoders.STRING());
+    return deleteFiles(orphanDF);
+  }
 
-    Tasks.foreach(orphanFiles)
-        .noRetry()
-        .executeWith(deleteExecutorService)
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-        .run(deleteFunc::accept);
-
-    return new BaseDeleteOrphanFilesActionResult(orphanFiles);
+  private BaseDeleteOrphanFilesActionResult deleteFiles(Dataset<String> orphanDF) {
+    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
+    Iterable<String> itr;
+    if (streamResults) {
+      // cache df to avoid recomputing
+      orphanDF.cache();
+      itr = () -> orphanDF.toLocalIterator();
+    } else {
+      itr = orphanDF.collectAsList();
+    }
+    Tasks.foreach(itr)
+            .noRetry()
+            .executeWith(deleteExecutorService)
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+            .run(file -> {
+              deleteFunc.accept(file);
+            });
+    if (streamResults) {
+      return new BaseDeleteOrphanFilesActionResult(() -> orphanDF.toLocalIterator());
+    } else {
+      return new BaseDeleteOrphanFilesActionResult(itr);
+    }
   }
 
   private Dataset<Row> buildActualFileDF() {
