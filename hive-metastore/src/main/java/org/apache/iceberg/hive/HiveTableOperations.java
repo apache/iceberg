@@ -67,6 +67,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -415,10 +416,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       parameters.put(TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
       parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
       try {
-        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY,
-            JsonUtil.mapper().writeValueAsString(currentSnapshot.summary()));
+        String summary = JsonUtil.mapper().writeValueAsString(currentSnapshot.summary());
+        Preconditions.checkArgument(summary.length() <= 4000,
+            "Failed to expose the current snapshot summary in HMS since it exceeds 4000 characters");
+        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
       } catch (JsonProcessingException e) {
-        LOG.warn("Failed to convert snapshot summary to a json string", e);
+        LOG.warn("Failed to convert current snapshot summary to a json string", e);
       }
     }
 

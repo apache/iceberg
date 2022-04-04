@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -512,9 +513,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       hmsTable = metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
       parameters = hmsTable.getParameters();
       Assert.assertEquals("1", parameters.get(TableProperties.SNAPSHOT_COUNT));
-      Assert.assertNotNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_SUMMARY));
-      Assert.assertNotNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_ID));
-      Assert.assertNotNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP));
+      String summary = JsonUtil.mapper().writeValueAsString(icebergTable.currentSnapshot().summary());
+      Assert.assertEquals(summary, parameters.get(TableProperties.CURRENT_SNAPSHOT_SUMMARY));
+      long snapshotId = icebergTable.currentSnapshot().snapshotId();
+      Assert.assertEquals(String.valueOf(snapshotId), parameters.get(TableProperties.CURRENT_SNAPSHOT_ID));
+      Assert.assertEquals(String.valueOf(icebergTable.currentSnapshot().timestampMillis()),
+          parameters.get(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP));
     } finally {
       catalog.dropTable(tableIdentifier);
     }
