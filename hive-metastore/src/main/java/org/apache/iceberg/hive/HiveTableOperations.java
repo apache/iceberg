@@ -67,7 +67,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -93,6 +92,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
+  private static final long HIVE_TABLE_PROPERTY_VALUE_SIZE_MAX = 4000;
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
@@ -417,11 +417,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
       try {
         String summary = JsonUtil.mapper().writeValueAsString(currentSnapshot.summary());
-        Preconditions.checkArgument(summary.length() <= 4000,
-            "Failed to expose the current snapshot summary in HMS since it exceeds 4000 characters");
-        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
+        if (summary.length() <= HIVE_TABLE_PROPERTY_VALUE_SIZE_MAX) {
+          parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
+        } else {
+          LOG.warn("Not expose the current snapshot({}) summary in HMS since it exceeds {} characters",
+              currentSnapshot.snapshotId(), HIVE_TABLE_PROPERTY_VALUE_SIZE_MAX);
+        }
       } catch (JsonProcessingException e) {
-        LOG.warn("Failed to convert current snapshot summary to a json string", e);
+        LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
       }
     }
 
