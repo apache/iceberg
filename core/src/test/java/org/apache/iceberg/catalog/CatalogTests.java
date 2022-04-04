@@ -425,6 +425,52 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testTableNameWithSlash() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(Namespace.of("ns"));
+    }
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    Table loaded = catalog.loadTable(ident);
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+
+    catalog.dropTable(ident);
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+  }
+
+  @Test
+  public void testTableNameWithDot() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "ta.ble");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(Namespace.of("ns"));
+    }
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    Table loaded = catalog.loadTable(ident);
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+
+    catalog.dropTable(ident);
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+  }
+
+  @Test
   public void testBasicCreateTableThatAlreadyExists() {
     C catalog = catalog();
 

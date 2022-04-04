@@ -325,10 +325,10 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.urlDecode(pathVars.get("namespace"));
+    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
   }
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {
-    return TableIdentifier.of(namespaceFromPathVars(pathVars), pathVars.get("table"));
+    return TableIdentifier.of(namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("table")));
   }
 }
