@@ -323,6 +323,16 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testEmptyIOThrowsException() {
+    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .deleteReachableFiles(metadataLocation(table))
+        .io(null);
+    AssertHelpers.assertThrows("FileIO can't be null in DeleteReachableFiles action",
+        IllegalArgumentException.class, "File IO cannot be null",
+        baseRemoveFilesSparkAction::execute);
+  }
+
+  @Test
   public void testRemoveFilesActionWhenGarbageCollectionDisabled() {
     table.updateProperties()
         .set(TableProperties.GC_ENABLED, "false")

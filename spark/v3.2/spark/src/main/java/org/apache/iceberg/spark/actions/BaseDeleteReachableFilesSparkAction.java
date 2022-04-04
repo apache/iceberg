@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -99,6 +100,7 @@ public class BaseDeleteReachableFilesSparkAction
 
   @Override
   public Result execute() {
+    Preconditions.checkArgument(io != null, "File IO cannot be null");
     String jobDesc = String.format("Deleting files reachable from %s", metadataFileLocation);
     JobGroupInfo info = newJobGroupInfo("DELETE-REACHABLE-FILES", jobDesc);
     return withJobGroupInfo(info, this::doExecute);
