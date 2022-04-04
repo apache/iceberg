@@ -195,13 +195,15 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 #### Default value
 
-Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There are two defaults for a field:
-- `initial-default` is a value that must be projected when reading a data file that was written before the field was added to the schema.
-- `write-default` is a value that must be written for all rows when the field is missing from input data while writing a new data file.
+Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
+- `initial-default` is used to populate the field's value for all records that were written before the field was introduced.
+- `write-default` is used to populate the field's value for any records written after the field is introduced, when the writer does not supply the field's value.
 
-Note that all schema fields are required when writing data into a table. Omitting a known field from a data file is not allowed. The write default for a field should be written when a field is not supplied to a write. If the write-default is not set, the writer must fail.
+Note that all schema fields are required when writing data into a table. Omitting a known field from a data file is not allowed. The write default for a field should be written when a field is not supplied to a write. If the write default is not set, the writer must fail.
 
-The first time user introduces a default value, the value is set for both `initial-default` and `write-default`. Later, only the `write-default` can be changed, and it will only affect the rows to be inserted in the future.
+The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution.
+
+Together, the `initial-default` and `write-default` produce SQL default value behavior without rewriting data files. That is, changes to default values apply to future records only and all known fields are written into data files.
 
 Default value can be set for any column types, when a querying a struct column with default value set, if one child field is not present in the default struct, it will traverse downward to look up a default value set at its child level recursively. Also, `initial-default` and `write-default` will cascade using the corresponding child `initial-default` and `write-default` independently. An example of this cascading logic is:
 
