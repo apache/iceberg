@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import math
 import struct
+from abc import ABC
 from decimal import Decimal
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 from uuid import UUID
 
 import mmh3  # type: ignore
@@ -37,9 +37,13 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
+from iceberg.utils.decimal import decimal_to_bytes
+
+S = TypeVar("S")
+T = TypeVar("T")
 
 
-class Transform:
+class Transform(ABC, Generic[S, T]):
     """Transform base class for concrete transforms.
 
     A base class to transform values and project predicates on partition values.
@@ -60,18 +64,19 @@ class Transform:
     def __str__(self):
         return self._transform_string
 
-    def __call__(self, value):
+    def __call__(self, value: S) -> Optional[T]:
         return self.apply(value)
 
-    def apply(self, value):
-        raise NotImplementedError()
+    def apply(self, value: S) -> Optional[T]:
+        ...
 
     def can_transform(self, source: IcebergType) -> bool:
         return False
 
     def result_type(self, source: IcebergType) -> IcebergType:
-        raise NotImplementedError()
+        ...
 
+    @property
     def preserves_order(self) -> bool:
         return False
 
@@ -83,11 +88,12 @@ class Transform:
             return "null"
         return str(value)
 
+    @property
     def dedup_name(self) -> str:
         return self._transform_string
 
 
-class BaseBucketTransform(Transform):
+class BaseBucketTransform(Transform[S, int]):
     """Base Transform class to transform a value into a bucket partition value
 
     Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
@@ -110,17 +116,14 @@ class BaseBucketTransform(Transform):
     def num_buckets(self) -> int:
         return self._num_buckets
 
-    def hash(self, value) -> int:
+    def hash(self, value: S) -> int:
         raise NotImplementedError()
 
-    def apply(self, value) -> Optional[int]:
+    def apply(self, value: S) -> Optional[int]:
         if value is None:
             return None
 
         return (self.hash(value) & IntegerType.max) % self._num_buckets
-
-    def can_transform(self, source: IcebergType) -> bool:
-        raise NotImplementedError()
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
@@ -156,11 +159,7 @@ class BucketDecimalTransform(BaseBucketTransform):
         return isinstance(source, DecimalType)
 
     def hash(self, value: Decimal) -> int:
-        value_tuple = value.as_tuple()
-        unscaled_value = int(("-" if value_tuple.sign else "") + "".join([str(d) for d in value_tuple.digits]))
-        number_of_bytes = int(math.ceil(unscaled_value.bit_length() / 8))
-        value_in_bytes = unscaled_value.to_bytes(length=number_of_bytes, byteorder="big")
-        return mmh3.hash(value_in_bytes)
+        return mmh3.hash(decimal_to_bytes(value))
 
 
 class BucketStringTransform(BaseBucketTransform):

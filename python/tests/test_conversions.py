@@ -77,6 +77,7 @@ from decimal import Decimal
 
 import pytest
 
+import iceberg.utils.decimal as decimal_util
 from iceberg import conversions
 from iceberg.types import (
     BinaryType,
@@ -112,7 +113,7 @@ from iceberg.types import (
 )
 def test_decimal_to_unscaled(value, expected_result):
     """Test converting a decimal to an unscaled value"""
-    assert conversions.decimal_to_unscaled(value=value) == expected_result
+    assert decimal_util.decimal_to_unscaled(value=value) == expected_result
 
 
 @pytest.mark.parametrize(
@@ -130,7 +131,7 @@ def test_decimal_to_unscaled(value, expected_result):
 )
 def test_unscaled_to_decimal(unscaled, scale, expected_result):
     """Test converting an unscaled value to a decimal with a specified scale"""
-    assert conversions.unscaled_to_decimal(unscaled=unscaled, scale=scale) == expected_result
+    assert decimal_util.unscaled_to_decimal(unscaled=unscaled, scale=scale) == expected_result
 
 
 @pytest.mark.parametrize(

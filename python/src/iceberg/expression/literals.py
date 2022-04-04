@@ -19,15 +19,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import re
 import struct
 import sys
 from abc import ABC, abstractmethod
-from datetime import date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch
 from typing import Generic, Optional, TypeVar, Union
 from uuid import UUID
+
+from iceberg.utils.datetime import (
+    date_to_days,
+    micros_to_days,
+    time_to_micros,
+    timestamp_to_micros,
+    timestamptz_to_micros,
+)
 
 if sys.version_info >= (3, 8):
     from functools import singledispatchmethod  # pragma: no cover
@@ -52,11 +58,6 @@ from iceberg.types import (
     UUIDType,
 )
 
-EPOCH_DATE = date.fromisoformat("1970-01-01")
-EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
-ISO_TIMESTAMP = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?")
-EPOCH_TIMESTAMPTZ = datetime.fromisoformat("1970-01-01T00:00:00.000000+00:00")
-ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\d\d:\d\d")
 T = TypeVar("T")
 
 
@@ -360,7 +361,7 @@ class TimestampLiteral(Literal[int]):
 
     @to.register(DateType)
     def _(self, type_var: DateType) -> Literal[int]:
-        return DateLiteral((datetime.fromtimestamp(self.value / 1_000_000) - EPOCH_TIMESTAMP).days)
+        return DateLiteral(micros_to_days(self.value))
 
 
 class DecimalLiteral(Literal[Decimal]):
@@ -391,33 +392,32 @@ class StringLiteral(Literal[str]):
         return self
 
     @to.register(DateType)
-    def _(self, type_var: DateType) -> Literal[int]:
-        return DateLiteral((date.fromisoformat(self.value) - EPOCH_DATE).days)
+    def _(self, type_var: DateType) -> Optional[Literal[int]]:
+        try:
+            return DateLiteral(date_to_days(self.value))
+        except (TypeError, ValueError):
+            return None
 
     @to.register(TimeType)
-    def _(self, type_var: TimeType) -> Literal[int]:
-        t = time.fromisoformat(self.value)
-        return TimeLiteral((((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond)
+    def _(self, type_var: TimeType) -> Optional[Literal[int]]:
+        try:
+            return TimeLiteral(time_to_micros(self.value))
+        except (TypeError, ValueError):
+            return None
 
     @to.register(TimestampType)
     def _(self, type_var: TimestampType) -> Optional[Literal[int]]:
-        if ISO_TIMESTAMP.fullmatch(self.value):
-            try:
-                delta = datetime.fromisoformat(self.value) - EPOCH_TIMESTAMP
-                return TimestampLiteral((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds)
-            except TypeError:
-                return None
-        return None
+        try:
+            return TimestampLiteral(timestamp_to_micros(self.value))
+        except (TypeError, ValueError):
+            return None
 
     @to.register(TimestamptzType)
     def _(self, type_var: TimestamptzType) -> Optional[Literal[int]]:
-        if ISO_TIMESTAMPTZ.fullmatch(self.value):
-            try:
-                delta = datetime.fromisoformat(self.value) - EPOCH_TIMESTAMPTZ
-                return TimestampLiteral((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds)
-            except TypeError:
-                return None
-        return None
+        try:
+            return TimestampLiteral(timestamptz_to_micros(self.value))
+        except (TypeError, ValueError):
+            return None
 
     @to.register(UUIDType)
     def _(self, type_var: UUIDType) -> Literal[UUID]:
