@@ -329,7 +329,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     String callStatement =
         "/* CALL statement is used to expire snapshots */\n" +
         "-- And we have single line comments as well \n" +
-        "CALL /* this is the actual CALL */ %s.system.expire_snapshots(" +
+        "/* And comments that span *multiple* \n" +
+        " lines */ CALL /* this is the actual CALL */ %s.system.expire_snapshots(" +
         "   older_than => TIMESTAMP '%s'," +
         "   table => '%s'," +
         "   retain_last => 1)";
