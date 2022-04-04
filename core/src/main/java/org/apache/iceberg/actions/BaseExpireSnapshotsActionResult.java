@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
+import java.io.Serializable;
+
+public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result, Serializable {
 
   private final long deletedDataFilesCount;
   private final long deletedManifestsCount;

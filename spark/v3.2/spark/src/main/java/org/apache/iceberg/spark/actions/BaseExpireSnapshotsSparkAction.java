@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.actions;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -70,7 +72,7 @@ public class BaseExpireSnapshotsSparkAction
     extends BaseSparkAction<ExpireSnapshots, ExpireSnapshots.Result> implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
 
-  public static final String STREAM_RESULTS = "stream-results";
+  public static final String PARALLEL_DELETE = "parallel_delete";
 
   private static final String CONTENT_FILE = "Content File";
   private static final String MANIFEST = "Manifest";
@@ -212,11 +214,21 @@ public class BaseExpireSnapshotsSparkAction
   }
 
   private ExpireSnapshots.Result doExecute() {
-    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    if (streamResults) {
-      return deleteFiles(expire().toLocalIterator());
+    boolean parallelDelete = PropertyUtil.propertyAsBoolean(options(), PARALLEL_DELETE, false);
+
+    if (parallelDelete) {
+      Table serializableTable = SerializableTable.copyOf(table);
+
+      return expire().javaRDD().mapPartitions((Iterator<Row> iter) ->
+        Arrays.asList(
+            ActionUtils.deleteFiles(iter, (file) -> serializableTable.io().deleteFile(file), null)
+        ).iterator()
+      ).reduce((r1, r2) -> new BaseExpireSnapshotsActionResult(
+          r1.deletedDataFilesCount() + r2.deletedDataFilesCount(),
+          r1.deletedManifestsCount() + r2.deletedManifestsCount(),
+          r1.deletedManifestListsCount() + r2.deletedManifestListsCount()));
     } else {
-      return deleteFiles(expire().collectAsList().iterator());
+      return ActionUtils.deleteFiles(expire().collectAsList().iterator(), deleteFunc, deleteExecutorService);
     }
   }
 
@@ -231,46 +243,49 @@ public class BaseExpireSnapshotsSparkAction
         .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
 
-  /**
-   * Deletes files passed to it based on their type.
-   *
-   * @param expired an Iterator of Spark Rows of the structure (path: String, type: String)
-   * @return Statistics on which files were deleted
-   */
-  private BaseExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
-    AtomicLong dataFileCount = new AtomicLong(0L);
-    AtomicLong manifestCount = new AtomicLong(0L);
-    AtomicLong manifestListCount = new AtomicLong(0L);
+  public static class ActionUtils {
+    /**
+     * Deletes files passed to it based on their type.
+     *
+     * @param expired an Iterator of Spark Rows of the structure (path: String, type: String)
+     * @return Statistics on which files were deleted
+     */
+    public static BaseExpireSnapshotsActionResult deleteFiles(
+        Iterator<Row> expired, Consumer<String> deleteFunc, ExecutorService deleteExecutorService) {
+      AtomicLong dataFileCount = new AtomicLong(0L);
+      AtomicLong manifestCount = new AtomicLong(0L);
+      AtomicLong manifestListCount = new AtomicLong(0L);
 
-    Tasks.foreach(expired)
-        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .executeWith(deleteExecutorService)
-        .onFailure((fileInfo, exc) -> {
-          String file = fileInfo.getString(0);
-          String type = fileInfo.getString(1);
-          LOG.warn("Delete failed for {}: {}", type, file, exc);
-        })
-        .run(fileInfo -> {
-          String file = fileInfo.getString(0);
-          String type = fileInfo.getString(1);
-          deleteFunc.accept(file);
-          switch (type) {
-            case CONTENT_FILE:
-              dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Content File: {}", file);
-              break;
-            case MANIFEST:
-              manifestCount.incrementAndGet();
-              LOG.debug("Deleted Manifest: {}", file);
-              break;
-            case MANIFEST_LIST:
-              manifestListCount.incrementAndGet();
-              LOG.debug("Deleted Manifest List: {}", file);
-              break;
-          }
-        });
+      Tasks.foreach(expired)
+          .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
+          .executeWith(deleteExecutorService)
+          .onFailure((fileInfo, exc) -> {
+            String file = fileInfo.getString(0);
+            String type = fileInfo.getString(1);
+            LOG.warn("Delete failed for {}: {}", type, file, exc);
+          })
+          .run(fileInfo -> {
+            String file = fileInfo.getString(0);
+            String type = fileInfo.getString(1);
+            deleteFunc.accept(file);
+            switch (type) {
+              case CONTENT_FILE:
+                dataFileCount.incrementAndGet();
+                LOG.trace("Deleted Content File: {}", file);
+                break;
+              case MANIFEST:
+                manifestCount.incrementAndGet();
+                LOG.debug("Deleted Manifest: {}", file);
+                break;
+              case MANIFEST_LIST:
+                manifestListCount.incrementAndGet();
+                LOG.debug("Deleted Manifest List: {}", file);
+                break;
+            }
+          });
 
-    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
-    return new BaseExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+      LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
+      return new BaseExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+    }
   }
 }

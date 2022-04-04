@@ -47,7 +47,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
       ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
+      ProcedureParameter.optional("parallel_delete", DataTypes.BooleanType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -85,7 +85,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
-    Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
+    Boolean parallelDelete = args.isNullAt(4) ? null : args.getBoolean(4);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
         "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -105,8 +105,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
       }
 
-      if (streamResult != null) {
-        action.option(BaseExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
+      if (parallelDelete != null) {
+        action.option(BaseExpireSnapshotsSparkAction.PARALLEL_DELETE, Boolean.toString(parallelDelete));
       }
 
       ExpireSnapshots.Result result = action.execute();
