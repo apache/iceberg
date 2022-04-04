@@ -191,9 +191,7 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
   }
 
   /**
-   * Such file may be in a delta_x_y/ or base_x due to being added via
-   * "load data" command.  It could be at partition|table root due to table having
-   * been converted from non-acid to acid table.
+   * A non-acid schema file for tables that got converted to acid
    *
    * @return {@code true} if file schema doesn't have Acid metadata columns
    */

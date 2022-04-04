@@ -27,6 +27,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
+/**
+ * A REST response of table metadata result when loading a table
+ */
 public class LoadTableResponse implements RESTResponse {
 
   private String metadataLocation;
