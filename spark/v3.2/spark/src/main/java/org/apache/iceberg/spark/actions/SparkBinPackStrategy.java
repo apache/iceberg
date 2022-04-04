@@ -36,13 +36,13 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 
-public class Spark3BinPackStrategy extends BinPackStrategy {
+public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
   private final SparkSession spark;
   private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
   private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
-  public Spark3BinPackStrategy(Table table, SparkSession spark) {
+  public SparkBinPackStrategy(Table table, SparkSession spark) {
     this.table = table;
     this.spark = spark;
   }
