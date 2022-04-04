@@ -90,8 +90,6 @@ public class TestIcebergInputFormats {
           .bucket("id", 1)
           .build();
 
-  private static final String[] ANYWHERE = new String[] { "*" };
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -339,7 +337,7 @@ public class TestIcebergInputFormats {
     helper.appendToTable(null, expectedRecords);
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(ANYWHERE, split.getLocations());
+      Assert.assertArrayEquals(IcebergSplit.ANYWHERE, split.getLocations());
     }
 
     builder.preferLocality();

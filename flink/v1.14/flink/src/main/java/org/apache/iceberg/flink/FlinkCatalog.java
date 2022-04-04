@@ -72,7 +72,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -488,10 +487,10 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private static List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
-    ImmutableList.Builder<String> partitionKeysBuilder = ImmutableList.builder();
+    List<String> partitionKeys = Lists.newArrayList();
     for (PartitionField field : spec.fields()) {
       if (field.transform().isIdentity()) {
-        partitionKeysBuilder.add(icebergSchema.findColumnName(field.sourceId()));
+        partitionKeys.add(icebergSchema.findColumnName(field.sourceId()));
       } else {
         // Not created by Flink SQL.
         // For compatibility with iceberg tables, return empty.
@@ -499,7 +498,7 @@ public class FlinkCatalog extends AbstractCatalog {
         return Collections.emptyList();
       }
     }
-    return partitionKeysBuilder.build();
+    return partitionKeys;
   }
 
   private static void commitChanges(Table table, String setLocation, String setSnapshotId,
