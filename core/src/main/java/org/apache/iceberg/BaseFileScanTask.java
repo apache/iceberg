@@ -137,7 +137,8 @@ public class BaseFileScanTask implements FileScanTask {
       int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
       sizeIdx += 1; // Create 1 split per offset
-      return new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+      FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
+      return combinedTask;
     }
 
   }
@@ -218,9 +219,9 @@ public class BaseFileScanTask implements FileScanTask {
     }
 
     public boolean isAdjacent(SplitScanTask other) {
-      return other != null &&
-          this.file().equals(other.file()) &&
-          this.offset + this.len == other.offset;
+      return (other != null) &&
+          (this.file().equals(other.file())) &&
+          (this.offset + this.len == other.offset);
     }
   }
 
