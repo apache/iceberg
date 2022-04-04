@@ -158,7 +158,7 @@ For the representations of these types in Avro, ORC, and Parquet file formats, s
 
 #### Nested Types
 
-A **`struct`** is a tuple of typed values. Each field in the tuple is named and has an integer id that is unique in the table schema. Each field can be either optional or required, meaning that values can (or cannot) be null. Fields may be any type. Fields may have an optional comment or doc string. Fields can also have a default value (see below).
+A **`struct`** is a tuple of typed values. Each field in the tuple is named and has an integer id that is unique in the table schema. Each field can be either optional or required, meaning that values can (or cannot) be null. Fields may be any type. Fields may have an optional comment or doc string. Fields can have [default values](#default-value).
 
 A **`list`** is a collection of values with some element type. The element field has an integer id that is unique in the table schema. Elements can be either optional or required. Element types may be any type.
 
@@ -195,9 +195,13 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 #### Default value
 
-Default value can be assigned to a column when the column is added to an Iceberg table as part of the schema evolution. They are tracked at the level of a nested field inside a struct, thus it can be used for both top-level columns and nested columns. Iceberg tracks two default values internally: `initial-default` and `write-default`. The `initial-default` is used to read rows belonging to files that lack the column (i.e. the files were written before the column is added); the `write-default` value will be used for the automatically populating the column if user later inserts new rows without specifying the column.
+Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There are two defaults for a field:
+- `initial-default` is a value that must be projected when reading a data file that was written before the field was added to the schema.
+- `write-default` is a value that must be written for all rows when the field is missing from input data while writing a new data file.
 
-The first time user introduce a default value, the value is set for both `initial-default` and `write-default`. Later, only the `write-default` can be changed, and it will only affect the rows to be inserted in the future.
+Note that all schema fields are required when writing data into a table. Omitting a known field from a data file is not allowed. The write default for a field should be written when a field is not supplied to a write. If the write-default is not set, the writer must fail.
+
+The first time user introduces a default value, the value is set for both `initial-default` and `write-default`. Later, only the `write-default` can be changed, and it will only affect the rows to be inserted in the future.
 
 Default value can be set for any column types, when a querying a struct column with default value set, if one child field is not present in the default struct, it will traverse downward to look up a default value set at its child level recursively. Also, `initial-default` and `write-default` will cascade using the corresponding child `initial-default` and `write-default` independently. An example of this cascading logic is:
 
@@ -989,7 +993,7 @@ For default values, the serialization depends on the type of the corresponding c
 | **`long`**         | **`json long`**    | `1`                                      |                                                                                                                                                                                                                                                                                                                           |
 | **`float`**        | **`json float`**   | `1.1`                                    |                                                                                                                                                                                                                                                                                                                           |
 | **`double`**       | **`json double`**  | `1.1`                                    |                                                                                                                                                                                                                                                                                                                           |
-| **`decimal(P,S)`** | **`string`**       | `"0x3162"`                               | Stores the unscaled value, as the two's-complement big-endian binary using the minimum number of bytes, converted to a hexadecimal string prefixed by `0x`                                                                                                                                                                |
+| **`decimal(P,S)`** | **`string`**       | `"123.45"`                               | Stores the decimal value as string                                                                                                                                                                                                                                                                                        |
 | **`date`**         | **`json int`**     | `19054`                                  | Stores days from the 1970-01-01                                                                                                                                                                                                                                                                                           |
 | **`time`**         | **`json long`**    | `36000000000`                            | Stores microseconds from midnight                                                                                                                                                                                                                                                                                         |
 | **`timestamp`**    | **`json long`**    | `1646277378000000`                       | Stores microseconds from 1970-01-01 00:00:00.000000                                                                                                                                                                                                                                                                       |
