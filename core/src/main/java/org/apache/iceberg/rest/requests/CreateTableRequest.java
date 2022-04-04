@@ -41,19 +41,21 @@ public class CreateTableRequest implements RESTRequest {
   private PartitionSpec spec;
   private SortOrder order;
   private Map<String, String> properties;
+  private Boolean stageCreate;
 
   public CreateTableRequest() {
     // Needed for Jackson Deserialization.
   }
 
   private CreateTableRequest(String name, String location, Schema schema, PartitionSpec spec, SortOrder order,
-                             Map<String, String> properties) {
+                             Map<String, String> properties, boolean stageCreate) {
     this.name = name;
     this.location = location;
     this.schema = schema;
     this.spec = spec;
     this.order = order;
     this.properties = properties;
+    this.stageCreate = stageCreate;
     validate();
   }
 
@@ -61,6 +63,7 @@ public class CreateTableRequest implements RESTRequest {
   public void validate() {
     Preconditions.checkArgument(name != null, "Invalid table name: null");
     Preconditions.checkArgument(schema != null, "Invalid schema: null");
+    Preconditions.checkArgument(stageCreate != null, "Invalid stageCreate flag: null");
   }
 
   public String name() {
@@ -87,6 +90,10 @@ public class CreateTableRequest implements RESTRequest {
     return properties != null ? properties : ImmutableMap.of();
   }
 
+  public boolean stageCreate() {
+    return stageCreate;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -110,6 +117,7 @@ public class CreateTableRequest implements RESTRequest {
     private PartitionSpec spec;
     private SortOrder order;
     private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+    private boolean stageCreate = false;
 
     private Builder() {
     }
@@ -157,8 +165,13 @@ public class CreateTableRequest implements RESTRequest {
       return this;
     }
 
+    public Builder stageCreate() {
+      this.stageCreate = true;
+      return this;
+    }
+
     public CreateTableRequest build() {
-      return new CreateTableRequest(name, location, schema, spec, order, properties.build());
+      return new CreateTableRequest(name, location, schema, spec, order, properties.build(), stageCreate);
     }
   }
 }

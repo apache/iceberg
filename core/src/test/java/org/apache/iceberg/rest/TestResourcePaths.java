@@ -106,27 +106,6 @@ public class TestResourcePaths {
   }
 
   @Test
-  public void testStageCreate() {
-    Namespace ns = Namespace.of("ns");
-    Assert.assertEquals("v1/ws/catalog/namespaces/ns/stageCreate", withPrefix.stageCreate(ns));
-    Assert.assertEquals("v1/namespaces/ns/stageCreate", withoutPrefix.stageCreate(ns));
-  }
-
-  @Test
-  public void testStageCreateWithSlash() {
-    Namespace ns = Namespace.of("n/s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%2Fs/stageCreate", withPrefix.stageCreate(ns));
-    Assert.assertEquals("v1/namespaces/n%2Fs/stageCreate", withoutPrefix.stageCreate(ns));
-  }
-
-  @Test
-  public void testStageCreateWithMultipartNamespace() {
-    Namespace ns = Namespace.of("n", "s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%00s/stageCreate", withPrefix.stageCreate(ns));
-    Assert.assertEquals("v1/namespaces/n%00s/stageCreate", withoutPrefix.stageCreate(ns));
-  }
-
-  @Test
   public void testTable() {
     TableIdentifier ident = TableIdentifier.of("ns", "table");
     Assert.assertEquals("v1/ws/catalog/namespaces/ns/tables/table", withPrefix.table(ident));
