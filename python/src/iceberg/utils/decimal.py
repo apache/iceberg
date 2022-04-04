@@ -48,7 +48,7 @@ def unscaled_to_decimal(unscaled: int, scale: int) -> Decimal:
     return Decimal((sign, digits, -scale))
 
 
-def min_size(value: Union[int, Decimal]) -> int:
+def bytes_required(value: Union[int, Decimal]) -> int:
     """Returns the minimum number of bytes needed to serialize a decimal or unscaled value
 
     Args:
@@ -74,4 +74,4 @@ def decimal_to_bytes(value: Decimal) -> bytes:
         bytes: the unscaled value of the Decimal as bytes
     """
     unscaled_value = decimal_to_unscaled(value)
-    return unscaled_value.to_bytes(min_size(unscaled_value), byteorder="big", signed=True)
+    return unscaled_value.to_bytes(bytes_required(unscaled_value), byteorder="big", signed=True)
