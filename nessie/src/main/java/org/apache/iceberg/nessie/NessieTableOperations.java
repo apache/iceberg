@@ -30,7 +30,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
-import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
@@ -51,9 +50,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieTableOperations.class);
 
-  private final NessieApiV1 api;
+  private final NessieIcebergClient client;
   private final ContentKey key;
-  private final UpdateableReference reference;
   private IcebergTable table;
   private final FileIO fileIO;
   private final Map<String, String> catalogOptions;
@@ -63,13 +61,11 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
    */
   NessieTableOperations(
       ContentKey key,
-      UpdateableReference reference,
-      NessieApiV1 api,
+      NessieIcebergClient client,
       FileIO fileIO,
       Map<String, String> catalogOptions) {
     this.key = key;
-    this.reference = reference;
-    this.api = api;
+    this.client = client;
     this.fileIO = fileIO;
     this.catalogOptions = catalogOptions;
   }
@@ -101,29 +97,29 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doRefresh() {
     try {
-      reference.refresh(api);
+      client.refresh();
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException("Failed to refresh as ref is no longer valid.", e);
+      throw new RuntimeException(String.format("Failed to refresh as ref '%s' " +
+          "is no longer valid.", client.getRef().getName()), e);
     }
     String metadataLocation = null;
     try {
-      Content content = api.getContent().key(key).reference(reference.getReference()).get()
+      Content content = client.getApi().getContent().key(key).reference(client.getRef().getReference()).get()
           .get(key);
-      LOG.debug("Content '{}' at '{}': {}", key, reference.getReference(), content);
+      LOG.debug("Content '{}' at '{}': {}", key, client.getRef().getReference(), content);
       if (content == null) {
         if (currentMetadataLocation() != null) {
-          throw new NoSuchTableException("No such table %s in %s", key, reference.getReference());
+          throw new NoSuchTableException("No such table '%s' in '%s'", key, client.getRef().getReference());
         }
       } else {
         this.table = content.unwrap(IcebergTable.class)
-            .orElseThrow(() ->
-                new IllegalStateException("Cannot refresh iceberg table: " +
-                    String.format("Nessie points to a non-Iceberg object for path: %s.", key)));
+            .orElseThrow(() -> new IllegalStateException(String.format("Cannot refresh iceberg table: " +
+                "Nessie points to a non-Iceberg object for path: %s.", key)));
         metadataLocation = table.getMetadataLocation();
       }
     } catch (NessieNotFoundException ex) {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException(ex, "No such table %s", key);
+        throw new NoSuchTableException(ex, "No such table '%s'", key);
       }
     }
     refreshFromMetadataLocation(metadataLocation, 2);
@@ -131,7 +127,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    reference.checkMutable();
+    client.getRef().checkMutable();
 
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
@@ -151,23 +147,23 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
           .metadataLocation(newMetadataLocation)
           .build();
 
-      LOG.debug("Committing '{}' against '{}': {}", key, reference.getReference(), newTable);
+      LOG.debug("Committing '{}' against '{}': {}", key, client.getRef().getReference(), newTable);
       ImmutableCommitMeta.Builder builder = ImmutableCommitMeta.builder();
       builder.message(buildCommitMsg(base, metadata));
       if (isSnapshotOperation(base, metadata)) {
         builder.putProperties("iceberg.operation", snapshot.operation());
       }
-      Branch branch = api.commitMultipleOperations()
+      Branch branch = client.getApi().commitMultipleOperations()
           .operation(Operation.Put.of(key, newTable, table))
           .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
-          .branch(reference.getAsBranch())
+          .branch(client.getRef().getAsBranch())
           .commit();
-      reference.updateReference(branch);
+      client.getRef().updateReference(branch);
 
       delete = false;
     } catch (NessieConflictException ex) {
       throw new CommitFailedException(ex, "Cannot commit: Reference hash is out of date. " +
-          "Update the reference %s and try again", reference.getName());
+          "Update the reference '%s' and try again", client.getRef().getName());
     } catch (HttpClientException ex) {
       // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
@@ -177,7 +173,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       throw new CommitStateUnknownException(ex);
     } catch (NessieNotFoundException ex) {
       throw new RuntimeException(
-          String.format("Cannot commit: Reference %s no longer exists", reference.getName()), ex);
+          String.format("Cannot commit: Reference '%s' no longer exists", client.getRef().getName()), ex);
     } finally {
       if (delete) {
         io().deleteFile(newMetadataLocation);

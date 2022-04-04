@@ -38,7 +38,6 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -92,7 +91,6 @@ public class TestNessieTable extends BaseTestIceberg {
     // drop the table data
     if (tableLocation != null) {
       tableLocation.getFileSystem(hadoopConfig).delete(tableLocation, true);
-      catalog.refresh();
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -323,22 +321,35 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testFailure() throws NessieNotFoundException, NessieConflictException {
+  public void testCommitsOutsideOfCatalogApi() throws NessieNotFoundException, NessieConflictException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     Branch branch = (Branch) api.getReference().refName(BRANCH).get();
-
-    IcebergTable table = getTable(BRANCH, KEY);
+    Assertions.assertThat(api.getCommitLog().refName(BRANCH).get().getLogEntries())
+        .extracting(e -> e.getCommitMeta().getHash())
+        .hasSize(1)
+        .containsExactly(branch.getHash());
 
     IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, "cid");
-    api.commitMultipleOperations().branch(branch)
+    // we do a separate manual commit outside of the catalog API
+    Branch commit = api.commitMultipleOperations().branch(branch)
         .operation(Operation.Put.of(KEY, value))
         .commitMeta(CommitMeta.fromMessage(""))
         .commit();
+    Assertions.assertThat(api.getCommitLog().refName(BRANCH).get().getLogEntries())
+        .extracting(e -> e.getCommitMeta().getHash())
+        .hasSize(2)
+        .containsExactly(commit.getHash(), branch.getHash());
 
-    Assertions.assertThatThrownBy(() -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage(
-            "Cannot commit: Reference hash is out of date. Update the reference iceberg-table-test and try again");
+    // previously this would fail with "Cannot commit: Reference hash is out of date. Update the reference ..."
+    // because the UpdateableReference between NessieCatalog and NessieTableOperations was updated independently of each
+    // other. However, given that both classes now share the same UpdateableReference via NessieIcebergClient,
+    // the error doesn't happen anymore, so we just make sure that all 3 commits exist.
+    icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit();
+    Branch latest = (Branch) api.getReference().refName(BRANCH).get();
+    Assertions.assertThat(api.getCommitLog().refName(BRANCH).get().getLogEntries())
+        .extracting(e -> e.getCommitMeta().getHash())
+        .hasSize(3)
+        .containsExactly(latest.getHash(), commit.getHash(), branch.getHash());
   }
 
   @Test
