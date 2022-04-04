@@ -118,7 +118,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
-    LOG.info("Expiring snapshots older than: {} ({})", DateTimeUtil.formatTimestampMillis(timestampMillis), timestampMillis);
+    LOG.info("Expiring snapshots older than: {} ({})",
+        DateTimeUtil.formatTimestampMillis(timestampMillis), timestampMillis);
     this.expireOlderThan = timestampMillis;
     return this;
   }
