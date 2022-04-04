@@ -752,8 +752,7 @@ components:
       properties:
         overrides:
           type: object
-          uniqueItems: true
-          additionalProperties:
+          items:
             type: string
           description:
             Properties that should be used to override client configuration; applied after defaults and client configuration.
@@ -761,8 +760,7 @@ components:
           default: { }
         defaults:
           type: object
-          uniqueItems: true
-          additionalProperties:
+          items:
             type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
