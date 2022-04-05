@@ -88,6 +88,25 @@ public class TestErrorResponseParser {
     assertEquals(expected, ErrorResponseParser.fromJson(json));
   }
 
+  @Test
+  public void testErrorResponseFromJsonWithExplicitNullStack() {
+    String message = "The given namespace does not exist";
+    String type = "NoSuchNamespaceException";
+    Integer code = 404;
+    List<String> stack = null;
+    String errorModelJson = String.format(
+        "{\"message\":\"%s\",\"type\":\"%s\",\"code\":%d,\"stack\":null}", message, type, code);
+    String json = "{\"error\":" + errorModelJson + "}";
+
+    ErrorResponse expected = ErrorResponse.builder()
+        .withMessage(message)
+        .withType(type)
+        .responseCode(code)
+        .withStackTrace(stack)
+        .build();
+    assertEquals(expected, ErrorResponseParser.fromJson(json));
+  }
+
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
     Assert.assertEquals("Message should be equal", expected.message(), actual.message());
     Assert.assertEquals("Type should be equal", expected.type(), actual.type());
