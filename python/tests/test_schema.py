@@ -64,6 +64,21 @@ def test_schema_repr(schema, expected_repr):
     assert repr(schema) == expected_repr
 
 
+def test_schema_raise_on_duplicate_names():
+    """Test schema representation"""
+    with pytest.raises(ValueError) as exc_info:
+        schema.Schema(
+            NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
+            NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
+            NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+            NestedField(field_id=4, name="baz", field_type=BooleanType(), is_optional=False),
+            schema_id=1,
+            identifier_field_ids=[1],
+        )
+
+    assert "Invalid schema, multiple fields for name baz: 3 and 4" in str(exc_info.value)
+
+
 def test_schema_index_by_id_visitor(table_schema_nested):
     """Test index_by_id visitor function"""
     index = schema.index_by_id(table_schema_nested)
@@ -151,30 +166,34 @@ def test_schema_index_by_name_visitor(table_schema_nested):
     }
 
 
-# def test_schema_find_column_name(table_schema_nested):
-#     """Test finding a column name using its field ID"""
-#     assert table_schema_nested.find_column_name(1) == "foo"
-#     assert table_schema_nested.find_column_name(2) == "bar"
-#     assert table_schema_nested.find_column_name(3) == "baz"
-#     assert table_schema_nested.find_column_name(4) == "qux"
-#     assert table_schema_nested.find_column_name(5) == "qux.element"
-#     assert table_schema_nested.find_column_name(6) == "quux"
-#     assert table_schema_nested.find_column_name(7) == "quux.key"
-#     assert table_schema_nested.find_column_name(8) == "quux.value"
-#     assert table_schema_nested.find_column_name(9) == "quux.value.key"
-#     assert table_schema_nested.find_column_name(10) == "quux.value.value"
+def test_schema_find_column_name(table_schema_nested):
+    """Test finding a column name using its field ID"""
+    assert table_schema_nested.find_column_name(1) == "foo"
+    assert table_schema_nested.find_column_name(2) == "bar"
+    assert table_schema_nested.find_column_name(3) == "baz"
+    assert table_schema_nested.find_column_name(4) == "qux"
+    assert table_schema_nested.find_column_name(5) == "qux.element"
+    assert table_schema_nested.find_column_name(6) == "quux"
+    assert table_schema_nested.find_column_name(7) == "quux.key"
+    assert table_schema_nested.find_column_name(8) == "quux.value"
+    assert table_schema_nested.find_column_name(9) == "quux.value.key"
+    assert table_schema_nested.find_column_name(10) == "quux.value.value"
+    assert table_schema_nested.find_column_name(11) == "location"
+    assert table_schema_nested.find_column_name(12) == "location.element"
+    assert table_schema_nested.find_column_name(13) == "location.element.latitude"
+    assert table_schema_nested.find_column_name(14) == "location.element.longitude"
 
 
-# def test_schema_find_column_name_on_id_not_found(table_schema_nested):
-#     """Test raising an error when a field ID cannot be found"""
-#     assert table_schema_nested.find_column_name(99) is None
+def test_schema_find_column_name_on_id_not_found(table_schema_nested):
+    """Test raising an error when a field ID cannot be found"""
+    assert table_schema_nested.find_column_name(99) is None
 
 
-# def test_schema_find_column_name(table_schema_simple):
-#     """Test finding a column name given its field ID"""
-#     assert table_schema_simple.find_column_name(1) == "foo"
-#     assert table_schema_simple.find_column_name(2) == "bar"
-#     assert table_schema_simple.find_column_name(3) == "baz"
+def test_schema_find_column_name(table_schema_simple):
+    """Test finding a column name given its field ID"""
+    assert table_schema_simple.find_column_name(1) == "foo"
+    assert table_schema_simple.find_column_name(2) == "bar"
+    assert table_schema_simple.find_column_name(3) == "baz"
 
 
 def test_schema_find_field_by_id(table_schema_simple):
