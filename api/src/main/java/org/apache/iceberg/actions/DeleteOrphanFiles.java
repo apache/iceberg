@@ -81,6 +81,19 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
   /**
+   * Passes a table which contains the list of actual files in the table. This skips the directory listing - any
+   * files in the actualFilesTable provided which are not found in table metadata will be deleted. Not compatible
+   * with `location` or `older_than` arguments - this assumes that the provided table of actual files has been
+   * filtered down to the table’s location and only includes files older than a reasonable retention interval.
+   *
+   * @param tableName the table containing the actual files dataset.  Should have a single `file_path` string column
+   * @return this for method chaining
+   */
+  default DeleteOrphanFiles actualFilesTable(String tableName) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement actualFilesTable");
+  }
+
+  /**
    * The action result that contains a summary of the execution.
    */
   interface Result {

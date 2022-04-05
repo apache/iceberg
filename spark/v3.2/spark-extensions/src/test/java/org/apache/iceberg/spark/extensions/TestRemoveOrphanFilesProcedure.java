@@ -315,6 +315,42 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         () -> sql(
             "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
             catalogName, tableIdent, -1));
+
+    AssertHelpers.assertThrows("Should reject calls with both actual_files_table and location args",
+        IllegalArgumentException.class, "actual_files_table cannot be used with",
+        () -> sql(
+            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '', location => '')",
+            catalogName, tableIdent));
+
+    AssertHelpers.assertThrows("Should reject calls with both actual_files_table and older_than args",
+        IllegalArgumentException.class, "actual_files_table cannot be used with",
+        () -> sql(
+            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '', older_than => TIMESTAMP '%s')",
+            catalogName, tableIdent, "1000-01-01 00:00:00"));
+
+    AssertHelpers.assertThrows("Should throw an error if actual_files_table does not exist",
+        ValidationException.class, "does not exist",
+        () -> sql(
+            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => 'missing')",
+            catalogName, tableIdent));
+
+    String tempViewName = "actual_files_test";
+    spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows("Should throw an error if actual_files_table is missing required column",
+        ValidationException.class, "is missing required `file_path` column",
+        () -> sql(
+            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '%s')",
+            catalogName, tableIdent, tempViewName));
+
+    spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
+    spark.createDataset(Lists.newArrayList(), Encoders.INT()).toDF("file_path").createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows("Should throw an error if actual_files_table has wrong schema",
+        ValidationException.class, "Invalid schema",
+        () -> sql(
+            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '%s')",
+            catalogName, tableIdent, tempViewName));
   }
 
   @Test

@@ -150,10 +150,20 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Assert.assertEquals("Action should find 1 file", invalidFiles, result2.orphanFileLocations());
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
 
+    String actualFilesTableName = "actualFilesTable";
+    spark.createDataset(allFiles, Encoders.STRING()).toDF("file_path").createOrReplaceTempView(actualFilesTableName);
     DeleteOrphanFiles.Result result3 = actions.deleteOrphanFiles(table)
+        .deleteWith(s -> { })
+        .actualFilesTable(actualFilesTableName)
+        .execute();
+
+    Assert.assertEquals("Action should find 1 file", invalidFiles, result3.orphanFileLocations());
+    Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
+
+    DeleteOrphanFiles.Result result4 = actions.deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis())
         .execute();
-    Assert.assertEquals("Action should delete 1 file", invalidFiles, result3.orphanFileLocations());
+    Assert.assertEquals("Action should delete 1 file", invalidFiles, result4.orphanFileLocations());
     Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
