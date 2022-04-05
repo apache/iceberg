@@ -53,6 +53,7 @@ class Schema:
         self._name_to_id: Dict[str, int] = index_by_name(self)
         self._name_to_id_lower: Dict[str, int] = {}  # Should be accessed through self._lazy_name_to_id_lower()
         self._id_to_field: Dict[int, NestedField] = {}  # Should be accessed through self._lazy_id_to_field()
+        self._id_to_name: Dict[int, str] = {}  # Should be accessed through self._lazy_id_to_name()
 
     def __str__(self):
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
@@ -79,7 +80,7 @@ class Schema:
     def _lazy_id_to_field(self) -> Dict[int, NestedField]:
         """Returns an index of field ID to NestedField instance
 
-        This property is calculated once when called for the first time. Subsequent calls to this property will use a cached index.
+        This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         if not self._id_to_field:
             self._id_to_field = index_by_id(self)
@@ -88,11 +89,20 @@ class Schema:
     def _lazy_name_to_id_lower(self) -> Dict[str, int]:
         """Returns an index of lower-case field names to field IDs
 
-        This property is calculated once when called for the first time. Subsequent calls to this property will use a cached index.
+        This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
         """
         if not self._name_to_id_lower:
             self._name_to_id_lower = {name.lower(): field_id for name, field_id in self._name_to_id.items()}
         return self._name_to_id_lower
+
+    def _lazy_id_to_name(self) -> Dict[int, str]:
+        """Returns an index of field ID to full name
+
+        This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
+        """
+        if not self._id_to_name:
+            self._id_to_name = index_name_by_id(self)
+        return self._id_to_name
 
     def as_struct(self) -> StructType:
         """Returns the underlying struct"""
@@ -130,19 +140,16 @@ class Schema:
         field = self.find_field(name_or_id=name_or_id, case_sensitive=case_sensitive)
         return field.type  # type: ignore
 
-    def find_column_name(self, column_id: int):
+    def find_column_name(self, column_id: int) -> str:
         """Find a column name given a column ID
 
         Args:
             column_id (int): The ID of the column
 
-        Raises:
-            ValueError: If no column name can be found for the given column ID
-
         Returns:
-            str: The column name
+            str: The column name (or None if the column ID cannot be found)
         """
-        raise NotImplementedError()
+        return self._lazy_id_to_name().get(column_id)  # type: ignore
 
     def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
         """Return a new schema instance pruned to a subset of columns
@@ -203,32 +210,32 @@ class SchemaVisitor(Generic[T], ABC):
     @abstractmethod
     def schema(self, schema: Schema, struct_result: T) -> T:
         """Visit a Schema"""
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     def struct(self, struct: StructType, field_results: List[T]) -> T:
         """Visit a StructType"""
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     def field(self, field: NestedField, field_result: T) -> T:
         """Visit a NestedField"""
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     def list(self, list_type: ListType, element_result: T) -> T:
         """Visit a ListType"""
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     def map(self, map_type: MapType, key_result: T, value_result: T) -> T:
         """Visit a MapType"""
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     def primitive(self, primitive: PrimitiveType) -> T:
         """Visit a PrimitiveType"""
-        ...
+        ...  # pragma: no cover
 
 
 @singledispatch
@@ -432,6 +439,11 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         combined_index.update(self._index)
         return combined_index
 
+    def by_id(self):
+        """Returns an index of ID to full names"""
+        id_to_full_name = dict([(value, key) for key, value in self._index.items()])
+        return id_to_full_name
+
 
 def index_by_name(schema_or_type) -> Dict[str, int]:
     """Generate an index of field names to field IDs
@@ -445,3 +457,17 @@ def index_by_name(schema_or_type) -> Dict[str, int]:
     indexer = _IndexByName()
     visit(schema_or_type, indexer)
     return indexer.by_name()
+
+
+def index_name_by_id(schema_or_type) -> Dict[int, str]:
+    """Generate an index of field IDs full field names
+
+    Args:
+        schema_or_type (Schema | IcebergType): A schema or type to index
+
+    Returns:
+        Dict[str, int]: An index of field IDs to full names
+    """
+    indexer = _IndexByName()
+    visit(schema_or_type, indexer)
+    return indexer.by_id()
