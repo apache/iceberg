@@ -149,7 +149,7 @@ public class JsonUtil {
   }
 
   public static List<String> getStringListOrNull(String property, JsonNode node) {
-    if (!node.has(property)) {
+    if (!node.has(property) || node.get(property).isNull()) {
       return null;
     }
 
@@ -159,7 +159,7 @@ public class JsonUtil {
   }
 
   public static Set<Integer> getIntegerSetOrNull(String property, JsonNode node) {
-    if (!node.has(property)) {
+    if (!node.has(property) || node.get(property).isNull()) {
       return null;
     }
 
