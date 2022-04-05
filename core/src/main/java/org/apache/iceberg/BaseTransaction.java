@@ -381,22 +381,11 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
+    } catch (ValidationFailureException e) {
+      cleanUpOnCommitFailure();
+      throw e.wrapped();
     } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
-      Tasks.foreach(updates)
-          .suppressFailureWhenFinished()
-          .run(update -> {
-            if (update instanceof SnapshotProducer) {
-              ((SnapshotProducer) update).cleanAll();
-            }
-          });
-
-      // delete all files that were cleaned up
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
-
+      cleanUpOnCommitFailure();
       throw e;
     }
 
@@ -430,9 +419,25 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  private void cleanUpOnCommitFailure() {
+    // the commit failed and no files were committed. clean up each update.
+    Tasks.foreach(updates)
+        .suppressFailureWhenFinished()
+        .run(update -> {
+          if (update instanceof SnapshotProducer) {
+            ((SnapshotProducer) update).cleanAll();
+          }
+        });
+
+    // delete all files that were cleaned up
+    Tasks.foreach(deletedFiles)
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+        .run(ops.io()::deleteFile);
+  }
+
   private void applyUpdates(TableOperations underlyingOps) {
     if (base != underlyingOps.refresh()) {
-      TableMetadata oldBase = base;
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
@@ -441,9 +446,8 @@ public class BaseTransaction implements Transaction {
         try {
           update.commit();
         } catch (CommitFailedException e) {
-          // fallback to old base, so that it refreshes again on retry and apply pending updates.
-          base = oldBase;
-          throw  e;
+          // Cannot pass even with retry. So, break the retry-loop.
+          throw new ValidationFailureException(e);
         }
       }
     }
@@ -739,5 +743,21 @@ public class BaseTransaction implements Transaction {
   @VisibleForTesting
   Set<String> deletedFiles() {
     return deletedFiles;
+  }
+
+  /**
+   * Exception used to avoid retrying {@link PendingUpdate} when it is failed with {@link CommitFailedException}.
+   */
+  private static class ValidationFailureException extends RuntimeException {
+    private final CommitFailedException wrapped;
+
+    private ValidationFailureException(CommitFailedException cause) {
+      super(cause);
+      this.wrapped = cause;
+    }
+
+    public CommitFailedException wrapped() {
+      return wrapped;
+    }
   }
 }
