@@ -213,8 +213,9 @@ public class BaseDeleteOrphanFilesSparkAction
     JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-    JavaRDD<String> matchingLeafFileRDD =
-        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, pathFilter));
+    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(
+        listDirsRecursively(conf, olderThanTimestamp, pathFilter)
+    );
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
@@ -251,8 +252,8 @@ public class BaseDeleteOrphanFilesSparkAction
       }
 
       for (String subDir : subDirs) {
-        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, pathFilter,
-                matchingFiles);
+        listDirRecursively(
+            subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, pathFilter, matchingFiles);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
