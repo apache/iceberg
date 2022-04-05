@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
 /**
- * A REST response of table metadata result when loading a table
+ * Metadata and config for a given table
  */
 public class LoadTableResponse implements RESTResponse {
 
