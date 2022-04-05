@@ -28,10 +28,19 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
 class EcsOutputFile extends BaseEcsFile implements OutputFile {
+
+  /**
+   * @deprecated moving to package-private in 0.15.0
+   */
+  @Deprecated
   public static EcsOutputFile fromLocation(String location, S3Client client) {
     return new EcsOutputFile(client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
   }
 
+  /**
+   * @deprecated moving to package-private in 0.15.0
+   */
+  @Deprecated
   public static EcsOutputFile fromLocation(String location, S3Client client, DellProperties dellProperties) {
     return new EcsOutputFile(client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
   }
