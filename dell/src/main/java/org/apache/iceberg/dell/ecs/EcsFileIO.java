@@ -91,11 +91,10 @@ public class EcsFileIO implements FileIO {
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
-      this.metrics = ctor.newInstance("ecs");
-
-      metrics.initialize(properties);
+      MetricsContext context = ctor.newInstance("ecs");
+      context.initialize(properties);
+      this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-      this.metrics = MetricsContext.nullMetrics();
       LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
     }
   }

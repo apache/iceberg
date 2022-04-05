@@ -275,10 +275,10 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
-      this.metrics = ctor.newInstance("s3");
-
-      metrics.initialize(properties);
-    } catch (NoSuchMethodException | ClassCastException e) {
+      MetricsContext context = ctor.newInstance("s3");
+      context.initialize(properties);
+      this.metrics = context;
+    } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
     }
   }
