@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -63,6 +64,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   @Override
   public void setupTable() throws Exception {
     super.setupTable();
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -250,6 +252,83 @@ public class TestMetadataTableFilters extends TableTestBase {
     CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
     Assert.assertEquals(1, Iterables.size(tasks));
     validateCombinedScanTasks(tasks, 0);
+  }
+
+  @Test
+  public void testPartitionSpecEvolution() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    populateTableNewSpec();
+
+    Table metadataTable = createMetadataTable();
+    Expression newSpecFilter = Expressions.and(
+        Expressions.equal("partition.id", 10),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanNewSpec = metadataTable.newScan().filter(newSpecFilter);
+    CloseableIterable<FileScanTask> tasksNewSpecScan = scanNewSpec.planFiles();
+
+    // All 4 original data/delete files written by old spec, plus one new data file/delete file written by new spec
+    Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasksNewSpecScan));
+
+    Expression oldSpecFilter = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanOldSpec = metadataTable.newScan().filter(oldSpecFilter);
+    CloseableIterable<FileScanTask> tasksOldSpecScan = scanOldSpec.planFiles();
+
+    // 1 of original/data files written by old spec, plus both of new data file/delete file written by new spec
+    Assert.assertEquals(expectedScanTaskCount(3), Iterables.size(tasksOldSpecScan));
+  }
+
+  private void populateTableNewSpec() {
+    table.updateSpec().removeField(Expressions.bucket("data", 16))
+        .addField("id").commit();
+    PartitionSpec newSpec = table.spec();
+
+    // Add two data files and two delete files with new spec
+    DataFile data10 = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-10.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id=10")
+        .build();
+    DataFile data11 = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-11.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id=11")
+        .build();
+
+    DeleteFile delete10 = FileMetadata.deleteFileBuilder(newSpec)
+        .ofPositionDeletes()
+        .withPath("/path/to/data-10-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id=10")
+        .withRecordCount(1)
+        .build();
+    DeleteFile delete11 = FileMetadata.deleteFileBuilder(newSpec)
+        .ofPositionDeletes()
+        .withPath("/path/to/data-11-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id=11")
+        .withRecordCount(1)
+        .build();
+
+    table.newFastAppend().appendFile(data10).commit();
+    table.newFastAppend().appendFile(data11).commit();
+
+    if (formatVersion == 2) {
+      table.newRowDelta().addDeletes(delete10).commit();
+      table.newRowDelta().addDeletes(delete11).commit();
+    }
+
+    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+      // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
+      table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
+      table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
+      Assert.assertEquals("Current snapshot should be made empty",
+          0, table.currentSnapshot().allManifests().size());
+    }
   }
 
   private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {

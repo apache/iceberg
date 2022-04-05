@@ -92,7 +92,10 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot, Expression rowFilter,
                                                         boolean ignoreResiduals, boolean caseSensitive,
                                                         boolean colStats) {
-      CloseableIterable<ManifestFile> filtered = filterManifests(manifests(), rowFilter, caseSensitive);
+      CloseableIterable<ManifestFile> filtered =
+          CloseableIterable.filter(
+              CloseableIterable.withNoopClose(manifests()),
+              m -> filter(m, rowFilter, caseSensitive));
 
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
@@ -113,17 +116,17 @@ abstract class BaseFilesTable extends BaseMetadataTable {
      */
     protected abstract CloseableIterable<ManifestFile> manifests();
 
-    private CloseableIterable<ManifestFile> filterManifests(CloseableIterable<ManifestFile> manifests,
-                                                            Expression rowFilter,
-                                                            boolean caseSensitive) {
+
+    private boolean filter(ManifestFile manifestFile, Expression rowFilter, boolean caseSensitive) {
+      PartitionSpec originalSpec = table().specs().get(manifestFile.partitionSpecId());
+
       // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-      PartitionSpec spec = transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX);
+      PartitionSpec spec = transformSpec(fileSchema, originalSpec, PARTITION_FIELD_PREFIX);
       Expression partitionFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
-
       ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
-          partitionFilter, table().spec(), caseSensitive);
+          partitionFilter, originalSpec, caseSensitive);
 
-      return CloseableIterable.filter(manifests, manifestEval::eval);
+      return manifestEval.eval(manifestFile);
     }
   }
 
