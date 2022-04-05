@@ -159,3 +159,4 @@ for different examples of Nessie and Iceberg in action together.
 ## Future Improvements
 
 * Iceberg multi-table transactions. Changes to multiple Iceberg tables in the same transaction, isolation levels etc
+* It is worth noting that Nessie currently does not distinguish between a table being created vs being updated, thus a concurrent transaction that performs an update won't be failing.
