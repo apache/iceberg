@@ -141,6 +141,18 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   }
 
   /**
+   *  For a particular file group, the number of files which are newly created and the number of files
+   *  which were formerly part of the table but have been rewritten.
+   */
+  interface FileGroupRewriteResult {
+    FileGroupInfo info();
+
+    int addedDataFilesCount();
+
+    int rewrittenDataFilesCount();
+  }
+
+  /**
    * A description of a file group, when it was processed, and within which partition. For use
    * tracking rewrite operations and for returning results.
    */

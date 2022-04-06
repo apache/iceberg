@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;

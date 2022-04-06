@@ -40,7 +40,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
 import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.actions.BinPackStrategy;
-import org.apache.iceberg.actions.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;

@@ -20,9 +20,10 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileGroupInfo {
+public class BaseRewriteDataFilesFileGroupInfo implements FileGroupInfo {
   private final int globalIndex;
   private final int partitionIndex;
   private final StructLike partition;

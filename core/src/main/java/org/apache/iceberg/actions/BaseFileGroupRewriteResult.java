@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 
 public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
   private final int addedDataFilesCount;
