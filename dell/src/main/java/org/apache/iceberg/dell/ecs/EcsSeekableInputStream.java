@@ -23,7 +23,11 @@ import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
 import java.io.IOException;
 import java.io.InputStream;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 
 /**
  * A {@link SeekableInputStream} implementation that warp {@link S3Client#readObjectStream(String, String, Range)}
@@ -48,9 +52,14 @@ class EcsSeekableInputStream extends SeekableInputStream {
   private long pos = -1;
   private InputStream internalStream;
 
-  EcsSeekableInputStream(S3Client client, EcsURI uri) {
+  private final Counter<Long> readBytes;
+  private final Counter<Integer> readOperations;
+
+  EcsSeekableInputStream(S3Client client, EcsURI uri, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
   }
 
   @Override
@@ -71,6 +80,8 @@ class EcsSeekableInputStream extends SeekableInputStream {
   public int read() throws IOException {
     checkAndUseNewPos();
     pos += 1;
+    readBytes.increment();
+    readOperations.increment();
     return internalStream.read();
   }
 
@@ -79,6 +90,8 @@ class EcsSeekableInputStream extends SeekableInputStream {
     checkAndUseNewPos();
     int delta = internalStream.read(b, off, len);
     pos += delta;
+    readBytes.increment((long) delta);
+    readOperations.increment();
     return delta;
   }
 

@@ -25,18 +25,25 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 
 class EcsOutputFile extends BaseEcsFile implements OutputFile {
+
   public static EcsOutputFile fromLocation(String location, S3Client client) {
-    return new EcsOutputFile(client, new EcsURI(location), new DellProperties());
+    return new EcsOutputFile(client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
   }
 
   public static EcsOutputFile fromLocation(String location, S3Client client, DellProperties dellProperties) {
-    return new EcsOutputFile(client, new EcsURI(location), dellProperties);
+    return new EcsOutputFile(client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
   }
 
-  EcsOutputFile(S3Client client, EcsURI uri, DellProperties dellProperties) {
-    super(client, uri, dellProperties);
+  static EcsOutputFile fromLocation(String location, S3Client client, DellProperties dellProperties,
+      MetricsContext metrics) {
+    return new EcsOutputFile(client, new EcsURI(location), dellProperties, metrics);
+  }
+
+  EcsOutputFile(S3Client client, EcsURI uri, DellProperties dellProperties, MetricsContext metrics) {
+    super(client, uri, dellProperties, metrics);
   }
 
   /**
@@ -56,11 +63,11 @@ class EcsOutputFile extends BaseEcsFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    return EcsAppendOutputStream.create(client(), uri());
+    return EcsAppendOutputStream.create(client(), uri(), metrics());
   }
 
   @Override
   public InputFile toInputFile() {
-    return new EcsInputFile(client(), uri(), dellProperties());
+    return new EcsInputFile(client(), uri(), dellProperties(), metrics());
   }
 }
