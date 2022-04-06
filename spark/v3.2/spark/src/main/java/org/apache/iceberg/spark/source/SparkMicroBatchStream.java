@@ -37,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -44,7 +45,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -111,8 +111,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     }
 
     Snapshot latestSnapshot = table.currentSnapshot();
-    return new StreamingOffset(
-        latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles(table.io())), false);
+    return new StreamingOffset(latestSnapshot.snapshotId(),
+        Long.parseLong(latestSnapshot.summary().getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0")), false);
   }
 
   @Override
