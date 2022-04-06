@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -533,46 +532,29 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testSetSnapshotSummary() throws Exception {
-    Schema schema = new Schema(
-        required(1, "id", Types.IntegerType.get(), "unique ID"),
-        required(2, "data", Types.StringType.get())
-    );
-    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.newFolder("tbl").toString();
-    try {
-      Table table = catalog.buildTable(tableIdentifier, schema)
-          .withLocation(location)
-          .create();
+    Configuration conf = new Configuration();
+    conf.set("iceberg.hive.legacy.table.parameter.size", "true");
+    HiveTableOperations spyOps = spy(new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl"));
+    Snapshot snapshot = mock(Snapshot.class);
+    Map<String, String> summary = Maps.newHashMap();
+    when(snapshot.summary()).thenReturn(summary);
 
-      String tableName = tableIdentifier.name();
-      CachedClientPool spyCachedClientPool = spy(new CachedClientPool(hiveConf, Collections.emptyMap()));
-      Configuration conf = new Configuration();
-      conf.set("iceberg.hive.legacy.table.parameter.size", "true");
-      HiveTableOperations spyOps = spy(new HiveTableOperations(conf, spyCachedClientPool, table.io(),
-          catalog.name(), tableIdentifier.namespace().level(0), tableName));
-      Snapshot snapshot = mock(Snapshot.class);
-      Map<String, String> summary = Maps.newHashMap();
-      // create a snapshot summary whose json string size is less than the limit
-      for (int i = 0; i < 100; i++) {
-        summary.put(String.valueOf(i), "value");
-      }
-      Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() < 4000);
-
-      when(snapshot.summary()).thenReturn(summary);
-      Map<String, String> parameter = Maps.newHashMap();
-      spyOps.setSnapshotSummary(parameter, snapshot);
-
-      Assert.assertEquals("The snapshot summary must be in parameters", 1, parameter.size());
-
-      // create a snapshot summary whose json string size exceeds the limit
-      for (int i = 0; i < 1000; i++) {
-        summary.put(String.valueOf(i), "value");
-      }
-      Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() > 4000);
-      spyOps.setSnapshotSummary(parameter, snapshot);
-      Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameter.size());
-    } finally {
-      catalog.dropTable(tableIdentifier);
+    // create a snapshot summary whose json string size is less than the limit
+    for (int i = 0; i < 100; i++) {
+      summary.put(String.valueOf(i), "value");
     }
+    Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() < 4000);
+    Map<String, String> parameter = Maps.newHashMap();
+    spyOps.setSnapshotSummary(parameter, snapshot);
+    Assert.assertEquals("The snapshot summary must be in parameters", 1, parameter.size());
+
+    // create a snapshot summary whose json string size exceeds the limit
+    for (int i = 0; i < 1000; i++) {
+      summary.put(String.valueOf(i), "value");
+    }
+    long summarySize = JsonUtil.mapper().writeValueAsString(summary).length();
+    Assert.assertTrue(summarySize > 4000 && summarySize < 32672);
+    spyOps.setSnapshotSummary(parameter, snapshot);
+    Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameter.size());
   }
 }
