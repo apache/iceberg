@@ -91,7 +91,6 @@ public class EcsFileIO implements FileIO {
 
       metrics.initialize(properties);
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-      this.metrics = MetricsContext.nullMetrics();
       LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
     }
   }
