@@ -19,9 +19,12 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
@@ -30,6 +33,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -57,6 +61,10 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
   private static ImmutableMap meta = ImmutableMap.of(
@@ -519,6 +527,52 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals(String.valueOf(snapshotId), parameters.get(TableProperties.CURRENT_SNAPSHOT_ID));
       Assert.assertEquals(String.valueOf(icebergTable.currentSnapshot().timestampMillis()),
           parameters.get(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP));
+
+    } finally {
+      catalog.dropTable(tableIdentifier);
+    }
+  }
+
+  @Test
+  public void testSetSnapshotSummary() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+    try {
+      Table table = catalog.buildTable(tableIdentifier, schema)
+          .withLocation(location)
+          .create();
+
+      String tableName = tableIdentifier.name();
+      CachedClientPool spyCachedClientPool = spy(new CachedClientPool(hiveConf, Collections.emptyMap()));
+      Configuration conf = new Configuration();
+      conf.set("iceberg.hive.legacy.table.parameter.size", "true");
+      HiveTableOperations spyOps = spy(new HiveTableOperations(conf, spyCachedClientPool, table.io(),
+          catalog.name(), tableIdentifier.namespace().level(0), tableName));
+      Snapshot snapshot = mock(Snapshot.class);
+      Map<String, String> summary = Maps.newHashMap();
+      // create a snapshot summary, whose json string is less than the max size
+      for (int i = 0; i < 100; i++) {
+        summary.put(String.valueOf(i), "value");
+      }
+      Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() < 4000);
+
+      when(snapshot.summary()).thenReturn(summary);
+      Map<String, String> parameter = Maps.newHashMap();
+      spyOps.setSnapshotSummary(parameter, snapshot);
+
+      Assert.assertEquals("The snapshot summary must be in parameters", 1, parameter.size());
+
+      // increase the snapshot summary size so that it exceeds the limit
+      for (int i = 0; i < 1000; i++) {
+        summary.put(String.valueOf(i), "value");
+      }
+      Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() > 4000);
+      spyOps.setSnapshotSummary(parameter, snapshot);
+      Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameter.size());
     } finally {
       catalog.dropTable(tableIdentifier);
     }

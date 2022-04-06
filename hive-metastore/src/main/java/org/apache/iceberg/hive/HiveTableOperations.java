@@ -92,7 +92,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
-  private static final long HIVE_TABLE_PROPERTY_VALUE_SIZE_MAX = 4000;
+  private static final String HIVE_LEGACY_TABLE_PARAMETER_SIZE = "iceberg.hive.legacy.table.parameter.size";
+  private static final long HIVE_TABLE_PARAMETER_SIZE_MAX_DEFAULT = 32672;
+  private static final long HIVE_TABLE_PARAMETER_SIZE_MAX_LEGACY = 4000;
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
@@ -151,6 +153,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
+  private final long maxHiveTableParameterSize;
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
@@ -173,6 +176,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
+    this.maxHiveTableParameterSize = conf.getBoolean(HIVE_LEGACY_TABLE_PARAMETER_SIZE, false) ?
+        HIVE_TABLE_PARAMETER_SIZE_MAX_LEGACY : HIVE_TABLE_PARAMETER_SIZE_MAX_DEFAULT;
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
   }
 
@@ -415,20 +420,31 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     if (currentSnapshot != null) {
       parameters.put(TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
       parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
-      try {
-        String summary = JsonUtil.mapper().writeValueAsString(currentSnapshot.summary());
-        if (summary.length() <= HIVE_TABLE_PROPERTY_VALUE_SIZE_MAX) {
-          parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
-        } else {
-          LOG.warn("Not expose the current snapshot({}) summary in HMS since it exceeds {} characters",
-              currentSnapshot.snapshotId(), HIVE_TABLE_PROPERTY_VALUE_SIZE_MAX);
-        }
-      } catch (JsonProcessingException e) {
-        LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
-      }
+      setSnapshotSummary(parameters, currentSnapshot);
+    } else {
+      parameters.remove(TableProperties.CURRENT_SNAPSHOT_ID);
+      parameters.remove(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP);
+      parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
     }
 
     parameters.put(TableProperties.SNAPSHOT_COUNT, String.valueOf(metadata.snapshots().size()));
+  }
+
+  @VisibleForTesting
+  void setSnapshotSummary(Map<String, String> parameters, Snapshot currentSnapshot) {
+    try {
+      String summary = JsonUtil.mapper().writeValueAsString(currentSnapshot.summary());
+      if (summary.length() <= maxHiveTableParameterSize) {
+        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
+      } else {
+        parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
+        LOG.warn("Not exposing the current snapshot({}) summary in HMS since it exceeds {} characters",
+            currentSnapshot.snapshotId(), maxHiveTableParameterSize);
+      }
+    } catch (JsonProcessingException e) {
+      parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
+      LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
+    }
   }
 
   private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
