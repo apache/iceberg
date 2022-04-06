@@ -28,7 +28,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public abstract class RequestResponseTestBase<T> {
+public abstract class RequestResponseTestBase<T extends RESTMessage> {
 
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);

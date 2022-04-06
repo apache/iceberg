@@ -17,32 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.flink.source.reader;
 
-import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BinPackStrategy;
-import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.actions.SortStrategy;
-import org.apache.spark.sql.SparkSession;
+import org.apache.flink.api.connector.source.SourceOutput;
+import org.apache.flink.connector.base.source.reader.RecordEmitter;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
-public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkAction {
+final class IcebergSourceRecordEmitter<T> implements RecordEmitter<RecordAndPosition<T>, T, IcebergSourceSplit> {
 
-  protected BaseRewriteDataFilesSpark3Action(SparkSession spark, Table table) {
-    super(spark, table);
+  IcebergSourceRecordEmitter() {
   }
 
   @Override
-  protected BinPackStrategy binPackStrategy() {
-    return new Spark3BinPackStrategy(table(), spark());
-  }
-
-  @Override
-  protected SortStrategy sortStrategy() {
-    return new Spark3SortStrategy(table(), spark());
-  }
-
-  @Override
-  protected RewriteDataFiles self() {
-    return this;
+  public void emitRecord(
+      RecordAndPosition<T> element,
+      SourceOutput<T> output,
+      IcebergSourceSplit split) {
+    output.collect(element.record());
+    split.updatePosition(element.fileOffset(), element.recordOffset());
   }
 }

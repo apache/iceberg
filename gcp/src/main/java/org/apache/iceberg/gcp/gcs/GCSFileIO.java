@@ -49,7 +49,7 @@ public class GCSFileIO implements FileIO {
 
   private SerializableSupplier<Storage> storageSupplier;
   private GCPProperties gcpProperties;
-  private transient Storage storage;
+  private transient volatile Storage storage;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
@@ -96,7 +96,11 @@ public class GCSFileIO implements FileIO {
 
   private Storage client() {
     if (storage == null) {
-      storage = storageSupplier.get();
+      synchronized (this) {
+        if (storage == null) {
+          storage = storageSupplier.get();
+        }
+      }
     }
     return storage;
   }

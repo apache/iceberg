@@ -235,7 +235,7 @@ class TestConversions(unittest.TestCase):
             bytes([11]),
             Literal.of(0.011).to(DecimalType.of(10, 3)).to_byte_buffer())
 
-    def assertConversion(self, value, type, expectedBinary):
-        byteBuffer = Conversions.to_byte_buffer(type.type_id, value)
-        self.assertEqual(expectedBinary, byteBuffer)
-        self.assertEqual(value, Conversions.from_byte_buffer(type, byteBuffer))
+    def assertConversion(self, value, type, expected_binary):
+        byte_buffer = Conversions.to_byte_buffer(type.type_id, value)
+        self.assertEqual(expected_binary, byte_buffer)
+        self.assertEqual(value, Conversions.from_byte_buffer(type, byte_buffer))

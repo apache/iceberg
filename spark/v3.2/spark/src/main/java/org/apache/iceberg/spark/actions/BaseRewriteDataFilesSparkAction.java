@@ -71,7 +71,7 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class BaseRewriteDataFilesSparkAction
+public class BaseRewriteDataFilesSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteDataFiles, RewriteDataFiles.Result> implements RewriteDataFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesSparkAction.class);
@@ -98,19 +98,10 @@ abstract class BaseRewriteDataFilesSparkAction
     this.table = table;
   }
 
-  protected Table table() {
-    return table;
+  @Override
+  protected RewriteDataFiles self() {
+    return this;
   }
-
-  /**
-   * The framework specific {@link BinPackStrategy}
-   */
-  protected abstract BinPackStrategy binPackStrategy();
-
-  /**
-   * The framework specific {@link SortStrategy}
-   */
-  protected abstract SortStrategy sortStrategy();
 
   @Override
   public RewriteDataFiles binPack() {
@@ -402,6 +393,14 @@ abstract class BaseRewriteDataFilesSparkAction
           strategy.name(), group.info().globalIndex(), ctx.totalGroupCount(),
           table.name());
     }
+  }
+
+  private BinPackStrategy binPackStrategy() {
+    return new SparkBinPackStrategy(table, spark());
+  }
+
+  private SortStrategy sortStrategy() {
+    return new SparkSortStrategy(table, spark());
   }
 
   @VisibleForTesting

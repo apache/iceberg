@@ -126,7 +126,9 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Override
   public ListNamespacesResponse deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, ListNamespacesResponse.class).validate();
+    ListNamespacesResponse resp = mapper().readValue(json, ListNamespacesResponse.class);
+    resp.validate();
+    return resp;
   }
 }
 

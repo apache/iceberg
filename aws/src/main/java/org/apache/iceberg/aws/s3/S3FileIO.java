@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -40,6 +41,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -47,7 +50,13 @@ import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 
 /**
  * FileIO implementation backed by S3.
@@ -59,10 +68,11 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 public class S3FileIO implements FileIO, SupportsBulkOperations {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static volatile ExecutorService executorService;
 
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-  private transient S3Client client;
+  private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
 
@@ -108,6 +118,18 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
 
   @Override
   public void deleteFile(String path) {
+    if (awsProperties.s3DeleteTags() != null && !awsProperties.s3DeleteTags().isEmpty()) {
+      try {
+        tagFileToDelete(path, awsProperties.s3DeleteTags());
+      } catch (S3Exception e) {
+        LOG.warn("Failed to add delete tags: {} to {}", awsProperties.s3DeleteTags(), path, e);
+      }
+    }
+
+    if (!awsProperties.isS3DeleteEnabled()) {
+      return;
+    }
+
     S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
     DeleteObjectRequest deleteRequest =
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
@@ -125,6 +147,20 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
    */
   @Override
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
+    if (awsProperties.s3DeleteTags() != null && !awsProperties.s3DeleteTags().isEmpty()) {
+      Tasks.foreach(paths)
+          .noRetry()
+          .executeWith(executorService())
+          .suppressFailureWhenFinished()
+          .onFailure((path, exc) -> LOG.warn("Failed to add delete tags: {} to {}",
+              awsProperties.s3DeleteTags(), path, exc))
+          .run(path -> tagFileToDelete(path, awsProperties.s3DeleteTags()));
+    }
+
+    if (!awsProperties.isS3DeleteEnabled()) {
+      return;
+    }
+
     SetMultimap<String, String> bucketToObjects = Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
     int numberOfFailedDeletions = 0;
     for (String path : paths) {
@@ -155,6 +191,31 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
     }
   }
 
+  private void tagFileToDelete(String path, Set<Tag> deleteTags) throws S3Exception {
+    S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
+    String bucket = location.bucket();
+    String objectKey = location.key();
+    GetObjectTaggingRequest getObjectTaggingRequest = GetObjectTaggingRequest.builder()
+        .bucket(bucket)
+        .key(objectKey)
+        .build();
+    GetObjectTaggingResponse getObjectTaggingResponse = client()
+        .getObjectTagging(getObjectTaggingRequest);
+    // Get existing tags, if any and then add the delete tags
+    Set<Tag> tags = Sets.newHashSet();
+    if (getObjectTaggingResponse.hasTagSet()) {
+      tags.addAll(getObjectTaggingResponse.tagSet());
+    }
+
+    tags.addAll(deleteTags);
+    PutObjectTaggingRequest putObjectTaggingRequest = PutObjectTaggingRequest.builder()
+        .bucket(bucket)
+        .key(objectKey)
+        .tagging(Tagging.builder().tagSet(tags).build())
+        .build();
+    client().putObjectTagging(putObjectTaggingRequest);
+  }
+
   private List<String> deleteObjectsInBucket(String bucket, Collection<String> objects) {
     if (!objects.isEmpty()) {
       List<ObjectIdentifier> objectIds = objects
@@ -179,9 +240,26 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
 
   private S3Client client() {
     if (client == null) {
-      client = s3.get();
+      synchronized (this) {
+        if (client == null) {
+          client = s3.get();
+        }
+      }
     }
     return client;
+  }
+
+  private ExecutorService executorService() {
+    if (executorService == null) {
+      synchronized (S3FileIO.class) {
+        if (executorService == null) {
+          executorService = ThreadPools.newWorkerPool(
+              "iceberg-s3fileio-delete", awsProperties.s3FileIoDeleteThreads());
+        }
+      }
+    }
+
+    return executorService;
   }
 
   @Override

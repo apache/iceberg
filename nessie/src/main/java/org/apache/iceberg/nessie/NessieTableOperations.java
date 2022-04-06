@@ -165,7 +165,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
       delete = false;
     } catch (NessieConflictException ex) {
-      throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
+      throw new CommitFailedException(ex, "Cannot commit: Reference hash is out of date. " +
           "Update the reference %s and try again", reference.getName());
     } catch (HttpClientException ex) {
       // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
@@ -176,7 +176,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       throw new CommitStateUnknownException(ex);
     } catch (NessieNotFoundException ex) {
       throw new RuntimeException(
-          String.format("Commit failed: Reference %s no longer exist", reference.getName()), ex);
+          String.format("Cannot commit: Reference %s no longer exists", reference.getName()), ex);
     } finally {
       if (delete) {
         io().deleteFile(newMetadataLocation);

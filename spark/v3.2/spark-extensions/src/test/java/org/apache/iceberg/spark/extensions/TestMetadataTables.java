@@ -130,7 +130,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<SimpleRecord> recordsB = Lists.newArrayList(
         new SimpleRecord(1, "b"),
         new SimpleRecord(2, "b")
-        );
+    );
     spark.createDataset(recordsB, Encoders.bean(SimpleRecord.class))
         .coalesce(1)
         .writeTo(tableName)
@@ -179,6 +179,94 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedFiles.get(0), actualFiles.get(0));
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedFiles.get(1), actualFiles.get(1));
+  }
+
+  @Test
+  public void testAllFiles() throws Exception {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES" +
+        "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c"),
+        new SimpleRecord(4, "d")
+    );
+    spark.createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
+    Assert.assertEquals("Should have 1 data manifest", 1, expectedDataManifests.size());
+
+    // Clear table to test whether 'all_files' can read past files
+    List<Object[]> results = sql("DELETE FROM %s", tableName);
+    Assert.assertEquals("Table should be cleared", 0, results.size());
+
+    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
+
+    List<Row> actualDataFiles = spark.sql("SELECT * FROM " + tableName + ".all_data_files").collectAsList();
+
+    List<Record> expectedDataFiles = expectedEntries(table, FileContent.DATA,
+        entriesTableSchema, expectedDataManifests, null);
+
+    Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
+    Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
+
+    TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDataFiles.get(0), actualDataFiles.get(0));
+  }
+
+  @Test
+  public void testAllFilesPartitioned() throws Exception {
+    sql("CREATE TABLE %s (id bigint, data string) " +
+        "USING iceberg " +
+        "PARTITIONED BY (data) " +
+        "TBLPROPERTIES" +
+        "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
+
+    List<SimpleRecord> recordsA = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "a")
+    );
+    spark.createDataset(recordsA, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    List<SimpleRecord> recordsB = Lists.newArrayList(
+        new SimpleRecord(1, "b"),
+        new SimpleRecord(2, "b")
+    );
+    spark.createDataset(recordsB, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
+    Assert.assertEquals("Should have 2 data manifests", 2, expectedDataManifests.size());
+
+    // Clear table to test whether 'all_files' can read past files
+    List<Object[]> results = sql("DELETE FROM %s", tableName);
+    Assert.assertEquals("Table should be cleared", 0, results.size());
+
+    List<Row> actualDataFiles = spark.sql("SELECT * FROM " + tableName + ".all_data_files " +
+        "WHERE partition.data='a'").collectAsList();
+
+    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
+
+    List<Record> expectedDataFiles = expectedEntries(table, FileContent.DATA,
+        entriesTableSchema, expectedDataManifests, "a");
+
+    Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
+    Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
+
+    TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDataFiles.get(0), actualDataFiles.get(0));
   }
 
   /**

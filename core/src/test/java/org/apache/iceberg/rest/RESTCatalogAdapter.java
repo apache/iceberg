@@ -96,7 +96,6 @@ public class RESTCatalogAdapter implements RESTClient {
     UPDATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces/{namespace}/properties"),
     LIST_TABLES(HTTPMethod.GET, "v1/namespaces/{namespace}/tables"),
     CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables"),
-    STAGE_CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/stageCreate"),
     LOAD_TABLE(HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}"),
     UPDATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables/{table}"),
     DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}");
@@ -151,7 +150,8 @@ public class RESTCatalogAdapter implements RESTClient {
     }
   }
 
-  public <T> T handleRequest(Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+  public <T extends RESTResponse> T handleRequest(Route route, Map<String, String> vars,
+                                                  Object body, Class<T> responseType) {
     switch (route) {
       case CONFIG:
         // TODO: use the correct response object
@@ -202,13 +202,12 @@ public class RESTCatalogAdapter implements RESTClient {
       case CREATE_TABLE: {
         Namespace namespace = namespaceFromPathVars(vars);
         CreateTableRequest request = castRequest(CreateTableRequest.class, body);
-        return castResponse(responseType, CatalogHandlers.createTable(catalog, namespace, request));
-      }
-
-      case STAGE_CREATE_TABLE: {
-        Namespace namespace = namespaceFromPathVars(vars);
-        CreateTableRequest request = castRequest(CreateTableRequest.class, body);
-        return castResponse(responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
+        request.validate();
+        if (request.stageCreate()) {
+          return castResponse(responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
+        } else {
+          return castResponse(responseType, CatalogHandlers.createTable(catalog, namespace, request));
+        }
       }
 
       case DROP_TABLE: {
@@ -233,8 +232,8 @@ public class RESTCatalogAdapter implements RESTClient {
     return null;
   }
 
-  public <T> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
-                       Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
+                                            Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
@@ -260,17 +259,18 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
-  public <T> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.DELETE, path, null, responseType, errorHandler);
   }
 
   @Override
-  public <T> T post(String path, Object body, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
+                                         Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, body, responseType, errorHandler);
   }
 
   @Override
-  public <T> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.GET, path, null, responseType, errorHandler);
   }
 
@@ -306,7 +306,7 @@ public class RESTCatalogAdapter implements RESTClient {
     throw new BadRequestType(requestType, request);
   }
 
-  public static <T> T castResponse(Class<T> responseType, Object response) {
+  public static <T extends RESTResponse> T castResponse(Class<T> responseType, Object response) {
     if (responseType.isInstance(response)) {
       return responseType.cast(response);
     }
@@ -323,10 +323,10 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.urlDecode(pathVars.get("namespace"));
+    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
   }
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {
-    return TableIdentifier.of(namespaceFromPathVars(pathVars), pathVars.get("table"));
+    return TableIdentifier.of(namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("table")));
   }
 }

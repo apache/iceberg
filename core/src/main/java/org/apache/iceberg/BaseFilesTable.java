@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -56,6 +55,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   }
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
+
     private final Schema fileSchema;
     private final MetadataTableType type;
 
@@ -90,7 +90,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     @Override
     protected CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
+                                                        boolean ignoreResiduals, boolean caseSensitive,
+                                                        boolean colStats) {
       CloseableIterable<ManifestFile> filtered = filterManifests(manifests(), rowFilter, caseSensitive);
 
       String schemaString = SchemaParser.toJson(schema());
@@ -108,15 +109,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     /**
-     * @return list of manifest files to explore for this files metadata table scan
+     * Returns an iterable of manifest files to explore for this Files metadata table scan
      */
-    protected abstract List<ManifestFile> manifests();
+    protected abstract CloseableIterable<ManifestFile> manifests();
 
-    private CloseableIterable<ManifestFile> filterManifests(List<ManifestFile> manifests,
+    private CloseableIterable<ManifestFile> filterManifests(CloseableIterable<ManifestFile> manifests,
                                                             Expression rowFilter,
                                                             boolean caseSensitive) {
-      CloseableIterable<ManifestFile> manifestIterable = CloseableIterable.withNoopClose(manifests);
-
       // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
       PartitionSpec spec = transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX);
       Expression partitionFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
@@ -124,7 +123,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
           partitionFilter, table().spec(), caseSensitive);
 
-      return CloseableIterable.filter(manifestIterable, manifestEval::eval);
+      return CloseableIterable.filter(manifests, manifestEval::eval);
     }
   }
 

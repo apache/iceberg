@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -46,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 
 public class ScanSummary {
@@ -295,7 +295,7 @@ public class ScanSummary {
     @Override
     public String toString() {
       String dataTimestamp = dataTimestampMillis != null ?
-          new Date(dataTimestampMillis).toString() : null;
+          DateTimeUtil.formatTimestampMillis(dataTimestampMillis) : null;
       return "PartitionMetrics(fileCount=" + fileCount +
           ", recordCount=" + recordCount +
           ", totalSize=" + totalSize +

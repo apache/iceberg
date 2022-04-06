@@ -92,7 +92,8 @@ public class TestS3OutputStream {
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
       AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString(),
       "s3.write.tags.abc", "123",
-      "s3.write.tags.def", "789"));
+      "s3.write.tags.def", "789",
+      "s3.delete.tags.xyz", "456"));
 
   public TestS3OutputStream() throws IOException {
   }

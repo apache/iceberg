@@ -28,11 +28,12 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTRequest;
 
 /**
  * A REST request to create a namespace, with an optional set of properties.
  */
-public class CreateTableRequest {
+public class CreateTableRequest implements RESTRequest {
 
   private String name;
   private String location;
@@ -40,26 +41,29 @@ public class CreateTableRequest {
   private PartitionSpec spec;
   private SortOrder order;
   private Map<String, String> properties;
+  private Boolean stageCreate;
 
   public CreateTableRequest() {
     // Needed for Jackson Deserialization.
   }
 
   private CreateTableRequest(String name, String location, Schema schema, PartitionSpec spec, SortOrder order,
-                             Map<String, String> properties) {
+                             Map<String, String> properties, boolean stageCreate) {
     this.name = name;
     this.location = location;
     this.schema = schema;
     this.spec = spec;
     this.order = order;
     this.properties = properties;
+    this.stageCreate = stageCreate;
     validate();
   }
 
-  public CreateTableRequest validate() {
+  @Override
+  public void validate() {
     Preconditions.checkArgument(name != null, "Invalid table name: null");
     Preconditions.checkArgument(schema != null, "Invalid schema: null");
-    return this;
+    Preconditions.checkArgument(stageCreate != null, "Invalid stageCreate flag: null");
   }
 
   public String name() {
@@ -86,6 +90,10 @@ public class CreateTableRequest {
     return properties != null ? properties : ImmutableMap.of();
   }
 
+  public boolean stageCreate() {
+    return stageCreate;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -109,6 +117,7 @@ public class CreateTableRequest {
     private PartitionSpec spec;
     private SortOrder order;
     private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+    private boolean stageCreate = false;
 
     private Builder() {
     }
@@ -156,8 +165,13 @@ public class CreateTableRequest {
       return this;
     }
 
+    public Builder stageCreate() {
+      this.stageCreate = true;
+      return this;
+    }
+
     public CreateTableRequest build() {
-      return new CreateTableRequest(name, location, schema, spec, order, properties.build());
+      return new CreateTableRequest(name, location, schema, spec, order, properties.build(), stageCreate);
     }
   }
 }
