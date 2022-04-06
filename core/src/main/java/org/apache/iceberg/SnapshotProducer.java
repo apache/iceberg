@@ -343,8 +343,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
       }
 
-    } catch (RuntimeException e) {
-      LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", e);
+    } catch (Throwable t) {
+      LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", t);
     }
 
     notifyListeners();
