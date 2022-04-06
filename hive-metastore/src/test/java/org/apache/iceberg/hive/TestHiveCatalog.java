@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
@@ -61,7 +60,6 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -554,7 +552,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           catalog.name(), tableIdentifier.namespace().level(0), tableName));
       Snapshot snapshot = mock(Snapshot.class);
       Map<String, String> summary = Maps.newHashMap();
-      // create a snapshot summary, whose json string is less than the max size
+      // create a snapshot summary whose json string size is less than the limit
       for (int i = 0; i < 100; i++) {
         summary.put(String.valueOf(i), "value");
       }
@@ -566,7 +564,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       Assert.assertEquals("The snapshot summary must be in parameters", 1, parameter.size());
 
-      // increase the snapshot summary size so that it exceeds the limit
+      // create a snapshot summary whose json string size exceeds the limit
       for (int i = 0; i < 1000; i++) {
         summary.put(String.valueOf(i), "value");
       }
