@@ -24,9 +24,10 @@ from iceberg.expression.base import (
     alwaysFalse,
     alwaysTrue,
 )
+from iceberg.types import Singleton
 
 
-class TestExpressionA(BooleanExpression):
+class TestExpressionA(BooleanExpression, Singleton):
     def __invert__(self):
         return TestExpressionB()
 
@@ -37,7 +38,7 @@ class TestExpressionA(BooleanExpression):
         return "testexpra"
 
 
-class TestExpressionB(BooleanExpression):
+class TestExpressionB(BooleanExpression, Singleton):
     def __invert__(self):
         return TestExpressionA()
 
@@ -122,19 +123,18 @@ def test_negate(input, exp):
     ],
 )
 def test_reduce(input, exp):
-    assert ~input == exp
+    assert input == exp
 
 
 @pytest.mark.parametrize(
     "input, exp",
     [
         (And(alwaysTrue(), TestExpressionB()), TestExpressionB()),
-        (And(alwaysFalse(), TestExpressionB()), And(alwaysTrue(), TestExpressionB()))(
-            Or(alwaysTrue(), TestExpressionB()), alwaysTrue()
-        ),
+        (And(alwaysFalse(), TestExpressionB()), alwaysFalse()),
+        (Or(alwaysTrue(), TestExpressionB()), alwaysTrue()),
         (Or(alwaysFalse(), TestExpressionB()), TestExpressionB()),
         (Not(Not(TestExpressionA())), TestExpressionA()),
     ],
 )
 def test_alwaysTrue_alwaysFalse(input, exp):
-    assert ~input == exp
+    assert input == exp

@@ -34,8 +34,8 @@ class And(BooleanExpression):
     def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if rest:
             return reduce(And, (left, right, *rest))
-        if left is alwaysTrue() and right is alwaysTrue():
-            return alwaysTrue()
+        if left is alwaysFalse() or right is alwaysFalse():
+            return alwaysFalse()
         elif left is alwaysTrue():
             return right
         elif right is alwaysTrue():
@@ -65,7 +65,7 @@ class Or(BooleanExpression):
 
     def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if rest:
-            return reduce(And, (left, right, *rest))
+            return reduce(Or, (left, right, *rest))
         if left is alwaysTrue() or right is alwaysTrue():
             return alwaysTrue()
         elif left is alwaysFalse():
