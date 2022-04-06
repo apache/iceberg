@@ -34,7 +34,7 @@ public class BaseFileScanTask implements FileScanTask {
   private final DeleteFile[] deletes;
   private final String schemaString;
   private final String specString;
-  private final ResidualEvaluator residuals;
+  private final Expression expr;
 
   private transient PartitionSpec spec = null;
 
@@ -44,7 +44,7 @@ public class BaseFileScanTask implements FileScanTask {
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
     this.schemaString = schemaString;
     this.specString = specString;
-    this.residuals = residuals;
+    this.expr = (residuals == null) ? null : residuals.residualFor(file.partition());
   }
 
   @Override
@@ -77,7 +77,7 @@ public class BaseFileScanTask implements FileScanTask {
 
   @Override
   public Expression residual() {
-    return residuals.residualFor(file.partition());
+    return expr;
   }
 
   @Override
