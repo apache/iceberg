@@ -40,7 +40,7 @@ class And(BooleanExpression):
             return left
         if not rest:
             return super().__new__(cls)
-        return reduce(lambda a, b: And(a, b), (left, right, *rest))
+        return reduce(And, (left, right, *rest))
 
     def __init__(self, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if not rest:
@@ -72,7 +72,7 @@ class Or(BooleanExpression):
             return left
         if not rest:
             return super().__new__(cls)
-        return reduce(lambda a, b: Or(a, b), (left, right, *rest))
+        return reduce(Or, (left, right, *rest))
 
     def __init__(self, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if not rest:
