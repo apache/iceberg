@@ -134,7 +134,7 @@ public class RewriteDataFilesCommitManager {
   public class CommitService implements Closeable {
     private final ExecutorService committerService;
     private final ConcurrentLinkedQueue<RewriteFileGroup> completedRewrites;
-    private final List<RewriteDataFiles.FileGroupRewriteResult> committedRewrites;
+    private final List<FileGroupRewriteResult> committedRewrites;
     private final int rewritesPerCommit;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -201,7 +201,7 @@ public class RewriteDataFilesCommitManager {
     /**
      * Returns all file groups results which have been committed
      */
-    public List<RewriteDataFiles.FileGroupRewriteResult> results() {
+    public List<FileGroupRewriteResult> results() {
       Preconditions.checkState(committerService.isShutdown(),
           "Cannot get results from a service which has not been closed");
       return committedRewrites;

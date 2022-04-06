@@ -19,31 +19,14 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+/**
+ *  For a particular file group, the number of files which are newly created and the number of files
+ *  which were formerly part of the table but have been rewritten.
+ */
+public interface FileGroupRewriteResult {
+  RewriteDataFiles.FileGroupInfo info();
 
-public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
-  private final int addedDataFilesCount;
-  private final int rewrittenDataFilesCount;
-  private final FileGroupInfo info;
+  int addedDataFilesCount();
 
-  public BaseFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
-    this.info = info;
-    this.addedDataFilesCount = addedFilesCount;
-    this.rewrittenDataFilesCount = rewrittenFilesCount;
-  }
-
-  @Override
-  public FileGroupInfo info() {
-    return info;
-  }
-
-  @Override
-  public int addedDataFilesCount() {
-    return addedDataFilesCount;
-  }
-
-  @Override
-  public int rewrittenDataFilesCount() {
-    return rewrittenDataFilesCount;
-  }
+  int rewrittenDataFilesCount();
 }

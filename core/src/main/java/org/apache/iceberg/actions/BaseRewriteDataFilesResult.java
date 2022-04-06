@@ -20,7 +20,6 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
-import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
 
 public class BaseRewriteDataFilesResult implements Result {
