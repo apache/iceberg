@@ -45,9 +45,10 @@ public class PartitionsTable extends BaseMetadataTable {
     super(ops, table, name);
 
     this.schema = new Schema(
-        Types.NestedField.required(1, "partition", table.spec().partitionType()),
-        Types.NestedField.required(2, "record_count", Types.LongType.get()),
-        Types.NestedField.required(3, "file_count", Types.IntegerType.get())
+        Types.NestedField.required(1, "spec_id", Types.IntegerType.get()),
+        Types.NestedField.required(2, "partition", Partitioning.partitionType(table)),
+        Types.NestedField.required(3, "record_count", Types.LongType.get()),
+        Types.NestedField.required(4, "file_count", Types.IntegerType.get())
     );
   }
 
@@ -89,7 +90,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
-    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount);
+    return StaticDataTask.Row.of(partition.specId, partition.key, partition.recordCount, partition.fileCount);
   }
 
   private static Iterable<Partition> partitions(StaticTableScan scan) {
@@ -164,17 +165,20 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   static class Partition {
+    private int specId;
     private final StructLike key;
     private long recordCount;
     private int fileCount;
 
     Partition(StructLike key) {
+      this.specId = 0;
       this.key = key;
       this.recordCount = 0;
       this.fileCount = 0;
     }
 
     void update(DataFile file) {
+      this.specId = file.specId();
       this.recordCount += file.recordCount();
       this.fileCount += 1;
     }
