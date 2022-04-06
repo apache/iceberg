@@ -238,6 +238,14 @@ public class BaseTransaction implements Transaction {
     return set;
   }
 
+  UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation() {
+    checkLastOperationCommitted("UpdateSnapshotReferencesOperation");
+    UpdateSnapshotReferencesOperation manageSnapshotRefOperation =
+        new UpdateSnapshotReferencesOperation(transactionOps);
+    updates.add(manageSnapshotRefOperation);
+    return manageSnapshotRefOperation;
+  }
+
   @Override
   public void commitTransaction() {
     Preconditions.checkState(hasLastOpCommitted,
