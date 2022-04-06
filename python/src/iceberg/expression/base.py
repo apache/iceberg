@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from abc import ABC, abstractmethod
+from functools import reduce
 
 from iceberg.types import Singleton
 
@@ -30,15 +31,27 @@ class BooleanExpression(ABC):
 class And(BooleanExpression):
     """AND operation expression - logical conjunction"""
 
-    def __init__(self, left: BooleanExpression, right: BooleanExpression):
-        self.left = left
-        self.right = right
+    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression) -> BooleanExpression:
+        if left is alwaysTrue() and right is alwaysTrue():
+            return alwaysTrue()
+        elif left is alwaysTrue():
+            return right
+        elif right is alwaysTrue():
+            return left
+        if not rest:
+            return super().__new__(cls)
+        return reduce(lambda a, b: And(a, b), (left, right, *rest))
+
+    def __init__(self, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
+        if not rest:
+            self.left = left
+            self.right = right
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, And) and self.left == other.left and self.right == other.right)
 
     def __invert__(self) -> "Or":
-        return Or(self.left.__invert__(), self.right.__invert__())
+        return Or(~self.left, ~self.right)
 
     def __repr__(self) -> str:
         return f"And({repr(self.left)}, {repr(self.right)})"
@@ -50,15 +63,27 @@ class And(BooleanExpression):
 class Or(BooleanExpression):
     """OR operation expression - logical disjunction"""
 
-    def __init__(self, left: BooleanExpression, right: BooleanExpression):
-        self.left = left
-        self.right = right
+    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression) -> BooleanExpression:
+        if left is alwaysTrue() or right is alwaysTrue():
+            return alwaysTrue()
+        elif left is alwaysFalse():
+            return right
+        elif right is alwaysFalse():
+            return left
+        if not rest:
+            return super().__new__(cls)
+        return reduce(lambda a, b: Or(a, b), (left, right, *rest))
+
+    def __init__(self, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
+        if not rest:
+            self.left = left
+            self.right = right
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, Or) and self.left == other.left and self.right == other.right)
 
     def __invert__(self) -> "And":
-        return And(self.left.__invert__(), self.right.__invert__())
+        return And(~self.left, ~self.right)
 
     def __repr__(self) -> str:
         return f"Or({repr(self.left)}, {repr(self.right)})"
@@ -69,6 +94,15 @@ class Or(BooleanExpression):
 
 class Not(BooleanExpression):
     """NOT operation expression - logical negation"""
+
+    def __new__(cls, child: BooleanExpression) -> BooleanExpression:
+        if child is alwaysTrue():
+            return alwaysFalse()
+        elif child is alwaysFalse():
+            return alwaysTrue()
+        elif isinstance(child, Not):
+            return child.child
+        return super().__new__(cls)
 
     def __init__(self, child):
         self.child = child
@@ -86,27 +120,27 @@ class Not(BooleanExpression):
         return f"(not {self.child})"
 
 
-class TrueExp(BooleanExpression, Singleton):
+class alwaysTrue(BooleanExpression, Singleton):
     """TRUE expression"""
 
-    def __invert__(self) -> "FalseExp":
-        return FalseExp()
+    def __invert__(self) -> "alwaysFalse":
+        return alwaysFalse()
 
     def __repr__(self) -> str:
-        return "True"
+        return "alwaysTrue()"
 
     def __str__(self) -> str:
         return "true"
 
 
-class FalseExp(BooleanExpression, Singleton):
+class alwaysFalse(BooleanExpression, Singleton):
     """FALSE expression"""
 
-    def __invert__(self) -> "TrueExp":
-        return TrueExp()
+    def __invert__(self) -> "alwaysTrue":
+        return alwaysTrue()
 
     def __repr__(self) -> str:
-        return "False"
+        return "alwaysTrue()"
 
     def __str__(self) -> str:
         return "false"
