@@ -27,10 +27,11 @@ class BooleanExpression(ABC):
     def __invert__(self) -> "BooleanExpression":
         ...
 
+
 class And(BooleanExpression):
     """AND operation expression - logical conjunction"""
 
-    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression) -> BooleanExpression:
+    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if rest:
             return reduce(And, (left, right, *rest))
         if left is alwaysTrue() and right is alwaysTrue():
@@ -40,7 +41,6 @@ class And(BooleanExpression):
         elif right is alwaysTrue():
             return left
         return super().__new__(cls)
-        
 
     def __init__(self, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if not rest:
@@ -63,7 +63,7 @@ class And(BooleanExpression):
 class Or(BooleanExpression):
     """OR operation expression - logical disjunction"""
 
-    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression) -> BooleanExpression:
+    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if rest:
             return reduce(And, (left, right, *rest))
         if left is alwaysTrue() or right is alwaysTrue():
@@ -95,7 +95,7 @@ class Or(BooleanExpression):
 class Not(BooleanExpression):
     """NOT operation expression - logical negation"""
 
-    def __new__(cls, child: BooleanExpression) -> BooleanExpression:
+    def __new__(cls, child: BooleanExpression):
         if child is alwaysTrue():
             return alwaysFalse()
         elif child is alwaysFalse():
