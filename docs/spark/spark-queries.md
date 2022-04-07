@@ -313,7 +313,7 @@ SELECT * FROM prod.db.table.all_manifests
 
 | path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count| partition_summaries|
 | -- | -- | -- | -- | -- | -- | -- | -- |
-| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 10, 11}, {false, false, 20210101, 20210101}]|
+| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 20210101, 20210101}]|
 
 Note:
 1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order:
