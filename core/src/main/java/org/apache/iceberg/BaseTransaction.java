@@ -381,7 +381,7 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
-    } catch (ValidationFailureException e) {
+    } catch (PendingUpdateFailedException e) {
       cleanUpOnCommitFailure();
       throw e.wrapped();
     } catch (RuntimeException e) {
@@ -446,8 +446,8 @@ public class BaseTransaction implements Transaction {
         try {
           update.commit();
         } catch (CommitFailedException e) {
-          // Cannot pass even with retry. So, break the retry-loop.
-          throw new ValidationFailureException(e);
+          // Cannot pass even with retry due to conflicting metadata changes. So, break the retry-loop.
+          throw new PendingUpdateFailedException(e);
         }
       }
     }
@@ -748,10 +748,10 @@ public class BaseTransaction implements Transaction {
   /**
    * Exception used to avoid retrying {@link PendingUpdate} when it is failed with {@link CommitFailedException}.
    */
-  private static class ValidationFailureException extends RuntimeException {
+  private static class PendingUpdateFailedException extends RuntimeException {
     private final CommitFailedException wrapped;
 
-    private ValidationFailureException(CommitFailedException cause) {
+    private PendingUpdateFailedException(CommitFailedException cause) {
       super(cause);
       this.wrapped = cause;
     }

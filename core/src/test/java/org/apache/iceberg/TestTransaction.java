@@ -440,9 +440,11 @@ public class TestTransaction extends TableTestBase {
     table.updateSchema()
         .addColumn("another-column", Types.IntegerType.get())
         .commit();
-    int conflictSchemaId = table.schema().schemaId();
+    int conflictingSchemaId = table.schema().schemaId();
 
-    Assert.assertEquals("both the schema id should be same to become conflicting", conflictSchemaId, schemaId);
+    Assert.assertEquals("Both schema IDs should be the same in order to cause a conflict",
+        conflictingSchemaId,
+        schemaId);
 
     // commit the transaction for adding "new-column"
     AssertHelpers.assertThrows("Should fail due to conflicting transaction even after retry",
