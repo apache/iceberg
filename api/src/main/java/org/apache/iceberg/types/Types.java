@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.types;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -27,10 +28,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 
@@ -415,27 +420,42 @@ public class Types {
 
   public static class NestedField implements Serializable {
     public static NestedField optional(int id, String name, Type type) {
-      return new NestedField(true, id, name, type, null);
+      return new NestedField(true, id, name, type, null, null, null);
     }
 
     public static NestedField optional(int id, String name, Type type, String doc) {
-      return new NestedField(true, id, name, type, doc);
+      return new NestedField(true, id, name, type, doc, null, null);
+    }
+
+    public static NestedField optional(int id, String name, Type type, String doc,
+                                       JsonNode initialDefault, JsonNode writeDefault) {
+      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public static NestedField required(int id, String name, Type type) {
-      return new NestedField(false, id, name, type, null);
+      return new NestedField(false, id, name, type, null, null, null);
     }
 
     public static NestedField required(int id, String name, Type type, String doc) {
-      return new NestedField(false, id, name, type, doc);
+      return new NestedField(false, id, name, type, doc, null, null);
+    }
+
+    public static NestedField required(int id, String name, Type type, String doc,
+                                       JsonNode initialDefault, JsonNode writeDefault) {
+      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
-      return new NestedField(isOptional, id, name, type, null);
+      return new NestedField(isOptional, id, name, type, null, null, null);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
-      return new NestedField(isOptional, id, name, type, doc);
+      return new NestedField(isOptional, id, name, type, doc, null, null);
+    }
+
+    public static NestedField of(int id, boolean isOptional, String name, Type type, String doc,
+                                 JsonNode initialDefault, JsonNode writeDefault) {
+      return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
     }
 
     private final boolean isOptional;
@@ -443,8 +463,12 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
+    private final JsonNode initialDefault;
+    private final JsonNode writeDefault;
 
-    private NestedField(boolean isOptional, int id, String name, Type type, String doc) {
+
+    private NestedField(boolean isOptional, int id, String name, Type type, String doc,
+                        JsonNode initialDefault, JsonNode writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
@@ -452,6 +476,8 @@ public class Types {
       this.name = name;
       this.type = type;
       this.doc = doc;
+      this.initialDefault = validateDefault(name, type, initialDefault);
+      this.writeDefault = validateDefault(name, type, writeDefault);
     }
 
     public boolean isOptional() {
@@ -462,7 +488,7 @@ public class Types {
       if (isOptional) {
         return this;
       }
-      return new NestedField(true, id, name, type, doc);
+      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public boolean isRequired() {
@@ -473,7 +499,12 @@ public class Types {
       if (!isOptional) {
         return this;
       }
-      return new NestedField(false, id, name, type, doc);
+      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
+    }
+
+    public NestedField updateWriteDefault(JsonNode newWriteDefault) {
+      JsonNode validatedWriteDefault = validateDefault(name, type, newWriteDefault);
+      return new NestedField(isOptional, id, name, type, doc, initialDefault, validatedWriteDefault);
     }
 
     public int fieldId() {
@@ -490,6 +521,14 @@ public class Types {
 
     public String doc() {
       return doc;
+    }
+
+    public JsonNode initialDefaultValue() {
+      return initialDefault;
+    }
+
+    public JsonNode writeDefaultValue() {
+      return writeDefault;
     }
 
     @Override
@@ -523,6 +562,91 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(NestedField.class, id, isOptional, name, type);
+    }
+
+    private static JsonNode validateDefault(String name, Type type, JsonNode defaultValue) {
+      if (defaultValue != null && !isValidDefault(type, defaultValue)) {
+        throw new ValidationException("Invalid default value for field %s: %s not a %s", name, defaultValue, type);
+      }
+      return defaultValue;
+    }
+
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
+    private static boolean isValidDefault(Type type, JsonNode defaultValue) {
+      if (defaultValue == null) {
+        return false;
+      }
+      switch (type.typeId()) {
+        case BOOLEAN:
+          return defaultValue.isBoolean();
+        case INTEGER:
+        case DATE:
+          return defaultValue.isIntegralNumber() && defaultValue.canConvertToInt();
+        case LONG:
+        case TIME:
+        case TIMESTAMP:
+          return defaultValue.isIntegralNumber() && defaultValue.canConvertToLong();
+        case FLOAT:
+        case DOUBLE:
+        case DECIMAL:
+          return defaultValue.isNumber();
+        case STRING:
+        case UUID:
+          return defaultValue.isTextual();
+        case FIXED:
+        case BINARY:
+          return defaultValue.isTextual() && defaultValue.textValue().startsWith("0x");
+        case LIST:
+          if (!defaultValue.isArray()) {
+            return false;
+          }
+          for (JsonNode element : defaultValue) {
+            if (!isValidDefault(type.asListType().elementType(), element)) {
+              return false;
+            }
+          }
+          return true;
+        case MAP:
+          if (!defaultValue.isArray()) {
+            return false;
+          }
+          List<JsonNode> keysAndValues = StreamSupport
+                  .stream(defaultValue.spliterator(), false)
+                  .collect(Collectors.toList());
+          if (keysAndValues.size() != 2) {
+            return false;
+          }
+          JsonNode keys = keysAndValues.get(0);
+          JsonNode values = keysAndValues.get(1);
+          if (!keys.isArray() || !values.isArray()) {
+            return false;
+          }
+          List<JsonNode> keyList = Lists.newArrayList(keys.iterator());
+          List<JsonNode> valueList = Lists.newArrayList(values.iterator());
+          if (keyList.size() != valueList.size()) {
+            return false;
+          }
+          for (int i = 0; i < keyList.size(); i++) {
+            if (!isValidDefault(type.asMapType().keyType(), keyList.get(i)) ||
+                    !isValidDefault(type.asMapType().valueType(), valueList.get(i))) {
+              return false;
+            }
+          }
+          return true;
+        case STRUCT:
+          if (!defaultValue.isObject()) {
+            return false;
+          }
+          for (NestedField subType : type.asStructType().fields()) {
+            String fieldId = String.valueOf(subType.fieldId());
+            if (!isValidDefault(subType.type(), defaultValue.has(fieldId) ? defaultValue.get(fieldId) : null)) {
+              return false;
+            }
+          }
+          return true;
+        default:
+          return false;
+      }
     }
   }
 
