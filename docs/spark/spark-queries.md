@@ -208,7 +208,6 @@ SELECT * FROM prod.db.table.snapshots
 | committed_at | snapshot_id | parent_id | operation | manifest_list | summary |
 | -- | -- | -- | -- | -- | -- |
 | 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | { added-records -> 2478404, total-records -> 2478404, added-data-files -> 438, total-data-files -> 438, spark.app.id -> application_1520379288616_155055 } |
-| ...                     | ...            | ...       | ...       | ...                                                | ...                                                   |
 
 You can also join snapshots to table history. For example, this query will show table history, with the application ID that wrote each snapshot:
 
@@ -292,7 +291,7 @@ The "all" metadata tables may produce more than one row per data file or manifes
 
 #### All Data Files
 
-To show all the table's data files and each file's metadata:
+To show all of the table's data files and each file's metadata:
 
 ```sql
 SELECT * FROM prod.db.table.all_data_files
@@ -300,13 +299,13 @@ SELECT * FROM prod.db.table.all_data_files
 
 | content | file_path | file_format | partition | record_count | file_size_in_bytes | column_sizes| value_counts | null_value_counts | nan_value_counts| lower_bounds| upper_bounds|key_metadata|split_offsets|equality_ids|sort_order_id|
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-|      0|s3:.../dt=20210102/xxx.parquet|    PARQUET|{20210102}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210102}|{1 -> 2, 2 -> 20210102}|        null|          [4]|        null|            0|
-|      0|s3:.../dt=20210103/xxx.parquet|    PARQUET|{20210103}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210103}|{1 -> 3, 2 -> 20210103}|        null|          [4]|        null|            0|
-|      0|sA valid manifest file is one that is3:.../dt=20210104/xxx.parquet|    PARQUET|{20210104}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210104}|{1 -> 3, 2 -> 20210104}|        null|          [4]|        null|            0|
+|      0|s3://.../dt=20210102/00000-0-756e2512-49ae-45bb-aae3-c0ca475e7879-00001.parquet|    PARQUET|{20210102}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210102}|{1 -> 2, 2 -> 20210102}|        null|          [4]|        null|            0|
+|      0|s3://.../dt=20210103/00000-0-26222098-032f-472b-8ea5-651a55b21210-00001.parquet|    PARQUET|{20210103}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210103}|{1 -> 3, 2 -> 20210103}|        null|          [4]|        null|            0|
+|      0|s3://.../dt=20210104/00000-0-a3bb1927-88eb-4f1c-bc6e-19076b0d952e-00001.parquet|    PARQUET|{20210104}|          14|              2444|{1 -> 94, 2 -> 17}|{1 -> 14, 2 -> 14}|  {1 -> 0, 2 -> 0}|              {}|{1 -> 1, 2 -> 20210104}|{1 -> 3, 2 -> 20210104}|        null|          [4]|        null|            0|
 
 #### All Manifests
 
-To show all the table's manifest files:
+To show all of the table's manifest files:
 
 ```sql
 SELECT * FROM prod.db.table.all_manifests
@@ -314,7 +313,7 @@ SELECT * FROM prod.db.table.all_manifests
 
 | path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count| partition_summaries|
 | -- | -- | -- | -- | -- | -- | -- | -- |
-| s3:/.../table/data/dt=20210102/xxx.parquet | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 10, 11}, {false, false, 20210101, 20210101}]|
+| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0 |[{false, false, 10, 11}, {false, false, 20210101, 20210101}]|
 
 Note:
 1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order:
@@ -322,7 +321,7 @@ Note:
     - `contains_nan`
     - `lower_bound`
     - `upper_bound`
-2. `contains_nan` could return null, which indicates that this information is not available from files' metadata.
+2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
     This usually occurs when reading from V1 table, where `contains_nan` is not populated.
 
 ## Inspecting with DataFrames
