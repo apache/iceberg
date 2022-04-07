@@ -45,6 +45,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -112,7 +113,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     Snapshot latestSnapshot = table.currentSnapshot();
     return new StreamingOffset(latestSnapshot.snapshotId(),
-        Long.parseLong(latestSnapshot.summary().getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0")), false);
+        Long.parseLong(latestSnapshot.summary().getOrDefault(SnapshotSummary.ADDED_FILES_PROP,
+            String.valueOf(Iterables.size(latestSnapshot.addedFiles())))),
+        false);
   }
 
   @Override
