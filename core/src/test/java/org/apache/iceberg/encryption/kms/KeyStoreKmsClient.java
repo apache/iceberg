@@ -29,10 +29,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.SecretKey;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * KMS client demo class, based on the Java KeyStore API that reads keys from standard PKCS12 keystore files.
@@ -98,7 +98,7 @@ public class KeyStoreKmsClient extends MemoryMockKMS {
       throw new RuntimeException("Failed to get key aliases in keystore file " + keystorePath, e);
     }
 
-    masterKeys = new HashMap<>();
+    masterKeys = Maps.newHashMap();
     while (keyAliases.hasMoreElements()) {
       String keyAlias = keyAliases.nextElement();
       SecretKey secretKey;
