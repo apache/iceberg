@@ -90,6 +90,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         .setCurrentSchema(table.getSchemaId())
         .setDefaultSortOrder(table.getSortOrderId())
         .setDefaultPartitionSpec(table.getSpecId())
+        .withMetadataLocation(metadataLocation)
         .discardChanges()
         .build();
   }
