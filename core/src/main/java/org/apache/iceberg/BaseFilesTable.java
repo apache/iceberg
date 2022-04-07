@@ -118,13 +118,15 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
 
     private boolean filter(ManifestFile manifestFile, Expression rowFilter, boolean caseSensitive) {
-      PartitionSpec originalSpec = table().specs().get(manifestFile.partitionSpecId());
+      if (!table().spec().equals(table().specs().get(manifestFile.partitionSpecId()))) {
+        return true;
+      }
 
       // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-      PartitionSpec spec = transformSpec(fileSchema, originalSpec, PARTITION_FIELD_PREFIX);
+      PartitionSpec spec = transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX);
       Expression partitionFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
       ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
-          partitionFilter, originalSpec, caseSensitive);
+          partitionFilter, spec, caseSensitive);
 
       return manifestEval.eval(manifestFile);
     }

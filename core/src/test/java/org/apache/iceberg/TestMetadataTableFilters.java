@@ -261,23 +261,14 @@ public class TestMetadataTableFilters extends TableTestBase {
     populateTableNewSpec();
 
     Table metadataTable = createMetadataTable();
-    Expression newSpecFilter = Expressions.and(
+    Expression filter = Expressions.and(
         Expressions.equal("partition.id", 10),
         Expressions.greaterThan("record_count", 0));
-    TableScan scanNewSpec = metadataTable.newScan().filter(newSpecFilter);
-    CloseableIterable<FileScanTask> tasksNewSpecScan = scanNewSpec.planFiles();
+    TableScan scan = metadataTable.newScan().filter(filter);
+    CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
     // All 4 original data/delete files written by old spec, plus one new data file/delete file written by new spec
-    Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasksNewSpecScan));
-
-    Expression oldSpecFilter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
-        Expressions.greaterThan("record_count", 0));
-    TableScan scanOldSpec = metadataTable.newScan().filter(oldSpecFilter);
-    CloseableIterable<FileScanTask> tasksOldSpecScan = scanOldSpec.planFiles();
-
-    // 1 of original/data files written by old spec, plus both of new data file/delete file written by new spec
-    Assert.assertEquals(expectedScanTaskCount(3), Iterables.size(tasksOldSpecScan));
+    Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
   }
 
   private void populateTableNewSpec() {
