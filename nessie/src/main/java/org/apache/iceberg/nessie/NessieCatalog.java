@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configurable;
@@ -73,16 +74,44 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   public NessieCatalog() {
   }
 
+  @SuppressWarnings("checkstyle:HiddenField")
   @Override
-  public void initialize(String inputName, Map<String, String> options) {
-    this.catalogOptions = ImmutableMap.copyOf(options);
+  public void initialize(String name, Map<String, String> options) {
+    Map<String, String> catalogOptions = ImmutableMap.copyOf(options);
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
-    this.name = inputName == null ? "nessie" : inputName;
     // remove nessie prefix
     final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
+    final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
+    NessieApiV1 api = createNessieClientBuilder(options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
+        .fromConfig(x -> options.get(removePrefix.apply(x)))
+        .build(NessieApiV1.class);
 
-    this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
+    initialize(name,
+        new NessieIcebergClient(api, requestedRef, null, catalogOptions),
+        fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config),
+        catalogOptions);
+  }
+
+  /**
+   * An alternative way to initialize the catalog using a pre-configured {@link NessieIcebergClient} and {@link FileIO}
+   * instance.
+   * @param name The name of the catalog, defaults to "nessie" if <code>null</code>
+   * @param client The pre-configured {@link NessieIcebergClient} instance to use
+   * @param fileIO The {@link FileIO} instance to use
+   * @param catalogOptions The catalog options to use
+   */
+  @SuppressWarnings("checkstyle:HiddenField")
+  public void initialize(String name, NessieIcebergClient client, FileIO fileIO, Map<String, String> catalogOptions) {
+    this.name = name == null ? "nessie" : name;
+    this.client = Objects.requireNonNull(client, "client must be non-null");
+    this.fileIO = Objects.requireNonNull(fileIO, "fileIO must be non-null");
+    this.catalogOptions = Objects.requireNonNull(catalogOptions, "catalogOptions must be non-null");
+    this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
+  }
+
+  @SuppressWarnings("checkstyle:HiddenField")
+  private String validateWarehouseLocation(String name, Map<String, String> catalogOptions) {
+    String warehouseLocation = catalogOptions.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
       // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish catch"
       // in o.a.i.spark.Spark3Util.catalogAndIdentifier(o.a.s.sql.SparkSession, List<String>,
@@ -101,14 +130,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       //        currentNamespace
       //    );
       LOG.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
-          "'warehouse' is not set, Nessie can't store data.", inputName, options);
+          "'warehouse' is not set, Nessie can't store data.", name, catalogOptions);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
-    final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
-    NessieApiV1 api = createNessieClientBuilder(options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-        .fromConfig(x -> options.get(removePrefix.apply(x)))
-        .build(NessieApiV1.class);
-    this.client = new NessieIcebergClient(api, requestedRef, null, catalogOptions);
+    return warehouseLocation;
   }
 
   private static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
