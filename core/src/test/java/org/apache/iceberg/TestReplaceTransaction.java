@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
@@ -390,6 +392,85 @@ public class TestReplaceTransaction extends TableTestBase {
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
         assignFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
+    Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
+
+    validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testReplaceTransactionWithUnknownState() {
+    Schema newSchema = new Schema(
+        required(4, "id", Types.IntegerType.get()),
+        required(5, "data", Types.StringType.get()));
+
+    Snapshot start = table.currentSnapshot();
+    Schema schema = table.schema();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+
+    TestTables.TestTableOperations ops = TestTables.opsWithCommitSucceedButStateUnknown(tableDir, "test");
+    Transaction replace = TestTables.beginReplace(tableDir, "test", newSchema, unpartitioned(),
+        SortOrder.unsorted(),  ImmutableMap.of(), ops);
+
+    replace.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    AssertHelpers.assertThrows("Transaction commit should fail with CommitStateUnknownException",
+        CommitStateUnknownException.class, "datacenter on fire", () -> replace.commitTransaction());
+
+    table.refresh();
+
+    Assert.assertEquals("Version should be 2", 2L, (long) version());
+    Assert.assertNotNull("Table should have a current snapshot", table.currentSnapshot());
+    Assert.assertEquals("Schema should use new schema, not compatible with previous",
+        schema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Should have 4 files in metadata", 4, countAllMetadataFiles(tableDir));
+    validateSnapshot(null, table.currentSnapshot(), FILE_B);
+  }
+
+  @Test
+  public void testCreateTransactionWithUnknownState() throws IOException {
+    File tableDir = temp.newFolder();
+    Assert.assertTrue(tableDir.delete());
+
+    // this table doesn't exist.
+    TestTables.TestTableOperations ops = TestTables.opsWithCommitSucceedButStateUnknown(tableDir, "test_append");
+    Transaction replace = TestTables.beginReplace(tableDir, "test_append", SCHEMA, unpartitioned(),
+        SortOrder.unsorted(), ImmutableMap.of(), ops);
+
+    Assert.assertNull("Starting a create transaction should not commit metadata",
+        TestTables.readMetadata("test_append"));
+    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+
+    Assert.assertTrue("Should return a transaction table", replace.table() instanceof BaseTransaction.TransactionTable);
+
+    replace.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Assert.assertNull("Appending in a transaction should not commit metadata",
+                      TestTables.readMetadata("test_append"));
+    Assert.assertNull("Should have no metadata version",
+                      TestTables.metadataVersion("test_append"));
+
+    AssertHelpers.assertThrows("Transaction commit should fail with CommitStateUnknownException",
+        CommitStateUnknownException.class, "datacenter on fire", () -> replace.commitTransaction());
+
+    TableMetadata meta = TestTables.readMetadata("test_append");
+    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
+    Assert.assertEquals("Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_append"));
+    Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
+    Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
+    Assert.assertEquals("Table schema should match with reassigned IDs", assignFreshIds(SCHEMA).asStruct(),
+        meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 

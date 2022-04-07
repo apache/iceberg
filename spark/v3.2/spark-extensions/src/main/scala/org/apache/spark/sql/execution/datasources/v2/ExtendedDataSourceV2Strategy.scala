@@ -27,20 +27,31 @@ import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeRows
+import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.SparkPlan
-import scala.collection.JavaConverters._
+import org.apache.spark.sql.execution.datasources.DataSourceStrategy
+import scala.jdk.CollectionConverters._
 
-case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
+case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
+
+  import DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case c @ Call(procedure, args) =>
@@ -66,6 +77,39 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
         IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
       SetWriteDistributionAndOrderingExec(catalog, ident, distributionMode, ordering) :: Nil
 
+    case ReplaceData(_: DataSourceV2Relation, query, r: DataSourceV2Relation, Some(write)) =>
+      // refresh the cache using the original relation
+      ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
+
+    case WriteDelta(_: DataSourceV2Relation, query, r: DataSourceV2Relation, projs, Some(write)) =>
+      // refresh the cache using the original relation
+      WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
+
+    case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
+        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        output, child) =>
+
+      MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
+        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        output, planLater(child)) :: Nil
+
+    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output), condition, None) =>
+      // the optimizer has already checked that this delete can be handled using a metadata operation
+      val deleteCond = condition.getOrElse(Literal.TrueLiteral)
+      val predicates = splitConjunctivePredicates(deleteCond)
+      val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
+      val filters = normalizedPredicates.flatMap { pred =>
+        val filter = DataSourceStrategy.translateFilter(pred, supportNestedPredicatePushdown = true)
+        if (filter.isEmpty) {
+          throw QueryCompilationErrors.cannotTranslateExpressionToSourceFilterError(pred)
+        }
+        filter
+      }.toArray
+      DeleteFromTableExec(r.table.asDeletable, filters, refreshCache(r)) :: Nil
+
+    case NoStatsUnaryNode(child) =>
+      planLater(child) :: Nil
+
     case _ => Nil
   }
 
@@ -75,6 +119,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       values(index) = exprs(index).eval()
     }
     new GenericInternalRow(values)
+  }
+
+  private def refreshCache(r: DataSourceV2Relation)(): Unit = {
+    spark.sharedState.cacheManager.recacheByPlan(spark, r)
   }
 
   private object IcebergCatalogAndIdentifier {

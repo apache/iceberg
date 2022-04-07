@@ -76,15 +76,15 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     AssertHelpers.assertThrows("Expected an exception",
-        IllegalArgumentException.class,
-        "Data files to add can not be empty because there's no delete file to be rewritten",
+        ValidationException.class,
+        "Missing required files to delete: /path/to/data-a.parquet",
         () -> table.newRewrite()
             .rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet())
             .apply());
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
-        "Data files to add can not be empty because there's no delete file to be rewritten",
+        "Delete files to add must be empty because there's no delete file to be rewritten",
         () -> table.newRewrite()
             .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(),
                 ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES))
@@ -264,8 +264,73 @@ public class TestRewriteFiles extends TableTestBase {
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(DELETED, EXISTING));
 
-    // We should only get the 3 manifests that this test is expected to add.
+    // We should only get the 5 manifests that this test is expected to add.
     Assert.assertEquals("Only 5 manifests should exist", 5, listManifestFiles().size());
+  }
+
+  @Test
+  public void testRewriteDataAndAssignOldSequenceNumber() {
+    Assume.assumeTrue("Sequence number is only supported in iceberg format v2. ", formatVersion > 1);
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addRows(FILE_B)
+        .addRows(FILE_C)
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_B_DELETES)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    Snapshot baseSnap = base.currentSnapshot();
+    long baseSnapshotId = baseSnap.snapshotId();
+    Assert.assertEquals("Should create 2 manifests for initial write", 2, baseSnap.allManifests().size());
+    List<ManifestFile> initialManifests = baseSnap.allManifests();
+
+    validateManifestEntries(initialManifests.get(0),
+        ids(baseSnapshotId, baseSnapshotId, baseSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(ADDED, ADDED, ADDED));
+    validateDeleteManifest(initialManifests.get(1),
+        seqs(1, 1),
+        ids(baseSnapshotId, baseSnapshotId),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(ADDED, ADDED));
+
+    // Rewrite the files.
+    long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
+    Snapshot pending = table.newRewrite()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber)
+        .apply();
+
+    Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests().size());
+    Assert.assertFalse("Should not contain data manifest from initial write",
+        pending.dataManifests().stream().anyMatch(initialManifests::contains));
+
+    long pendingId = pending.snapshotId();
+    ManifestFile newManifest = pending.allManifests().get(0);
+    validateManifestEntries(newManifest, ids(pendingId), files(FILE_D), statuses(ADDED));
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
+      Assert.assertEquals("Should have old sequence number for manifest entries",
+          oldSequenceNumber, (long) entry.sequenceNumber());
+    }
+    Assert.assertEquals("Should use new sequence number for the manifest file",
+        oldSequenceNumber + 1, newManifest.sequenceNumber());
+
+    validateManifestEntries(pending.allManifests().get(1),
+        ids(pendingId, baseSnapshotId, baseSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(DELETED, EXISTING, EXISTING));
+
+    validateDeleteManifest(pending.allManifests().get(2),
+        seqs(1, 1),
+        ids(baseSnapshotId, baseSnapshotId),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(ADDED, ADDED));
+
+    // We should only get the 4 manifests that this test is expected to add.
+    Assert.assertEquals("Only 4 manifests should exist", 4, listManifestFiles().size());
   }
 
   @Test

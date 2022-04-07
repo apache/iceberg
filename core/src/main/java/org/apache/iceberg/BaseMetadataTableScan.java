@@ -19,9 +19,15 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract class BaseMetadataTableScan extends BaseTableScan {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseMetadataTableScan.class);
 
   protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema) {
     super(ops, table, schema);
@@ -37,5 +43,15 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
         TableProperties.METADATA_SPLIT_SIZE,
         TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
+  }
+
+  /**
+   * Alternative to {@link #planFiles()}, allows exploring old snapshots even for an empty table.
+   */
+  protected CloseableIterable<FileScanTask> planFilesAllSnapshots() {
+    LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
+    Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
+
+    return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
   }
 }

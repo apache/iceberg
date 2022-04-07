@@ -24,9 +24,13 @@ import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -77,10 +81,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
   }
 
   /**
-   * Pretends we throw an error while persisting that actually fails to commit serverside
+   * Pretends we throw an error while persisting, and not found with check state, commit state should be treated as
+   * unknown, because in reality the persisting may still succeed, just not yet by the time of checking.
    */
   @Test
-  public void testThriftExceptionFailureOnCommit() throws TException, InterruptedException {
+  public void testThriftExceptionUnknownStateIfNotInHistoryFailureOnCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
 
@@ -100,14 +105,15 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     failCommitAndThrowException(spyOps);
 
-    AssertHelpers.assertThrows("We should rethrow generic runtime errors if the " +
-        "commit actually doesn't succeed", RuntimeException.class, "Metastore operation failed",
-        () -> spyOps.commit(metadataV2, metadataV1));
+    AssertHelpers.assertThrows("We should assume commit state is unknown if the " +
+                    "new location is not found in history in commit state check", CommitStateUnknownException.class,
+            "Datacenter on fire", () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    Assert.assertEquals("New metadata files should still exist, new location not in history but" +
+                    " the commit may still succeed", 3, metadataFileCount(ops.current()));
   }
 
   /**
@@ -271,6 +277,21 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
     Assert.assertEquals("The column addition from the concurrent commit should have been successful",
         2, ops.current().schema().columns().size());
+  }
+
+  @Test
+  public void testInvalidObjectException() {
+    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`tbl`");
+    Assert.assertThrows(String.format("Invalid table name for %s.%s", DB_NAME, "`tbl`"),
+        ValidationException.class,
+        () -> catalog.createTable(badTi, schema, PartitionSpec.unpartitioned()));
+  }
+
+  @Test
+  public void testAlreadyExistsException() {
+    Assert.assertThrows(String.format("Table already exists: %s.%s", DB_NAME, TABLE_NAME),
+        AlreadyExistsException.class,
+        () -> catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned()));
   }
 
   private void commitAndThrowException(HiveTableOperations realOperations, HiveTableOperations spyOperations)

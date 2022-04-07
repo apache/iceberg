@@ -36,11 +36,11 @@ subprojects {
     apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
   }
-  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'com.palantir.baseline-class-uniqueness'
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.palantir.baseline-release-compatibility'
+  apply plugin: 'com.diffplug.spotless'
 
   // Can't use the built-in Baseline spotless format because it's opinionated about the import
   // order of having static imports after non-static imports, and this cannot be overridden.
@@ -49,6 +49,8 @@ subprojects {
   // import order.
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
+      // don't run spotlessCheck during gradle check task
+      enforceCheck = false
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
         removeUnusedImports()

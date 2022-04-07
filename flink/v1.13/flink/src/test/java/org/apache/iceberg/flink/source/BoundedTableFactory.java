@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.flink.source;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -46,10 +47,11 @@ import org.apache.flink.types.RowKind;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class BoundedTableFactory implements DynamicTableSourceFactory {
   private static final AtomicInteger DATA_SET_ID = new AtomicInteger(0);
-  private static final Map<String, List<List<Row>>> DATA_SETS = new HashMap<>();
+  private static final Map<String, List<List<Row>>> DATA_SETS = Maps.newHashMap();
 
   private static final ConfigOption<String> DATA_ID = ConfigOptions.key("data-id").stringType().noDefaultValue();
 
@@ -107,12 +109,25 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
 
     @Override
     public ChangelogMode getChangelogMode() {
-      return ChangelogMode.newBuilder()
-          .addContainedKind(RowKind.INSERT)
-          .addContainedKind(RowKind.DELETE)
-          .addContainedKind(RowKind.UPDATE_BEFORE)
-          .addContainedKind(RowKind.UPDATE_AFTER)
-          .build();
+      Supplier<Stream<Row>> supplier = () -> elementsPerCheckpoint.stream().flatMap(List::stream);
+
+      // Add the INSERT row kind by default.
+      ChangelogMode.Builder builder = ChangelogMode.newBuilder()
+          .addContainedKind(RowKind.INSERT);
+
+      if (supplier.get().anyMatch(r -> r.getKind() == RowKind.DELETE)) {
+        builder.addContainedKind(RowKind.DELETE);
+      }
+
+      if (supplier.get().anyMatch(r -> r.getKind() == RowKind.UPDATE_BEFORE)) {
+        builder.addContainedKind(RowKind.UPDATE_BEFORE);
+      }
+
+      if (supplier.get().anyMatch(r -> r.getKind() == RowKind.UPDATE_AFTER)) {
+        builder.addContainedKind(RowKind.UPDATE_AFTER);
+      }
+
+      return builder.build();
     }
 
     @Override
@@ -120,7 +135,8 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
       return new DataStreamScanProvider() {
         @Override
         public DataStream<RowData> produceDataStream(StreamExecutionEnvironment env) {
-          SourceFunction<Row> source = new BoundedTestSource<>(elementsPerCheckpoint);
+          boolean checkpointEnabled = env.getCheckpointConfig().isCheckpointingEnabled();
+          SourceFunction<Row> source = new BoundedTestSource<>(elementsPerCheckpoint, checkpointEnabled);
 
           RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
           // Converter to convert the Row to RowData.

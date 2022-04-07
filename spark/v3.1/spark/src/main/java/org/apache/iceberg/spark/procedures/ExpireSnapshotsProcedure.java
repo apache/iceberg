@@ -22,11 +22,13 @@ package org.apache.iceberg.spark.procedures;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -41,7 +43,7 @@ import org.apache.spark.sql.types.StructType;
 /**
  * A procedure that expires snapshots in a table.
  *
- * @see Actions#expireSnapshots()
+ * @see SparkActions#expireSnapshots(Table)
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
@@ -49,7 +51,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
-      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType)
+      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+      ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -87,6 +90,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
+    Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
         "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -104,6 +108,10 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
       if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
         action.executeDeleteWith(expireService(maxConcurrentDeletes));
+      }
+
+      if (streamResult != null) {
+        action.option(BaseExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
       }
 
       ExpireSnapshots.Result result = action.execute();

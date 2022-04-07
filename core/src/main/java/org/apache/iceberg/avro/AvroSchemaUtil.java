@@ -90,6 +90,25 @@ public class AvroSchemaUtil {
     return AvroCustomOrderSchemaVisitor.visit(schema, new HasIds());
   }
 
+  /**
+   * Check if any of the nodes in a given avro schema is missing an ID
+   * <p>
+   * To have an ID for a node:
+   * <ul>
+   *   <li>a field node under struct (record) schema should have {@link #FIELD_ID_PROP} property
+   *   <li>an element node under list (array) schema should have {@link #ELEMENT_ID_PROP} property
+   *   <li>a pair of key and value node under map schema should have {@link #KEY_ID_PROP} and
+   *   {@link #VALUE_ID_PROP} respectively
+   *   <li>a primitive node is not assigned any ID properties
+   * </ul>
+   * <p>
+   * @param schema an Avro Schema
+   * @return true if any of the nodes of the given Avro Schema is missing an ID property, false otherwise
+   */
+  static boolean missingIds(Schema schema) {
+    return AvroCustomOrderSchemaVisitor.visit(schema, new MissingIds());
+  }
+
   public static Map<Type, Schema> convertTypes(Types.StructType type, String name) {
     TypeToSchema converter = new TypeToSchema(ImmutableMap.of(type, name));
     TypeUtil.visit(type, converter);
@@ -354,6 +373,26 @@ public class AvroSchemaUtil {
       copy.addAlias(field.name());
     }
 
+    return copy;
+  }
+
+  static Schema replaceElement(Schema array, Schema elementSchema) {
+    Preconditions.checkArgument(array.getType() == ARRAY,
+        "Cannot invoke replaceElement on non array schema: %s", array);
+    Schema copy = Schema.createArray(elementSchema);
+    for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
+      copy.addProp(prop.getKey(), prop.getValue());
+    }
+    return copy;
+  }
+
+  static Schema replaceValue(Schema map, Schema valueSchema) {
+    Preconditions.checkArgument(map.getType() == MAP,
+        "Cannot invoke replaceValue on non map schema: %s", map);
+    Schema copy = Schema.createMap(valueSchema);
+    for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {
+      copy.addProp(prop.getKey(), prop.getValue());
+    }
     return copy;
   }
 

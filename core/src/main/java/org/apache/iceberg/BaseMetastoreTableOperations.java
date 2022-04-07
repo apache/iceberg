@@ -22,8 +22,10 @@ package org.apache.iceberg;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
@@ -114,7 +116,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
-      throw new CommitFailedException("Cannot commit: stale table metadata");
+      if (base != null) {
+        throw new CommitFailedException("Cannot commit: stale table metadata");
+      } else {
+        // when current is non-null, the table exists. but when base is null, the commit is trying to create the table
+        throw new AlreadyExistsException("Table already exists: %s", tableName());
+      }
     }
     // if the metadata is not changed, return early
     if (base == metadata) {
@@ -166,6 +173,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
                                              int numRetries) {
+    refreshFromMetadataLocation(newLocation, shouldRetry, numRetries,
+        metadataLocation -> TableMetadataParser.read(io(), metadataLocation));
+  }
+
+  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
+                                             int numRetries, Function<String, TableMetadata> metadataLoader) {
     // use null-safe equality check because new tables have a null metadata location
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
@@ -175,8 +188,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
           .throwFailureWhenFinished()
           .shouldRetryTest(shouldRetry)
-          .run(metadataLocation -> newMetadata.set(
-              TableMetadataParser.read(io(), metadataLocation)));
+          .run(metadataLocation -> newMetadata.set(metadataLoader.apply(metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
@@ -300,8 +312,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             LOG.info("Commit status check: Commit to {} of {} succeeded", tableName(), newMetadataLocation);
             status.set(CommitStatus.SUCCESS);
           } else {
-            LOG.info("Commit status check: Commit to {} of {} failed", tableName(), newMetadataLocation);
-            status.set(CommitStatus.FAILURE);
+            LOG.warn("Commit status check: Commit to {} of {} unknown, new metadata location is not current " +
+                    "or in history", tableName(), newMetadataLocation);
           }
         });
 

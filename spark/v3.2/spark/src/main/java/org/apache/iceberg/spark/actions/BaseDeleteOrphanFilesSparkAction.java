@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -60,8 +61,8 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
- * An action that removes orphan metadata and data files by listing a given location and comparing
- * the actual files in that location with data and metadata files referenced by all valid snapshots.
+ * An action that removes orphan metadata, data and delete files by listing a given location and comparing
+ * the actual files in that location with content and metadata files referenced by all valid snapshots.
  * The location must be accessible for listing via the Hadoop {@link FileSystem}.
  * <p>
  * By default, this action cleans up the table location returned by {@link Table#location()} and
@@ -89,15 +90,17 @@ public class BaseDeleteOrphanFilesSparkAction
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
-
-  private String location = null;
-  private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
-  private Consumer<String> deleteFunc = new Consumer<String>() {
+  private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
       table.io().deleteFile(file);
     }
   };
+
+  private String location = null;
+  private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
+  private Consumer<String> deleteFunc = defaultDelete;
+  private ExecutorService deleteExecutorService = null;
 
   public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -109,11 +112,17 @@ public class BaseDeleteOrphanFilesSparkAction
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot remove orphan files: GC is disabled (deleting files may corrupt other tables)");
+        "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override
   protected DeleteOrphanFiles self() {
+    return this;
+  }
+
+  @Override
+  public BaseDeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
+    this.deleteExecutorService = executorService;
     return this;
   }
 
@@ -137,7 +146,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
   @Override
   public DeleteOrphanFiles.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", jobDesc());
+    JobGroupInfo info = newJobGroupInfo("DELETE-ORPHAN-FILES", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
 
@@ -147,19 +156,19 @@ public class BaseDeleteOrphanFilesSparkAction
     if (location != null) {
       options.add("location=" + location);
     }
-    return String.format("Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
+    return String.format("Deleting orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
   private DeleteOrphanFiles.Result doExecute() {
-    Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
+    Dataset<Row> validContentFileDF = buildValidContentFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
-    Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
+    Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
-    Column actualFileName = filenameUDF.apply(actualFileDF.col("file_path"));
-    Column validFileName = filenameUDF.apply(validFileDF.col("file_path"));
+    Column actualFileName = filenameUDF.apply(actualFileDF.col(FILE_PATH));
+    Column validFileName = filenameUDF.apply(validFileDF.col(FILE_PATH));
     Column nameEqual = actualFileName.equalTo(validFileName);
-    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
+    Column actualContains = actualFileDF.col(FILE_PATH).contains(validFileDF.col(FILE_PATH));
     Column joinCond = nameEqual.and(actualContains);
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
@@ -167,6 +176,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
     Tasks.foreach(orphanFiles)
         .noRetry()
+        .executeWith(deleteExecutorService)
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);
@@ -186,7 +196,7 @@ public class BaseDeleteOrphanFilesSparkAction
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
     if (subDirs.isEmpty()) {
-      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
+      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING()).toDF(FILE_PATH);
     }
 
     int parallelism = Math.min(subDirs.size(), partitionDiscoveryParallelism);
@@ -196,7 +206,7 @@ public class BaseDeleteOrphanFilesSparkAction
     JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
-    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
+    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF(FILE_PATH);
   }
 
   private static void listDirRecursively(

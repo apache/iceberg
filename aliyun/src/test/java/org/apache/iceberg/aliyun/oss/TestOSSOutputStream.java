@@ -29,6 +29,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.aliyun.AliyunProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
@@ -82,7 +83,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     LOG.info("Write and verify for arguments uri: {}, data length: {}, arrayWrite: {}",
             uri, data.length, arrayWrite);
 
-    try (OSSOutputStream out = new OSSOutputStream(mock, uri, props)) {
+    try (OSSOutputStream out = new OSSOutputStream(mock, uri, props, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         out.write(data);
         Assert.assertEquals("OSSOutputStream position", data.length, out.getPos());

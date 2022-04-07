@@ -104,7 +104,12 @@ public class LocationProviders {
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
       this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
-      this.context = pathContext(tableLocation);
+      // if the storage location is within the table prefix, don't add table and database name context
+      if (storageLocation.startsWith(tableLocation)) {
+        this.context = null;
+      } else {
+        this.context = pathContext(tableLocation);
+      }
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -129,7 +134,11 @@ public class LocationProviders {
     @Override
     public String newDataLocation(String filename) {
       int hash = HASH_FUNC.apply(filename);
-      return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+      if (context != null) {
+        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+      } else {
+        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+      }
     }
 
     private static String pathContext(String tableLocation) {

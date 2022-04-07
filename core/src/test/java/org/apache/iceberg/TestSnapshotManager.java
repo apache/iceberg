@@ -241,7 +241,7 @@ public class TestSnapshotManager extends TableTestBase {
 
     // pick the snapshot into the current state
     AssertHelpers.assertThrows("Should reject partition replacement when a partition has been modified",
-        ValidationException.class, "Cannot fast-forward to non-append snapshot",
+        ValidationException.class, "not append, dynamic overwrite, or fast-forward",
         () -> table.manageSnapshots()
             .cherrypick(staged.snapshotId())
             .commit());

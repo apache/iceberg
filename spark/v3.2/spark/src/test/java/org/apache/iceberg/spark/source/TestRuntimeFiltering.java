@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.FileScanTask;
@@ -32,7 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -44,11 +43,7 @@ import org.junit.Test;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
-public class TestRuntimeFiltering extends SparkCatalogTestBase {
-
-  public TestRuntimeFiltering(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
 
   @After
   public void removeTables() {
@@ -189,6 +184,40 @@ public class TestRuntimeFiltering extends SparkCatalogTestBase {
     assertEquals("Should have expected rows",
         sql("SELECT * FROM %s WHERE id = 1 AND data = '1970-01-02'", tableName),
         sql(query));
+  }
+
+  @Test
+  public void testCaseSensitivityOfRuntimeFilters() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) " +
+        "USING iceberg " +
+        "PARTITIONED BY (data, bucket(8, id))", tableName);
+
+    Dataset<Row> df = spark.range(1, 100)
+        .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+        .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+        .withColumn("data", expr("CAST(date AS STRING)"))
+        .select("id", "data", "date", "ts");
+
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
+
+    sql("CREATE TABLE dim (id BIGINT, date DATE, data STRING) USING parquet");
+    Dataset<Row> dimDF = spark.range(1, 2)
+        .withColumn("date", expr("DATE '1970-01-02'"))
+        .withColumn("data", expr("'1970-01-02'"))
+        .select("id", "date", "data");
+    dimDF.coalesce(1).write().mode("append").insertInto("dim");
+
+    String caseInsensitiveQuery = String.format(
+        "select f.* from %s F join dim d ON f.Id = d.iD and f.DaTa = d.dAtA and d.dAtE = date '1970-01-02'",
+        tableName);
+
+    assertQueryContainsRuntimeFilters(caseInsensitiveQuery, 2, "Query should have 2 runtime filters");
+
+    deleteNotMatchingFiles(Expressions.equal("id", 1), 31);
+
+    assertEquals("Should have expected rows",
+        sql("SELECT * FROM %s WHERE id = 1 AND data = '1970-01-02'", tableName),
+        sql(caseInsensitiveQuery));
   }
 
   @Test

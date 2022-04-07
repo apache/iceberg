@@ -22,9 +22,7 @@ package org.apache.iceberg.spark.extensions;
 import java.util.Map;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Ignore;
 
-@Ignore
 public class TestCopyOnWriteUpdate extends TestUpdate {
 
   public TestCopyOnWriteUpdate(String catalogName, String implementation, Map<String, String> config,

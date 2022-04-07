@@ -29,7 +29,7 @@ buildscript {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.0.0'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.1'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.2.2'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
@@ -140,6 +140,8 @@ subprojects {
       }
     })
 
+    maxHeapSize = "1500m"
+
     testLogging {
       events "failed"
       exceptionFormat "full"
@@ -203,6 +205,9 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
@@ -212,6 +217,7 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
     implementation "com.github.ben-manes.caffeine:caffeine"
@@ -221,6 +227,8 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    testImplementation 'org.mock-server:mockserver-netty'
+    testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
@@ -312,11 +320,13 @@ project(':iceberg-aws') {
     implementation project(':iceberg-core')
 
     compileOnly 'software.amazon.awssdk:url-connection-client'
+    compileOnly 'software.amazon.awssdk:apache-client'
     compileOnly 'software.amazon.awssdk:s3'
     compileOnly 'software.amazon.awssdk:kms'
     compileOnly 'software.amazon.awssdk:glue'
     compileOnly 'software.amazon.awssdk:sts'
     compileOnly 'software.amazon.awssdk:dynamodb'
+    compileOnly 'software.amazon.awssdk:lakeformation'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -326,6 +336,7 @@ project(':iceberg-aws') {
     }
 
     testImplementation 'software.amazon.awssdk:iam'
+    testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"
@@ -351,6 +362,29 @@ project(':iceberg-aws') {
   task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
+  }
+}
+
+project(':iceberg-gcp') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    implementation platform('com.google.cloud:libraries-bom')
+    implementation 'com.google.cloud:google-cloud-storage'
+
+    testImplementation 'com.google.cloud:google-cloud-nio'
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    testImplementation("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
   }
 }
 
@@ -426,6 +460,7 @@ project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
@@ -449,6 +484,7 @@ project(':iceberg-orc') {
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(':iceberg-common')
   }
 }
 
@@ -548,6 +584,7 @@ project(':iceberg-nessie') {
 
   dependencies {
     api project(':iceberg-api')
+    implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation "org.projectnessie:nessie-client"
@@ -557,8 +594,24 @@ project(':iceberg-nessie') {
     testImplementation "jakarta.el:jakarta.el-api"
 
     compileOnly "org.apache.hadoop:hadoop-common"
+    testImplementation "org.apache.avro:avro"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+  }
+}
+
+project(':iceberg-dell') {
+  dependencies {
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    compileOnly 'com.emc.ecs:object-client-bundle'
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation "javax.xml.bind:jaxb-api"
+    testImplementation "javax.activation:activation"
+    testImplementation "org.glassfish.jaxb:jaxb-runtime"
   }
 }
 

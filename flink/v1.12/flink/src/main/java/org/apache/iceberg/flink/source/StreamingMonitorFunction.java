@@ -98,8 +98,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     } else if (scanContext.startSnapshotId() != null) {
       Preconditions.checkNotNull(table.currentSnapshot(), "Don't have any available snapshot in table.");
 
-      long currentSnapshotId = table.currentSnapshot().snapshotId();
-      Preconditions.checkState(SnapshotUtil.ancestorOf(table, currentSnapshotId, scanContext.startSnapshotId()),
+      Preconditions.checkState(SnapshotUtil.isAncestorOf(table, scanContext.startSnapshotId()),
           "The option start-snapshot-id %s is not an ancestor of the current snapshot.", scanContext.startSnapshotId());
 
       lastSnapshotId = scanContext.startSnapshotId();

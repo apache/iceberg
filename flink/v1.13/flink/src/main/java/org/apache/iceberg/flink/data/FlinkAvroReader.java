@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.data;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -29,6 +30,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
+import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.data.avro.DecoderResolver;
@@ -36,7 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class FlinkAvroReader implements DatumReader<RowData> {
+public class FlinkAvroReader implements DatumReader<RowData>, SupportsRowPosition {
 
   private final Schema readSchema;
   private final ValueReader<RowData> reader;
@@ -61,6 +63,13 @@ public class FlinkAvroReader implements DatumReader<RowData> {
   @Override
   public RowData read(RowData reuse, Decoder decoder) throws IOException {
     return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
+  }
+
+  @Override
+  public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+    if (reader instanceof SupportsRowPosition) {
+      ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+    }
   }
 
   private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {

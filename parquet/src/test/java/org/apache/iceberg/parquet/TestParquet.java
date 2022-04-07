@@ -21,17 +21,26 @@ package org.apache.iceberg.parquet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -39,6 +48,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
@@ -51,8 +62,11 @@ public class TestParquet {
 
   @Test
   public void testRowGroupSizeConfigurable() throws IOException {
-    // Without an explicit writer function
-    File parquetFile = generateFileWithTwoRowGroups(null).first();
+    // Without an explicit writer function doesn't support PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT
+    // PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT configs.
+    // Even though row group size is 16 bytes, we still have to write 101 records
+    // as default PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT is 100.
+    File parquetFile = generateFile(null, 101, 4 * Integer.BYTES, null, null).first();
 
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       Assert.assertEquals(2, reader.getRowGroups().size());
@@ -61,7 +75,11 @@ public class TestParquet {
 
   @Test
   public void testRowGroupSizeConfigurableWithWriter() throws IOException {
-    File parquetFile = generateFileWithTwoRowGroups(ParquetAvroWriter::buildWriter).first();
+    // Explicit writer function supports PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT
+    // and PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT configs.
+    // We should just need to write 5 integers (20 bytes)
+    // to create two row groups with row group size configured at 16 bytes.
+    File parquetFile = generateFile(ParquetAvroWriter::buildWriter, 5, 4 * Integer.BYTES, 1, 2).first();
 
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       Assert.assertEquals(2, reader.getRowGroups().size());
@@ -82,7 +100,7 @@ public class TestParquet {
     int recordCount = 100099;
     File file = createTempFile(temp);
 
-    List<GenericData.Record> records = new ArrayList<>(recordCount);
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     for (int i = 1; i <= recordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
@@ -97,16 +115,65 @@ public class TestParquet {
     Assert.assertEquals(expectedSize, actualSize);
   }
 
-  private Pair<File, Long> generateFileWithTwoRowGroups(Function<MessageType, ParquetValueWriter<?>> createWriterFunc)
+  @Test
+  public void testTwoLevelList() throws IOException {
+    Schema schema = new Schema(
+        optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+        optional(2, "topbytes", Types.BinaryType.get())
+    );
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    File testFile = temp.newFile();
+    Assert.assertTrue(testFile.delete());
+
+    ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+        .withDataModel(GenericData.get())
+        .withSchema(avroSchema)
+        .config("parquet.avro.add-list-element-records", "true")
+        .config("parquet.avro.write-old-list-structure", "true")
+        .build();
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    List<ByteBuffer> expectedByteList = Lists.newArrayList();
+    byte[] expectedByte = {0x00, 0x01};
+    ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
+    expectedByteList.add(expectedBinary);
+    recordBuilder.set("arraybytes", expectedByteList);
+    recordBuilder.set("topbytes", expectedBinary);
+    GenericData.Record expectedRecord = recordBuilder.build();
+
+    writer.write(expectedRecord);
+    writer.close();
+
+    GenericData.Record recordRead = Iterables.getOnlyElement(Parquet.read(Files.localInput(testFile))
+        .project(schema)
+        .callInit()
+        .build());
+
+    Assert.assertEquals(expectedByteList, recordRead.get("arraybytes"));
+    Assert.assertEquals(expectedBinary, recordRead.get("topbytes"));
+  }
+
+  private Pair<File, Long> generateFile(
+      Function<MessageType, ParquetValueWriter<?>> createWriterFunc, int desiredRecordCount,
+      Integer rowGroupSizeBytes, Integer minCheckRecordCount, Integer maxCheckRecordCount)
       throws IOException {
     Schema schema = new Schema(
         optional(1, "intCol", IntegerType.get())
     );
 
-    int minimumRowGroupRecordCount = 100;
-    int desiredRecordCount = minimumRowGroupRecordCount + 1;
+    ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
+    if (rowGroupSizeBytes != null) {
+      propsBuilder.put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(rowGroupSizeBytes));
+    }
+    if (minCheckRecordCount != null) {
+      propsBuilder.put(PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, Integer.toString(minCheckRecordCount));
+    }
+    if (maxCheckRecordCount != null) {
+      propsBuilder.put(PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, Integer.toString(maxCheckRecordCount));
+    }
 
-    List<GenericData.Record> records = new ArrayList<>(desiredRecordCount);
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(desiredRecordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     for (int i = 1; i <= desiredRecordCount; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
@@ -114,15 +181,10 @@ public class TestParquet {
       records.add(record);
     }
 
-    // Force multiple row groups by making the byte size very small
-    // Note there'a also minimumRowGroupRecordCount which cannot be configured so we have to write
-    // at least that many records for a new row group to occur
     File file = createTempFile(temp);
     long size = write(file,
         schema,
-        ImmutableMap.of(
-            PARQUET_ROW_GROUP_SIZE_BYTES,
-            Integer.toString(minimumRowGroupRecordCount * Integer.BYTES)),
+        propsBuilder.build(),
         createWriterFunc,
         records.toArray(new GenericData.Record[]{}));
     return Pair.of(file, size);

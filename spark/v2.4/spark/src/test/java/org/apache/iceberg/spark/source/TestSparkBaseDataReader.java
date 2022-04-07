@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +40,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -87,7 +87,7 @@ public class TestSparkBaseDataReader {
   // Main reader class to test base class iteration logic.
   // Keeps track of iterator closure.
   private static class ClosureTrackingReader extends BaseDataReader<Integer> {
-    private Map<String, CloseableIntegerRange> tracker = new HashMap<>();
+    private Map<String, CloseableIntegerRange> tracker = Maps.newHashMap();
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
       super(table, new BaseCombinedScanTask(tasks));

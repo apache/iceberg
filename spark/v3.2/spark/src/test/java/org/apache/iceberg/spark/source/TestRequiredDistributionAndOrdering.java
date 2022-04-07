@@ -245,4 +245,72 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
 
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
+
+  @Test
+  public void testRangeDistributionWithQuotedColumnsNames() throws NoSuchTableException {
+    sql("CREATE TABLE %s (c1 INT, c2 STRING, `c.3` STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (`c.3`)", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.selectExpr("c1", "c2", "c3 as `c.3`").coalesce(1).sortWithinPartitions("c1");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE)
+        .commit();
+    table.replaceSortOrder()
+        .asc("c1")
+        .asc("c2")
+        .commit();
+    inputDF.writeTo(tableName).append();
+
+    assertEquals("Row count must match",
+        ImmutableList.of(row(7L)),
+        sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testHashDistributionWithQuotedColumnsNames() throws NoSuchTableException {
+    sql("CREATE TABLE %s (c1 INT, c2 STRING, `c``3` STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (`c``3`)", tableName);
+
+    List<ThreeColumnRecord> data = ImmutableList.of(
+        new ThreeColumnRecord(1, null, "A"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(3, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(4, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(5, "BBBBBBBBBB", "A"),
+        new ThreeColumnRecord(6, "BBBBBBBBBB", "B"),
+        new ThreeColumnRecord(7, "BBBBBBBBBB", "A")
+    );
+    Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
+    Dataset<Row> inputDF = ds.selectExpr("c1", "c2", "c3 as `c``3`").coalesce(1).sortWithinPartitions("c1");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+        .commit();
+    table.replaceSortOrder()
+        .asc("c1")
+        .asc("c2")
+        .commit();
+    inputDF.writeTo(tableName).append();
+
+    assertEquals("Row count must match",
+        ImmutableList.of(row(7L)),
+        sql("SELECT count(*) FROM %s", tableName));
+  }
 }

@@ -42,11 +42,16 @@ import org.apache.iceberg.types.Types;
  */
 class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Field> {
   private final Map<String, String> renames;
-  private Type current = null;
+  private Type current;
 
   BuildAvroProjection(org.apache.iceberg.Schema expectedSchema, Map<String, String> renames) {
     this.renames = renames;
     this.current = expectedSchema.asStruct();
+  }
+
+  BuildAvroProjection(Type expectedType, Map<String, String> renames) {
+    this.renames = renames;
+    this.current = expectedType;
   }
 
   @Override
@@ -201,7 +206,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
         // element was changed, create a new array
         if (!Objects.equals(elementSchema, array.getElementType())) {
-          return Schema.createArray(elementSchema);
+          return AvroSchemaUtil.replaceElement(array, elementSchema);
         }
 
         return array;
@@ -225,7 +230,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       // element was changed, create a new map
       if (!Objects.equals(valueSchema, map.getValueType())) {
-        return Schema.createMap(valueSchema);
+        return AvroSchemaUtil.replaceValue(map, valueSchema);
       }
 
       return map;

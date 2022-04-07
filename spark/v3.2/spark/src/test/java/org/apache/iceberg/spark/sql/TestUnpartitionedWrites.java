@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -82,6 +83,24 @@ public class TestUnpartitionedWrites extends SparkCatalogTestBase {
     );
 
     assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testInsertAppendAtSnapshot() {
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    String prefix = "snapshot_id_";
+    AssertHelpers.assertThrows("Should not be able to insert into a table at a specific snapshot",
+        IllegalArgumentException.class, "Cannot write to table at a specific snapshot",
+        () -> sql("INSERT INTO %s.%s VALUES (4, 'd'), (5, 'e')", tableName, prefix + snapshotId));
+  }
+
+  @Test
+  public void testInsertOverwriteAtSnapshot() {
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    String prefix = "snapshot_id_";
+    AssertHelpers.assertThrows("Should not be able to insert into a table at a specific snapshot",
+        IllegalArgumentException.class, "Cannot write to table at a specific snapshot",
+        () -> sql("INSERT OVERWRITE %s.%s VALUES (4, 'd'), (5, 'e')", tableName, prefix + snapshotId));
   }
 
   @Test

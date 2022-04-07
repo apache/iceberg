@@ -26,19 +26,36 @@ import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
+import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoContext
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
+import org.apache.spark.sql.catalyst.plans.logical.UnresolvedMergeIntoIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
 import org.apache.spark.sql.catalyst.trees.Origin
+import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.execution.command.ExplainCommand
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
+import scala.jdk.CollectionConverters._
+import scala.util.Try
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
@@ -103,12 +120,71 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
-      delegate.parsePlan(sqlText)
+      val parsedPlan = delegate.parsePlan(sqlText)
+      parsedPlan match {
+        case e: ExplainCommand =>
+          e.copy(logicalPlan = replaceRowLevelCommands(e.logicalPlan))
+        case p =>
+          replaceRowLevelCommands(p)
+      }
+    }
+  }
+
+  private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsDown {
+    case DeleteFromTable(UnresolvedIcebergTable(aliasedTable), condition) =>
+      DeleteFromIcebergTable(aliasedTable, condition)
+
+    case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
+      UpdateIcebergTable(aliasedTable, assignments, condition)
+
+    case MergeIntoTable(UnresolvedIcebergTable(aliasedTable), source, cond, matchedActions, notMatchedActions) =>
+      // cannot construct MergeIntoIcebergTable right away as MERGE operations require special resolution
+      // that's why the condition and actions must be hidden from the regular resolution rules in Spark
+      // see ResolveMergeIntoTableReferences for details
+      val context = MergeIntoContext(cond, matchedActions, notMatchedActions)
+      UnresolvedMergeIntoIcebergTable(aliasedTable, source, context)
+  }
+
+  object UnresolvedIcebergTable {
+
+    def unapply(plan: LogicalPlan): Option[LogicalPlan] = {
+      EliminateSubqueryAliases(plan) match {
+        case UnresolvedRelation(multipartIdentifier, _, _) if isIcebergTable(multipartIdentifier) =>
+          Some(plan)
+        case _ =>
+          None
+      }
+    }
+
+    private def isIcebergTable(multipartIdent: Seq[String]): Boolean = {
+      val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(SparkSession.active, multipartIdent.asJava)
+      catalogAndIdentifier.catalog match {
+        case tableCatalog: TableCatalog =>
+          Try(tableCatalog.loadTable(catalogAndIdentifier.identifier))
+            .map(isIcebergTable)
+            .getOrElse(false)
+
+        case _ =>
+          false
+      }
+    }
+
+    private def isIcebergTable(table: Table): Boolean = table match {
+      case _: SparkTable => true
+      case _ => false
     }
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ")
+    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
+      // Strip simple SQL comments that terminate a line, e.g. comments starting with `--` .
+      .replaceAll("--.*?\\n", " ")
+      // Strip newlines.
+      .replaceAll("\\s+", " ")
+      // Strip comments of the form  /* ... */. This must come after stripping newlines so that
+      // comments that span multiple lines are caught.
+      .replaceAll("/\\*.*?\\*/", " ")
+      .trim()
     normalized.startsWith("call") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||

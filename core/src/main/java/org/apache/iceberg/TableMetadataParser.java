@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -41,6 +42,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -98,6 +100,7 @@ public class TableMetadataParser {
   static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
+  static final String REFS = "refs";
   static final String SNAPSHOTS = "snapshots";
   static final String SNAPSHOT_ID = "snapshot-id";
   static final String TIMESTAMP_MS = "timestamp-ms";
@@ -213,6 +216,8 @@ public class TableMetadataParser {
     generator.writeNumberField(CURRENT_SNAPSHOT_ID,
         metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
 
+    toJson(metadata.refs(), generator);
+
     generator.writeArrayFieldStart(SNAPSHOTS);
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, generator);
@@ -240,6 +245,15 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
+  private static void toJson(Map<String, SnapshotRef> refs, JsonGenerator generator) throws IOException {
+    generator.writeObjectFieldStart(REFS);
+    for (Map.Entry<String, SnapshotRef> refEntry : refs.entrySet()) {
+      generator.writeFieldName(refEntry.getKey());
+      SnapshotRefParser.toJson(refEntry.getValue(), generator);
+    }
+    generator.writeEndObject();
+  }
+
   public static TableMetadata read(FileIO io, String path) {
     return read(io, io.newInputFile(path));
   }
@@ -253,8 +267,42 @@ public class TableMetadataParser {
     }
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  /**
+   * Read TableMetadata from a JSON string.
+   * <p>
+   * The TableMetadata's metadata file location will be unset.
+   *
+   * @param io a FileIO used by {@link Snapshot} instances
+   * @param json a JSON string of table metadata
+   * @return a TableMetadata object
+   */
+  public static TableMetadata fromJson(FileIO io, String json) {
+    return fromJson(io, null, json);
+  }
+
+  /**
+   * Read TableMetadata from a JSON string.
+   *
+   * @param io a FileIO used by {@link Snapshot} instances
+   * @param metadataLocation metadata location for the returned {@link TableMetadata}
+   * @param json a JSON string of table metadata
+   * @return a TableMetadata object
+   */
+  public static TableMetadata fromJson(FileIO io, String metadataLocation, String json) {
+    try {
+      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      return fromJson(io, metadataLocation, node);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read JSON string: " + json, e);
+    }
+  }
+
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
+    return fromJson(io, file.location(), node);
+  }
+
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
+  static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
 
@@ -365,6 +413,13 @@ public class TableMetadataParser {
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
+    Map<String, SnapshotRef> refs;
+    if (node.has(REFS)) {
+      refs = refsFromJson(node.get(REFS));
+    } else {
+      refs = ImmutableMap.of();
+    }
+
     JsonNode snapshotArray = node.get(SNAPSHOTS);
     Preconditions.checkArgument(snapshotArray.isArray(),
         "Cannot parse snapshots from non-array: %s", snapshotArray);
@@ -395,9 +450,26 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(file, formatVersion, uuid, location,
+    return new TableMetadata(metadataLocation, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build());
+        snapshots, entries.build(), metadataEntries.build(), refs,
+        ImmutableList.of() /* no changes from the file */);
+  }
+
+  private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {
+    Preconditions.checkArgument(refMap.isObject(), "Cannot parse refs from non-object: %s", refMap);
+
+    ImmutableMap.Builder<String, SnapshotRef> refsBuilder = ImmutableMap.builder();
+    Iterator<String> refNames = refMap.fieldNames();
+    while (refNames.hasNext()) {
+      String refName = refNames.next();
+      JsonNode refNode = refMap.get(refName);
+      Preconditions.checkArgument(refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
+      SnapshotRef ref = SnapshotRefParser.fromJson(refNode);
+      refsBuilder.put(refName, ref);
+    }
+
+    return refsBuilder.build();
   }
 }

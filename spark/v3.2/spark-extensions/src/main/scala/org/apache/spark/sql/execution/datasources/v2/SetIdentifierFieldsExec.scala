@@ -24,6 +24,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
+import scala.jdk.CollectionConverters._
 
 case class SetIdentifierFieldsExec(
     catalog: TableCatalog,
@@ -37,7 +38,7 @@ case class SetIdentifierFieldsExec(
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
         iceberg.table.updateSchema()
-          .setIdentifierFields(scala.collection.JavaConverters.seqAsJavaList(fields))
+          .setIdentifierFields(fields.asJava)
           .commit();
       case table =>
         throw new UnsupportedOperationException(s"Cannot set identifier fields in non-Iceberg table: $table")

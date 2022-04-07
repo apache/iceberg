@@ -73,6 +73,9 @@ public class SnapshotSummary {
     private long deletedDuplicateFiles = 0L;
     private boolean trustPartitionMetrics = true;
 
+    private Builder() {
+    }
+
     public void clear() {
       partitionMetrics.clear();
       metrics.clear();

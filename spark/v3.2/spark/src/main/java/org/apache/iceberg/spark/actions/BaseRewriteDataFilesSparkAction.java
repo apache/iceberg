@@ -70,7 +70,7 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class BaseRewriteDataFilesSparkAction
+public class BaseRewriteDataFilesSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteDataFiles, RewriteDataFiles.Result> implements RewriteDataFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesSparkAction.class);
@@ -79,7 +79,8 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
-      TARGET_FILE_SIZE_BYTES
+      TARGET_FILE_SIZE_BYTES,
+      USE_STARTING_SEQUENCE_NUMBER
   );
 
   private final Table table;
@@ -88,6 +89,7 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean useStartingSequenceNumber;
   private RewriteStrategy strategy = null;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -95,19 +97,10 @@ abstract class BaseRewriteDataFilesSparkAction
     this.table = table;
   }
 
-  protected Table table() {
-    return table;
+  @Override
+  protected RewriteDataFiles self() {
+    return this;
   }
-
-  /**
-   * The framework specific {@link BinPackStrategy}
-   */
-  protected abstract BinPackStrategy binPackStrategy();
-
-  /**
-   * The framework specific {@link SortStrategy}
-   */
-  protected abstract SortStrategy sortStrategy();
 
   @Override
   public RewriteDataFiles binPack() {
@@ -245,7 +238,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
-    return new RewriteDataFilesCommitManager(table, startingSnapshotId);
+    return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
@@ -375,11 +368,15 @@ abstract class BaseRewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
 
+    useStartingSequenceNumber = PropertyUtil.propertyAsBoolean(options(),
+        USE_STARTING_SEQUENCE_NUMBER,
+        USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+
     Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",
         MAX_CONCURRENT_FILE_GROUP_REWRITES, maxConcurrentFileGroupRewrites);
 
-    Preconditions.checkArgument(!partialProgressEnabled || partialProgressEnabled && maxCommits > 0,
+    Preconditions.checkArgument(!partialProgressEnabled || maxCommits > 0,
         "Cannot set %s to %s, the value must be positive when %s is true",
         PARTIAL_PROGRESS_MAX_COMMITS, maxCommits, PARTIAL_PROGRESS_ENABLED);
   }
@@ -398,6 +395,14 @@ abstract class BaseRewriteDataFilesSparkAction
           strategy.name(), group.info().globalIndex(), ctx.totalGroupCount(),
           table.name());
     }
+  }
+
+  private BinPackStrategy binPackStrategy() {
+    return new SparkBinPackStrategy(table, spark());
+  }
+
+  private SortStrategy sortStrategy() {
+    return new SparkSortStrategy(table, spark());
   }
 
   @VisibleForTesting

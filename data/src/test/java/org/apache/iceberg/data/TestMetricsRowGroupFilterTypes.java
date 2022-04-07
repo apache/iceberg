@@ -30,7 +30,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -137,7 +136,7 @@ public class TestMetricsRowGroupFilterTypes {
 
   @Before
   public void createInputFile() throws IOException {
-    List<Record> records = new ArrayList<>();
+    List<Record> records = Lists.newArrayList();
     // create 50 records
     for (int i = 0; i < 50; i += 1) {
       Record record = GenericRecord.create(FILE_SCHEMA);

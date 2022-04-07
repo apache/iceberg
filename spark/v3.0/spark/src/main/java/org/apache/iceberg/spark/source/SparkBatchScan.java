@@ -117,7 +117,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
     return new SparkMicroBatchStream(
-        sparkContext, table, readConf, caseSensitive, expectedSchema, options, checkpointLocation);
+        sparkContext, table, readConf, caseSensitive, expectedSchema, checkpointLocation);
   }
 
   @Override
@@ -223,7 +223,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        numRows += file.file().recordCount();
+        // TODO: if possible, take deletes also into consideration.
+        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
+        numRows += (fractionOfFileScanned * file.file().recordCount());
       }
     }
 

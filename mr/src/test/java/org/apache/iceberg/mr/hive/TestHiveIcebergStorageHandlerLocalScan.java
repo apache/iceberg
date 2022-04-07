@@ -21,10 +21,8 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
@@ -42,6 +40,7 @@ import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -63,7 +62,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
 
   @Parameters(name = "fileFormat={0}, catalog={1}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
+    Collection<Object[]> testParams = Lists.newArrayList();
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
     for (FileFormat fileFormat : HiveIcebergStorageHandlerTestUtils.FILE_FORMATS) {
@@ -99,7 +98,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   }
 
   @AfterClass
-  public static void afterClass() {
+  public static void afterClass() throws Exception {
     shell.stop();
   }
 
@@ -244,7 +243,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   @Test
   public void testCreateTableWithColumnSpecification() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
-    Map<StructLike, List<Record>> data = new HashMap<>(1);
+    Map<StructLike, List<Record>> data = Maps.newHashMapWithExpectedSize(1);
     data.put(null, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     String createSql = "CREATE EXTERNAL TABLE " + identifier +
         " (customer_id BIGINT, first_name STRING COMMENT 'This is first name', " +

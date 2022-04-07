@@ -19,9 +19,10 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -37,7 +38,7 @@ import org.apache.spark.sql.types.StructType;
  * <p>
  * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
  *
- * @see Actions#rewriteManifests()
+ * @see SparkActions#rewriteManifests(Table) ()
  */
 class RewriteManifestsProcedure extends BaseProcedure {
 

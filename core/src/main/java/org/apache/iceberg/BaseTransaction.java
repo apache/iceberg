@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -48,7 +49,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
-class BaseTransaction implements Transaction {
+public class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
   enum TransactionType {
@@ -87,6 +88,14 @@ class BaseTransaction implements Transaction {
   @Override
   public Table table() {
     return transactionTable;
+  }
+
+  public TableMetadata startMetadata() {
+    return current;
+  }
+
+  public TableOperations underlyingOps() {
+    return ops;
   }
 
   private void checkLastOperationCommitted(String operation) {
@@ -215,6 +224,20 @@ class BaseTransaction implements Transaction {
     return expire;
   }
 
+  CherryPickOperation cherryPick() {
+    checkLastOperationCommitted("CherryPick");
+    CherryPickOperation cherrypick = new CherryPickOperation(tableName, transactionOps);
+    updates.add(cherrypick);
+    return cherrypick;
+  }
+
+  SetSnapshotOperation setBranchSnapshot() {
+    checkLastOperationCommitted("SetBranchSnapshot");
+    SetSnapshotOperation set = new SetSnapshotOperation(transactionOps);
+    updates.add(set);
+    return set;
+  }
+
   @Override
   public void commitTransaction() {
     Preconditions.checkState(hasLastOpCommitted,
@@ -240,13 +263,13 @@ class BaseTransaction implements Transaction {
   }
 
   private void commitCreateTransaction() {
-    // fix up the snapshot log, which should not contain intermediate snapshots
-    TableMetadata createMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
-
     // this operation creates the table. if the commit fails, this cannot retry because another
     // process has created the same table.
     try {
-      ops.commit(null, createMetadata);
+      ops.commit(null, current);
+
+    } catch (CommitStateUnknownException e) {
+      throw e;
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
@@ -271,9 +294,7 @@ class BaseTransaction implements Transaction {
   }
 
   private void commitReplaceTransaction(boolean orCreate) {
-    // fix up the snapshot log, which should not contain intermediate snapshots
-    TableMetadata replaceMetadata = current.removeSnapshotLogEntries(intermediateSnapshotIds);
-    Map<String, String> props = base != null ? base.properties() : replaceMetadata.properties();
+    Map<String, String> props = base != null ? base.properties() : current.properties();
 
     try {
       Tasks.foreach(ops)
@@ -300,8 +321,11 @@ class BaseTransaction implements Transaction {
               this.base = underlyingOps.current(); // just refreshed
             }
 
-            underlyingOps.commit(base, replaceMetadata);
+            underlyingOps.commit(base, current);
           });
+
+    } catch (CommitStateUnknownException e) {
+      throw e;
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.
@@ -358,8 +382,11 @@ class BaseTransaction implements Transaction {
             }
 
             // fix up the snapshot log, which should not contain intermediate snapshots
-            underlyingOps.commit(base, current.removeSnapshotLogEntries(intermediateSnapshotIds));
+            underlyingOps.commit(base, current);
           });
+
+    } catch (CommitStateUnknownException e) {
+      throw e;
 
     } catch (RuntimeException e) {
       // the commit failed and no files were committed. clean up each update.

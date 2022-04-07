@@ -24,6 +24,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
+import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -33,11 +35,12 @@ import org.apache.iceberg.io.PositionOutputStream;
 /**
  * {@link OutputFile} implementation using the Hadoop {@link FileSystem} API.
  */
-public class HadoopOutputFile implements OutputFile {
+public class HadoopOutputFile implements OutputFile, NativelyEncryptedFile {
 
   private final FileSystem fs;
   private final Path path;
   private final Configuration conf;
+  private NativeFileCryptoParameters nativeEncryptionParameters;
 
   public static OutputFile fromLocation(CharSequence location, Configuration conf) {
     Path path = new Path(location.toString());
@@ -113,5 +116,15 @@ public class HadoopOutputFile implements OutputFile {
   @Override
   public String toString() {
     return location();
+  }
+
+  @Override
+  public NativeFileCryptoParameters nativeCryptoParameters() {
+    return nativeEncryptionParameters;
+  }
+
+  @Override
+  public void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters) {
+    this.nativeEncryptionParameters = nativeCryptoParameters;
   }
 }
