@@ -356,8 +356,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       if (event != null) {
         Listeners.notifyAll(event);
       }
-    } catch (RuntimeException e) {
-      LOG.warn("Failed to notify listeners", e);
+    } catch (Throwable t) {
+      LOG.warn("Failed to notify listeners", t);
     }
   }
 
