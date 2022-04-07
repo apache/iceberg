@@ -553,6 +553,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       summary.put(String.valueOf(i), "value");
     }
     long summarySize = JsonUtil.mapper().writeValueAsString(summary).length();
+    // the limit has been updated to 4000 instead of the default value(32672)
     Assert.assertTrue(summarySize > 4000 && summarySize < 32672);
     spyOps.setSnapshotSummary(parameter, snapshot);
     Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameter.size());

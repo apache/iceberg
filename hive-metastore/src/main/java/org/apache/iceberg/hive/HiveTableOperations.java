@@ -92,6 +92,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
+
+  // determined by the HMS backend database, https://issues.apache.org/jira/browse/HIVE-12274
   private static final String HIVE_TABLE_PARAMETER_SIZE_MAX = "iceberg.hive.table.parameter.size.max";
   private static final long HIVE_TABLE_PARAMETER_SIZE_MAX_DEFAULT = 32672;
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
@@ -173,9 +175,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
     this.metadataRefreshMaxRetries =
         conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    this.maxHiveTableParameterSize = conf.getLong(HIVE_TABLE_PARAMETER_SIZE_MAX, HIVE_TABLE_PARAMETER_SIZE_MAX_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
-    this.maxHiveTableParameterSize = conf.getLong(HIVE_TABLE_PARAMETER_SIZE_MAX, HIVE_TABLE_PARAMETER_SIZE_MAX_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
   }
 
