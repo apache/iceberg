@@ -533,7 +533,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   @Test
   public void testSetSnapshotSummary() throws Exception {
     Configuration conf = new Configuration();
-    conf.set("iceberg.hive.table.parameter.size.max", "4000");
+    conf.set("iceberg.hive.max.table.parameter.size", "4000");
     HiveTableOperations spyOps = spy(new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl"));
     Snapshot snapshot = mock(Snapshot.class);
     Map<String, String> summary = Maps.newHashMap();
