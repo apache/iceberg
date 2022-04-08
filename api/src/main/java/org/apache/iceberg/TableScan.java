@@ -152,7 +152,7 @@ public interface TableScan {
    */
   @Deprecated
   default TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
-    return appendsBetween(Long.valueOf(fromSnapshotId), toSnapshotId);
+    return appendsInRange(Long.valueOf(fromSnapshotId), toSnapshotId);
   }
 
   /**
@@ -165,7 +165,7 @@ public interface TableScan {
    * @return a table scan which can read append data from {@code fromSnapshotId}
    * exclusive and up to {@code toSnapshotId} inclusive
    */
-  TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId);
+  TableScan appendsInRange(Long fromSnapshotId, long toSnapshotId);
 
   /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot

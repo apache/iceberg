@@ -189,7 +189,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
     if (startSnapshotId != null) {
       if (endSnapshotId != null) {
-        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
+        scan = scan.appendsInRange(startSnapshotId, endSnapshotId);
       } else {
         scan = scan.appendsAfter(startSnapshotId);
       }

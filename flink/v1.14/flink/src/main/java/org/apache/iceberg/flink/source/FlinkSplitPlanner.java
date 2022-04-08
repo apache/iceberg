@@ -96,10 +96,12 @@ public class FlinkSplitPlanner {
 
     if (context.startSnapshotId() != null) {
       if (context.endSnapshotId() != null) {
-        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
+        scan = scan.appendsInRange(context.startSnapshotId(), context.endSnapshotId());
       } else {
         scan = scan.appendsAfter(context.startSnapshotId());
       }
+    } else {
+      scan = scan.appendsInRange(context.startSnapshotId(), context.endSnapshotId());
     }
 
     if (context.splitSize() != null) {

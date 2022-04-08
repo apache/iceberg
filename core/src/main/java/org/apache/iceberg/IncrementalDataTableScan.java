@@ -54,7 +54,7 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   @Override
-  public TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId) {
+  public TableScan appendsInRange(Long fromSnapshotId, long toSnapshotId) {
     validateSnapshotIdsRefinement(fromSnapshotId, toSnapshotId);
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
         context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
@@ -65,7 +65,7 @@ class IncrementalDataTableScan extends DataTableScan {
     final Snapshot currentSnapshot = table().currentSnapshot();
     Preconditions.checkState(currentSnapshot != null,
         "Cannot scan appends after %s, there is no current snapshot", newFromSnapshotId);
-    return appendsBetween(Long.valueOf(newFromSnapshotId), currentSnapshot.snapshotId());
+    return this.appendsInRange(Long.valueOf(newFromSnapshotId), currentSnapshot.snapshotId());
   }
 
   @Override
@@ -98,7 +98,10 @@ class IncrementalDataTableScan extends DataTableScan {
         context().toSnapshotId(), context().rowFilter(), schema()));
     // This notification is kept for backward compatibility.
     // It should be removed when IncrementalScanEvent is removed.
-    Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
+    // If fromSnapshotId is null, we have to use special value 0.
+    // It is not ideal but it is the only choice here.
+    Listeners.notifyAll(new IncrementalScanEvent(table().name(),
+        context().fromSnapshotId() != null ? context().fromSnapshotId() : 0L,
         context().toSnapshotId(), context().rowFilter(), schema()));
 
     if (manifests.size() > 1 &&

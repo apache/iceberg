@@ -275,7 +275,7 @@ public class SimpleDataUtil {
       TableScan tableScan = table.newScan();
       if (current.parentId() != null) {
         // Collect the data files that was added only in current snapshot.
-        tableScan = tableScan.appendsBetween(current.parentId(), current.snapshotId());
+        tableScan = tableScan.appendsInRange(current.parentId(), current.snapshotId());
       } else {
         // Collect the data files that was added in the oldest snapshot.
         tableScan = tableScan.useSnapshot(current.snapshotId());

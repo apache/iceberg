@@ -42,7 +42,7 @@ class StaticTableScan extends BaseMetadataTableScan {
   }
 
   @Override
-  public TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId) {
+  public TableScan appendsInRange(Long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException(
         String.format("Cannot incrementally scan table of type %s", tableType));
   }
