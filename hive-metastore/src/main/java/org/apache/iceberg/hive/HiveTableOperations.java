@@ -417,15 +417,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void setSnapshotStats(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_ID);
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP);
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
+
     Snapshot currentSnapshot = metadata.currentSnapshot();
     if (currentSnapshot != null) {
       parameters.put(TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
       parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
       setSnapshotSummary(parameters, currentSnapshot);
-    } else {
-      parameters.remove(TableProperties.CURRENT_SNAPSHOT_ID);
-      parameters.remove(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP);
-      parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
     }
 
     parameters.put(TableProperties.SNAPSHOT_COUNT, String.valueOf(metadata.snapshots().size()));
@@ -438,12 +438,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (summary.length() <= maxHiveTablePropertySize) {
         parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
       } else {
-        parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
         LOG.warn("Not exposing the current snapshot({}) summary in HMS since it exceeds {} characters",
             currentSnapshot.snapshotId(), maxHiveTablePropertySize);
       }
     } catch (JsonProcessingException e) {
-      parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
       LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
     }
   }

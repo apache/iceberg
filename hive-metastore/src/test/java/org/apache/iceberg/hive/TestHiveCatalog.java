@@ -544,9 +544,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       summary.put(String.valueOf(i), "value");
     }
     Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() < 4000);
-    Map<String, String> parameter = Maps.newHashMap();
-    spyOps.setSnapshotSummary(parameter, snapshot);
-    Assert.assertEquals("The snapshot summary must be in parameters", 1, parameter.size());
+    Map<String, String> parameters = Maps.newHashMap();
+    spyOps.setSnapshotSummary(parameters, snapshot);
+    Assert.assertEquals("The snapshot summary must be in parameters", 1, parameters.size());
 
     // create a snapshot summary whose json string size exceeds the limit
     for (int i = 0; i < 1000; i++) {
@@ -555,7 +555,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     long summarySize = JsonUtil.mapper().writeValueAsString(summary).length();
     // the limit has been updated to 4000 instead of the default value(32672)
     Assert.assertTrue(summarySize > 4000 && summarySize < 32672);
-    spyOps.setSnapshotSummary(parameter, snapshot);
-    Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameter.size());
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
+    spyOps.setSnapshotSummary(parameters, snapshot);
+    Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameters.size());
   }
 }
