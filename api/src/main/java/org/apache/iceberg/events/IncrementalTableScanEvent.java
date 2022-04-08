@@ -24,19 +24,16 @@ import org.apache.iceberg.expressions.Expression;
 
 /**
  * Event sent to listeners when an incremental table scan is planned.
- *
- * @deprecated by {@link IncrementalTableScanEvent}
  */
-@Deprecated
-public final class IncrementalScanEvent {
+public final class IncrementalTableScanEvent {
   private final String tableName;
-  private final long fromSnapshotId;
+  private final Long fromSnapshotId;
   private final long toSnapshotId;
   private final Expression filter;
   private final Schema projection;
 
-  public IncrementalScanEvent(String tableName, long fromSnapshotId, long toSnapshotId, Expression filter,
-                              Schema projection) {
+  public IncrementalTableScanEvent(String tableName, Long fromSnapshotId, long toSnapshotId, Expression filter,
+                                   Schema projection) {
     this.tableName = tableName;
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;
@@ -48,7 +45,7 @@ public final class IncrementalScanEvent {
     return tableName;
   }
 
-  public long fromSnapshotId() {
+  public Long fromSnapshotId() {
     return fromSnapshotId;
   }
 

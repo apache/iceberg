@@ -147,8 +147,25 @@ public interface TableScan {
    * @param toSnapshotId read append data up to this snapshot id
    * @return a table scan which can read append data from {@code fromSnapshotId}
    * exclusive and up to {@code toSnapshotId} inclusive
+   *
+   * @deprecated Please use the appendsBetween with non-primitive fromSnapshotId of Long type
    */
-  TableScan appendsBetween(long fromSnapshotId, long toSnapshotId);
+  @Deprecated
+  default TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    return appendsBetween(Long.valueOf(fromSnapshotId), toSnapshotId);
+  }
+
+  /**
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
+   * inclusive.
+   *
+   * @param fromSnapshotId the last snapshot id read by the user, exclusive. If it is null,
+   *                       all the ancestor snapshots of the toSnapshotId should be discovered
+   * @param toSnapshotId read append data up to this snapshot id
+   * @return a table scan which can read append data from {@code fromSnapshotId}
+   * exclusive and up to {@code toSnapshotId} inclusive
+   */
+  TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId);
 
   /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot

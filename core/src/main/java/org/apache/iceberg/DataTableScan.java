@@ -47,7 +47,7 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
-  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+  public TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId) {
     Long scanSnapshotId = snapshotId();
     Preconditions.checkState(scanSnapshotId == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", scanSnapshotId);
@@ -60,7 +60,7 @@ public class DataTableScan extends BaseTableScan {
     Snapshot currentSnapshot = table().currentSnapshot();
     Preconditions.checkState(currentSnapshot != null, "Cannot scan appends after %s, there is no current snapshot",
         fromSnapshotId);
-    return appendsBetween(fromSnapshotId, currentSnapshot.snapshotId());
+    return appendsBetween(Long.valueOf(fromSnapshotId), currentSnapshot.snapshotId());
   }
 
   @Override

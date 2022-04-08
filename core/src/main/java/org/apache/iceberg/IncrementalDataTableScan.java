@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.IncrementalTableScanEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -53,7 +54,7 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   @Override
-  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+  public TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId) {
     validateSnapshotIdsRefinement(fromSnapshotId, toSnapshotId);
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
         context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
@@ -64,7 +65,7 @@ class IncrementalDataTableScan extends DataTableScan {
     final Snapshot currentSnapshot = table().currentSnapshot();
     Preconditions.checkState(currentSnapshot != null,
         "Cannot scan appends after %s, there is no current snapshot", newFromSnapshotId);
-    return appendsBetween(newFromSnapshotId, currentSnapshot.snapshotId());
+    return appendsBetween(Long.valueOf(newFromSnapshotId), currentSnapshot.snapshotId());
   }
 
   @Override
@@ -93,6 +94,10 @@ class IncrementalDataTableScan extends DataTableScan {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
+    Listeners.notifyAll(new IncrementalTableScanEvent(table().name(), context().fromSnapshotId(),
+        context().toSnapshotId(), context().rowFilter(), schema()));
+    // This notification is kept for backward compatibility.
+    // It should be removed when IncrementalScanEvent is removed.
     Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
         context().toSnapshotId(), context().rowFilter(), schema()));
 
@@ -110,7 +115,7 @@ class IncrementalDataTableScan extends DataTableScan {
     return new IncrementalDataTableScan(ops, table, schema, context);
   }
 
-  private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
+  private static List<Snapshot> snapshotsWithin(Table table, Long fromSnapshotId, long toSnapshotId) {
     List<Snapshot> snapshots = Lists.newArrayList();
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(toSnapshotId, fromSnapshotId, table::snapshot)) {
       // for now, incremental scan supports only appends
@@ -140,13 +145,15 @@ class IncrementalDataTableScan extends DataTableScan {
         newToSnapshotId, context().fromSnapshotId(), context().toSnapshotId());
   }
 
-  private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
-    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
-    Preconditions.checkArgument(
-        table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
+  private static void validateSnapshotIds(Table table, Long fromSnapshotId, long toSnapshotId) {
     Preconditions.checkArgument(
         table.snapshot(toSnapshotId) != null, "to snapshot %s does not exist", toSnapshotId);
-    Preconditions.checkArgument(SnapshotUtil.isAncestorOf(table, toSnapshotId, fromSnapshotId),
-        "from snapshot %s is not an ancestor of to snapshot  %s", fromSnapshotId, toSnapshotId);
+    if (fromSnapshotId != null) {
+      Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
+      Preconditions.checkArgument(
+          table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
+      Preconditions.checkArgument(SnapshotUtil.isAncestorOf(table, toSnapshotId, fromSnapshotId),
+          "from snapshot %s is not an ancestor of to snapshot  %s", fromSnapshotId, toSnapshotId);
+    }
   }
 }

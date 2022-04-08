@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.IncrementalTableScanEvent;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.expressions.Expressions;
@@ -60,7 +60,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     AssertHelpers.assertThrows(
         "from and to snapshots cannot be the same, since from snapshot is exclusive and not part of the scan",
         IllegalArgumentException.class, "from and to snapshot ids cannot be the same",
-        () -> appendsBetweenScan(1, 1));
+        () -> appendsBetweenScan(1L, 1L));
 
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C"));
@@ -69,11 +69,11 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     AssertHelpers.assertThrows(
         "Check refinement api",
         IllegalArgumentException.class, "from snapshot id 1 not in existing snapshot ids range (2, 4]",
-        () -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4));
+        () -> table.newScan().appendsBetween(Long.valueOf(2L), 5L).appendsBetween(Long.valueOf(1L), 4L));
     AssertHelpers.assertThrows(
         "Check refinement api",
         IllegalArgumentException.class, "to snapshot id 3 not in existing snapshot ids range (1, 2]",
-        () -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3));
+        () -> table.newScan().appendsBetween(Long.valueOf(1L), 2L).appendsBetween(Long.valueOf(1L), 3L));
   }
 
   @Test
@@ -84,26 +84,29 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("D"));
     add(table.newAppend(), files("E")); // 5
 
-    class MyListener implements Listener<IncrementalScanEvent> {
+    class MyListener implements Listener<IncrementalTableScanEvent> {
 
-      IncrementalScanEvent lastEvent = null;
+      IncrementalTableScanEvent lastEvent = null;
 
       @Override
-      public void notify(IncrementalScanEvent event) {
+      public void notify(IncrementalTableScanEvent event) {
         this.lastEvent = event;
       }
 
-      public IncrementalScanEvent event() {
+      public IncrementalTableScanEvent event() {
         return lastEvent;
       }
     }
 
     MyListener listener1 = new MyListener();
-    Listeners.register(listener1, IncrementalScanEvent.class);
-    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    Listeners.register(listener1, IncrementalTableScanEvent.class);
+    filesMatch(Lists.newArrayList("A", "B", "C", "D", "E"), appendsBetweenScan(null, 5L));
+    Assert.assertTrue(listener1.event().fromSnapshotId() == null);
+    Assert.assertTrue(listener1.event().toSnapshotId() == 5);
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1L, 5L));
     Assert.assertTrue(listener1.event().fromSnapshotId() == 1);
     Assert.assertTrue(listener1.event().toSnapshotId() == 5);
-    filesMatch(Lists.newArrayList("C", "D", "E"), appendsBetweenScan(2, 5));
+    filesMatch(Lists.newArrayList("C", "D", "E"), appendsBetweenScan(2L, 5L));
     Assert.assertTrue(listener1.event().fromSnapshotId() == 2);
     Assert.assertTrue(listener1.event().toSnapshotId() == 5);
     Assert.assertEquals(table.schema(), listener1.event().projection());
@@ -118,29 +121,29 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("C"));
     add(table.newAppend(), files("D"));
     add(table.newAppend(), files("E")); // 5
-    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1L, 5L));
 
     replace(table.newRewrite(), files("A", "B", "C"), files("F", "G")); // 6
     // Replace commits are ignored
-    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 6));
-    filesMatch(Lists.newArrayList("E"), appendsBetweenScan(4, 6));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1L, 6L));
+    filesMatch(Lists.newArrayList("E"), appendsBetweenScan(4L, 6L));
     // 6th snapshot is a replace. No new content is added
-    Assert.assertTrue("Replace commits are ignored", appendsBetweenScan(5, 6).isEmpty());
+    Assert.assertTrue("Replace commits are ignored", appendsBetweenScan(5L, 6L).isEmpty());
     delete(table.newDelete(), files("D")); // 7
     // 7th snapshot is a delete.
-    Assert.assertTrue("Replace and delete commits are ignored", appendsBetweenScan(5, 7).isEmpty());
-    Assert.assertTrue("Delete commits are ignored", appendsBetweenScan(6, 7).isEmpty());
+    Assert.assertTrue("Replace and delete commits are ignored", appendsBetweenScan(5L, 7L).isEmpty());
+    Assert.assertTrue("Delete commits are ignored", appendsBetweenScan(6L, 7L).isEmpty());
     add(table.newAppend(), files("I")); // 8
     // snapshots 6 and 7 are ignored
-    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I"), appendsBetweenScan(1, 8));
-    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(6, 8));
-    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7, 8));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I"), appendsBetweenScan(1L, 8L));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(6L, 8L));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7L, 8L));
 
     overwrite(table.newOverwrite(), files("H"), files("E")); // 9
     AssertHelpers.assertThrows(
         "Overwrites are not supported for Incremental scan", UnsupportedOperationException.class,
         "Found overwrite operation, cannot support incremental data in snapshots (8, 9]",
-        () -> appendsBetweenScan(8, 9));
+        () -> appendsBetweenScan(8L, 9L));
   }
 
   @Test
@@ -153,31 +156,31 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(transaction.newAppend(), files("D"));
     add(transaction.newAppend(), files("E")); // 5
     transaction.commitTransaction();
-    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1L, 5L));
 
     transaction = table.newTransaction();
     replace(transaction.newRewrite(), files("A", "B", "C"), files("F", "G")); // 6
     transaction.commitTransaction();
     // Replace commits are ignored
-    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 6));
-    filesMatch(Lists.newArrayList("E"), appendsBetweenScan(4, 6));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1L, 6L));
+    filesMatch(Lists.newArrayList("E"), appendsBetweenScan(4L, 6L));
     // 6th snapshot is a replace. No new content is added
-    Assert.assertTrue("Replace commits are ignored", appendsBetweenScan(5, 6).isEmpty());
+    Assert.assertTrue("Replace commits are ignored", appendsBetweenScan(5L, 6L).isEmpty());
 
     transaction = table.newTransaction();
     delete(transaction.newDelete(), files("D")); // 7
     transaction.commitTransaction();
     // 7th snapshot is a delete.
-    Assert.assertTrue("Replace and delete commits are ignored", appendsBetweenScan(5, 7).isEmpty());
-    Assert.assertTrue("Delete commits are ignored", appendsBetweenScan(6, 7).isEmpty());
+    Assert.assertTrue("Replace and delete commits are ignored", appendsBetweenScan(5L, 7L).isEmpty());
+    Assert.assertTrue("Delete commits are ignored", appendsBetweenScan(6L, 7L).isEmpty());
 
     transaction = table.newTransaction();
     add(transaction.newAppend(), files("I")); // 8
     transaction.commitTransaction();
     // snapshots 6, 7 and 8 are ignored
-    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I"), appendsBetweenScan(1, 8));
-    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(6, 8));
-    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7, 8));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I"), appendsBetweenScan(1L, 8L));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(6L, 8L));
+    filesMatch(Lists.newArrayList("I"), appendsBetweenScan(7L, 8L));
   }
 
   @Test
@@ -188,7 +191,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     // Go back to snapshot "B"
     table.rollback().toSnapshotId(2).commit(); // 2
     Assert.assertEquals(2, table.currentSnapshot().snapshotId());
-    filesMatch(Lists.newArrayList("B"), appendsBetweenScan(1, 2));
+    filesMatch(Lists.newArrayList("B"), appendsBetweenScan(1L, 2L));
     filesMatch(Lists.newArrayList("B"), appendsAfterScan(1));
 
     Transaction transaction = table.newTransaction();
@@ -199,7 +202,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     // Go back to snapshot "E"
     table.rollback().toSnapshotId(5).commit();
     Assert.assertEquals(5, table.currentSnapshot().snapshotId());
-    filesMatch(Lists.newArrayList("B", "D", "E"), appendsBetweenScan(1, 5));
+    filesMatch(Lists.newArrayList("B", "D", "E"), appendsBetweenScan(1L, 5));
     filesMatch(Lists.newArrayList("B", "D", "E"), appendsAfterScan(1));
   }
 
@@ -211,7 +214,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     TableScan scan1 = table.newScan()
         .filter(Expressions.equal("id", 5))
-        .appendsBetween(1, 3);
+        .appendsBetween(Long.valueOf(1L), 3L);
 
     try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
       Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
@@ -224,7 +227,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     TableScan scan2 = table.newScan()
         .filter(Expressions.equal("id", 5))
-        .appendsBetween(1, 3)
+        .appendsBetween(Long.valueOf(1L), 3L)
         .ignoreResiduals();
 
     try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
@@ -303,10 +306,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     return filesToScan(appendsAfter);
   }
 
-  private List<String> appendsBetweenScan(long fromSnapshotId, long toSnapshotId) {
-    Snapshot s1 = table.snapshot(fromSnapshotId);
-    Snapshot s2 = table.snapshot(toSnapshotId);
-    TableScan appendsBetween = table.newScan().appendsBetween(s1.snapshotId(), s2.snapshotId());
+  private List<String> appendsBetweenScan(Long fromSnapshotId, long toSnapshotId) {
+    TableScan appendsBetween = table.newScan().appendsBetween(fromSnapshotId, toSnapshotId);
     return filesToScan(appendsBetween);
   }
 

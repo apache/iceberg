@@ -106,7 +106,7 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
-  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+  public TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
 

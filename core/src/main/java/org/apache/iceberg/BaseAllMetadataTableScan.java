@@ -40,7 +40,7 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
   protected abstract String tableType();
 
   @Override
-  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+  public TableScan appendsBetween(Long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException(
         String.format("Cannot incrementally scan table of type %s", tableType()));
   }
