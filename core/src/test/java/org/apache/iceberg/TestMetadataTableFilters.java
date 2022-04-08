@@ -319,9 +319,8 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    // In V1 we cannot filter once fields are removed from partition spec
-    // All 4 original data/delete files written by old spec, plus both data file/delete file written by new spec
-    Assert.assertEquals(expectedScanTaskCount(6), Iterables.size(tasks));
+    // All 4 original data/delete files written by old spec, plus one data file/delete file written by new spec
+    Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
         Expressions.equal("partition.data_bucket", 0),
@@ -329,8 +328,8 @@ public class TestMetadataTableFilters extends TableTestBase {
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
-    // 1 original data/delete files written by old spec, plus both of new data file/delete file written by new spec
-    Assert.assertEquals(expectedScanTaskCount(3), Iterables.size(tasks));
+    // 1 original data/delete files written by old spec (V1 filters out new specs which don't have this value)
+    Assert.assertEquals(expectedScanTaskCount(1), Iterables.size(tasks));
   }
 
   @Test

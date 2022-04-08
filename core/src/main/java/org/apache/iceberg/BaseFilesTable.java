@@ -31,7 +31,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -102,18 +101,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
       });
 
-      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(
-          manifests(),
-          manifest -> {
-            PartitionSpec spec = specsById.get(manifest.partitionSpecId());
-
-            if (spec.fields().stream().anyMatch(f -> f.transform().equals(Transforms.alwaysNull()))) {
-              // In V1, removing Partition Fields meant replacing them with Void transformations
-              // We cannot use these for filtering as it looks for manifest files with 'null' partition value.
-              return true;
-            }
-            return evalCache.get(manifest.partitionSpecId()).eval(manifest);
-          });
+      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests(),
+          manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
