@@ -69,11 +69,11 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     AssertHelpers.assertThrows(
         "Check refinement api",
         IllegalArgumentException.class, "from snapshot id 1 not in existing snapshot ids range (2, 4]",
-        () -> table.newScan().appendsInRange(Long.valueOf(2L), 5L).appendsInRange(Long.valueOf(1L), 4L));
+        () -> table.newScan().appendsInRange(2L, 5L).appendsInRange(1L, 4L));
     AssertHelpers.assertThrows(
         "Check refinement api",
         IllegalArgumentException.class, "to snapshot id 3 not in existing snapshot ids range (1, 2]",
-        () -> table.newScan().appendsInRange(Long.valueOf(1L), 2L).appendsInRange(Long.valueOf(1L), 3L));
+        () -> table.newScan().appendsInRange(1L, 2L).appendsInRange(1L, 3L));
   }
 
   @Test
@@ -214,7 +214,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     TableScan scan1 = table.newScan()
         .filter(Expressions.equal("id", 5))
-        .appendsInRange(Long.valueOf(1L), 3L);
+        .appendsInRange(1L, 3L);
 
     try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
       Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
@@ -227,7 +227,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     TableScan scan2 = table.newScan()
         .filter(Expressions.equal("id", 5))
-        .appendsInRange(Long.valueOf(1L), 3L)
+        .appendsInRange(1L, 3L)
         .ignoreResiduals();
 
     try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
