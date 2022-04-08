@@ -60,7 +60,7 @@ public class DataTableScan extends BaseTableScan {
     Snapshot currentSnapshot = table().currentSnapshot();
     Preconditions.checkState(currentSnapshot != null, "Cannot scan appends after %s, there is no current snapshot",
         fromSnapshotId);
-    return this.appendsInRange(Long.valueOf(fromSnapshotId), currentSnapshot.snapshotId());
+    return this.appendsInRange(fromSnapshotId, currentSnapshot.snapshotId());
   }
 
   @Override

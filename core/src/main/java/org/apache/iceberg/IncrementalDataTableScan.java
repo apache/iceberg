@@ -65,7 +65,7 @@ class IncrementalDataTableScan extends DataTableScan {
     final Snapshot currentSnapshot = table().currentSnapshot();
     Preconditions.checkState(currentSnapshot != null,
         "Cannot scan appends after %s, there is no current snapshot", newFromSnapshotId);
-    return this.appendsInRange(Long.valueOf(newFromSnapshotId), currentSnapshot.snapshotId());
+    return this.appendsInRange(newFromSnapshotId, currentSnapshot.snapshotId());
   }
 
   @Override
