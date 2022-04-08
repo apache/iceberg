@@ -59,6 +59,8 @@ public class SchemaParser {
   private static final String REQUIRED = "required";
   private static final String ELEMENT_REQUIRED = "element-required";
   private static final String VALUE_REQUIRED = "value-required";
+  private static final String INITIAL_DEFAULT = "initial-default";
+  private static final String WRITE_DEFAULT = "write-default";
 
   private static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
     toJson(struct, null, null, generator);
@@ -91,6 +93,14 @@ public class SchemaParser {
       toJson(field.type(), generator);
       if (field.doc() != null) {
         generator.writeStringField(DOC, field.doc());
+      }
+      if (field.initialDefaultValue() != null) {
+        generator.writeFieldName(INITIAL_DEFAULT);
+        generator.writeRawValue(field.initialDefaultValue().toString());
+      }
+      if (field.writeDefaultValue() != null) {
+        generator.writeFieldName(WRITE_DEFAULT);
+        generator.writeRawValue(field.writeDefaultValue().toString());
       }
       generator.writeEndObject();
     }
