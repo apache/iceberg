@@ -37,7 +37,6 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [Files metadata table](#files)                   | ✔️        | ✔️          |                                                |
 | [Manifests metadata table](#manifests)           | ✔️        | ✔️          |                                                |
 | [Partitions metadata table](#partitions)         | ✔️        | ✔️          |                                                |
-| [Entries metadata table](#entries)               | ✔️        | ✔️          |                                                |
 | [All metadata tables](#all-metadata-tables)      | ✔️        | ✔️          |                                                |
 
 
