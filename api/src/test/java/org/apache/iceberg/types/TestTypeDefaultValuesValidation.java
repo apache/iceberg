@@ -29,59 +29,61 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.*;
+import static org.apache.iceberg.types.Types.NestedField.of;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestTypeDefaultValuesValidation {
-    private final Type type;
-    private final JsonNode defaultValue;
+  private final Type type;
+  private final JsonNode defaultValue;
 
-    public TestTypeDefaultValuesValidation(Type type, JsonNode defaultValue) {
-        this.type = type;
-        this.defaultValue = defaultValue;
-    }
+  public TestTypeDefaultValuesValidation(Type type, JsonNode defaultValue) {
+    this.type = type;
+    this.defaultValue = defaultValue;
+  }
 
-    @Parameterized.Parameters
-    public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][] {
-                {Types.BooleanType.get(), parseJsonStringToJsonNode("true")},
-                {Types.IntegerType.get(), parseJsonStringToJsonNode("1")},
-                {Types.LongType.get(), parseJsonStringToJsonNode("9999999")},
-                {Types.FloatType.get(), parseJsonStringToJsonNode("1.23")},
-                {Types.DoubleType.get(), parseJsonStringToJsonNode("123.456")},
-                {Types.DateType.get(), parseJsonStringToJsonNode("3650")},
-                {Types.TimeType.get(), parseJsonStringToJsonNode("36000000000")},
-                {Types.TimestampType.withoutZone(), parseJsonStringToJsonNode("1649374911000000")},
-                {Types.TimestampType.withZone(), parseJsonStringToJsonNode("1649374911000000")},
-                {Types.StringType.get(), parseJsonStringToJsonNode("\"foo\"")},
-                {Types.UUIDType.get(), parseJsonStringToJsonNode("\"eb26bdb1-a1d8-4aa6-990e-da940875492c\"")},
-                {Types.FixedType.ofLength(4), parseJsonStringToJsonNode("\"0x111f\"")},
-                {Types.BinaryType.get(), parseJsonStringToJsonNode("\"0x0000ff\"")},
-                {Types.DecimalType.of(9, 2), parseJsonStringToJsonNode("123.45")},
-                {Types.ListType.ofOptional(1, Types.IntegerType.get()), parseJsonStringToJsonNode("[1, 2, 3]")},
-                {Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get()),
-                    parseJsonStringToJsonNode("[[1,2], [\"foo\", \"bar\"]]")},
-                {Types.StructType.of(
-                        required(1, "f1", Types.IntegerType.get(), "doc"),
-                        optional(2, "f2", Types.StringType.get(), "doc")),
-                    parseJsonStringToJsonNode("{\"1\": 1, \"2\": \"bar\"}")}
-        });
-    }
+  @Parameterized.Parameters
+  public static Collection<Object[]> data() {
+    return Arrays.asList(new Object[][] {
+        {Types.BooleanType.get(), parseJsonStringToJsonNode("true")},
+        {Types.IntegerType.get(), parseJsonStringToJsonNode("1")},
+        {Types.LongType.get(), parseJsonStringToJsonNode("9999999")},
+        {Types.FloatType.get(), parseJsonStringToJsonNode("1.23")},
+        {Types.DoubleType.get(), parseJsonStringToJsonNode("123.456")},
+        {Types.DateType.get(), parseJsonStringToJsonNode("3650")},
+        {Types.TimeType.get(), parseJsonStringToJsonNode("36000000000")},
+        {Types.TimestampType.withoutZone(), parseJsonStringToJsonNode("1649374911000000")},
+        {Types.TimestampType.withZone(), parseJsonStringToJsonNode("1649374911000000")},
+        {Types.StringType.get(), parseJsonStringToJsonNode("\"foo\"")},
+        {Types.UUIDType.get(), parseJsonStringToJsonNode("\"eb26bdb1-a1d8-4aa6-990e-da940875492c\"")},
+        {Types.FixedType.ofLength(4), parseJsonStringToJsonNode("\"0x111f\"")},
+        {Types.BinaryType.get(), parseJsonStringToJsonNode("\"0x0000ff\"")},
+        {Types.DecimalType.of(9, 2), parseJsonStringToJsonNode("123.45")},
+        {Types.ListType.ofOptional(1, Types.IntegerType.get()), parseJsonStringToJsonNode("[1, 2, 3]")},
+        {Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get()),
+         parseJsonStringToJsonNode("[[1,2], [\"foo\", \"bar\"]]")},
+        {Types.StructType.of(
+            required(1, "f1", Types.IntegerType.get(), "doc"),
+            optional(2, "f2", Types.StringType.get(), "doc")),
+         parseJsonStringToJsonNode("{\"1\": 1, \"2\": \"bar\"}")}
+    });
+  }
 
-    public static JsonNode parseJsonStringToJsonNode(String json) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            System.out.println("Failed to parse: " + json + "; reason: " + e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
+  public static JsonNode parseJsonStringToJsonNode(String json) {
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      return mapper.readTree(json);
+    } catch (JsonProcessingException e) {
+      System.out.println("Failed to parse: " + json + "; reason: " + e.getMessage());
+      throw new RuntimeException(e.getMessage());
     }
+  }
 
-    @Test
-    public void testTypeWithDefaultValue() {
-        Types.NestedField nestedField1 = optional(1, "f1", type, "doc", defaultValue, defaultValue);
-        Types.NestedField nestedField2 = required(1, "f1", type, "doc", defaultValue, defaultValue);
-        Types.NestedField nestedField3 = of(1, true, "f1", type, "doc", defaultValue, defaultValue);
-    }
+  @Test
+  public void testTypeWithDefaultValue() {
+    Types.NestedField nestedField1 = optional(1, "f1", type, "doc", defaultValue, defaultValue);
+    Types.NestedField nestedField2 = required(1, "f1", type, "doc", defaultValue, defaultValue);
+    Types.NestedField nestedField3 = of(1, true, "f1", type, "doc", defaultValue, defaultValue);
+  }
 }
