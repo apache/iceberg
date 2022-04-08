@@ -17,32 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.encryption;
 
-import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BinPackStrategy;
-import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.actions.SortStrategy;
-import org.apache.spark.sql.SparkSession;
+/**
+ * This interface is applied to OutputFile and InputFile implementations, in order to enable delivery of crypto
+ * parameters (such as encryption keys etc) from the Iceberg key management module to the writers/readers of file
+ * formats that support encryption natively (Parquet and ORC).
+ */
+public interface NativelyEncryptedFile {
+  NativeFileCryptoParameters nativeCryptoParameters();
 
-public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkAction {
-
-  protected BaseRewriteDataFilesSpark3Action(SparkSession spark, Table table) {
-    super(spark, table);
-  }
-
-  @Override
-  protected BinPackStrategy binPackStrategy() {
-    return new Spark3BinPackStrategy(table(), spark());
-  }
-
-  @Override
-  protected SortStrategy sortStrategy() {
-    return new Spark3SortStrategy(table(), spark());
-  }
-
-  @Override
-  protected RewriteDataFiles self() {
-    return this;
-  }
+  void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters);
 }

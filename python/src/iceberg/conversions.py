@@ -50,6 +50,7 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
+from iceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
 
 
 def handle_none(func):
@@ -67,33 +68,6 @@ def handle_none(func):
         return func(primitive_type, value_str)
 
     return wrapper
-
-
-def decimal_to_unscaled(value: Decimal) -> int:
-    """Get an unscaled value given a Decimal value
-
-    Args:
-        value (Decimal): A Decimal instance
-
-    Returns:
-        int: The unscaled value
-    """
-    sign, digits, _ = value.as_tuple()
-    return int(Decimal((sign, digits, 0)).to_integral_value())
-
-
-def unscaled_to_decimal(unscaled: int, scale: int) -> Decimal:
-    """Get a scaled Decimal value given an unscaled value and a scale
-
-    Args:
-        unscaled (int): An unscaled value
-        scale (int): A scale to set for the returned Decimal instance
-
-    Returns:
-        Decimal: A scaled Decimal instance
-    """
-    sign, digits, _ = Decimal(unscaled).as_tuple()
-    return Decimal((sign, digits, -scale))
 
 
 @singledispatch
@@ -251,9 +225,7 @@ def _(primitive_type, value: Decimal) -> bytes:
             f"Cannot serialize value, precision of value is greater than precision of type {primitive_type}: {len(digits)}"
         )
 
-    unscaled_value = decimal_to_unscaled(value=Decimal((sign, digits, 0)))
-    min_num_bytes = ((unscaled_value).bit_length() + 7) // 8
-    return unscaled_value.to_bytes(min_num_bytes, "big", signed=True)
+    return decimal_to_bytes(value)
 
 
 @singledispatch

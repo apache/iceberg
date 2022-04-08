@@ -71,10 +71,10 @@ public class TestRESTUtil {
         new Object[] {new String[] {"dogs"}, "dogs"},
         new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
         new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-        new Object[] {new String[] {"dogs", "named", "hank"}, "dogs\u0000named\u0000hank"},
+        new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%00named%00hank"},
         new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats\u0000named\u0000hank.or.james-westfall"
+            "dogs.and.cats%00named%00hank.or.james-westfall"
         }
     };
 
@@ -85,11 +85,11 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      Assertions.assertThat(RESTUtil.urlEncode(namespace))
+      Assertions.assertThat(RESTUtil.encodeNamespace(namespace))
           .isEqualTo(encodedNs);
 
       // Decoded (after pulling as String) from URL
-      Namespace asNamespace = RESTUtil.urlDecode(encodedNs);
+      Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);
       Assertions.assertThat(asNamespace).isEqualTo(namespace);
     }
   }
@@ -97,11 +97,11 @@ public class TestRESTUtil {
   @Test
   public void testNamespaceUrlEncodeDecodeDoesNotAllowNull() {
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.urlEncode(null))
+        .isThrownBy(() -> RESTUtil.encodeNamespace(null))
         .withMessage("Invalid namespace: null");
 
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> RESTUtil.urlDecode(null))
+        .isThrownBy(() -> RESTUtil.decodeNamespace(null))
         .withMessage("Invalid namespace: null");
   }
 }

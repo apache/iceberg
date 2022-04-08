@@ -62,14 +62,6 @@ public class BaseSnapshotTableSparkAction
     super(spark, sourceCatalog, sourceTableIdent);
   }
 
-  // used by the old constructor
-  public BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
-                                      CatalogPlugin destCatalog, Identifier destTableIdent) {
-    super(spark, sourceCatalog, sourceTableIdent);
-    this.destCatalog = checkDestinationCatalog(destCatalog);
-    this.destTableIdent = destTableIdent;
-  }
-
   @Override
   protected SnapshotTable self() {
     return this;

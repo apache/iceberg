@@ -20,11 +20,9 @@
 package org.apache.iceberg.spark.actions;
 
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
@@ -35,15 +33,12 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,20 +52,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 @SuppressWarnings("UnnecessaryAnonymousClass")
 public class BaseDeleteReachableFilesSparkAction
     extends BaseSparkAction<DeleteReachableFiles, DeleteReachableFiles.Result> implements DeleteReachableFiles {
+
+  public static final String STREAM_RESULTS = "stream-results";
+  public static final boolean STREAM_RESULTS_DEFAULT = false;
+
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteReachableFilesSparkAction.class);
 
-  private static final String CONTENT_FILE = "Content File";
-  private static final String MANIFEST = "Manifest";
-  private static final String MANIFEST_LIST = "Manifest List";
-  private static final String OTHERS = "Others";
-
-  private static final String STREAM_RESULTS = "stream-results";
-
-  // Creates an executor service that runs each task in the thread that invokes execute/submit.
-  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
-
-  private final TableMetadata tableMetadata;
-
+  private final String metadataFileLocation;
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
@@ -78,16 +66,13 @@ public class BaseDeleteReachableFilesSparkAction
     }
   };
 
-  private Consumer<String> removeFunc = defaultDelete;
-  private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private Consumer<String> deleteFunc = defaultDelete;
+  private ExecutorService deleteExecutorService = null;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
 
-  public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
+  public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
     super(spark);
-    this.tableMetadata = TableMetadataParser.read(io, metadataLocation);
-    ValidationException.check(
-        PropertyUtil.propertyAsBoolean(tableMetadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot remove files: GC is disabled (deleting files may corrupt other tables)");
+    this.metadataFileLocation = metadataFileLocation;
   }
 
   @Override
@@ -102,54 +87,48 @@ public class BaseDeleteReachableFilesSparkAction
   }
 
   @Override
-  public DeleteReachableFiles deleteWith(Consumer<String> deleteFunc) {
-    this.removeFunc = deleteFunc;
+  public DeleteReachableFiles deleteWith(Consumer<String> newDeleteFunc) {
+    this.deleteFunc = newDeleteFunc;
     return this;
-
   }
 
   @Override
   public DeleteReachableFiles executeDeleteWith(ExecutorService executorService) {
-    this.removeExecutorService = executorService;
+    this.deleteExecutorService = executorService;
     return this;
   }
 
   @Override
   public Result execute() {
     Preconditions.checkArgument(io != null, "File IO cannot be null");
-    String msg = String.format("Removing files reachable from %s", tableMetadata.metadataFileLocation());
-    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", msg);
+    String jobDesc = String.format("Deleting files reachable from %s", metadataFileLocation);
+    JobGroupInfo info = newJobGroupInfo("DELETE-REACHABLE-FILES", jobDesc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
-    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    Dataset<Row> validFileDF = buildValidFileDF(tableMetadata).distinct();
+    TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
+
+    ValidationException.check(
+        PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+        "Cannot delete files: GC is disabled (deleting files may corrupt other tables)");
+
+    Dataset<Row> reachableFileDF = buildReachableFileDF(metadata).distinct();
+
+    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
     if (streamResults) {
-      return deleteFiles(validFileDF.toLocalIterator());
+      return deleteFiles(reachableFileDF.toLocalIterator());
     } else {
-      return deleteFiles(validFileDF.collectAsList().iterator());
+      return deleteFiles(reachableFileDF.collectAsList().iterator());
     }
   }
 
-  private Dataset<Row> projectFilePathWithType(Dataset<Row> ds, String type) {
-    return ds.select(functions.col("file_path"), functions.lit(type).as("file_type"));
-  }
-
-  private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
+  private Dataset<Row> buildReachableFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, io);
-    return projectFilePathWithType(buildValidContentFileDF(staticTable), CONTENT_FILE)
-        .union(projectFilePathWithType(buildManifestFileDF(staticTable), MANIFEST))
-        .union(projectFilePathWithType(buildManifestListDF(staticTable), MANIFEST_LIST))
-        .union(projectFilePathWithType(buildOtherMetadataFileDF(staticTable), OTHERS));
-  }
-
-  @Override
-  protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
-    List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true));
-    otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
-    return spark().createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
+    return withFileType(buildValidContentFileDF(staticTable), CONTENT_FILE)
+        .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
+        .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST))
+        .union(withFileType(buildAllReachableOtherMetadataFileDF(staticTable), OTHERS));
   }
 
   /**
@@ -166,7 +145,7 @@ public class BaseDeleteReachableFilesSparkAction
 
     Tasks.foreach(deleted)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .executeWith(removeExecutorService)
+        .executeWith(deleteExecutorService)
         .onFailure((fileInfo, exc) -> {
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
@@ -175,7 +154,7 @@ public class BaseDeleteReachableFilesSparkAction
         .run(fileInfo -> {
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
-          removeFunc.accept(file);
+          deleteFunc.accept(file);
           switch (type) {
             case CONTENT_FILE:
               dataFileCount.incrementAndGet();

@@ -23,6 +23,7 @@ import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import org.apache.iceberg.dell.DellProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 
 abstract class BaseEcsFile {
 
@@ -30,11 +31,13 @@ abstract class BaseEcsFile {
   private final EcsURI uri;
   private final DellProperties dellProperties;
   private S3ObjectMetadata metadata;
+  private final MetricsContext metrics;
 
-  BaseEcsFile(S3Client client, EcsURI uri, DellProperties dellProperties) {
+  BaseEcsFile(S3Client client, EcsURI uri, DellProperties dellProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.dellProperties = dellProperties;
+    this.metrics = metrics;
   }
 
   public String location() {
@@ -51,6 +54,10 @@ abstract class BaseEcsFile {
 
   public DellProperties dellProperties() {
     return dellProperties;
+  }
+
+  protected MetricsContext metrics() {
+    return metrics;
   }
 
   /**

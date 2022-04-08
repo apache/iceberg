@@ -33,8 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class RESTUtil {
-  private static final Joiner NULL_JOINER = Joiner.on('\u0000');
-  private static final Splitter NULL_SPLITTER = Splitter.on('\u0000');
+  private static final Joiner NULL_JOINER = Joiner.on("%00");
+  private static final Splitter NULL_SPLITTER = Splitter.on("%00");
 
   private RESTUtil() {
   }
@@ -74,27 +74,59 @@ class RESTUtil {
   }
 
   /**
+   * Encodes a string using URL encoding
+   * <p>
+   * {@link #decodeString(String)} should be used to decode.
+   *
+   * @param toEncode string to encode
+   * @return UTF-8 encoded string, suitable for use as a URL parameter
+   */
+  public static String encodeString(String toEncode) {
+    Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
+    try {
+      return URLEncoder.encode(toEncode, StandardCharsets.UTF_8.name());
+    } catch (UnsupportedEncodingException e) {
+      throw new UncheckedIOException(
+          String.format("Failed to URL encode '%s': UTF-8 encoding is not supported", toEncode), e);
+    }
+  }
+
+  /**
+   * Decodes a URL-encoded string.
+   * <p>
+   * See also {@link #encodeString(String)} for URL encoding.
+   *
+   * @param encoded a string to decode
+   * @return a decoded string
+   */
+  public static String decodeString(String encoded) {
+    Preconditions.checkArgument(encoded != null, "Invalid string to decode: null");
+    try {
+      return URLDecoder.decode(encoded, StandardCharsets.UTF_8.name());
+    } catch (UnsupportedEncodingException e) {
+      throw new UncheckedIOException(
+          String.format("Failed to URL decode '%s': UTF-8 encoding is not supported", encoded), e);
+    }
+  }
+
+  /**
    * Returns a String representation of a namespace that is suitable for use in a URL / URI.
    * <p>
    * This function needs to be called when a namespace is used as a path variable (or query parameter etc.),
    * to format the namespace per the spec.
    * <p>
-   * {@link #urlDecode} should be used to parse the namespace from a URL parameter.
+   * {@link #decodeNamespace} should be used to parse the namespace from a URL parameter.
+   *
    * @param ns namespace to encode
    * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
    */
-  public static String urlEncode(Namespace ns) {
+  public static String encodeNamespace(Namespace ns) {
     Preconditions.checkArgument(ns != null, "Invalid namespace: null");
     String[] levels = ns.levels();
     String[] encodedLevels = new String[levels.length];
 
     for (int i = 0; i < levels.length; i++) {
-      try {
-        encodedLevels[i] = URLEncoder.encode(levels[i], StandardCharsets.UTF_8.name());
-      } catch (UnsupportedEncodingException e) {
-        throw new UncheckedIOException(
-            String.format("Failed to URL encode namespace '%s' as UTF-8 encoding is not supported", ns), e);
-      }
+      encodedLevels[i] = encodeString(levels[i]);
     }
 
     return NULL_JOINER.join(encodedLevels);
@@ -104,20 +136,18 @@ class RESTUtil {
    * Takes in a string representation of a namespace as used for a URL parameter
    * and returns the corresponding namespace.
    * <p>
-   * See also {@link #urlEncode} for generating correctly formatted URLs.
+   * See also {@link #encodeNamespace} for generating correctly formatted URLs.
+   *
+   * @param encodedNs a namespace to decode
+   * @return a namespace
    */
-  public static Namespace urlDecode(String encodedNs) {
+  public static Namespace decodeNamespace(String encodedNs) {
     Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
     String[] levels = Iterables.toArray(NULL_SPLITTER.split(encodedNs), String.class);
 
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {
-      try {
-        levels[i] = URLDecoder.decode(levels[i], StandardCharsets.UTF_8.name());
-      } catch (UnsupportedEncodingException e) {
-        throw new UncheckedIOException(
-            String.format("Failed to URL decode namespace '%s' as UTF-8 encoding is not supported", encodedNs), e);
-      }
+      levels[i] = decodeString(levels[i]);
     }
 
     return Namespace.of(levels);

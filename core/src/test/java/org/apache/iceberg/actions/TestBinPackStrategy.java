@@ -291,4 +291,29 @@ public class TestBinPackStrategy extends TableTestBase {
               RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
         });
   }
+
+  @Test
+  public void testRewriteAllSelectFilesToRewrite() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+        BinPackStrategy.REWRITE_ALL, "true"
+    ));
+
+    Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 480, 480, 560, 520);
+    Iterable<FileScanTask> expectedFiles = filesOfSize(500, 500, 480, 480, 560, 520);
+    Iterable<FileScanTask> filtered = ImmutableList.copyOf(strategy.selectFilesToRewrite(testFiles));
+    Assert.assertEquals("Should rewrite all files", expectedFiles, filtered);
+  }
+
+  @Test
+  public void testRewriteAllPlanFileGroups() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+        BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5),
+        BinPackStrategy.REWRITE_ALL, "true"
+    ));
+
+    Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1);
+    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
+
+    Assert.assertEquals("Should plan 1 group to rewrite all files", 1, Iterables.size(grouped));
+  }
 }

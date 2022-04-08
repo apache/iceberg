@@ -23,7 +23,11 @@ import com.emc.object.s3.S3Client;
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 
 /**
  * Use ECS append API to write data.
@@ -51,24 +55,29 @@ class EcsAppendOutputStream extends PositionOutputStream {
    */
   private long pos;
 
-  private EcsAppendOutputStream(S3Client client, EcsURI uri, byte[] localCache) {
+  private final Counter<Long> writeBytes;
+  private final Counter<Integer> writeOperations;
+
+  private EcsAppendOutputStream(S3Client client, EcsURI uri, byte[] localCache, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.localCache = ByteBuffer.wrap(localCache);
+    this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
+    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
   }
 
   /**
    * Use built-in 1 KiB byte buffer
    */
-  static EcsAppendOutputStream create(S3Client client, EcsURI uri) {
-    return createWithBufferSize(client, uri, 1024);
+  static EcsAppendOutputStream create(S3Client client, EcsURI uri, MetricsContext metrics) {
+    return createWithBufferSize(client, uri, 1024, metrics);
   }
 
   /**
    * Create {@link PositionOutputStream} with specific buffer size.
    */
-  static EcsAppendOutputStream createWithBufferSize(S3Client client, EcsURI uri, int size) {
-    return new EcsAppendOutputStream(client, uri, new byte[size]);
+  static EcsAppendOutputStream createWithBufferSize(S3Client client, EcsURI uri, int size, MetricsContext metrics) {
+    return new EcsAppendOutputStream(client, uri, new byte[size], metrics);
   }
 
   /**
@@ -82,6 +91,8 @@ class EcsAppendOutputStream extends PositionOutputStream {
 
     localCache.put((byte) b);
     pos += 1;
+    writeBytes.increment();
+    writeOperations.increment();
   }
 
   /**
@@ -103,6 +114,8 @@ class EcsAppendOutputStream extends PositionOutputStream {
     }
 
     pos += len;
+    writeBytes.increment((long) len);
+    writeOperations.increment();
   }
 
   private boolean checkBuffer(int nextWrite) {

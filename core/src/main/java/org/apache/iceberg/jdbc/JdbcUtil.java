@@ -32,20 +32,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 final class JdbcUtil {
   // Catalog Table
-  protected static final String CATALOG_TABLE_NAME = "iceberg_tables";
-  protected static final String CATALOG_NAME = "catalog_name";
-  protected static final String TABLE_NAMESPACE = "table_namespace";
-  protected static final String TABLE_NAME = "table_name";
-  protected static final String METADATA_LOCATION = "metadata_location";
-  protected static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
+  static final String CATALOG_TABLE_NAME = "iceberg_tables";
+  static final String CATALOG_NAME = "catalog_name";
+  static final String TABLE_NAMESPACE = "table_namespace";
+  static final String TABLE_NAME = "table_name";
+  static final String METADATA_LOCATION = "metadata_location";
+  static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
 
-  public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
+  static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
       " SET " + METADATA_LOCATION + " = ? , " + PREVIOUS_METADATA_LOCATION + " = ? " +
       " WHERE " + CATALOG_NAME + " = ? AND " +
       TABLE_NAMESPACE + " = ? AND " +
       TABLE_NAME + " = ? AND " +
       METADATA_LOCATION + " = ?";
-  protected static final String CREATE_CATALOG_TABLE =
+  static final String CREATE_CATALOG_TABLE =
       "CREATE TABLE " + CATALOG_TABLE_NAME +
           "(" +
           CATALOG_NAME + " VARCHAR(255) NOT NULL," +
@@ -55,35 +55,35 @@ final class JdbcUtil {
           PREVIOUS_METADATA_LOCATION + " VARCHAR(5500)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME + ")" +
           ")";
-  protected static final String GET_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
+  static final String GET_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
-  protected static final String LIST_TABLES_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
+  static final String LIST_TABLES_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ?";
-  protected static final String RENAME_TABLE_SQL = "UPDATE " + CATALOG_TABLE_NAME +
+  static final String RENAME_TABLE_SQL = "UPDATE " + CATALOG_TABLE_NAME +
       " SET " + TABLE_NAMESPACE + " = ? , " + TABLE_NAME + " = ? " +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
-  protected static final String DROP_TABLE_SQL = "DELETE FROM " + CATALOG_TABLE_NAME +
+  static final String DROP_TABLE_SQL = "DELETE FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
-  protected static final String GET_NAMESPACE_SQL = "SELECT " + TABLE_NAMESPACE + " FROM " + CATALOG_TABLE_NAME +
+  static final String GET_NAMESPACE_SQL = "SELECT " + TABLE_NAMESPACE + " FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ? LIMIT 1";
-  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
+  static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
       " FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ?";
-  protected static final String LIST_ALL_TABLE_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
+  static final String LIST_ALL_TABLE_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
       " FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ?";
-  protected static final String DO_COMMIT_CREATE_TABLE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
+  static final String DO_COMMIT_CREATE_TABLE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
       " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
       ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
       " VALUES (?,?,?,?,null)";
 
   // Catalog Namespace Properties
-  protected static final String NAMESPACE_PROPERTIES_TABLE_NAME = "iceberg_namespace_properties";
-  protected static final String NAMESPACE_NAME = "namespace";
-  protected static final String NAMESPACE_PROPERTY_KEY = "key";
-  protected static final String NAMESPACE_PROPERTY_VALUE = "value";
+  static final String NAMESPACE_PROPERTIES_TABLE_NAME = "iceberg_namespace_properties";
+  static final String NAMESPACE_NAME = "namespace";
+  static final String NAMESPACE_PROPERTY_KEY = "key";
+  static final String NAMESPACE_PROPERTY_VALUE = "value";
 
-  protected static final String CREATE_NAMESPACE_PROPERTIES_TABLE =
+  static final String CREATE_NAMESPACE_PROPERTIES_TABLE =
       "CREATE TABLE " + NAMESPACE_PROPERTIES_TABLE_NAME +
           "(" +
           CATALOG_NAME + " VARCHAR(255) NOT NULL," +
@@ -92,24 +92,24 @@ final class JdbcUtil {
           NAMESPACE_PROPERTY_VALUE + " VARCHAR(5500)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY + ")" +
           ")";
-  protected static final String GET_NAMESPACE_PROPERTIES_SQL = "SELECT " + NAMESPACE_NAME +
+  static final String GET_NAMESPACE_PROPERTIES_SQL = "SELECT " + NAMESPACE_NAME +
       " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ? LIMIT 1";
-  protected static final String INSERT_NAMESPACE_PROPERTIES_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
+  static final String INSERT_NAMESPACE_PROPERTIES_SQL = "INSERT INTO " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_PROPERTY_KEY +
       ", " + NAMESPACE_PROPERTY_VALUE + ") VALUES ";
-  protected static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
-  protected static final String GET_ALL_NAMESPACE_PROPERTIES_SQL = "SELECT * " +
+  static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
+  static final String GET_ALL_NAMESPACE_PROPERTIES_SQL = "SELECT * " +
       " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? ";
-  protected static final String DELETE_NAMESPACE_PROPERTIES_SQL = "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
+  static final String DELETE_NAMESPACE_PROPERTIES_SQL = "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ";
-  protected static final String DELETE_ALL_NAMESPACE_PROPERTIES_SQL =
+  static final String DELETE_ALL_NAMESPACE_PROPERTIES_SQL =
       "DELETE FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ?";
-  protected static final String LIST_PROPERTY_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
+  static final String LIST_PROPERTY_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
       " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ?";
-  protected static final String LIST_ALL_PROPERTY_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
+  static final String LIST_ALL_PROPERTY_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
       " FROM " + NAMESPACE_PROPERTIES_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ?";
 

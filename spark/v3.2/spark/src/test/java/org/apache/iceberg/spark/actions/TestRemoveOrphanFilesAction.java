@@ -700,7 +700,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .commit();
 
     AssertHelpers.assertThrows("Should complain about removing orphan files",
-        ValidationException.class, "Cannot remove orphan files: GC is disabled",
+        ValidationException.class, "Cannot delete orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
   }
 }
