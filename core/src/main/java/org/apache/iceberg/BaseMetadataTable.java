@@ -63,7 +63,7 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
    */
   static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec, String partitionPrefix) {
     PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
-    spec.fields().forEach(pf -> identitySpecBuilder.identity(partitionPrefix + pf.name(), pf.name()));
+    spec.fields().forEach(pf -> identitySpecBuilder.add(pf.fieldId(), partitionPrefix + pf.name(), "identity"));
     return identitySpecBuilder.build();
   }
 

@@ -19,17 +19,19 @@
 
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -92,10 +94,26 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot, Expression rowFilter,
                                                         boolean ignoreResiduals, boolean caseSensitive,
                                                         boolean colStats) {
-      CloseableIterable<ManifestFile> filtered =
-          CloseableIterable.filter(
-              CloseableIterable.withNoopClose(manifests()),
-              m -> filter(m, rowFilter, caseSensitive));
+      Map<Integer, PartitionSpec> specsById = table().specs();
+
+      LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
+        PartitionSpec spec = specsById.get(specId);
+        PartitionSpec transformedSpec = transformSpec(fileSchema, spec, PARTITION_FIELD_PREFIX);
+        return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
+      });
+
+      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(
+          manifests(),
+          manifest -> {
+            PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+
+            if (spec.fields().stream().anyMatch(f -> f.transform().equals(Transforms.alwaysNull()))) {
+              // In V1, removing Partition Fields meant replacing them with Void transformations
+              // We cannot use these for filtering as it looks for manifest files with 'null' partition value.
+              return true;
+            }
+            return evalCache.get(manifest.partitionSpecId()).eval(manifest);
+          });
 
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
@@ -115,21 +133,6 @@ abstract class BaseFilesTable extends BaseMetadataTable {
      * Returns an iterable of manifest files to explore for this Files metadata table scan
      */
     protected abstract CloseableIterable<ManifestFile> manifests();
-
-
-    private boolean filter(ManifestFile manifestFile, Expression rowFilter, boolean caseSensitive) {
-      if (!table().spec().equals(table().specs().get(manifestFile.partitionSpecId()))) {
-        return true;
-      }
-
-      // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-      PartitionSpec spec = transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX);
-      Expression partitionFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
-      ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
-          partitionFilter, spec, caseSensitive);
-
-      return manifestEval.eval(manifestFile);
-    }
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
