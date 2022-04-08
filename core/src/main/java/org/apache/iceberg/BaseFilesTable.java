@@ -98,7 +98,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
       LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
         PartitionSpec spec = specsById.get(specId);
-        PartitionSpec transformedSpec = transformSpec(fileSchema, spec, PARTITION_FIELD_PREFIX);
+        PartitionSpec transformedSpec = transformSpec(fileSchema, spec);
         return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
       });
 
