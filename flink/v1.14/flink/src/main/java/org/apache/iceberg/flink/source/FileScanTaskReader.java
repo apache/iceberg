@@ -33,4 +33,5 @@ import org.apache.iceberg.io.CloseableIterator;
 @Internal
 public interface FileScanTaskReader<T> extends Serializable {
   CloseableIterator<T> open(FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor);
+  CloseableIterator<T> openDelete(FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor);
 }

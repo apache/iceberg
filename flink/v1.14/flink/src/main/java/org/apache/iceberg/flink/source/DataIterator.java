@@ -48,6 +48,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   private CloseableIterator<T> currentIterator;
   private int fileOffset;
   private long recordOffset;
+  private CloseableIterator<T> currentDeleteIterator;
 
   public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
                       FileIO io, EncryptionManager encryption) {
@@ -58,6 +59,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
 
     this.tasks = task.files().iterator();
     this.currentIterator = CloseableIterator.empty();
+    this.currentDeleteIterator = CloseableIterator.empty();
 
     // fileOffset starts at -1 because we started
     // from an empty iterator that is not from the split files.
@@ -101,14 +103,18 @@ public class DataIterator<T> implements CloseableIterator<T> {
   @Override
   public boolean hasNext() {
     updateCurrentIterator();
-    return currentIterator.hasNext();
+    return currentIterator.hasNext() || currentDeleteIterator.hasNext();
   }
 
   @Override
   public T next() {
     updateCurrentIterator();
-    recordOffset += 1;
-    return currentIterator.next();
+    if (currentDeleteIterator.hasNext()) {
+      return currentDeleteIterator.next();
+    } else {
+      recordOffset += 1;
+      return currentIterator.next();
+    }
   }
 
   public boolean currentFileHasNext() {
@@ -121,11 +127,17 @@ public class DataIterator<T> implements CloseableIterator<T> {
    */
   private void updateCurrentIterator() {
     try {
-      while (!currentIterator.hasNext() && tasks.hasNext()) {
-        currentIterator.close();
-        currentIterator = openTaskIterator(tasks.next());
-        fileOffset += 1;
-        recordOffset = 0L;
+      while (!currentIterator.hasNext() && !currentDeleteIterator.hasNext() && tasks.hasNext()) {
+        FileScanTask next = tasks.next();
+        if (next.file().recordCount() == 0) {
+          currentDeleteIterator.close();
+          currentDeleteIterator = openDeleteTaskIterator(next);
+        } else {
+          currentIterator.close();
+          currentIterator = openTaskIterator(next);
+          fileOffset += 1;
+          recordOffset = 0L;
+        }
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -136,10 +148,15 @@ public class DataIterator<T> implements CloseableIterator<T> {
     return fileScanTaskReader.open(scanTask, inputFilesDecryptor);
   }
 
+  private CloseableIterator<T> openDeleteTaskIterator(FileScanTask scanTask) {
+    return fileScanTaskReader.openDelete(scanTask, inputFilesDecryptor);
+  }
+
   @Override
   public void close() throws IOException {
     // close the current iterator
     currentIterator.close();
+    currentDeleteIterator.close();
     tasks = null;
   }
 

@@ -116,11 +116,32 @@ class DeleteFileIndex {
     return forDataFile(entry.sequenceNumber(), entry.file());
   }
 
+  // add all the equality delete files generated in the current snapshot
+  DeleteFile[] forEmptyDataFile() {
+    Stream<DeleteFile> matchingDeletes = Stream.empty();
+    if (globalDeletes != null) {
+      matchingDeletes = Arrays.stream(globalDeletes);
+    }
+
+    if (sortedDeletesByPartition != null) {
+      for (Pair<long[], DeleteFile[]> val : sortedDeletesByPartition.values()) {
+        matchingDeletes = Stream.concat(matchingDeletes, Arrays.stream(val.second()))
+                .filter(deleteFile -> deleteFile.content().equals(FileContent.EQUALITY_DELETES));
+      }
+    }
+
+    return matchingDeletes.toArray(DeleteFile[]::new);
+  }
+
   DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
+    Stream<DeleteFile> matchingDeletes;
+    // check if the file is a constructed empty file
+    if (file.recordCount() == 0) {
+      return forEmptyDataFile();
+    }
+
     Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
-
-    Stream<DeleteFile> matchingDeletes;
     if (partitionDeletes == null) {
       matchingDeletes = limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
     } else if (globalDeletes == null) {

@@ -74,9 +74,10 @@ class IncrementalDataTableScan extends DataTableScan {
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
-        .transformAndConcat(Snapshot::dataManifests)
+        .transformAndConcat(Snapshot::allManifests)
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
+
 
     ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests)
         .caseSensitive(isCaseSensitive())
@@ -87,7 +88,9 @@ class IncrementalDataTableScan extends DataTableScan {
                 snapshotIds.contains(manifestEntry.snapshotId()) &&
                 manifestEntry.status() == ManifestEntry.Status.ADDED)
         .specsById(tableOps().current().specsById())
-        .ignoreDeleted();
+        .ignoreDeleted()
+        .streaming(isStreaming())
+        .table(table());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
@@ -114,12 +117,8 @@ class IncrementalDataTableScan extends DataTableScan {
     List<Snapshot> snapshots = Lists.newArrayList();
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(toSnapshotId, fromSnapshotId, table::snapshot)) {
       // for now, incremental scan supports only appends
-      if (snapshot.operation().equals(DataOperations.APPEND)) {
+      if (snapshot.operation().equals(DataOperations.APPEND) || snapshot.operation().equals(DataOperations.OVERWRITE)) {
         snapshots.add(snapshot);
-      } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
-        throw new UnsupportedOperationException(
-            String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s]",
-                DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
       }
     }
     return snapshots;

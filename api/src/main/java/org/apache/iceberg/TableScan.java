@@ -87,6 +87,14 @@ public interface TableScan {
   TableScan caseSensitive(boolean caseSensitive);
 
   /**
+   * Create a new {@link TableScan} from this, used in incremental changLog scan
+   *
+   * @param streaming whether it is a streaming scan
+   * @return a new streaming scan
+   */
+  TableScan streaming(boolean streaming);
+
+  /**
    * Create a new {@link TableScan} from this that loads the column stats with each data file.
    * <p>
    * Column stats include: value count, null value count, lower bounds, and upper bounds.
@@ -218,6 +226,12 @@ public interface TableScan {
    * @return true if case sensitive, false otherwise.
    */
   boolean isCaseSensitive();
+
+  /**
+   * Returns whether this is a streaming scan  {@link #isStreaming()} (boolean)}.
+   * @return true if it is a streaming scan, false otherwise.
+   */
+  boolean isStreaming();
 
   /**
    * Returns the target split size for this scan.
