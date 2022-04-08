@@ -30,7 +30,7 @@ public class TestExpressionParser {
   @Test
   public void testPredicate() {
     String expected = "{\n" +
-            "  \"type\" : \"unbounded-predicate\",\n" +
+            "  \"type\" : \"unbound-predicate\",\n" +
             "  \"operation\" : \"in\",\n" +
             "  \"term\" : {\n" +
             "    \"type\" : \"named-reference\",\n" +
@@ -54,9 +54,9 @@ public class TestExpressionParser {
   @Test
   public void testAnd() {
     String expected = "{\n" +
-            "  \"type\" : \"and\",\n" +
+            "  \"operation\" : \"and\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"gt_eq\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -68,7 +68,7 @@ public class TestExpressionParser {
             "    } ]\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"in\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -102,9 +102,9 @@ public class TestExpressionParser {
   @Test
   public void testOr() {
     String expected = "{\n" +
-            "  \"type\" : \"or\",\n" +
+            "  \"operation\" : \"or\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"lt\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -116,7 +116,7 @@ public class TestExpressionParser {
             "    } ]\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"not_null\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -142,9 +142,9 @@ public class TestExpressionParser {
   @Test
   public void testNot() {
     String expected = "{\n" +
-            "  \"type\" : \"not\",\n" +
+            "  \"operation\" : \"not\",\n" +
             "  \"operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"lt\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -170,11 +170,11 @@ public class TestExpressionParser {
   @Test
   public void testNestedExpression() {
     String expected = "{\n" +
-            "  \"type\" : \"or\",\n" +
+            "  \"operation\" : \"or\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"and\",\n" +
+            "    \"operation\" : \"and\",\n" +
             "    \"left-operand\" : {\n" +
-            "      \"type\" : \"unbounded-predicate\",\n" +
+            "      \"type\" : \"unbound-predicate\",\n" +
             "      \"operation\" : \"in\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
@@ -186,7 +186,7 @@ public class TestExpressionParser {
             "      } ]\n" +
             "    },\n" +
             "    \"right-operand\" : {\n" +
-            "      \"type\" : \"unbounded-predicate\",\n" +
+            "      \"type\" : \"unbound-predicate\",\n" +
             "      \"operation\" : \"eq\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
@@ -199,7 +199,7 @@ public class TestExpressionParser {
             "    }\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"is_nan\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -229,13 +229,13 @@ public class TestExpressionParser {
   }
 
   @Test
-  public void testParserBothWays() {
+  public void testParserRoundTrip() {
     String expected = "{\n" +
-            "  \"type\" : \"or\",\n" +
+            "  \"operation\" : \"or\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"and\",\n" +
+            "    \"operation\" : \"and\",\n" +
             "    \"left-operand\" : {\n" +
-            "      \"type\" : \"unbounded-predicate\",\n" +
+            "      \"type\" : \"unbound-predicate\",\n" +
             "      \"operation\" : \"in\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
@@ -247,7 +247,7 @@ public class TestExpressionParser {
             "      } ]\n" +
             "    },\n" +
             "    \"right-operand\" : {\n" +
-            "      \"type\" : \"unbounded-predicate\",\n" +
+            "      \"type\" : \"unbound-predicate\",\n" +
             "      \"operation\" : \"eq\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
@@ -260,7 +260,7 @@ public class TestExpressionParser {
             "    }\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbounded-predicate\",\n" +
+            "    \"type\" : \"unbound-predicate\",\n" +
             "    \"operation\" : \"is_nan\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
@@ -278,7 +278,7 @@ public class TestExpressionParser {
   @Test
   public void testFixedLiteral() {
     String expected = "{\n" +
-            "  \"type\" : \"unbounded-predicate\",\n" +
+            "  \"type\" : \"unbound-predicate\",\n" +
             "  \"operation\" : \"eq\",\n" +
             "  \"term\" : {\n" +
             "    \"type\" : \"named-reference\",\n" +
@@ -311,7 +311,7 @@ public class TestExpressionParser {
   @Test
   public void testDecimalLiteral() {
     String expected = "{\n" +
-            "  \"type\" : \"unbounded-predicate\",\n" +
+            "  \"type\" : \"unbound-predicate\",\n" +
             "  \"operation\" : \"in\",\n" +
             "  \"term\" : {\n" +
             "    \"type\" : \"named-reference\",\n" +

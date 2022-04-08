@@ -35,7 +35,6 @@ import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -50,20 +49,10 @@ public class ExpressionParser {
   private static final String LEFT_OPERAND = "left-operand";
   private static final String RIGHT_OPERAND = "right-operand";
   private static final String OPERAND = "operand";
-  private static final String AND = "and";
-  private static final String OR = "or";
-  private static final String NOT = "not";
-  private static final String TRUE = "true";
-  private static final String FALSE = "false";
-  private static final String UNBOUNDED_PREDICATE = "unbounded-predicate";
-  private static final String BOUNDED_LITERAL_PREDICATE = "bounded-literal-predicate";
-  private static final String BOUNDED_SET_PREDICATE = "bounded-set-predicate";
-  private static final String BOUNDED_UNARY_PREDICATE = "bounded-unary-predicate";
-  private static final Set<String> PREDICATE_TYPES = Sets.newHashSet(
-          UNBOUNDED_PREDICATE,
-          BOUNDED_LITERAL_PREDICATE,
-          BOUNDED_SET_PREDICATE,
-          BOUNDED_UNARY_PREDICATE);
+  private static final String UNBOUND_PREDICATE = "unbound-predicate";
+  private static final String BOUND_LITERAL_PREDICATE = "bound-literal-predicate";
+  private static final String BOUND_SET_PREDICATE = "bound-set-predicate";
+  private static final String BOUND_UNARY_PREDICATE = "bound-unary-predicate";
   private static final String NAMED_REFERENCE = "named-reference";
   private static final String BOUND_REFERENCE = "bound-reference";
 
@@ -110,9 +99,9 @@ public class ExpressionParser {
     }
   }
 
-  public static void toJson(And expression, JsonGenerator generator) throws IOException {
+  private static void toJson(And expression, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, AND);
+    generator.writeStringField(OPERATION, Expression.Operation.AND.name().toLowerCase());
     generator.writeFieldName(LEFT_OPERAND);
     toJson(expression.left(), generator);
     generator.writeFieldName(RIGHT_OPERAND);
@@ -120,9 +109,9 @@ public class ExpressionParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(Or expression, JsonGenerator generator) throws IOException {
+  private static void toJson(Or expression, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, OR);
+    generator.writeStringField(OPERATION, Expression.Operation.OR.name().toLowerCase());
     generator.writeFieldName(LEFT_OPERAND);
     toJson(expression.left(), generator);
     generator.writeFieldName(RIGHT_OPERAND);
@@ -130,27 +119,27 @@ public class ExpressionParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(Not expression, JsonGenerator generator) throws IOException {
+  private static void toJson(Not expression, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, NOT);
+    generator.writeStringField(OPERATION, Expression.Operation.NOT.name().toLowerCase());
     generator.writeFieldName(OPERAND);
     toJson(expression.child(), generator);
     generator.writeEndObject();
   }
 
-  public static void toJson(True expression, JsonGenerator generator) throws IOException {
+  private static void toJson(True expression, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, TRUE);
+    generator.writeStringField(OPERATION, Expression.Operation.TRUE.name().toLowerCase());
     generator.writeEndObject();
   }
 
-  public static void toJson(False expression, JsonGenerator generator) throws IOException {
+  private static void toJson(False expression, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, FALSE);
+    generator.writeStringField(OPERATION, Expression.Operation.FALSE.name().toLowerCase());
     generator.writeEndObject();
   }
 
-  public static void toJson(Predicate<?, ?> predicate, JsonGenerator generator) throws IOException {
+  private static void toJson(Predicate<?, ?> predicate, JsonGenerator generator) throws IOException {
     if (predicate instanceof UnboundPredicate) {
       toJson((UnboundPredicate<?>) predicate, generator);
     } else {
@@ -158,13 +147,13 @@ public class ExpressionParser {
     }
   }
 
-  public static void toJson(UnboundPredicate<?> predicate, JsonGenerator generator) throws IOException {
+  private static void toJson(UnboundPredicate<?> predicate, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, UNBOUNDED_PREDICATE);
+    generator.writeStringField(TYPE, UNBOUND_PREDICATE);
     generator.writeStringField(OPERATION, predicate.op().name().toLowerCase());
     generator.writeFieldName(TERM);
     toJson(predicate.term(), generator);
-    if (!(ONE_INPUTS.contains(predicate.op()))) {
+    if (!ONE_INPUTS.contains(predicate.op())) {
       generator.writeFieldName(LITERALS);
       generator.writeStartArray();
       for (Literal<?> literal : predicate.literals()) {
@@ -176,7 +165,7 @@ public class ExpressionParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(Term term, JsonGenerator generator) throws IOException {
+  private static void toJson(Term term, JsonGenerator generator) throws IOException {
     if (term instanceof NamedReference) {
       toJson((NamedReference<?>) term, generator);
     } else {
@@ -184,22 +173,14 @@ public class ExpressionParser {
     }
   }
 
-  public static void toJson(NamedReference<?> term, JsonGenerator generator) throws IOException {
+  private static void toJson(NamedReference<?> term, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeStringField(TYPE, NAMED_REFERENCE);
     generator.writeStringField(VALUE, term.name());
     generator.writeEndObject();
   }
 
-  public static void toJson(List<Literal<?>> literals, JsonGenerator generator) throws IOException {
-    generator.writeStartArray();
-    for (int i = 0; i < literals.size(); i++) {
-      toJson(literals.get(i), generator);
-    }
-    generator.writeEndArray();
-  }
-
-  public static void toJson(Literal<?> literal, JsonGenerator generator) throws IOException {
+  private static void toJson(Literal<?> literal, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     Object value = literal.value();
@@ -248,44 +229,44 @@ public class ExpressionParser {
   }
 
   public static Expression fromJson(JsonNode json) {
-    String expressionType = JsonUtil.getString(TYPE, json);
-
-    if (AND.equals(expressionType)) {
-      return new And(fromJson(json.get(LEFT_OPERAND)), fromJson(json.get(RIGHT_OPERAND)));
-    } else if (OR.equals(expressionType)) {
-      return new Or(fromJson(json.get(LEFT_OPERAND)), fromJson(json.get(RIGHT_OPERAND)));
-    } else if (NOT.equals(expressionType)) {
-      return new Not(fromJson(json.get(OPERAND)));
-    } else if (TRUE.equals(expressionType)) {
-      return True.INSTANCE;
-    } else if (FALSE.equals(expressionType)) {
-      return False.INSTANCE;
-    } else if (PREDICATE_TYPES.contains(expressionType)) {
-      return fromJsonToPredicate(json, expressionType);
+    String expressionType;
+    if (json.hasNonNull(TYPE)) {
+      expressionType = JsonUtil.getString(TYPE, json);
+    } else if (json.hasNonNull(OPERATION)) {
+      expressionType = JsonUtil.getString(OPERATION, json);
     } else {
-      throw new IllegalArgumentException("Invalid Operation Type");
+      return null;
+    }
+
+    if (Expression.Operation.AND.name().toLowerCase().equals(expressionType)) {
+      return new And(fromJson(json.get(LEFT_OPERAND)), fromJson(json.get(RIGHT_OPERAND)));
+    } else if (Expression.Operation.OR.name().toLowerCase().equals(expressionType)) {
+      return new Or(fromJson(json.get(LEFT_OPERAND)), fromJson(json.get(RIGHT_OPERAND)));
+    } else if (Expression.Operation.NOT.name().toLowerCase().equals(expressionType)) {
+      return new Not(fromJson(json.get(OPERAND)));
+    } else if (Expression.Operation.TRUE.name().toLowerCase().equals(expressionType)) {
+      return True.INSTANCE;
+    } else if (Expression.Operation.FALSE.name().toLowerCase().equals(expressionType)) {
+      return False.INSTANCE;
+    } else {
+      return fromJsonToPredicate(json, expressionType);
     }
   }
 
-  public static Predicate<?, ?> fromJsonToPredicate(JsonNode json, String predicateType) {
-    if (UNBOUNDED_PREDICATE.equals(predicateType)) {
+  private static Predicate<?, ?> fromJsonToPredicate(JsonNode json, String predicateType) {
+    if (UNBOUND_PREDICATE.equals(predicateType)) {
       return fromJsonUnboundPredicate(json);
-    } else if (BOUNDED_LITERAL_PREDICATE.equals(predicateType)) {
+    } else if (BOUND_LITERAL_PREDICATE.equals(predicateType) ||
+            BOUND_SET_PREDICATE.equals(predicateType) ||
+            BOUND_UNARY_PREDICATE.equals(predicateType)) {
       throw new UnsupportedOperationException(
-              "Serialization of Predicate type BoundLiteralPredicate is not currently supported.");
-    } else if (BOUNDED_SET_PREDICATE.equals(predicateType)) {
-      throw new UnsupportedOperationException(
-              "Serialization of Predicate type BoundSetPredicate is not currently supported.");
-    } else if (BOUNDED_UNARY_PREDICATE.equals(predicateType)) {
-      throw new UnsupportedOperationException(
-              "Serialization of Predicate type BoundUnaryPredicate is not currently supported.");
+              "Serialization of Bound Predicates is not currently supported.");
     } else {
       throw new IllegalArgumentException("Invalid Predicate Type");
     }
   }
 
-  @SuppressWarnings("CyclomaticComplexity")
-  public static UnboundPredicate<?> fromJsonUnboundPredicate(JsonNode json) {
+  private static UnboundPredicate<?> fromJsonUnboundPredicate(JsonNode json) {
     Expression.Operation operation = Expression.Operation.valueOf(
         JsonUtil.getString(OPERATION, json).toUpperCase(Locale.ENGLISH));
 
@@ -299,7 +280,7 @@ public class ExpressionParser {
     }
   }
 
-  public static UnboundTerm<?> fromJsonToTerm(JsonNode json) {
+  private static UnboundTerm<?> fromJsonToTerm(JsonNode json) {
     String referenceType = json.get(TYPE).textValue();
 
     if (referenceType.equals(NAMED_REFERENCE)) {
@@ -312,7 +293,7 @@ public class ExpressionParser {
     }
   }
 
-  public static List<Object> fromJsonToLiteralValues(JsonNode json) {
+  private static List<Object> fromJsonToLiteralValues(JsonNode json) {
     List<Object> literals = Lists.newArrayList();
     for (int i = 0; i < json.size(); i++) {
       String literalType = json.get(i).get(TYPE).textValue();

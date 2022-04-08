@@ -37,7 +37,6 @@ import org.apache.iceberg.expressions.ExpressionParser;
 
 public class EventParser {
   private static final String EVENT_TYPE = "event-type";
-
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PROJECTION = "projection";
@@ -62,12 +61,15 @@ public class EventParser {
       if (pretty) {
         generator.useDefaultPrettyPrinter();
       }
+
       if (event instanceof ScanEvent) {
         toJson((ScanEvent) event, generator);
       } else if (event instanceof CreateSnapshotEvent) {
         toJson((CreateSnapshotEvent) event, generator);
       } else if (event instanceof IncrementalScanEvent) {
         toJson((IncrementalScanEvent) event, generator);
+      } else {
+        return "Unable to Serialize Event " + event;
       }
 
       generator.flush();
@@ -77,7 +79,7 @@ public class EventParser {
     }
   }
 
-  public static void toJson(ScanEvent event, JsonGenerator generator) throws IOException {
+  private static void toJson(ScanEvent event, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeFieldName(EVENT_TYPE);
     generator.writeString(event.getClass().getName());
@@ -92,7 +94,7 @@ public class EventParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(CreateSnapshotEvent event, JsonGenerator generator) throws IOException {
+  private static void toJson(CreateSnapshotEvent event, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeFieldName(EVENT_TYPE);
     generator.writeString(event.getClass().getName());
@@ -113,7 +115,7 @@ public class EventParser {
     generator.writeEndObject();
   }
 
-  public static void toJson(IncrementalScanEvent event, JsonGenerator generator) throws IOException {
+  private static void toJson(IncrementalScanEvent event, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeFieldName(EVENT_TYPE);
     generator.writeString(event.getClass().getName());
@@ -139,7 +141,7 @@ public class EventParser {
     }
   }
 
-  public static Object fromJson(JsonNode json) {
+  private static Object fromJson(JsonNode json) {
     String eventType = JsonUtil.getString(EVENT_TYPE, json);
     if (eventType.equals(ScanEvent.class.getName())) {
       return fromJsonToScanEvent(json);
@@ -152,7 +154,7 @@ public class EventParser {
     }
   }
 
-  public static ScanEvent fromJsonToScanEvent(JsonNode json) {
+  private static ScanEvent fromJsonToScanEvent(JsonNode json) {
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     Long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
     Expression filter = ExpressionParser.fromJson(json.get(EXPRESSION));
@@ -160,7 +162,7 @@ public class EventParser {
     return new ScanEvent(tableName, snapshotId, filter, schema);
   }
 
-  public static CreateSnapshotEvent fromJsonToCreateSnapshotEvent(JsonNode json) {
+  private static CreateSnapshotEvent fromJsonToCreateSnapshotEvent(JsonNode json) {
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     String operation = JsonUtil.getString(OPERATION, json);
     Long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
@@ -169,7 +171,7 @@ public class EventParser {
     return new CreateSnapshotEvent(tableName, operation, snapshotId, sequenceNumber, summary);
   }
 
-  public static IncrementalScanEvent fromJsonToIncrementalScanEvent(JsonNode json) {
+  private static IncrementalScanEvent fromJsonToIncrementalScanEvent(JsonNode json) {
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     Long fromSnapshotId = JsonUtil.getLong(FROM_SNAPSHOT_ID, json);
     Long toSnapshotId = JsonUtil.getLong(TO_SNAPSHOT_ID, json);
