@@ -64,7 +64,9 @@ public class TestMetadataTableFilters extends TableTestBase {
   @Override
   public void setupTable() throws Exception {
     super.setupTable();
-    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "false")
+        .commit();
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -258,12 +260,14 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testPartitionSpecEvolutionRemovalV1() {
     Assume.assumeTrue(formatVersion == 1);
 
-    // Change spec and add two data and delete files each
-    table.updateSpec().removeField(Expressions.bucket("data", 16))
-        .addField("id").commit();
+    // Change spec and add two data files
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField("id")
+        .commit();
     PartitionSpec newSpec = table.spec();
 
-    // Add two data files and two delete files with new spec
+    // Add two data files with new spec
     PartitionKey data10Key = new PartitionKey(newSpec, table.schema());
     data10Key.set(1, 10);
     DataFile data10 = DataFiles.builder(newSpec)
@@ -281,28 +285,8 @@ public class TestMetadataTableFilters extends TableTestBase {
         .withPartition(data11Key)
         .build();
 
-    DeleteFile delete10 = FileMetadata.deleteFileBuilder(newSpec)
-        .ofPositionDeletes()
-        .withPath("/path/to/data-10-deletes.parquet")
-        .withFileSizeInBytes(10)
-        .withPartition(data10Key)
-        .withRecordCount(1)
-        .build();
-    DeleteFile delete11 = FileMetadata.deleteFileBuilder(newSpec)
-        .ofPositionDeletes()
-        .withPath("/path/to/data-11-deletes.parquet")
-        .withFileSizeInBytes(10)
-        .withPartition(data11Key)
-        .withRecordCount(1)
-        .build();
-
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
-
-    if (formatVersion == 2) {
-      table.newRowDelta().addDeletes(delete10).commit();
-      table.newRowDelta().addDeletes(delete11).commit();
-    }
 
     if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
@@ -319,7 +303,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    // All 4 original data/delete files written by old spec, plus one data file/delete file written by new spec
+    // All 4 original data files written by old spec, plus one data file written by new spec
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
@@ -328,7 +312,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
-    // 1 original data/delete files written by old spec (V1 filters out new specs which don't have this value)
+    // 1 original data file written by old spec (V1 filters out new specs which don't have this value)
     Assert.assertEquals(expectedScanTaskCount(1), Iterables.size(tasks));
   }
 
@@ -337,7 +321,8 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assume.assumeTrue(formatVersion == 2);
 
     // Change spec and add two data and delete files each
-    table.updateSpec().removeField(Expressions.bucket("data", 16))
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
         .addField("id").commit();
     PartitionSpec newSpec = table.spec();
 
@@ -410,11 +395,13 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testPartitionSpecEvolutionAdditiveV1() {
     Assume.assumeTrue(formatVersion == 1);
 
-    // Change spec and add two data and delete files each
-    table.updateSpec().addField("id").commit();
+    // Change spec and add two data files
+    table.updateSpec()
+        .addField("id")
+        .commit();
     PartitionSpec newSpec = table.spec();
 
-    // Add two data files and two delete files with new spec
+    // Add two data files with new spec
     PartitionKey data10Key = new PartitionKey(newSpec, table.schema());
     data10Key.set(0, 0); // data=0
     data10Key.set(1, 10); // id=10
@@ -434,28 +421,8 @@ public class TestMetadataTableFilters extends TableTestBase {
         .withPartition(data11Key)
         .build();
 
-    DeleteFile delete10 = FileMetadata.deleteFileBuilder(newSpec)
-        .ofPositionDeletes()
-        .withPath("/path/to/data-10-deletes.parquet")
-        .withFileSizeInBytes(10)
-        .withPartition(data10Key)
-        .withRecordCount(1)
-        .build();
-    DeleteFile delete11 = FileMetadata.deleteFileBuilder(newSpec)
-        .ofPositionDeletes()
-        .withPath("/path/to/data-11-deletes.parquet")
-        .withFileSizeInBytes(10)
-        .withPartition(data11Key)
-        .withRecordCount(1)
-        .build();
-
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
-
-    if (formatVersion == 2) {
-      table.newRowDelta().addDeletes(delete10).commit();
-      table.newRowDelta().addDeletes(delete11).commit();
-    }
 
     if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
@@ -472,7 +439,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    // All 4 original data/delete files written by old spec, plus one new data file/delete file written by new spec
+    // All 4 original data/delete files written by old spec, plus one new data file written by new spec
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
@@ -481,7 +448,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
 
-    // 1 original data/delete files written by old spec, plus 1 of new data file/delete file written by new spec
+    // 1 original data file written by old spec, plus 1 new data file written by new spec
     Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
   }
 
@@ -490,7 +457,9 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assume.assumeTrue(formatVersion == 2);
 
     // Change spec and add two data and delete files each
-    table.updateSpec().addField("id").commit();
+    table.updateSpec()
+        .addField("id")
+        .commit();
     PartitionSpec newSpec = table.spec();
 
     // Add two data files and two delete files with new spec

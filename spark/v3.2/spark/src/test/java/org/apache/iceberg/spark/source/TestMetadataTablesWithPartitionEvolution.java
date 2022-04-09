@@ -106,6 +106,17 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
             ),
             AVRO,
             1
+        },
+        { "spark_catalog", SparkSessionCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default",
+                "clients", "1",
+                "parquet-enabled", "false",
+                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+            AVRO,
+            2
         }
     };
   }
@@ -235,9 +246,6 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("REFRESH TABLE %s", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
-
-    Dataset<Row> result = loadMetadataTable(ALL_ENTRIES);
-    result.collectAsList().forEach(f -> System.out.println(f));
 
     // verify the metadata tables after adding the second partition column
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES)) {

@@ -30,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
@@ -101,7 +102,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
       });
 
-      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests(),
+      CloseableIterable<ManifestFile> filteredManifests = CloseableIterable.filter(manifests(),
           manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       String schemaString = SchemaParser.toJson(schema());
@@ -113,9 +114,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
-      return CloseableIterable.transform(filtered, manifest ->
-          new ManifestReadTask(ops.io(), ops.current().specsById(),
-              manifest, schema(), schemaString, specString, residuals));
+      return CloseableIterable.transform(filteredManifests, manifest ->
+          new ManifestReadTask(table(), manifest, schema(), schemaString, specString, residuals));
     }
 
     /**
@@ -130,11 +130,11 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     private final ManifestFile manifest;
     private final Schema schema;
 
-    ManifestReadTask(FileIO io, Map<Integer, PartitionSpec> specsById, ManifestFile manifest,
+    ManifestReadTask(Table table, ManifestFile manifest,
                      Schema schema, String schemaString, String specString, ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.io = io;
-      this.specsById = specsById;
+      this.io = table.io();
+      this.specsById = Maps.newHashMap(table.specs());
       this.manifest = manifest;
       this.schema = schema;
     }
