@@ -24,13 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.Table;
+
+import org.apache.iceberg.*;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
@@ -145,11 +140,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
 
     long numRows = 0L;
-
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        // TODO: if possible, take deletes also into consideration.
-        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
+        // take deletes also into consideration.
+        long deletesSizeInBytes = file.deletes().stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
+        double fractionOfFileScanned = ((double) file.length()) / (file.file().fileSizeInBytes() + deletesSizeInBytes);
         numRows += (fractionOfFileScanned * file.file().recordCount());
       }
     }
