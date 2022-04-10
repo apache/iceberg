@@ -21,10 +21,9 @@
 
 import struct
 import sys
-from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch
-from typing import Generic, Optional, TypeVar, Union
+from typing import Optional, Union
 from uuid import UUID
 
 from iceberg.utils.datetime import (
@@ -40,6 +39,7 @@ if sys.version_info >= (3, 8):
 else:
     from singledispatch import singledispatchmethod  # pragma: no cover
 
+from iceberg.expressions.base import Literal
 from iceberg.types import (
     BinaryType,
     BooleanType,
@@ -57,49 +57,6 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-
-T = TypeVar("T")
-
-
-class Literal(Generic[T], ABC):
-    """Literal which has a value and can be converted between types"""
-
-    def __init__(self, value: T, value_type: type):
-        if value is None or not isinstance(value, value_type):
-            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
-        self._value = value
-
-    @property
-    def value(self) -> T:
-        return self._value  # type: ignore
-
-    @abstractmethod
-    def to(self, type_var):
-        ...  # pragma: no cover
-
-    def __repr__(self):
-        return f"{type(self).__name__}({self.value})"
-
-    def __str__(self):
-        return str(self.value)
-
-    def __eq__(self, other):
-        return self.value == other.value
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __lt__(self, other):
-        return self.value < other.value
-
-    def __gt__(self, other):
-        return self.value > other.value
-
-    def __le__(self, other):
-        return self.value <= other.value
-
-    def __ge__(self, other):
-        return self.value >= other.value
 
 
 @singledispatch
