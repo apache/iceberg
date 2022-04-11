@@ -81,7 +81,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
       }
     }
 
-    for(int i = 0; i < snapshotIds.size(); i++) {
+    for (int i = 0; i < snapshotIds.size(); i++) {
       generateCdcRecordsPerSnapshot(snapshotIds.get(i), i);
     }
 
