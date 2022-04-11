@@ -61,8 +61,6 @@ public class ParquetTypeVisitor<T> {
   }
 
   private static <T> T visitList(GroupType list, ParquetTypeVisitor<T> visitor) {
-    Preconditions.checkArgument(!list.isRepetition(Type.Repetition.REPEATED),
-        "Invalid list: top-level group is repeated: %s", list);
     Preconditions.checkArgument(list.getFieldCount() == 1,
         "Invalid list: does not contain single repeated field: %s", list);
 
