@@ -53,7 +53,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -160,7 +159,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
                               boolean insertAsUpsert,
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
-    Assume.assumeFalse("Upsert mode is not supported in Flink 1.12",  insertAsUpsert);
+    Assert.assertFalse("Upsert mode is not supported in Flink 1.12",  insertAsUpsert);
 
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
