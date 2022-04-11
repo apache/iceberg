@@ -30,8 +30,8 @@ public class TestExpressionParser {
   @Test
   public void testPredicate() {
     String expected = "{\n" +
-            "  \"type\" : \"unbound-predicate\",\n" +
-            "  \"operation\" : \"in\",\n" +
+            "  \"operation\" : \"unbound-predicate\",\n" +
+            "  \"type\" : \"in\",\n" +
             "  \"term\" : {\n" +
             "    \"type\" : \"named-reference\",\n" +
             "    \"value\" : \"Column-Name\"\n" +
@@ -56,8 +56,8 @@ public class TestExpressionParser {
     String expected = "{\n" +
             "  \"operation\" : \"and\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"gt_eq\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"gt_eq\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column1-Name\"\n" +
@@ -68,8 +68,8 @@ public class TestExpressionParser {
             "    } ]\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"in\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"in\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column2-Name\"\n" +
@@ -104,8 +104,8 @@ public class TestExpressionParser {
     String expected = "{\n" +
             "  \"operation\" : \"or\",\n" +
             "  \"left-operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"lt\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"lt\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column1-Name\"\n" +
@@ -116,8 +116,8 @@ public class TestExpressionParser {
             "    } ]\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"not_null\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"not_null\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column2-Name\"\n" +
@@ -144,8 +144,8 @@ public class TestExpressionParser {
     String expected = "{\n" +
             "  \"operation\" : \"not\",\n" +
             "  \"operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"lt\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"lt\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column1-Name\"\n" +
@@ -174,8 +174,8 @@ public class TestExpressionParser {
             "  \"left-operand\" : {\n" +
             "    \"operation\" : \"and\",\n" +
             "    \"left-operand\" : {\n" +
-            "      \"type\" : \"unbound-predicate\",\n" +
-            "      \"operation\" : \"in\",\n" +
+            "      \"operation\" : \"unbound-predicate\",\n" +
+            "      \"type\" : \"in\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
             "        \"value\" : \"Column1-Name\"\n" +
@@ -186,8 +186,8 @@ public class TestExpressionParser {
             "      } ]\n" +
             "    },\n" +
             "    \"right-operand\" : {\n" +
-            "      \"type\" : \"unbound-predicate\",\n" +
-            "      \"operation\" : \"eq\",\n" +
+            "      \"operation\" : \"unbound-predicate\",\n" +
+            "      \"type\" : \"eq\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
             "        \"value\" : \"Column2-Name\"\n" +
@@ -199,8 +199,8 @@ public class TestExpressionParser {
             "    }\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"is_nan\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"is_nan\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column3-Name\"\n" +
@@ -235,8 +235,8 @@ public class TestExpressionParser {
             "  \"left-operand\" : {\n" +
             "    \"operation\" : \"and\",\n" +
             "    \"left-operand\" : {\n" +
-            "      \"type\" : \"unbound-predicate\",\n" +
-            "      \"operation\" : \"in\",\n" +
+            "      \"operation\" : \"unbound-predicate\",\n" +
+            "      \"type\" : \"in\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
             "        \"value\" : \"Column1-Name\"\n" +
@@ -247,8 +247,8 @@ public class TestExpressionParser {
             "      } ]\n" +
             "    },\n" +
             "    \"right-operand\" : {\n" +
-            "      \"type\" : \"unbound-predicate\",\n" +
-            "      \"operation\" : \"eq\",\n" +
+            "      \"operation\" : \"unbound-predicate\",\n" +
+            "      \"type\" : \"eq\",\n" +
             "      \"term\" : {\n" +
             "        \"type\" : \"named-reference\",\n" +
             "        \"value\" : \"Column2-Name\"\n" +
@@ -260,8 +260,8 @@ public class TestExpressionParser {
             "    }\n" +
             "  },\n" +
             "  \"right-operand\" : {\n" +
-            "    \"type\" : \"unbound-predicate\",\n" +
-            "    \"operation\" : \"is_nan\",\n" +
+            "    \"operation\" : \"unbound-predicate\",\n" +
+            "    \"type\" : \"is_nan\",\n" +
             "    \"term\" : {\n" +
             "      \"type\" : \"named-reference\",\n" +
             "      \"value\" : \"Column3-Name\"\n" +
@@ -271,15 +271,15 @@ public class TestExpressionParser {
 
     Expression actualExpression = ExpressionParser.fromJson(expected);
     String actualJsonExpression = ExpressionParser.toJson(actualExpression, true);
-
+    System.out.println(expected);
     Assert.assertEquals(expected, actualJsonExpression);
   }
 
   @Test
   public void testFixedLiteral() {
     String expected = "{\n" +
-            "  \"type\" : \"unbound-predicate\",\n" +
-            "  \"operation\" : \"eq\",\n" +
+            "  \"operation\" : \"unbound-predicate\",\n" +
+            "  \"type\" : \"eq\",\n" +
             "  \"term\" : {\n" +
             "    \"type\" : \"named-reference\",\n" +
             "    \"value\" : \"Column-Name\"\n" +
@@ -311,8 +311,8 @@ public class TestExpressionParser {
   @Test
   public void testDecimalLiteral() {
     String expected = "{\n" +
-            "  \"type\" : \"unbound-predicate\",\n" +
-            "  \"operation\" : \"in\",\n" +
+            "  \"operation\" : \"unbound-predicate\",\n" +
+            "  \"type\" : \"in\",\n" +
             "  \"term\" : {\n" +
             "    \"type\" : \"named-reference\",\n" +
             "    \"value\" : \"Column-Name\"\n" +

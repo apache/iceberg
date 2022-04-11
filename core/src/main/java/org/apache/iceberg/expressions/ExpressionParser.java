@@ -29,7 +29,6 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -149,8 +148,8 @@ public class ExpressionParser {
 
   private static void toJson(UnboundPredicate<?> predicate, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(TYPE, UNBOUND_PREDICATE);
-    generator.writeStringField(OPERATION, predicate.op().name().toLowerCase());
+    generator.writeStringField(OPERATION, UNBOUND_PREDICATE);
+    generator.writeStringField(TYPE, predicate.op().name().toLowerCase());
     generator.writeFieldName(TERM);
     toJson(predicate.term(), generator);
     if (!ONE_INPUTS.contains(predicate.op())) {
@@ -230,9 +229,7 @@ public class ExpressionParser {
 
   public static Expression fromJson(JsonNode json) {
     String expressionType;
-    if (json.hasNonNull(TYPE)) {
-      expressionType = JsonUtil.getString(TYPE, json);
-    } else if (json.hasNonNull(OPERATION)) {
+    if (json.hasNonNull(OPERATION)) {
       expressionType = JsonUtil.getString(OPERATION, json);
     } else {
       return null;
@@ -267,14 +264,14 @@ public class ExpressionParser {
   }
 
   private static UnboundPredicate<?> fromJsonUnboundPredicate(JsonNode json) {
-    Expression.Operation operation = Expression.Operation.valueOf(
-        JsonUtil.getString(OPERATION, json).toUpperCase(Locale.ENGLISH));
+    Expression.Operation operationType = Expression.Operation.valueOf(
+        JsonUtil.getString(TYPE, json).toUpperCase());
 
-    if (ONE_INPUTS.contains(operation)) {
-      return new UnboundPredicate<>(operation, fromJsonToTerm(json.get(TERM)));
+    if (ONE_INPUTS.contains(operationType)) {
+      return new UnboundPredicate<>(operationType, fromJsonToTerm(json.get(TERM)));
     } else {
       return new UnboundPredicate(
-          operation,
+              operationType,
           fromJsonToTerm(json.get(TERM)),
           fromJsonToLiteralValues(json.get(LITERALS)));
     }
