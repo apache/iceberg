@@ -364,7 +364,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
     Types.StructType expected = new Schema(
-        required(2, "partition", Types.StructType.of(
+        required(1, "partition", Types.StructType.of(
             optional(1000, "data_bucket", Types.IntegerType.get())))).asStruct();
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");

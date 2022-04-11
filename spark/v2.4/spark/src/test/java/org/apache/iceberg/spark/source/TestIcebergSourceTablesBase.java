@@ -1049,8 +1049,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     Types.StructType expectedSchema = Types.StructType.of(
-        required(3, "record_count", Types.LongType.get()),
-        required(4, "file_count", Types.IntegerType.get()));
+        required(2, "record_count", Types.LongType.get()),
+        required(3, "file_count", Types.IntegerType.get()));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
@@ -1107,16 +1107,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         partitionsTable.schema().findType("partition").asStructType(), "partition"));
     List<GenericData.Record> expected = Lists.newArrayList();
     expected.add(builder
-        .set("spec_id", 0)
         .set("partition", partitionBuilder.set("id", 1).build())
         .set("record_count", 1L)
         .set("file_count", 1)
+        .set("spec_id", 0)
         .build());
     expected.add(builder
-        .set("spec_id", 0)
         .set("partition", partitionBuilder.set("id", 2).build())
         .set("record_count", 1L)
         .set("file_count", 1)
+        .set("spec_id", 0)
         .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
