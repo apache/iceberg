@@ -33,6 +33,8 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
@@ -61,8 +63,17 @@ public class RESTSerializers {
         .addSerializer(UnboundPartitionSpec.class, new UnboundPartitionSpecSerializer())
         .addDeserializer(UnboundPartitionSpec.class, new UnboundPartitionSpecDeserializer())
         .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
-        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer());
+        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer())
+        .addSerializer(TableMetadata.class, new TableMetadataSerializer());
     mapper.registerModule(module);
+  }
+
+  public static class TableMetadataSerializer extends JsonSerializer<TableMetadata> {
+    @Override
+    public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      TableMetadataParser.toJson(metadata, gen);
+    }
   }
 
   public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {

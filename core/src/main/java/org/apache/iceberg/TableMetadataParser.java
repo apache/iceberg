@@ -155,7 +155,7 @@ public class TableMetadataParser {
     }
   }
 
-  private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
