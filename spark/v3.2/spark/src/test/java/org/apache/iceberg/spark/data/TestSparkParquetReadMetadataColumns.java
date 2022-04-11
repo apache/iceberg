@@ -77,8 +77,7 @@ public class TestSparkParquetReadMetadataColumns {
   private static final Schema PROJECTION_SCHEMA = new Schema(
       required(100, "id", Types.LongType.get()),
       required(101, "data", Types.StringType.get()),
-      MetadataColumns.ROW_POSITION,
-      MetadataColumns.IS_DELETED
+      MetadataColumns.ROW_POSITION
   );
 
   private static final int NUM_ROWS = 1000;
@@ -111,7 +110,6 @@ public class TestSparkParquetReadMetadataColumns {
       }
       row.update(1, UTF8String.fromString("str" + i));
       row.update(2, i);
-      row.update(3, false);
       EXPECTED_ROWS.add(row);
     }
   }
