@@ -29,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.avro.data.Json;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -113,6 +114,17 @@ public class JsonUtil {
     Preconditions.checkArgument(pNode != null && pNode.isTextual(),
         "Cannot parse %s from non-string value: %s", property, pNode);
     return pNode.asText();
+  }
+
+  public static JsonNode getChildNodeOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    if (pNode != null && pNode.isNull()) {
+      return null;
+    }
+    return pNode;
   }
 
   public static Map<String, String> getStringMap(String property, JsonNode node) {

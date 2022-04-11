@@ -37,9 +37,6 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SchemaParser {
 
-  private SchemaParser() {
-  }
-
   private static final String SCHEMA_ID = "schema-id";
   private static final String IDENTIFIER_FIELD_IDS = "identifier-field-ids";
   private static final String TYPE = "type";
@@ -61,13 +58,20 @@ public class SchemaParser {
   private static final String VALUE_REQUIRED = "value-required";
   private static final String INITIAL_DEFAULT = "initial-default";
   private static final String WRITE_DEFAULT = "write-default";
+  private static final Cache<String, Schema> SCHEMA_CACHE = Caffeine.newBuilder()
+      .weakValues()
+      .build();
+
+  private SchemaParser() {
+  }
 
   private static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
     toJson(struct, null, null, generator);
   }
 
-  private static void toJson(Types.StructType struct, Integer schemaId, Set<Integer> identifierFieldIds,
-                             JsonGenerator generator) throws IOException {
+  private static void toJson(
+      Types.StructType struct, Integer schemaId, Set<Integer> identifierFieldIds,
+      JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeStringField(TYPE, STRUCT);
@@ -182,7 +186,6 @@ public class SchemaParser {
       toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
       generator.flush();
       return writer.toString();
-
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
@@ -191,7 +194,6 @@ public class SchemaParser {
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
       return Types.fromPrimitiveString(json.asText());
-
     } else if (json.isObject()) {
       String type = json.get(TYPE).asText();
       if (STRUCT.equals(type)) {
@@ -223,6 +225,12 @@ public class SchemaParser {
       Type type = typeFromJson(field.get(TYPE));
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
+      Object initialDefault = DefaultValueParser.parseDefaultFromJson(type, JsonUtil.getChildNodeOrNull(
+          INITIAL_DEFAULT,
+          field));
+      Object writeDefault = DefaultValueParser.parseDefaultFromJson(type, JsonUtil.getChildNodeOrNull(
+          WRITE_DEFAULT,
+          field));
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
       if (isRequired) {
         fields.add(Types.NestedField.required(id, name, type, doc));
@@ -233,7 +241,6 @@ public class SchemaParser {
 
     return Types.StructType.of(fields);
   }
-
 
   private static Types.ListType listFromJson(JsonNode json) {
     int elementId = JsonUtil.getInt(ELEMENT_ID, json);
@@ -264,7 +271,7 @@ public class SchemaParser {
   }
 
   public static Schema fromJson(JsonNode json) {
-    Type type  = typeFromJson(json);
+    Type type = typeFromJson(json);
     Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
         "Cannot create schema, not a struct type: %s", type);
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
@@ -276,10 +283,6 @@ public class SchemaParser {
       return new Schema(schemaId, type.asNestedType().asStructType().fields(), identifierFieldIds);
     }
   }
-
-  private static final Cache<String, Schema> SCHEMA_CACHE = Caffeine.newBuilder()
-      .weakValues()
-      .build();
 
   public static Schema fromJson(String json) {
     return SCHEMA_CACHE.get(json, jsonKey -> {

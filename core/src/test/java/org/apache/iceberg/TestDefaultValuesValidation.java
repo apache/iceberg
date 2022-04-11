@@ -17,28 +17,29 @@
  * under the License.
  */
 
-
-package org.apache.iceberg.types;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
 import java.util.Collection;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.of;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestTypeDefaultValuesValidation {
+public class TestDefaultValuesValidation {
+
   private final Type type;
   private final JsonNode defaultValue;
 
-  public TestTypeDefaultValuesValidation(Type type, JsonNode defaultValue) {
+  public TestDefaultValuesValidation(Type type, JsonNode defaultValue) {
     this.type = type;
     this.defaultValue = defaultValue;
   }
@@ -51,10 +52,10 @@ public class TestTypeDefaultValuesValidation {
         {Types.LongType.get(), parseJsonStringToJsonNode("9999999")},
         {Types.FloatType.get(), parseJsonStringToJsonNode("1.23")},
         {Types.DoubleType.get(), parseJsonStringToJsonNode("123.456")},
-        {Types.DateType.get(), parseJsonStringToJsonNode("3650")},
-        {Types.TimeType.get(), parseJsonStringToJsonNode("36000000000")},
-        {Types.TimestampType.withoutZone(), parseJsonStringToJsonNode("1649374911000000")},
-        {Types.TimestampType.withZone(), parseJsonStringToJsonNode("1649374911000000")},
+        {Types.DateType.get(), parseJsonStringToJsonNode("\"2007-12-03\"")},
+        {Types.TimeType.get(), parseJsonStringToJsonNode("\"10:15:30\"")},
+        {Types.TimestampType.withoutZone(), parseJsonStringToJsonNode("\"2007-12-03T10:15:30\"")},
+        {Types.TimestampType.withZone(), parseJsonStringToJsonNode("\"2007-12-03T10:15:30+01:00\"")},
         {Types.StringType.get(), parseJsonStringToJsonNode("\"foo\"")},
         {Types.UUIDType.get(), parseJsonStringToJsonNode("\"eb26bdb1-a1d8-4aa6-990e-da940875492c\"")},
         {Types.FixedType.ofLength(4), parseJsonStringToJsonNode("\"0x111f\"")},
@@ -82,8 +83,7 @@ public class TestTypeDefaultValuesValidation {
 
   @Test
   public void testTypeWithDefaultValue() {
-    Types.NestedField nestedField1 = optional(1, "f1", type, "doc", defaultValue, defaultValue);
-    Types.NestedField nestedField2 = required(1, "f1", type, "doc", defaultValue, defaultValue);
-    Types.NestedField nestedField3 = of(1, true, "f1", type, "doc", defaultValue, defaultValue);
+    DefaultValueParser.isValidDefault(type, defaultValue);
+    DefaultValueParser.parseDefaultFromJson(type, defaultValue);
   }
 }
