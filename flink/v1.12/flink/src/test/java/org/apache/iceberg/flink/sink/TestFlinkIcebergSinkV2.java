@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -159,6 +160,8 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
                               boolean insertAsUpsert,
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
+    Assume.assumeFalse("Upsert mode is not supported in Flink 1.12",  insertAsUpsert);
+
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
@@ -376,118 +379,16 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   }
 
   @Test
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeIsDisabled() throws Exception {
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
-        .upsert(true);
-
-    AssertHelpers.assertThrows("Should be error because upsert mode and overwrite mode enable at the same time.",
-        IllegalStateException.class, "OVERWRITE mode shouldn't be enable",
-        () -> builder.equalityFieldColumns(ImmutableList.of("id", "data")).overwrite(true).append()
-    );
-
-    AssertHelpers.assertThrows("Should be error because equality field columns are empty.",
-        IllegalStateException.class, "Equality field columns shouldn't be empty",
-        () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append()
-    );
-  }
-
-  @Test
-  public void testUpsertOnIdKey() throws Exception {
-    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
-        ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("+U", 1, "bbb")
-        ),
-        ImmutableList.of(
-            row("+I", 1, "ccc")
-        ),
-        ImmutableList.of(
-            row("+U", 1, "ddd"),
-            row("+I", 1, "eee")
-        )
-    );
-
-    List<List<Record>> expectedRecords = ImmutableList.of(
-        ImmutableList.of(record(1, "bbb")),
-        ImmutableList.of(record(1, "ccc")),
-        ImmutableList.of(record(1, "eee"))
-    );
-
-    if (!partitioned) {
-      testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true,
-          elementsPerCheckpoint, expectedRecords);
-    } else {
-      AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
-          IllegalStateException.class, "should be included in equality fields",
-          () -> {
-            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true,
-                elementsPerCheckpoint, expectedRecords);
-            return null;
-          });
-    }
-  }
-
-  @Test
-  public void testUpsertOnDataKey() throws Exception {
-    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
-        ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("+I", 2, "aaa"),
-            row("+I", 3, "bbb")
-        ),
-        ImmutableList.of(
-            row("+U", 4, "aaa"),
-            row("-U", 3, "bbb"),
-            row("+U", 5, "bbb")
-        ),
-        ImmutableList.of(
-            row("+I", 6, "aaa"),
-            row("+U", 7, "bbb")
-        )
-    );
-
-    List<List<Record>> expectedRecords = ImmutableList.of(
-        ImmutableList.of(record(2, "aaa"), record(3, "bbb")),
-        ImmutableList.of(record(4, "aaa"), record(5, "bbb")),
-        ImmutableList.of(record(6, "aaa"), record(7, "bbb"))
-    );
-
-    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS), true,
-        elementsPerCheckpoint, expectedRecords);
-  }
-
-  @Test
-  public void testUpsertOnIdDataKey() throws Exception {
-    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
-        ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("+U", 1, "aaa"),
-            row("+I", 2, "bbb")
-        ),
-        ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("-D", 2, "bbb"),
-            row("+I", 2, "ccc")
-        ),
-        ImmutableList.of(
-            row("+U", 1, "bbb"),
-            row("-U", 1, "ccc"),
-            row("-D", 1, "aaa")
-        )
-    );
-
-    List<List<Record>> expectedRecords = ImmutableList.of(
-        ImmutableList.of(record(1, "aaa"), record(2, "bbb")),
-        ImmutableList.of(record(1, "aaa"), record(2, "ccc")),
-        ImmutableList.of(record(1, "bbb"), record(2, "ccc"))
-    );
-
-    testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-        true, elementsPerCheckpoint, expectedRecords);
+    AssertHelpers.assertThrows("Upsert mode is not supported in Flink 1.12",
+        UnsupportedOperationException.class, "Upsert mode is not supported in Flink 1.12",
+        () -> FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .tableLoader(tableLoader)
+            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+            .writeParallelism(parallelism)
+            .upsert(true)
+            .append());
   }
 
   private StructLikeSet expectedRowSet(Record... records) {
