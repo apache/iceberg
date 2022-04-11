@@ -35,6 +35,7 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -73,9 +74,7 @@ public class TestAvroDeleteWriters {
 
   @Test
   public void testEqualityDeleteWriter() throws IOException {
-    File deleteFile = temp.newFile();
-
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = new InMemoryOutputFile();
     EqualityDeleteWriter<Record> deleteWriter = Avro.writeDeletes(out)
         .createWriterFunc(DataWriter::create)
         .overwrite()
@@ -108,8 +107,6 @@ public class TestAvroDeleteWriters {
 
   @Test
   public void testPositionDeleteWriter() throws IOException {
-    File deleteFile = temp.newFile();
-
     Schema deleteSchema = new Schema(
         MetadataColumns.DELETE_FILE_PATH,
         MetadataColumns.DELETE_FILE_POS,
@@ -119,7 +116,7 @@ public class TestAvroDeleteWriters {
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(deleteFile);
+    OutputFile out = new InMemoryOutputFile();
     PositionDeleteWriter<Record> deleteWriter = Avro.writeDeletes(out)
         .createWriterFunc(DataWriter::create)
         .overwrite()
