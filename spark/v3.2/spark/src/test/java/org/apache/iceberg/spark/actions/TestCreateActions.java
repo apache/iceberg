@@ -490,6 +490,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assert.assertEquals("Unexpected format", "iceberg/parquet", table.properties().get("format"));
     Assert.assertNotEquals("No current-snapshot-id found", "none", table.properties().get("current-snapshot-id"));
     Assert.assertTrue("Location isn't correct", table.properties().get("location").endsWith(destTableName));
+
+    Assert.assertNotNull("Missing format-version", table.properties().get("format-version"));
+    table.table().updateProperties().set("format-version", "2").commit();
+    Assert.assertEquals("Missing format-version", "2", table.properties().get("format-version"));
+
     Assert.assertEquals("Sort-order isn't correct", "id ASC NULLS FIRST, data DESC NULLS LAST",
         table.properties().get("sort-order"));
     Assert.assertNull("Identifier fields should be null", table.properties().get("identifier-fields"));
