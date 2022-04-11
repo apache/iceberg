@@ -379,8 +379,8 @@ public class FlinkSink {
       // See in https://github.com/apache/iceberg/pull/4364 for more information.
       if (upsertMode) {
         throw new UnsupportedOperationException(
-            "upsert mode is not supported in Flink 1.12 due to correctness issues. Please upgrade to Flink 1.13+ if " +
-            "upsert mode is needed. If `upsert` mode is not needed, set the table's `write.upsert.enabled` " +
+            "Upsert mode is not supported in Flink 1.12 due to correctness issues. Please upgrade to Flink 1.13+ if " +
+            "upsert mode is needed. If upsert mode is not needed, set the table property `write.upsert.enabled` " +
             "property to 'false'.");
       }
 
