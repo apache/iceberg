@@ -290,8 +290,6 @@ public abstract class DeleteFilter<T> {
       requiredIds.addAll(eqDelete.equalityFieldIds());
     }
 
-    requiredIds.add(MetadataColumns.IS_DELETED.fieldId());
-
     Set<Integer> missingIds = Sets.newLinkedHashSet(
         Sets.difference(requiredIds, TypeUtil.getProjectedIds(requestedSchema)));
 
