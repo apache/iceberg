@@ -225,6 +225,9 @@ public class FlinkSource {
 
       if (!context.isStreaming()) {
         int parallelism = inferParallelism(format, context);
+        if (env.getMaxParallelism() > 0) {
+          parallelism = Math.min(parallelism, env.getMaxParallelism());
+        }
         return env.createInput(format, typeInfo).setParallelism(parallelism);
       } else {
         StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);

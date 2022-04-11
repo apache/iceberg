@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
@@ -178,6 +179,31 @@ public class TestFlinkScanSql extends TestFlinkSource {
         .flinkConf(configuration)
         .inferParallelism(flinkInputFormat, ScanContext.builder().limit(3).build());
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
+  }
+
+  @Test
+  public void testInferParallelismWithGlobalSetting() throws IOException {
+    Configuration cfg = tEnv.getConfig().getConfiguration();
+    cfg.set(PipelineOptions.MAX_PARALLELISM, 1);
+
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, null);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    List<Record> expectedRecords = Lists.newArrayList();
+    long maxFileLen = 0;
+    for (int i = 0; i < 5; i++) {
+      List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 2, i);
+      DataFile dataFile = helper.writeFile(null, records);
+      helper.appendToTable(dataFile);
+      expectedRecords.addAll(records);
+      maxFileLen = Math.max(dataFile.fileSizeInBytes(), maxFileLen);
+    }
+
+    // Make sure to generate multiple CombinedScanTasks
+    sql("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen);
+
+    List<Row> results = run(null, Maps.newHashMap(), "", "*");
+    org.apache.iceberg.flink.TestHelpers.assertRecords(results, expectedRecords, TestFixtures.SCHEMA);
   }
 
   @Test
