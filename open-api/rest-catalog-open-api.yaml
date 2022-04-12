@@ -1015,6 +1015,7 @@ components:
         - snapshot-id
         - timestamp-ms
         - manifest-list
+        - summary
       properties:
         snapshot-id:
           type: integer
@@ -1028,9 +1029,9 @@ components:
         summary:
           type: object
           required:
-            - summary
+            - operation
           properties:
-            summary:
+            operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:
