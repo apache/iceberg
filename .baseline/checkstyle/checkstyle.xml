@@ -107,7 +107,6 @@
         <module name="AvoidStarImport"/> <!-- Java Style Guide: No wildcard imports -->
         <module name="AvoidStaticImport"> <!-- Java Style Guide: No static imports -->
             <property name="excludes" value="
-                com.google.common.base.Preconditions.*,
                 com.palantir.logsafe.Preconditions.*,
                 java.util.Collections.*,
                 java.util.stream.Collectors.*,
