@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -95,11 +96,12 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
     verifyManifestSequenceNumber(deleteManifest, 1, 1);
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
     Assert.assertEquals("Should have three task", 3, tasks.size());
-    FileScanTask task = tasks.get(0);
+    Optional<FileScanTask> task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
+    Assert.assertTrue(task.isPresent());
     Assert.assertEquals("Should have one associated delete file",
-        1, task.deletes().size());
+        1, task.get().deletes().size());
     Assert.assertEquals("Should have only pos delete file",
-        FILE_A_EQ_1.path(), task.deletes().get(0).path());
+        FILE_A_EQ_1.path(), task.get().deletes().get(0).path());
 
     // first commit after row-delta changes
     table.newDelete().deleteFile(FILE_B).commit();
@@ -116,8 +118,10 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
     Assert.assertEquals(deleteManifest, deleteManifests.get(0));  // delete manifest not changed
     tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
     Assert.assertEquals("Should have two task", 2, tasks.size());
+    task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
+    Assert.assertTrue(task.isPresent());
     Assert.assertEquals("Should have one associated delete file",
-        1, tasks.get(0).deletes().size());
+        1, task.get().deletes().size());
 
     // second commit after row-delta changes
     table.newDelete().deleteFile(FILE_C).commit();
@@ -134,8 +138,10 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
     Assert.assertEquals(deleteManifest, deleteManifests.get(0));  // delete manifest not changed
     tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
+    task = tasks.stream().filter(t -> t.file().path().equals(FILE_A.path())).findFirst();
+    Assert.assertTrue(task.isPresent());
     Assert.assertEquals("Should have one associated delete file",
-        1, tasks.get(0).deletes().size());
+        1, task.get().deletes().size());
   }
 
   @Test
