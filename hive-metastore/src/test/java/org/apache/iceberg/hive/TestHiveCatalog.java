@@ -32,9 +32,11 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -60,6 +62,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -232,7 +235,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testCreateTableDefaultSortOrder() {
+  public void testCreateTableDefaultSortOrder() throws Exception {
     Schema schema = new Schema(
         required(1, "id", Types.IntegerType.get(), "unique ID"),
         required(2, "data", Types.StringType.get())
@@ -246,13 +249,16 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Table table = catalog.createTable(tableIdent, schema, spec);
       Assert.assertEquals("Order ID must match", 0, table.sortOrder().orderId());
       Assert.assertTrue("Order must unsorted", table.sortOrder().isUnsorted());
+
+      Assert.assertTrue("Must not have default sort order in catalog",
+          !hmsTableParameters().containsKey(DEFAULT_SORT_ORDER));
     } finally {
       catalog.dropTable(tableIdent);
     }
   }
 
   @Test
-  public void testCreateTableCustomSortOrder() {
+  public void testCreateTableCustomSortOrder() throws Exception {
     Schema schema = new Schema(
         required(1, "id", Types.IntegerType.get(), "unique ID"),
         required(2, "data", Types.StringType.get())
@@ -277,6 +283,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
       Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
       Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+
+      Assert.assertEquals(SortOrderParser.toJson(table.sortOrder()), hmsTableParameters().get(DEFAULT_SORT_ORDER));
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -469,13 +477,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           .withLocation(location)
           .create();
 
-      String tableName = tableIdentifier.name();
-      org.apache.hadoop.hive.metastore.api.Table hmsTable =
-          metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
-
-      // check parameters are in expected state
-      Map<String, String> parameters = hmsTable.getParameters();
-      Assert.assertNotNull(parameters.get(TableProperties.UUID));
+      Assert.assertNotNull(hmsTableParameters().get(TableProperties.UUID));
     } finally {
       catalog.dropTable(tableIdentifier);
     }
@@ -495,12 +497,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           .withLocation(location)
           .create();
 
-      String tableName = tableIdentifier.name();
-      org.apache.hadoop.hive.metastore.api.Table hmsTable =
-          metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
-
       // check whether parameters are in expected state
-      Map<String, String> parameters = hmsTable.getParameters();
+      Map<String, String> parameters = hmsTableParameters();
       Assert.assertEquals("0", parameters.get(TableProperties.SNAPSHOT_COUNT));
       Assert.assertNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_SUMMARY));
       Assert.assertNull(parameters.get(TableProperties.CURRENT_SNAPSHOT_ID));
@@ -517,8 +515,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       icebergTable.newFastAppend().appendFile(file).commit();
 
       // check whether parameters are in expected state
-      hmsTable = metastoreClient.getTable(tableIdentifier.namespace().level(0), tableName);
-      parameters = hmsTable.getParameters();
+      parameters = hmsTableParameters();
       Assert.assertEquals("1", parameters.get(TableProperties.SNAPSHOT_COUNT));
       String summary = JsonUtil.mapper().writeValueAsString(icebergTable.currentSnapshot().summary());
       Assert.assertEquals(summary, parameters.get(TableProperties.CURRENT_SNAPSHOT_SUMMARY));
@@ -560,6 +557,34 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
     spyOps.setSnapshotSummary(parameters, snapshot);
     Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameters.size());
+  }
+
+  @Test
+  public void testSetDefaultPartitionSpec() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .create();
+
+      Assert.assertEquals(PartitionSpecParser.toJson(spec),
+          hmsTableParameters().get(TableProperties.DEFAULT_PARTITION_SPEC));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  private Map<String, String> hmsTableParameters() throws TException {
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(DB_NAME, "tbl");
+    return hmsTable.getParameters();
   }
 
   @Test

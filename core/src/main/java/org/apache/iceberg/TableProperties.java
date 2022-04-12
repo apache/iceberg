@@ -76,6 +76,20 @@ public class TableProperties {
   public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
 
   /**
+   * Reserved table property for default partition spec.
+   * <p>
+   * This reserved property is used to store the default partition spec.
+   */
+  public static final String DEFAULT_PARTITION_SPEC = "default-partition-spec";
+
+  /**
+   * Reserved table property for default sort order.
+   * <p>
+   * This reserved property is used to store the default sort order.
+   */
+  public static final String DEFAULT_SORT_ORDER = "default-sort-order";
+
+  /**
    * Reserved Iceberg table properties list.
    * <p>
    * Reserved table properties are only used to control behaviors when creating or updating a table.
@@ -87,7 +101,9 @@ public class TableProperties {
       SNAPSHOT_COUNT,
       CURRENT_SNAPSHOT_ID,
       CURRENT_SNAPSHOT_SUMMARY,
-      CURRENT_SNAPSHOT_TIMESTAMP
+      CURRENT_SNAPSHOT_TIMESTAMP,
+      DEFAULT_PARTITION_SPEC,
+      DEFAULT_SORT_ORDER
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";

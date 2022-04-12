@@ -52,8 +52,10 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -399,6 +401,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     setSnapshotStats(metadata, parameters);
+    setPartitionSpec(metadata, parameters);
+    setSortOrder(metadata, parameters);
 
     tbl.setParameters(parameters);
   }
@@ -430,6 +434,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
     } catch (JsonProcessingException e) {
       LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
+    }
+  }
+
+  private void setPartitionSpec(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
+    if (metadata.spec() != null && metadata.spec().isPartitioned()) {
+      parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, PartitionSpecParser.toJson(metadata.spec()));
+    }
+  }
+
+  private void setSortOrder(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.DEFAULT_SORT_ORDER);
+    if (metadata.sortOrder() != null && metadata.sortOrder().isSorted()) {
+      parameters.put(TableProperties.DEFAULT_SORT_ORDER, SortOrderParser.toJson(metadata.sortOrder()));
     }
   }
 
