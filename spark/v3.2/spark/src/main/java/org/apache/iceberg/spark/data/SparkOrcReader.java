@@ -62,11 +62,10 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
     reader.setBatchContext(batchOffsetInFile);
   }
 
-  private static class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValueReader<?>> {
-    private final Map<Integer, ?> idToConstant;
+  private static class ReadBuilder extends SparkDefaultValueAwareOrcSchemaWithTypeVisitor<OrcValueReader<?>> {
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
-      this.idToConstant = idToConstant;
+      super(idToConstant);
     }
 
     @Override

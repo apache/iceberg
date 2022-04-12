@@ -267,6 +267,12 @@ public final class ORCSchemaUtil {
       case STRUCT:
         orcType = TypeDescription.createStruct();
         for (Types.NestedField nestedField : type.asStructType().fields()) {
+          // When we have a new evolved field in Iceberg schema which has an initial default value,
+          // but the underlying orc file lacks that field, we ignore projecting this field to the orc
+          // file reader schema, but instead populate this field inside Iceberg using a ConstantReader
+          if (mapping.get(nestedField.fieldId()) == null && nestedField.initialDefaultValue() != null) {
+            continue;
+          }
           // Using suffix _r to avoid potential underlying issues in ORC reader
           // with reused column names between ORC and Iceberg;
           // e.g. renaming column c -> d and adding new column d
