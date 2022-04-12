@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -418,6 +419,37 @@ public class TestTransaction extends TableTestBase {
         previousManifests.contains(table.currentSnapshot().allManifests().get(0)));
 
     Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
+  }
+
+  @Test
+  public void testTransactionRetrySchemaUpdate() {
+    // use only one retry
+    table.updateProperties()
+        .set(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .commit();
+
+    // start a transaction
+    Transaction txn = table.newTransaction();
+    // add column "new-column"
+    txn.updateSchema()
+        .addColumn("new-column", Types.IntegerType.get())
+        .commit();
+    int schemaId = txn.table().schema().schemaId();
+
+    // directly update the table for adding "another-column" (which causes in-progress txn commit fail)
+    table.updateSchema()
+        .addColumn("another-column", Types.IntegerType.get())
+        .commit();
+    int conflictingSchemaId = table.schema().schemaId();
+
+    Assert.assertEquals("Both schema IDs should be the same in order to cause a conflict",
+        conflictingSchemaId,
+        schemaId);
+
+    // commit the transaction for adding "new-column"
+    AssertHelpers.assertThrows("Should fail due to conflicting transaction even after retry",
+        CommitFailedException.class, "Table metadata refresh is required",
+        txn::commitTransaction);
   }
 
   @Test
