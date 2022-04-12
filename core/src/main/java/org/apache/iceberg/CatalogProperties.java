@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.io.ContentCache;
 
 public class CatalogProperties {
 
@@ -56,6 +57,64 @@ public class CatalogProperties {
 
   public static final long CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(30);
   public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
+
+  /**
+   * Controls whether to use {@link ContentCache} during manifest file reads or not.
+   *
+   * <p>This value will be ignored and the file cache will be disabled if any of the following is
+   * true:
+   *
+   * <ul>
+   *   <li>{@link #IO_CACHE_EXPIRATION_INTERVAL_MS} is set to negative number.
+   *   <li>{@link #IO_CACHE_MAX_TOTAL_BYTES} is set to non-positive value.
+   *   <li>{@link #IO_CACHE_MAX_CONTENT_LENGTH} is set to non-positive value.
+   * </ul>
+   */
+  public static final String IO_CACHE_ENABLED = "io.cache-enabled";
+
+  public static final boolean IO_CACHE_ENABLED_DEFAULT = false;
+
+  /**
+   * Controls the duration for which entries in the {@link ContentCache} are cached.
+   *
+   * <p>Behavior of specific values of cache.expiration-interval-ms:
+   *
+   * <ul>
+   *   <li>Negative Values - Caching disabled
+   *   <li>Zero - Cache entries expires only if it gets evicted due to memory pressure from {@link
+   *       #IO_CACHE_MAX_TOTAL_BYTES} setting.
+   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
+   *       milliseconds
+   * </ul>
+   */
+  public static final String IO_CACHE_EXPIRATION_INTERVAL_MS = "io.cache.expiration-interval-ms";
+
+  public static final long IO_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(60);
+
+  /**
+   * Controls the maximum total amount of bytes to cache in {@link ContentCache}.
+   *
+   * <p>Behavior of specific values of cache.content.max-total-bytes:
+   *
+   * <ul>
+   *   <li>Non-Positive Values - Caching disabled
+   *   <li>Positive Values - Maximum total amount of bytes allowed in cache before cache start doing
+   *       eviction
+   * </ul>
+   */
+  public static final String IO_CACHE_MAX_TOTAL_BYTES = "io.cache.max-total-bytes";
+
+  public static final long IO_CACHE_MAX_TOTAL_BYTES_DEFAULT = 100 * 1024 * 1024;
+
+  /**
+   * Controls the maximum length of file to be considered for caching.
+   *
+   * <p>An {@link org.apache.iceberg.io.InputFile} will not be cached if the length is longer than
+   * this limit.
+   */
+  public static final String IO_CACHE_MAX_CONTENT_LENGTH = "io.cache.max-content-length";
+
+  public static final long IO_CACHE_MAX_CONTENT_LENGTH_DEFAULT = 8 * 1024 * 1024;
 
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";

@@ -40,6 +40,7 @@ import org.apache.iceberg.util.SerializableSupplier;
 public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixOperations {
 
   private SerializableSupplier<Configuration> hadoopConf;
+  private Map<String, String> properties = ImmutableMap.of();
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -59,6 +60,11 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   public Configuration conf() {
     return hadoopConf.get();
+  }
+
+  @Override
+  public void initialize(Map<String, String> props) {
+    this.properties = props;
   }
 
   @Override
@@ -89,7 +95,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   @Override
   public Map<String, String> properties() {
-    return ImmutableMap.of();
+    return properties;
   }
 
   @Override

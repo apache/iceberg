@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
@@ -25,15 +27,20 @@ import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ManifestFiles {
   private ManifestFiles() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(ManifestFiles.class);
 
   private static final org.apache.avro.Schema MANIFEST_AVRO_SCHEMA =
       AvroSchemaUtil.convert(
@@ -43,6 +50,28 @@ public class ManifestFiles {
               GenericManifestFile.class.getName(),
               ManifestFile.PARTITION_SUMMARY_TYPE,
               GenericPartitionFieldSummary.class.getName()));
+
+  private static final Cache<FileIO, ContentCache> CONTENT_CACHES =
+      Caffeine.newBuilder().weakKeys().maximumSize(maxFileIO()).recordStats().build();
+
+  /**
+   * Get or create a manifest file cache for a given FileIO.
+   *
+   * <p>Returned cache object will be kept in memory until {@link #dropCache(FileIO)} is called.
+   * Return null if the given FileIO properties does not allow caching.
+   *
+   * @param fileIO A FileIO.
+   * @return A manifest file cache or null if the given FileIO properties does not allow caching.
+   */
+  public static ContentCache getOrCreateCache(FileIO fileIO) {
+    return CONTENT_CACHES.get(fileIO, io -> ContentCache.createCache(io.properties()));
+  }
+
+  /** Drop manifest file cache object for a FileIO if exists. */
+  public static synchronized void dropCache(FileIO fileIO) {
+    CONTENT_CACHES.invalidate(fileIO);
+    CONTENT_CACHES.cleanUp();
+  }
 
   /**
    * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
@@ -86,7 +115,7 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
         manifest);
-    InputFile file = io.newInputFile(manifest.path(), manifest.length());
+    InputFile file = newInputFile(io, manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DATA_FILES);
   }
@@ -140,7 +169,7 @@ public class ManifestFiles {
         manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s",
         manifest);
-    InputFile file = io.newInputFile(manifest.path(), manifest.length());
+    InputFile file = newInputFile(io, manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
@@ -299,5 +328,31 @@ public class ManifestFiles {
     }
 
     return writer.toManifestFile();
+  }
+
+  private static InputFile newInputFile(FileIO io, String path, long length) {
+    try {
+      ContentCache cache = getOrCreateCache(io);
+      if (cache != null) {
+        LOG.debug("FileIO-level cache stats: {}", CONTENT_CACHES.stats());
+        return cache.tryCache(io, path, length);
+      } else {
+        return io.newInputFile(path, length);
+      }
+    } catch (UnsupportedOperationException e) {
+      return io.newInputFile(path, length);
+    }
+  }
+
+  private static int maxFileIO() {
+    String value = System.getProperty(SystemProperties.IO_CACHE_MAX_FILEIO);
+    if (value != null) {
+      try {
+        return Integer.parseUnsignedInt(value);
+      } catch (NumberFormatException e) {
+        // will return the default
+      }
+    }
+    return SystemProperties.IO_CACHE_MAX_FILEIO_DEFAULT;
   }
 }
