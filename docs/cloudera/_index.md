@@ -2,7 +2,7 @@
 title: "Cloudera"
 bookIconImage: ../img/cloudera-logo.png
 bookFlatSection: true
-weight: 410
+weight: 415
 bookExternalUrlNewWindow: https://docs.cloudera.com/cdp/latest/cdp-iceberg/topics/iceberg-in-cdp.html
 ---
 <!--
