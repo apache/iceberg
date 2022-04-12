@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +46,7 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.RESTCatalogConfigResponse;
 import org.apache.iceberg.util.Pair;
 
 /**
@@ -154,8 +154,7 @@ public class RESTCatalogAdapter implements RESTClient {
                                                   Object body, Class<T> responseType) {
     switch (route) {
       case CONFIG:
-        // TODO: use the correct response object
-        return castResponse(responseType, ImmutableMap.of());
+        return castResponse(responseType, RESTCatalogConfigResponse.builder().build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
@@ -281,9 +280,9 @@ public class RESTCatalogAdapter implements RESTClient {
 
   @Override
   public void close() throws IOException {
-    if (catalog instanceof Closeable) {
-      ((Closeable) catalog).close();
-    }
+    // The calling test is responsible for closing the underlying catalog backing this REST catalog
+    // so that the underlying backend catalog is not closed and reopened during the REST catalog's
+    // initialize method when fetching the server configuration.
   }
 
   private static class BadResponseType extends RuntimeException {

@@ -41,7 +41,6 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.exceptions.RESTException;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -63,11 +62,11 @@ public class HTTPClient implements RESTClient {
   private final Map<String, String> additionalHeaders;
 
   private HTTPClient(
-      String uri, CloseableHttpClient httpClient, ObjectMapper mapper, Map<String, String> additionalHeaders) {
+      String uri, CloseableHttpClient httpClient, Map<String, String> additionalHeaders) {
     this.uri = uri;
     this.httpClient = httpClient != null ? httpClient : HttpClients.createDefault();
-    this.mapper = mapper != null ? mapper : new ObjectMapper();
     this.additionalHeaders = additionalHeaders != null ? additionalHeaders : ImmutableMap.of();
+    this.mapper = RESTObjectMapper.mapper();
   }
 
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {
@@ -187,7 +186,7 @@ public class HTTPClient implements RESTClient {
         return mapper.readValue(responseBody, responseType);
       } catch (JsonProcessingException e) {
         throw new RESTException(
-            "Received a success response code of %d, but failed to parse response body into %s",
+            e, "Received a success response code of %d, but failed to parse response body into %s",
             response.getCode(), responseType.getSimpleName());
       }
     } catch (IOException e) {
@@ -253,12 +252,6 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
-    @VisibleForTesting
-    Builder mapper(ObjectMapper objectMapper) {
-      this.mapper = objectMapper;
-      return this;
-    }
-
     public Builder withHeader(String key, String value) {
       additionalHeaders.put(key, value);
       return this;
@@ -276,7 +269,7 @@ public class HTTPClient implements RESTClient {
     }
 
     public HTTPClient build() {
-      return new HTTPClient(uri, httpClient, mapper, additionalHeaders);
+      return new HTTPClient(uri, httpClient, additionalHeaders);
     }
   }
 }
