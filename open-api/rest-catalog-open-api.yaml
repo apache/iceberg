@@ -1028,6 +1028,8 @@ components:
           type: integer
         summary:
           type: object
+          required:
+            - operation
           properties:
             operation:
               type: string
