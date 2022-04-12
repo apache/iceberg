@@ -22,6 +22,7 @@ package org.apache.iceberg.nessie;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -34,7 +35,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
@@ -170,6 +170,7 @@ public class NessieIcebergClient implements AutoCloseable {
       getApi().createNamespace()
           .reference(getRef().getReference())
           .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .properties(metadata)
           .create();
       refresh();
     } catch (NessieNamespaceAlreadyExistsException e) {
@@ -217,17 +218,53 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
     try {
-      getApi().getNamespace()
+      return getApi().getNamespace()
           .reference(getRef().getReference())
           .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-          .get();
+          .get()
+          .getProperties();
     } catch (NessieNamespaceNotFoundException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
     } catch (NessieReferenceNotFoundException e) {
       throw new RuntimeException(String.format("Cannot load Namespace '%s': " +
           "ref '%s' is no longer valid.", namespace, getRef().getName()), e);
     }
-    return ImmutableMap.of();
+  }
+
+  public void setProperties(Namespace namespace, Map<String, String> properties) {
+    try {
+      getApi()
+          .updateProperties()
+          .reference(getRef().getReference())
+          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .updateProperties(properties)
+          .update();
+      refresh();
+    } catch (NessieNamespaceNotFoundException e) {
+      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException(
+          String.format("Cannot update properties on Namespace '%s': ref '%s' is no longer valid.",
+              namespace, getRef().getName()), e);
+    }
+  }
+
+  public void removeProperties(Namespace namespace, Set<String> properties) {
+    try {
+      getApi()
+          .updateProperties()
+          .reference(getRef().getReference())
+          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+          .removeProperties(properties)
+          .update();
+      refresh();
+    } catch (NessieNamespaceNotFoundException e) {
+      throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException(
+          String.format("Cannot remove properties from Namespace '%s': ref '%s' is no longer valid.",
+              namespace, getRef().getName()), e);
+    }
   }
 
   public void renameTable(TableIdentifier from, TableIdentifier to) {
