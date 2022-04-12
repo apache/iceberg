@@ -23,15 +23,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
-import org.apache.hadoop.yarn.webapp.hamlet2.Hamlet;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -45,6 +42,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.NestedField;
@@ -57,7 +55,6 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.omg.CORBA.OBJ_ADAPTER;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -217,8 +214,8 @@ public abstract class BaseDataReader<T> implements Closeable {
         return new GenericArrayData(((List<?>) value).stream()
             .map(e -> convertConstant(type.asListType().elementType(), e)).toArray());
       case MAP:
-        List<Object> keyList = new ArrayList<>();
-        List<Object> valueList = new ArrayList<>();
+        List<Object> keyList = Lists.newArrayList();
+        List<Object> valueList =  Lists.newArrayList();
         for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
           keyList.add(convertConstant(type.asMapType().keyType(), entry.getKey()));
           valueList.add(convertConstant(type.asMapType().valueType(), entry.getValue()));

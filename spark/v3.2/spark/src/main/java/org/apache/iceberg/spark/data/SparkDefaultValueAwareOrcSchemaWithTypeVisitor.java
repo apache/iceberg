@@ -20,22 +20,26 @@
 
 package org.apache.iceberg.spark.data;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.BaseDataReader;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
 public class SparkDefaultValueAwareOrcSchemaWithTypeVisitor<T> extends OrcSchemaWithTypeVisitor<T> {
 
-  protected final Map<Integer, Object> idToConstant;
+  private final Map<Integer, Object> idToConstant;
+
+  protected Map<Integer, Object> getIdToConstant() {
+    return idToConstant;
+  }
 
   protected SparkDefaultValueAwareOrcSchemaWithTypeVisitor(Map<Integer, ?> idToConstant) {
-    this.idToConstant = new HashMap<>();
+    this.idToConstant = Maps.newHashMap();
     this.idToConstant.putAll(idToConstant);
   }
 
@@ -61,7 +65,9 @@ public class SparkDefaultValueAwareOrcSchemaWithTypeVisitor<T> extends OrcSchema
       TypeDescription field = j < fields.size() ? fields.get(j) : null;
       if (field == null || (iField.fieldId() != ORCSchemaUtil.fieldId(field))) {
         if (!idToConstant.containsKey(iField.fieldId())) {
-          idToConstant.put(iField.fieldId(), BaseDataReader.convertConstant(iField.type(), iField.initialDefaultValue()));
+          idToConstant.put(
+              iField.fieldId(),
+              BaseDataReader.convertConstant(iField.type(), iField.initialDefaultValue()));
         }
       } else {
         results.add(visit(iField.type(), field, visitor));
