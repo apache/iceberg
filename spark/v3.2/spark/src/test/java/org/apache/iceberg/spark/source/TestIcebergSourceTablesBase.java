@@ -1112,11 +1112,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set("partition", partitionBuilder.set("id", 1).build())
         .set("record_count", 1L)
         .set("file_count", 1)
+        .set("spec_id", 0)
         .build());
     expected.add(builder
         .set("partition", partitionBuilder.set("id", 2).build())
         .set("record_count", 1L)
         .set("file_count", 1)
+        .set("spec_id", 0)
         .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
