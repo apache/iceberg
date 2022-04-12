@@ -100,11 +100,11 @@ public class SchemaParser {
       }
       if (field.initialDefaultValue() != null) {
         generator.writeFieldName(INITIAL_DEFAULT);
-        generator.writeRawValue(field.initialDefaultValue().toString());
+        generator.writeRawValue(DefaultValueParser.mapper().writeValueAsString(field.initialDefaultValue()));
       }
       if (field.writeDefaultValue() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
-        generator.writeRawValue(field.writeDefaultValue().toString());
+        generator.writeRawValue(DefaultValueParser.mapper().writeValueAsString(field.writeDefaultValue()));
       }
       generator.writeEndObject();
     }
@@ -233,9 +233,9 @@ public class SchemaParser {
           field));
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
       if (isRequired) {
-        fields.add(Types.NestedField.required(id, name, type, doc));
+        fields.add(Types.NestedField.required(id, name, type, doc, initialDefault, writeDefault));
       } else {
-        fields.add(Types.NestedField.optional(id, name, type, doc));
+        fields.add(Types.NestedField.optional(id, name, type, doc, initialDefault, writeDefault));
       }
     }
 

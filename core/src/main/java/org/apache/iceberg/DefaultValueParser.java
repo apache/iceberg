@@ -19,7 +19,16 @@
 
 package org.apache.iceberg;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.ByteBufferSerializer;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +42,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Type;
@@ -40,7 +50,26 @@ import org.apache.iceberg.types.Types;
 
 public class DefaultValueParser {
 
+  private static final JsonFactory FACTORY = new JsonFactory();
+  private static final ObjectMapper MAPPER;
+
+  static {
+    MAPPER = new ObjectMapper(FACTORY);
+    MAPPER.registerModule(new JavaTimeModule());
+    MAPPER.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+    SimpleModule customModule = new SimpleModule();
+    customModule.addSerializer(ByteBuffer.class, new HexStringCustomByteBufferSerializer());
+    MAPPER.registerModule(customModule);
+  }
+
+  public static ObjectMapper mapper() {
+    return MAPPER;
+  }
+
   public static Object parseDefaultFromJson(Type type, JsonNode jsonNode) {
+    if (jsonNode == null) {
+      return null;
+    }
 
     switch (type.typeId()) {
       case BOOLEAN:
@@ -200,6 +229,20 @@ public class DefaultValueParser {
         return true;
       default:
         return false;
+    }
+  }
+
+  private static class HexStringCustomByteBufferSerializer extends ByteBufferSerializer {
+
+    public HexStringCustomByteBufferSerializer() {
+      super();
+    }
+
+    @Override
+    public void serialize(ByteBuffer bbuf, JsonGenerator gen, SerializerProvider provider) throws IOException {
+      // The ByteBuffer should always wrap an array from how it's constructed during deserialization
+      Preconditions.checkState(bbuf.hasArray());
+      gen.writeString("0X" + BaseEncoding.base16().encode(bbuf.array()));
     }
   }
 }

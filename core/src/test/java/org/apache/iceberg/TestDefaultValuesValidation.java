@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -47,31 +48,31 @@ public class TestDefaultValuesValidation {
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return Arrays.asList(new Object[][] {
-        {Types.BooleanType.get(), parseJsonStringToJsonNode("true")},
-        {Types.IntegerType.get(), parseJsonStringToJsonNode("1")},
-        {Types.LongType.get(), parseJsonStringToJsonNode("9999999")},
-        {Types.FloatType.get(), parseJsonStringToJsonNode("1.23")},
-        {Types.DoubleType.get(), parseJsonStringToJsonNode("123.456")},
-        {Types.DateType.get(), parseJsonStringToJsonNode("\"2007-12-03\"")},
-        {Types.TimeType.get(), parseJsonStringToJsonNode("\"10:15:30\"")},
-        {Types.TimestampType.withoutZone(), parseJsonStringToJsonNode("\"2007-12-03T10:15:30\"")},
-        {Types.TimestampType.withZone(), parseJsonStringToJsonNode("\"2007-12-03T10:15:30+01:00\"")},
-        {Types.StringType.get(), parseJsonStringToJsonNode("\"foo\"")},
-        {Types.UUIDType.get(), parseJsonStringToJsonNode("\"eb26bdb1-a1d8-4aa6-990e-da940875492c\"")},
-        {Types.FixedType.ofLength(4), parseJsonStringToJsonNode("\"0x111f\"")},
-        {Types.BinaryType.get(), parseJsonStringToJsonNode("\"0x0000ff\"")},
-        {Types.DecimalType.of(9, 2), parseJsonStringToJsonNode("123.45")},
-        {Types.ListType.ofOptional(1, Types.IntegerType.get()), parseJsonStringToJsonNode("[1, 2, 3]")},
+        {Types.BooleanType.get(), stringToJsonNode("true")},
+        {Types.IntegerType.get(), stringToJsonNode("1")},
+        {Types.LongType.get(), stringToJsonNode("9999999")},
+        {Types.FloatType.get(), stringToJsonNode("1.23")},
+        {Types.DoubleType.get(), stringToJsonNode("123.456")},
+        {Types.DateType.get(), stringToJsonNode("\"2007-12-03\"")},
+        {Types.TimeType.get(), stringToJsonNode("\"10:15:30\"")},
+        {Types.TimestampType.withoutZone(), stringToJsonNode("\"2007-12-03T10:15:30\"")},
+        {Types.TimestampType.withZone(), stringToJsonNode("\"2007-12-03T10:15:30+01:00\"")},
+        {Types.StringType.get(), stringToJsonNode("\"foo\"")},
+        {Types.UUIDType.get(), stringToJsonNode("\"eb26bdb1-a1d8-4aa6-990e-da940875492c\"")},
+        {Types.FixedType.ofLength(2), stringToJsonNode("\"0x111f\"")},
+        {Types.BinaryType.get(), stringToJsonNode("\"0x0000ff\"")},
+        {Types.DecimalType.of(9, 2), stringToJsonNode("123.45")},
+        {Types.ListType.ofOptional(1, Types.IntegerType.get()), stringToJsonNode("[1, 2, 3]")},
         {Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get()),
-         parseJsonStringToJsonNode("[[1,2], [\"foo\", \"bar\"]]")},
+         stringToJsonNode("[[1,2], [\"foo\", \"bar\"]]")},
         {Types.StructType.of(
             required(1, "f1", Types.IntegerType.get(), "doc"),
             optional(2, "f2", Types.StringType.get(), "doc")),
-         parseJsonStringToJsonNode("{\"1\": 1, \"2\": \"bar\"}")}
+         stringToJsonNode("{\"1\": 1, \"2\": \"bar\"}")}
     });
   }
 
-  public static JsonNode parseJsonStringToJsonNode(String json) {
+  private static JsonNode stringToJsonNode(String json) {
     try {
       ObjectMapper mapper = new ObjectMapper();
       return mapper.readTree(json);
@@ -81,9 +82,18 @@ public class TestDefaultValuesValidation {
     }
   }
 
+  // serialize to json and deserialize back should return the same result
+  private static Schema jsonRoundTrip(Schema schema) {
+    return SchemaParser.fromJson(SchemaParser.toJson(schema));
+  }
+
   @Test
   public void testTypeWithDefaultValue() {
-    DefaultValueParser.isValidDefault(type, defaultValue);
-    DefaultValueParser.parseDefaultFromJson(type, defaultValue);
+    Assert.assertTrue(DefaultValueParser.isValidDefault(type, defaultValue));
+    Object javaDefaultValue = DefaultValueParser.parseDefaultFromJson(type, defaultValue);
+
+    Schema schema = new Schema(Types.NestedField.required(999, "root", type, "doc", javaDefaultValue,
+        javaDefaultValue));
+    Assert.assertTrue(schema.sameSchema(jsonRoundTrip(schema)));
   }
 }
