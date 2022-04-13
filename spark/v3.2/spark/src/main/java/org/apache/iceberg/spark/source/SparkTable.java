@@ -22,14 +22,15 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -164,8 +165,12 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         String.valueOf(icebergTable.currentSnapshot().snapshotId()) : "none";
     propsBuilder.put(CURRENT_SNAPSHOT_ID, currentSnapshotId);
     propsBuilder.put("location", icebergTable.location());
-    int formatVersion = ((HasTableOperations) icebergTable).operations().current().formatVersion();
-    propsBuilder.put(FORMAT_VERSION, String.valueOf(formatVersion));
+
+    if (icebergTable instanceof BaseTable) {
+      TableOperations ops = ((BaseTable) icebergTable).operations();
+      int formatVersion = ops.current().formatVersion();
+      propsBuilder.put(FORMAT_VERSION, String.valueOf(formatVersion));
+    }
 
     if (!icebergTable.sortOrder().isUnsorted()) {
       propsBuilder.put("sort-order", Spark3Util.describe(icebergTable.sortOrder()));
