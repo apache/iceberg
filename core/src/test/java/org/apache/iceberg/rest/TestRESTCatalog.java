@@ -31,8 +31,8 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.RESTCatalogConfigResponse;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,7 +112,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
       @Override
       public <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
-        return (T) RESTCatalogConfigResponse
+        return (T) ConfigResponse
             .builder()
             .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
             .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
