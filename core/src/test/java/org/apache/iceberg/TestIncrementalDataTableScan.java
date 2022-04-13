@@ -100,6 +100,9 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     MyListener listener1 = new MyListener();
     Listeners.register(listener1, IncrementalTableScanEvent.class);
+    filesMatch(Lists.newArrayList("A", "B", "C", "D", "E"), appendsInRangeScan(null, 5));
+    Assert.assertNull(listener1.event().fromSnapshotId());
+    Assert.assertTrue(listener1.event().toSnapshotId() == 5);
     filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
     Assert.assertTrue(listener1.event().fromSnapshotId() == 1);
     Assert.assertTrue(listener1.event().toSnapshotId() == 5);
@@ -307,6 +310,14 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     Snapshot s1 = table.snapshot(fromSnapshotId);
     Snapshot s2 = table.snapshot(toSnapshotId);
     TableScan appendsBetween = table.newScan().appendsInRange(s1.snapshotId(), s2.snapshotId());
+    return filesToScan(appendsBetween);
+  }
+
+  /**
+   * Main difference with appendsBetweenScan above is that fromSnapshotId can be null
+   */
+  private List<String> appendsInRangeScan(Long fromSnapshotId, long toSnapshotId) {
+    TableScan appendsBetween = table.newScan().appendsInRange(fromSnapshotId, toSnapshotId);
     return filesToScan(appendsBetween);
   }
 
