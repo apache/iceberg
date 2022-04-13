@@ -24,6 +24,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -72,7 +73,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private DataTask task(StaticTableScan scan) {
     TableOperations ops = operations();
-    Iterable<Partition> partitions = partitions(scan);
+    Iterable<Partition> partitions = partitions(table(), scan);
     if (table().spec().fields().size() < 1) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
@@ -93,14 +94,36 @@ public class PartitionsTable extends BaseMetadataTable {
     return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount, partition.specId);
   }
 
-  private static Iterable<Partition> partitions(StaticTableScan scan) {
+  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
 
-    PartitionMap partitions = new PartitionMap(scan.table().spec().partitionType());
+    PartitionMap partitions = new PartitionMap(Partitioning.partitionType(table));
     for (FileScanTask task : tasks) {
-      partitions.get(task.file().partition()).update(task.file());
+      PartitionData original = (PartitionData) task.file().partition();
+      PartitionData normalized = normalizePartition(original, Partitioning.partitionType(table));
+      partitions.get(normalized).update(task.file());
     }
     return partitions.all();
+  }
+
+  private static PartitionData normalizePartition(PartitionData partition, Types.StructType newSchema) {
+    Preconditions.checkArgument(partition.getPartitionType().fields().size() == partition.size(),
+        "Partition values must match size");
+    Map<Integer, Object> fieldIdToValues = Maps.newHashMap();
+    int originalPartitionIndex = 0;
+    for (Types.NestedField f : partition.getPartitionType().fields()) {
+      fieldIdToValues.put(f.fieldId(), partition.get(originalPartitionIndex));
+      originalPartitionIndex++;
+    }
+
+    PartitionData result = new PartitionData(newSchema);
+
+    int finalPartitionIndex = 0;
+    for (Types.NestedField f : newSchema.fields()) {
+      result.set(finalPartitionIndex, fieldIdToValues.get(f.fieldId()));
+      finalPartitionIndex++;
+    }
+    return result;
   }
 
   @VisibleForTesting
