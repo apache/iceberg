@@ -168,8 +168,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
     if (icebergTable instanceof BaseTable) {
       TableOperations ops = ((BaseTable) icebergTable).operations();
-      int formatVersion = ops.current().formatVersion();
-      propsBuilder.put(FORMAT_VERSION, String.valueOf(formatVersion));
+      propsBuilder.put(FORMAT_VERSION, String.valueOf(ops.current().formatVersion()));
     }
 
     if (!icebergTable.sortOrder().isUnsorted()) {
