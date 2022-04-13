@@ -20,33 +20,37 @@
 package org.apache.iceberg.flink.source;
 
 /**
- * Starting strategy for streaming execution. Note that starting snapshot is exclusive in the incremental
- * split discovery mode. Files appended by the starting snapshot aren't included in split discovery.
+ * Starting strategy for streaming execution.
  */
 public enum StreamingStartingStrategy {
   /**
-   * First do a regular table scan. then switch to incremental mode.
+   * First do a regular table scan. Then switch to incremental mode after the table scan snapshot.
    */
   TABLE_SCAN_THEN_INCREMENTAL,
 
   /**
-   * Start incremental mode from the latest snapshot
+   * Start incremental mode from the latest snapshot inclusive
+   *
+   * If it is an empty map, all future append snapshots should be discovered
    */
-  LATEST_SNAPSHOT,
+  INCREMENTAL_FROM_LATEST_SNAPSHOT,
 
   /**
-   * Start incremental mode from the earliest snapshot
+   * Start incremental mode from the earliest snapshot inclusive
+   *
+   * If it is an empty map, all future append snapshots should be discovered.
    */
-  EARLIEST_SNAPSHOT,
+  INCREMENTAL_FROM_EARLIEST_SNAPSHOT,
 
   /**
-   * Start incremental mode from a specific startSnapshotId
+   * Start incremental mode from a snapshot with a specific id inclusive
    */
-  SPECIFIC_START_SNAPSHOT_ID,
+  INCREMENTAL_FROM_SNAPSHOT_ID,
 
   /**
-   * Start incremental mode from a specific startTimestamp.
-   * Starting snapshot has a timestamp lower than or equal to the specified timestamp.
+   * Start incremental mode from a snapshot with a specific timestamp inclusive
+   *
+   * Starting snapshot has a timestamp lower than or equal to the specified timestamp
    */
-  SPECIFIC_START_SNAPSHOT_TIMESTAMP
+  INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP
 }

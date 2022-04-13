@@ -26,19 +26,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
   private final ArrayDeque<IcebergSourceSplit> splits = new ArrayDeque<>();
+  private IcebergEnumeratorPosition latestPosition;
 
   @Override
   public ContinuousEnumerationResult planSplits(IcebergEnumeratorPosition lastPosition) {
     ContinuousEnumerationResult result = new ContinuousEnumerationResult(
-        Lists.newArrayList(splits), lastPosition);
+        Lists.newArrayList(splits), lastPosition, latestPosition);
     return result;
   }
 
   /**
    * Add new splits to the collection
    */
-  public void addSplits(List<IcebergSourceSplit> newSplits) {
+  public void addSplits(List<IcebergSourceSplit> newSplits, IcebergEnumeratorPosition newPosition) {
     splits.addAll(newSplits);
+    this.latestPosition = newPosition;
   }
 
   /**

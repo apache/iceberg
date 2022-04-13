@@ -53,7 +53,7 @@ public class ScanContext implements Serializable {
 
   private static final ConfigOption<StreamingStartingStrategy> STARTING_STRATEGY =
       ConfigOptions.key("starting-strategy").enumType(StreamingStartingStrategy.class)
-          .defaultValue(StreamingStartingStrategy.LATEST_SNAPSHOT);
+          .defaultValue(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT);
 
   private static final ConfigOption<Long> START_SNAPSHOT_TIMESTAMP =
       ConfigOptions.key("start-snapshot-timestamp").longType().defaultValue(null);
@@ -134,13 +134,13 @@ public class ScanContext implements Serializable {
 
   private void validate() {
     if (isStreaming) {
-      if (startingStrategy == StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_ID) {
+      if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID) {
         Preconditions.checkArgument(startSnapshotId != null,
             "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
         Preconditions.checkArgument(startSnapshotTimestamp == null,
             "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
-      if (startingStrategy == StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP) {
+      if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP) {
         Preconditions.checkArgument(startSnapshotTimestamp != null,
             "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
         Preconditions.checkArgument(startSnapshotId == null,
@@ -225,7 +225,7 @@ public class ScanContext implements Serializable {
     return planParallelism;
   }
 
-  public ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
+  public ScanContext copyWithAppendsBetween(Long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(null)

@@ -95,7 +95,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   public void testForLatestSnapshotStrategy() throws IOException {
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.LATEST_SNAPSHOT)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
         .build();
 
     // emtpy table
@@ -111,7 +111,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   public void testForEarliestSnapshotStrategy() throws IOException {
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.EARLIEST_SNAPSHOT)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
         .build();
 
     // emtpy table
@@ -127,14 +127,14 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   public void testForSpecificSnapshotIdStrategy() throws IOException {
     ScanContext scanContextInvalidSnapshotId = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_ID)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
         .startSnapshotId(1L)
         .build();
 
     // emtpy table
     AssertHelpers.assertThrows("Should detect invalid starting snapshot id",
         IllegalArgumentException.class,
-        "Snapshot id not found in history: 1",
+        "Start snapshot id not found in history: 1",
         () -> ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContextInvalidSnapshotId));
 
     // assert the 3 snapshots
@@ -142,7 +142,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_ID)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
         .startSnapshotId(snapshot2.snapshotId())
         .build();
 
@@ -154,7 +154,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   public void testForSpecificSnapshotTimestampStrategySnapshot2() throws IOException {
     ScanContext scanContextInvalidSnapshotTimestamp = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
         .startSnapshotTimestamp(1L)
         .build();
 
@@ -169,7 +169,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
     ScanContext scanContext = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
         .startSnapshotTimestamp(snapshot2.timestampMillis())
         .build();
 
@@ -184,7 +184,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
     ScanContext config = ScanContext.builder()
         .streaming(true)
-        .startingStrategy(StreamingStartingStrategy.SPECIFIC_START_SNAPSHOT_TIMESTAMP)
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
         .startSnapshotTimestamp(snapshot2.timestampMillis() - 1L)
         .build();
 

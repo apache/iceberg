@@ -20,9 +20,11 @@
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Snapshot;
@@ -34,6 +36,8 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.joda.time.format.DateTimeFormat;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -57,60 +61,28 @@ public class TestContinuousSplitPlannerImpl {
   public TestName testName = new TestName();
 
   private GenericAppenderHelper dataAppender;
+  private DataFile dataFile1;
+  private Snapshot snapshot1;
+  private DataFile dataFile2;
+  private Snapshot snapshot2;
 
   @Before
   public void before() throws IOException {
     dataAppender = new GenericAppenderHelper(tableResource.table(), fileFormat, TEMPORARY_FOLDER);
   }
 
-  @Test
-  public void testStartWithEmptyTable() throws Exception {
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
-        .build();
-    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
-        tableResource.table(), scanContext, testName.getMethodName());
+  private void appendTwoSnapshots() throws IOException {
+    // snapshot1
+    List<Record> batch1 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
+    dataFile1 = dataAppender.writeFile(null, batch1);
+    dataAppender.appendToTable(dataFile1);
+    snapshot1 = tableResource.table().currentSnapshot();
 
-    // empty table
-    ContinuousEnumerationResult emptyTableResult = splitPlanner.planSplits(null);
-    Assert.assertNull(emptyTableResult.position());
-    Assert.assertTrue(emptyTableResult.splits().isEmpty());
-
-    // next 3 snapshots
-    IcebergEnumeratorPosition lastPosition = emptyTableResult.position();
-    for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
-    }
-  }
-
-  @Test
-  public void testStartWithSomeData() throws Exception {
-    List<Record> batch = RandomGenericData.generate(TestFixtures.SCHEMA, 2, randomSeed.incrementAndGet());
-    DataFile dataFile = dataAppender.writeFile(null, batch);
-    dataAppender.appendToTable(dataFile);
-    Snapshot snapshot = tableResource.table().currentSnapshot();
-
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
-        .build();
-    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
-        tableResource.table(), scanContext, testName.getMethodName());
-
-    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
-    Assert.assertEquals(snapshot.snapshotId(), initialResult.position().endSnapshotId());
-    Assert.assertEquals(1, initialResult.splits().size());
-    IcebergSourceSplit split1 = initialResult.splits().iterator().next();
-    Assert.assertEquals(1, split1.task().files().size());
-    Assert.assertEquals(dataFile.path().toString(), split1.task().files().iterator().next().file().path().toString());
-
-    IcebergEnumeratorPosition lastPosition = initialResult.position();
-    for (int i = 0; i < 3; ++i) {
-      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
-    }
+    // snapshot2
+    List<Record> batch2 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L);
+    dataFile2 = dataAppender.writeFile(null, batch2);
+    dataAppender.appendToTable(dataFile2);
+    snapshot2 = tableResource.table().currentSnapshot();
   }
 
   /**
@@ -124,11 +96,359 @@ public class TestContinuousSplitPlannerImpl {
     Snapshot snapshot = tableResource.table().currentSnapshot();
 
     ContinuousEnumerationResult result = splitPlanner.planSplits(lastPosition);
-    Assert.assertEquals(snapshot.snapshotId(), result.position().endSnapshotId());
+    Assert.assertEquals(lastPosition.snapshotId(), result.fromPosition().snapshotId());
+    Assert.assertEquals(lastPosition.snapshotTimestampMs(), result.fromPosition().snapshotTimestampMs());
+    Assert.assertEquals(snapshot.snapshotId(), result.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot.timestampMillis(), result.toPosition().snapshotTimestampMs().longValue());
     Assert.assertEquals(1, result.splits().size());
     IcebergSourceSplit split = result.splits().iterator().next();
     Assert.assertEquals(1, split.task().files().size());
     Assert.assertEquals(dataFile.path().toString(), split.task().files().iterator().next().file().path().toString());
-    return result.position();
+    return result.toPosition();
+  }
+
+  @Test
+  public void testTableScanThenIncrementalWithEmptyTable() throws Exception {
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
+    Assert.assertTrue(emptyTableInitialDiscoveryResult.splits().isEmpty());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.fromPosition());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.toPosition().snapshotId());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.toPosition().snapshotTimestampMs());
+
+    ContinuousEnumerationResult emptyTableSecondDiscoveryResult = splitPlanner
+        .planSplits(emptyTableInitialDiscoveryResult.toPosition());
+    Assert.assertTrue(emptyTableSecondDiscoveryResult.splits().isEmpty());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.fromPosition().snapshotId());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.fromPosition().snapshotTimestampMs());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotId());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotTimestampMs());
+
+    // next 3 snapshots
+    IcebergEnumeratorPosition lastPosition = emptyTableSecondDiscoveryResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testTableScanThenIncrementalWithNonEmptyTable() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertNull(initialResult.fromPosition());
+    Assert.assertEquals(snapshot2.snapshotId(), initialResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot2.timestampMillis(), initialResult.toPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(1, initialResult.splits().size());
+    IcebergSourceSplit split = initialResult.splits().iterator().next();
+    Assert.assertEquals(2, split.task().files().size());
+    Set<String> discoveredFiles = split.task().files().stream()
+        .map(fileScanTask -> fileScanTask.file().path().toString())
+        .collect(Collectors.toSet());
+    Set<String> expectedFiles = ImmutableSet.of(dataFile1.path().toString(), dataFile2.path().toString());
+    Assert.assertEquals(expectedFiles, discoveredFiles);
+
+    IcebergEnumeratorPosition lastPosition = initialResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testIncrementalFromLatestSnapshotWithEmptyTable() throws Exception {
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
+    Assert.assertTrue(emptyTableInitialDiscoveryResult.splits().isEmpty());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.fromPosition());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.toPosition().snapshotId());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.toPosition().snapshotTimestampMs());
+
+    ContinuousEnumerationResult emptyTableSecondDiscoveryResult = splitPlanner
+        .planSplits(emptyTableInitialDiscoveryResult.toPosition());
+    Assert.assertTrue(emptyTableSecondDiscoveryResult.splits().isEmpty());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.fromPosition().snapshotId());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.fromPosition().snapshotTimestampMs());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotId());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotTimestampMs());
+
+    // next 3 snapshots
+    IcebergEnumeratorPosition lastPosition = emptyTableSecondDiscoveryResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testIncrementalFromLatestSnapshotWithNonEmptyTable() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertNull(initialResult.fromPosition());
+    // For inclusive behavior, the initial result should point to snapshot1
+    // Then the next incremental scan shall discover files from latest snapshot2 (inclusive)
+    Assert.assertEquals(snapshot1.snapshotId(), initialResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot1.timestampMillis(), initialResult.toPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(0, initialResult.splits().size());
+
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    Assert.assertEquals(snapshot1.snapshotId(), secondResult.fromPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot1.timestampMillis(), secondResult.fromPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(snapshot2.snapshotId(), secondResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot2.timestampMillis(), secondResult.toPosition().snapshotTimestampMs().longValue());
+    IcebergSourceSplit split = secondResult.splits().iterator().next();
+    Assert.assertEquals(1, split.task().files().size());
+    Set<String> discoveredFiles = split.task().files().stream()
+        .map(fileScanTask -> fileScanTask.file().path().toString())
+        .collect(Collectors.toSet());
+    // should discover dataFile2 appended in snapshot2
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.path().toString());
+    Assert.assertEquals(expectedFiles, discoveredFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testIncrementalFromEarliestSnapshotWithEmptyTable() throws Exception {
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
+    Assert.assertTrue(emptyTableInitialDiscoveryResult.splits().isEmpty());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.fromPosition());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.toPosition().snapshotId());
+    Assert.assertNull(emptyTableInitialDiscoveryResult.toPosition().snapshotTimestampMs());
+
+    ContinuousEnumerationResult emptyTableSecondDiscoveryResult = splitPlanner
+        .planSplits(emptyTableInitialDiscoveryResult.toPosition());
+    Assert.assertTrue(emptyTableSecondDiscoveryResult.splits().isEmpty());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.fromPosition().snapshotId());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.fromPosition().snapshotTimestampMs());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotId());
+    Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotTimestampMs());
+
+    // next 3 snapshots
+    IcebergEnumeratorPosition lastPosition = emptyTableSecondDiscoveryResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testIncrementalFromEarliestSnapshotWithNonEmptyTable() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertNull(initialResult.fromPosition());
+    // For inclusive behavior, the initial result should point to snapshot1's parent,
+    // which leads to null snapshotId and snapshotTimestampMs.
+    Assert.assertNull(initialResult.toPosition().snapshotId());
+    Assert.assertNull(initialResult.toPosition().snapshotTimestampMs());
+    Assert.assertEquals(0, initialResult.splits().size());
+
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    Assert.assertNull(secondResult.fromPosition().snapshotId());
+    Assert.assertNull(secondResult.fromPosition().snapshotTimestampMs());
+    Assert.assertEquals(snapshot2.snapshotId(), secondResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot2.timestampMillis(), secondResult.toPosition().snapshotTimestampMs().longValue());
+    IcebergSourceSplit split = secondResult.splits().iterator().next();
+    Assert.assertEquals(2, split.task().files().size());
+    Set<String> discoveredFiles = split.task().files().stream()
+        .map(fileScanTask -> fileScanTask.file().path().toString())
+        .collect(Collectors.toSet());
+    // should discover files appended in both snapshot1 and snapshot2
+    Set<String> expectedFiles = ImmutableSet.of(dataFile1.path().toString(), dataFile2.path().toString());
+    Assert.assertEquals(expectedFiles, discoveredFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotIdWithEmptyTable() throws Exception {
+    ScanContext scanContextWithInvalidSnapshotId = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
+        .startSnapshotId(1L)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContextWithInvalidSnapshotId, testName.getMethodName());
+
+    AssertHelpers.assertThrows("Should detect invalid starting snapshot id",
+        IllegalArgumentException.class,
+        "Start snapshot id not found in history: 1",
+        () -> splitPlanner.planSplits(null));
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotIdWithInvalidIds() throws Exception {
+    appendTwoSnapshots();
+
+    // find an invalid snapshotId
+    long invalidSnapshotId = 0L;
+    while (invalidSnapshotId == snapshot1.snapshotId() || invalidSnapshotId == snapshot2.snapshotId()) {
+      invalidSnapshotId++;
+    }
+
+    ScanContext scanContextWithInvalidSnapshotId = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
+        .startSnapshotId(invalidSnapshotId)
+        .build();
+
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContextWithInvalidSnapshotId, testName.getMethodName());
+
+    AssertHelpers.assertThrows("Should detect invalid starting snapshot id",
+        IllegalArgumentException.class,
+        "Start snapshot id not found in history: " + invalidSnapshotId,
+        () -> splitPlanner.planSplits(null));
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotId() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
+        .startSnapshotId(snapshot2.snapshotId())
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertNull(initialResult.fromPosition());
+    // For inclusive behavior of snapshot2, the initial result should point to snapshot1 (as snapshot2's parent)
+    Assert.assertEquals(snapshot1.snapshotId(), initialResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot1.timestampMillis(), initialResult.toPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(0, initialResult.splits().size());
+
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    Assert.assertEquals(snapshot1.snapshotId(), secondResult.fromPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot1.timestampMillis(), secondResult.fromPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(snapshot2.snapshotId(), secondResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot2.timestampMillis(), secondResult.toPosition().snapshotTimestampMs().longValue());
+    IcebergSourceSplit split = secondResult.splits().iterator().next();
+    Assert.assertEquals(1, split.task().files().size());
+    Set<String> discoveredFiles = split.task().files().stream()
+        .map(fileScanTask -> fileScanTask.file().path().toString())
+        .collect(Collectors.toSet());
+    // should  discover dataFile2 appended in snapshot2
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.path().toString());
+    Assert.assertEquals(expectedFiles, discoveredFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotTimestampWithEmptyTable() throws Exception {
+    ScanContext scanContextWithInvalidSnapshotId = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+        .startSnapshotTimestamp(1L)
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContextWithInvalidSnapshotId, testName.getMethodName());
+
+    AssertHelpers.assertThrows("Should detect invalid starting snapshot timestamp",
+        IllegalArgumentException.class,
+        "Cannot find a snapshot older than 1970-01-01 00:00:00.001",
+        () -> splitPlanner.planSplits(null));
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotTimestampWithInvalidIds() throws Exception {
+    appendTwoSnapshots();
+
+    long invalidSnapshotTimestampMs = snapshot1.timestampMillis() - 1000L;
+    String invalidSnapshotTimestampMsStr = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
+        .withZoneUTC()
+        .print(invalidSnapshotTimestampMs);
+
+    ScanContext scanContextWithInvalidSnapshotId = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+        .startSnapshotTimestamp(invalidSnapshotTimestampMs)
+        .build();
+
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContextWithInvalidSnapshotId, testName.getMethodName());
+
+    AssertHelpers.assertThrows("Should detect invalid starting snapshot timestamp",
+        IllegalArgumentException.class,
+        "Cannot find a snapshot older than " + invalidSnapshotTimestampMsStr,
+        () -> splitPlanner.planSplits(null));
+  }
+
+  @Test
+  public void testIncrementalFromSnapshotTimestamp() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext = ScanContext.builder()
+        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+        .startSnapshotTimestamp(snapshot2.timestampMillis())
+        .build();
+    ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
+        tableResource.table(), scanContext, testName.getMethodName());
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    Assert.assertNull(initialResult.fromPosition());
+    // For inclusive behavior, the initial result should point to snapshot1 (as snapshot2's parent).
+    Assert.assertEquals(snapshot1.snapshotId(), initialResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot1.timestampMillis(), initialResult.toPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(0, initialResult.splits().size());
+
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    Assert.assertEquals(snapshot1.snapshotId(), secondResult.fromPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot1.timestampMillis(), secondResult.fromPosition().snapshotTimestampMs().longValue());
+    Assert.assertEquals(snapshot2.snapshotId(), secondResult.toPosition().snapshotId().longValue());
+    Assert.assertEquals(snapshot2.timestampMillis(), secondResult.toPosition().snapshotTimestampMs().longValue());
+    IcebergSourceSplit split = secondResult.splits().iterator().next();
+    Assert.assertEquals(1, split.task().files().size());
+    Set<String> discoveredFiles = split.task().files().stream()
+        .map(fileScanTask -> fileScanTask.file().path().toString())
+        .collect(Collectors.toSet());
+    // should discover dataFile2 appended in snapshot2
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.path().toString());
+    Assert.assertEquals(expectedFiles, discoveredFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition);
+    }
   }
 }

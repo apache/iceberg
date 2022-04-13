@@ -65,25 +65,27 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    * Discover incremental changes between @{code lastPosition} and current table snapshot
    */
   private ContinuousEnumerationResult discoverIncrementalSplits(IcebergEnumeratorPosition lastPosition) {
-    // incremental discovery mode
     Snapshot currentSnapshot = table.currentSnapshot();
-    if (currentSnapshot.snapshotId() == lastPosition.endSnapshotId()) {
-      LOG.info("Current table snapshot is already enumerated: {}", currentSnapshot.snapshotId());
-      return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition);
+    if (currentSnapshot == null) {
+      // empty table
+      IcebergEnumeratorPosition newPosition = new IcebergEnumeratorPosition(null, null);
+      LOG.info("Skip incremental scan because table is empty");
+      return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, newPosition);
     } else {
-      ScanContext incrementalScan = scanContext
-          .copyWithAppendsBetween(lastPosition.endSnapshotId(), currentSnapshot.snapshotId());
-      LOG.info("Incremental scan: startSnapshotId = {}, endSnapshotId = {}",
-          incrementalScan.startSnapshotId(), incrementalScan.endSnapshotId());
-      List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, incrementalScan, workerPool);
-      IcebergEnumeratorPosition position = IcebergEnumeratorPosition.builder()
-          .startSnapshotId(lastPosition.endSnapshotId())
-          .startSnapshotTimestampMs(lastPosition.endSnapshotTimestampMs())
-          .endSnapshotId(currentSnapshot.snapshotId())
-          .endSnapshotTimestampMs(currentSnapshot.timestampMillis())
-          .build();
-      LOG.info("Discovered {} splits from incremental scan: {}", splits.size(), position);
-      return new ContinuousEnumerationResult(splits, position);
+      if (lastPosition.snapshotId() != null && currentSnapshot.snapshotId() == lastPosition.snapshotId()) {
+        LOG.info("Current table snapshot is already enumerated: {}", currentSnapshot.snapshotId());
+        return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, lastPosition);
+      } else {
+        IcebergEnumeratorPosition newPosition = new IcebergEnumeratorPosition(
+            currentSnapshot.snapshotId(), currentSnapshot.timestampMillis());
+        ScanContext incrementalScan = scanContext
+            .copyWithAppendsBetween(lastPosition.snapshotId(), currentSnapshot.snapshotId());
+        List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, incrementalScan, workerPool);
+        LOG.info("Discovered {} splits from incremental scan: " +
+                "from snapshot (exclusive) is {}, to snapshot (inclusive) is {}",
+            splits.size(), lastPosition, newPosition);
+        return new ContinuousEnumerationResult(splits, lastPosition, newPosition);
+      }
     }
   }
 
@@ -93,7 +95,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    * <li>{@link ContinuousEnumerationResult#splits()} should contain initial splits
    * discovered from table scan for {@link StreamingStartingStrategy#TABLE_SCAN_THEN_INCREMENTAL}.
    * For all other strategies, splits collection should be empty.
-   * <li>{@link ContinuousEnumerationResult#position()} points to the starting position
+   * <li>{@link ContinuousEnumerationResult#toPosition()} points to the starting position
    * for the next incremental split discovery with exclusive behavior. Meaning files committed
    * by the snapshot from the position in {@code ContinuousEnumerationResult} won't be included
    * in the next incremental scan.
@@ -101,28 +103,37 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   private ContinuousEnumerationResult discoverInitialSplits() {
     Optional<Snapshot> startSnapshotOptional = getStartSnapshot(table, scanContext);
     if (!startSnapshotOptional.isPresent()) {
-      // set IcebergEnumeratorPosition to null in this case
-      return new ContinuousEnumerationResult(Collections.emptyList(), null);
+      return new ContinuousEnumerationResult(Collections.emptyList(), null,
+          new IcebergEnumeratorPosition(null, null));
     }
+
     Snapshot startSnapshot = startSnapshotOptional.get();
     LOG.info("Get starting snapshot id {} based on strategy {}",
         startSnapshot.snapshotId(), scanContext.startingStrategy());
     List<IcebergSourceSplit> splits;
-    if (scanContext.startingStrategy() ==
-        StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
+    IcebergEnumeratorPosition toPosition;
+    if (scanContext.startingStrategy() == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
       // do a full table scan first
       splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
       LOG.info("Discovered {} splits from initial full table scan with snapshot Id {}",
           splits.size(), startSnapshot.snapshotId());
+      toPosition = new IcebergEnumeratorPosition(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
     } else {
       splits = Collections.emptyList();
+      // Use parentId to achieve the inclusive behavior.
+      // Note that it is fine if parentId is null.
+      Long parentSnapshotId = startSnapshot.parentId();
+      Long parentSnapshotTimestampMs = null;
+      if (parentSnapshotId != null) {
+        parentSnapshotTimestampMs = table.snapshot(parentSnapshotId).timestampMillis();
+      }
+
+      toPosition = new IcebergEnumeratorPosition(parentSnapshotId, parentSnapshotTimestampMs);
+      LOG.info("Start incremental scan with start snapshot (inclusive): id = {}, timestamp = {}",
+          startSnapshot.snapshotId(), startSnapshot.timestampMillis());
     }
 
-    IcebergEnumeratorPosition position = IcebergEnumeratorPosition.builder()
-        .endSnapshotId(startSnapshot.snapshotId())
-        .endSnapshotTimestampMs(startSnapshot.timestampMillis())
-        .build();
-    return new ContinuousEnumerationResult(splits, position);
+    return new ContinuousEnumerationResult(splits, null, toPosition);
   }
 
   /**
@@ -132,18 +143,19 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   static Optional<Snapshot> getStartSnapshot(Table table, ScanContext scanContext) {
     switch (scanContext.startingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
-      case LATEST_SNAPSHOT:
+      case INCREMENTAL_FROM_LATEST_SNAPSHOT:
         return Optional.ofNullable(table.currentSnapshot());
-      case EARLIEST_SNAPSHOT:
+      case INCREMENTAL_FROM_EARLIEST_SNAPSHOT:
         return Optional.ofNullable(SnapshotUtil.oldestAncestor(table));
-      case SPECIFIC_START_SNAPSHOT_ID:
+      case INCREMENTAL_FROM_SNAPSHOT_ID:
         Snapshot matchedSnapshotById = table.snapshot(scanContext.startSnapshotId());
         if (matchedSnapshotById != null) {
           return Optional.of(matchedSnapshotById);
         } else {
-          throw new IllegalArgumentException("Snapshot id not found in history: " + scanContext.startSnapshotId());
+          throw new IllegalArgumentException(
+              "Start snapshot id not found in history: " + scanContext.startSnapshotId());
         }
-      case SPECIFIC_START_SNAPSHOT_TIMESTAMP:
+      case INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP:
         // snapshotIdAsOfTime returns valid snapshot id only.
         // it throws IllegalArgumentException when a matching snapshot not found.
         long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, scanContext.startSnapshotTimestamp());

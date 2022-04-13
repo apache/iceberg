@@ -19,100 +19,44 @@
 
 package org.apache.iceberg.flink.source.enumerator;
 
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class IcebergEnumeratorPosition {
-  private final Long startSnapshotId;
-  private final Long startSnapshotTimestampMs;
-  private final long endSnapshotId;
-  private final long endSnapshotTimestampMs;
+  private final Long snapshotId;
+  private final Long snapshotTimestampMs;
 
-  private IcebergEnumeratorPosition(Builder builder) {
-    this.startSnapshotId = builder.startSnapshotId;
-    this.startSnapshotTimestampMs = builder.startSnapshotTimestampMs;
-    this.endSnapshotId = builder.endSnapshotId;
-    this.endSnapshotTimestampMs = builder.endSnapshotTimestampMs;
+  IcebergEnumeratorPosition(Long snapshotId, Long snapshotTimestampMs) {
+    // either both are null or both are not null
+    Preconditions.checkArgument((snapshotId == null && snapshotTimestampMs == null) ||
+            (snapshotId != null && snapshotTimestampMs != null),
+        "snapshot id and timestamp should be either both null or both not null");
+    this.snapshotId = snapshotId;
+    this.snapshotTimestampMs = snapshotTimestampMs;
   }
 
-  public Long startSnapshotId() {
-    return startSnapshotId;
+  public Long snapshotId() {
+    return snapshotId;
   }
 
-  public Long startSnapshotTimestampMs() {
-    return startSnapshotTimestampMs;
-  }
-
-  public long endSnapshotId() {
-    return endSnapshotId;
-  }
-
-  public long endSnapshotTimestampMs() {
-    return endSnapshotTimestampMs;
-  }
-
-  public static Builder builder() {
-    return new Builder();
-  }
-
-  public static class Builder {
-    private Long startSnapshotId;
-    private Long startSnapshotTimestampMs;
-    private Long endSnapshotId;
-    private Long endSnapshotTimestampMs;
-
-    private Builder() {
-    }
-
-    public Builder startSnapshotId(Long value) {
-      this.startSnapshotId = value;
-      return this;
-    }
-
-    public Builder startSnapshotTimestampMs(Long value) {
-      this.startSnapshotTimestampMs = value;
-      return this;
-    }
-
-    public Builder endSnapshotId(long value) {
-      this.endSnapshotId = value;
-      return this;
-    }
-
-    public Builder endSnapshotTimestampMs(long value) {
-      this.endSnapshotTimestampMs = value;
-      return this;
-    }
-
-    public IcebergEnumeratorPosition build() {
-      checkRequired();
-      return new IcebergEnumeratorPosition(this);
-    }
-
-    private void checkRequired() {
-      Preconditions.checkNotNull(endSnapshotId, "Must set endSnapshotId");
-      Preconditions.checkNotNull(endSnapshotTimestampMs, "Must set endSnapshotTimestampMs");
-    }
+  public Long snapshotTimestampMs() {
+    return snapshotTimestampMs;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("startSnapshotId", startSnapshotId)
-        .add("startSnapshotTimestampMs", startSnapshotTimestampMs)
-        .add("endSnapshotId", endSnapshotId)
-        .add("endSnapshotTimestampMs", endSnapshotTimestampMs)
+        .add("snapshotId", snapshotId)
+        .add("snapshotTimestampMs", snapshotTimestampMs)
         .toString();
   }
 
   @Override
   public int hashCode() {
     return Objects.hashCode(
-        startSnapshotId,
-        startSnapshotTimestampMs,
-        endSnapshotId,
-        endSnapshotTimestampMs);
+        snapshotId,
+        snapshotTimestampMs);
   }
 
   @Override
@@ -124,9 +68,7 @@ class IcebergEnumeratorPosition {
       return false;
     }
     IcebergEnumeratorPosition other = (IcebergEnumeratorPosition) o;
-    return Objects.equal(startSnapshotId, other.startSnapshotId()) &&
-        Objects.equal(startSnapshotTimestampMs, other.startSnapshotTimestampMs()) &&
-        Objects.equal(endSnapshotId, other.endSnapshotId()) &&
-        Objects.equal(endSnapshotTimestampMs, other.endSnapshotTimestampMs());
+    return Objects.equal(snapshotId, other.snapshotId()) &&
+        Objects.equal(snapshotTimestampMs, other.snapshotTimestampMs());
   }
 }
