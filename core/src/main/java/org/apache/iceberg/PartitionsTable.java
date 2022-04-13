@@ -19,9 +19,10 @@
 
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -149,14 +150,15 @@ public class PartitionsTable extends BaseMetadataTable {
     Snapshot snapshot = table.snapshot(scan.snapshot().snapshotId());
     boolean caseSensitive = scan.isCaseSensitive();
 
-    // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-    Expression partitionFilter = Projections
-        .inclusive(transformSpec(scan.schema(), table.spec()), caseSensitive)
-        .project(scan.filter());
+    LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
+      PartitionSpec spec = table.specs().get(specId);
+      PartitionSpec transformedSpec = transformSpec(scan.schema(), spec);
+      return ManifestEvaluator.forRowFilter(scan.filter(), transformedSpec, caseSensitive);
+    });
 
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
         .caseSensitive(caseSensitive)
-        .filterPartitions(partitionFilter)
+        .filterManifests(m -> evalCache.get(m.partitionSpecId()).eval(m))
         .select(scan.colStats() ? DataTableScan.SCAN_WITH_STATS_COLUMNS : DataTableScan.SCAN_COLUMNS)
         .specsById(scan.table().specs())
         .ignoreDeleted();
