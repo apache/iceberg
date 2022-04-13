@@ -612,7 +612,7 @@ public class TableMetadata implements Serializable {
 
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)
-        .removeBranch(SnapshotRef.MAIN_BRANCH)
+        .removeRef(SnapshotRef.MAIN_BRANCH)
         .setCurrentSchema(freshSchema, newLastColumnId.get())
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
@@ -1019,6 +1019,55 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder setRef(String name, SnapshotRef ref) {
+      SnapshotRef existingRef = refs.get(name);
+      if (existingRef != null && existingRef.equals(ref)) {
+        return this;
+      }
+
+      long snapshotId = ref.snapshotId();
+      Snapshot snapshot = snapshotsById.get(snapshotId);
+      ValidationException.check(snapshot != null, "Cannot set %s to unknown snapshot: %s", name, snapshotId);
+      if (isAddedSnapshot(snapshotId)) {
+        this.lastUpdatedMillis = snapshot.timestampMillis();
+      }
+
+      if (SnapshotRef.MAIN_BRANCH.equals(name)) {
+        this.currentSnapshotId = ref.snapshotId();
+        if (lastUpdatedMillis == null) {
+          this.lastUpdatedMillis = System.currentTimeMillis();
+        }
+
+        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, ref.snapshotId()));
+      }
+
+      refs.put(name, ref);
+      MetadataUpdate.SetSnapshotRef refUpdate = new MetadataUpdate.SetSnapshotRef(
+          name, ref.snapshotId(), ref.type(), ref.minSnapshotsToKeep(), ref.maxSnapshotAgeMs(), ref.maxRefAgeMs());
+      changes.add(refUpdate);
+      return this;
+    }
+
+    public Builder removeRef(String name) {
+      if (SnapshotRef.MAIN_BRANCH.equals(name)) {
+        this.currentSnapshotId = -1;
+        snapshotLog.clear();
+      }
+
+      SnapshotRef ref = refs.remove(name);
+      if (ref != null) {
+        changes.add(new MetadataUpdate.RemoveSnapshotRef(name));
+      }
+
+      return this;
+    }
+
+    /**
+     * Removes the given branch
+     *
+     * @deprecated will be removed in 0.15.0. Use removeRef instead.
+     */
+    @Deprecated
     public Builder removeBranch(String branch) {
       if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
         this.currentSnapshotId = -1;
@@ -1061,7 +1110,7 @@ public class TableMetadata implements Serializable {
         }
       }
 
-      danglingRefs.forEach(this::removeBranch);
+      danglingRefs.forEach(this::removeRef);
 
       return this;
     }
@@ -1296,15 +1345,6 @@ public class TableMetadata implements Serializable {
           "Last sequence number %s is less than existing snapshot sequence number %s",
           lastSequenceNumber, snapshot.sequenceNumber());
 
-      // if the snapshot was added in this change set, use its timestamp
-      this.lastUpdatedMillis = isAddedSnapshot(snapshot.snapshotId()) ?
-          snapshot.timestampMillis() : System.currentTimeMillis();
-
-      if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
-        this.currentSnapshotId = replacementSnapshotId;
-        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, replacementSnapshotId));
-      }
-
       SnapshotRef newRef;
       if (ref != null) {
         newRef = SnapshotRef.builderFrom(ref, replacementSnapshotId).build();
@@ -1312,8 +1352,7 @@ public class TableMetadata implements Serializable {
         newRef = SnapshotRef.branchBuilder(replacementSnapshotId).build();
       }
 
-      refs.put(branch, newRef);
-      changes.add(new MetadataUpdate.SetSnapshotRef(branch, replacementSnapshotId));
+      setRef(branch, newRef);
     }
 
     private static List<MetadataLogEntry> addPreviousFile(

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -227,31 +228,60 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      // TODO: this should be generalized when tagging is supported
-      metadataBuilder.removeBranch(name);
+      metadataBuilder.removeRef(name);
     }
   }
 
   class SetSnapshotRef implements MetadataUpdate {
     private final String name;
-    private final long snapshotId;
+    private final Long snapshotId;
+    private final SnapshotRefType type;
+    private Integer minSnapshotsToKeep;
+    private Long maxSnapshotAgeMs;
+    private Long maxRefAgeMs;
 
-    public SetSnapshotRef(String name, long snapshotId) {
+    public SetSnapshotRef(String name, Long snapshotId, SnapshotRefType type, Integer minSnapshotsToKeep,
+                          Long maxSnapshotAgeMs, Long maxRefAgeMs) {
       this.name = name;
       this.snapshotId = snapshotId;
+      this.type = type;
+      this.minSnapshotsToKeep = minSnapshotsToKeep;
+      this.maxSnapshotAgeMs = maxSnapshotAgeMs;
+      this.maxRefAgeMs = maxRefAgeMs;
     }
 
     public String name() {
       return name;
     }
 
+    public String type() {
+      return type.name().toLowerCase(Locale.ROOT);
+    }
+
     public long snapshotId() {
       return snapshotId;
     }
 
+    public Integer minSnapshotsToKeep() {
+      return minSnapshotsToKeep;
+    }
+
+    public Long maxSnapshotAgeMs() {
+      return maxSnapshotAgeMs;
+    }
+
+    public Long maxRefAgeMs() {
+      return maxRefAgeMs;
+    }
+
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.setBranchSnapshot(snapshotId, name);
+      SnapshotRef ref = SnapshotRef.builderFor(snapshotId, type)
+          .minSnapshotsToKeep(minSnapshotsToKeep)
+          .maxSnapshotAgeMs(maxSnapshotAgeMs)
+          .maxRefAgeMs(maxRefAgeMs)
+          .build();
+      metadataBuilder.setRef(name, ref);
     }
   }
 
