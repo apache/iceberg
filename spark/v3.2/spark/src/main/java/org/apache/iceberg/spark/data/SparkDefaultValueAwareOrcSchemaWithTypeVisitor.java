@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.data;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -64,7 +65,7 @@ public class SparkDefaultValueAwareOrcSchemaWithTypeVisitor<T> extends OrcSchema
       Types.NestedField iField = iFields.get(i);
       TypeDescription field = j < fields.size() ? fields.get(j) : null;
       if (field == null || (iField.fieldId() != ORCSchemaUtil.fieldId(field))) {
-        if (!idToConstant.containsKey(iField.fieldId())) {
+        if (!MetadataColumns.isMetadataColumn(iField.name()) && !idToConstant.containsKey(iField.fieldId())) {
           idToConstant.put(
               iField.fieldId(),
               BaseDataReader.convertConstant(iField.type(), iField.initialDefaultValue()));
