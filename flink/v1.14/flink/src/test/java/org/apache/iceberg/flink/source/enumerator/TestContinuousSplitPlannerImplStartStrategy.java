@@ -61,15 +61,14 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   }
 
   private void appendThreeSnapshots() throws IOException {
-    // snapshot1
     List<Record> batch1 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     dataAppender.appendToTable(batch1);
     snapshot1 = tableResource.table().currentSnapshot();
-    // snapshot2
+
     List<Record> batch2 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L);
     dataAppender.appendToTable(batch2);
     snapshot2 = tableResource.table().currentSnapshot();
-    // snapshot3
+
     List<Record> batch3 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 2L);
     dataAppender.appendToTable(batch3);
     snapshot3 = tableResource.table().currentSnapshot();
@@ -85,7 +84,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     // emtpy table
     Assert.assertFalse(ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).isPresent());
 
-    // assert the 3 snapshots
     appendThreeSnapshots();
     Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
     Assert.assertEquals(snapshot3.snapshotId(), startSnapshot.snapshotId());
@@ -101,7 +99,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     // emtpy table
     Assert.assertFalse(ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).isPresent());
 
-    // assert the 3 snapshots
     appendThreeSnapshots();
     Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
     Assert.assertEquals(snapshot3.snapshotId(), startSnapshot.snapshotId());
@@ -117,7 +114,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     // emtpy table
     Assert.assertFalse(ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).isPresent());
 
-    // assert the 3 snapshots
     appendThreeSnapshots();
     Snapshot startSnapshot = ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContext).get();
     Assert.assertEquals(snapshot1.snapshotId(), startSnapshot.snapshotId());
@@ -137,7 +133,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
         "Start snapshot id not found in history: 1",
         () -> ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContextInvalidSnapshotId));
 
-    // assert the 3 snapshots
     appendThreeSnapshots();
 
     ScanContext scanContext = ScanContext.builder()
@@ -164,7 +159,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
         "Cannot find a snapshot older than 1970-01-01 00:00:00.001",
         () -> ContinuousSplitPlannerImpl.getStartSnapshot(tableResource.table(), scanContextInvalidSnapshotTimestamp));
 
-    // assert the 3 snapshots
     appendThreeSnapshots();
 
     ScanContext scanContext = ScanContext.builder()
@@ -179,7 +173,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
   @Test
   public void testForSpecificSnapshotTimestampStrategySnapshot2Minus1() throws IOException {
-    // assert the 3 snapshots
     appendThreeSnapshots();
 
     ScanContext config = ScanContext.builder()
