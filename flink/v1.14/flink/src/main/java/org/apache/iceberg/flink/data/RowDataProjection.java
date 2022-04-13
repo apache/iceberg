@@ -47,7 +47,27 @@ public class RowDataProjection implements RowData {
    */
   public static RowDataProjection create(Schema schema, Schema projectedSchema) {
     return RowDataProjection.create(
-        FlinkSchemaUtil.convert(schema), schema.asStruct(), projectedSchema.asStruct());
+        FlinkSchemaUtil.convert(schema), schema.asStruct(), projectedSchema.asStruct(), null);
+  }
+
+  /**
+   * Creates a projecting wrapper for {@link RowData} rows.
+   *
+   * <p>This projection will not project the nested children types of repeated types like lists and
+   * maps.
+   *
+   * @param schema schema of rows wrapped by this projection
+   * @param projectedSchema result schema of the projected rows
+   * @param projectedFields mapping of nested fields
+   * @return a wrapper to project rows
+   */
+  public static RowDataProjection create(
+      Schema schema, Schema projectedSchema, int[][] projectedFields) {
+    return RowDataProjection.create(
+        FlinkSchemaUtil.convert(schema),
+        schema.asStruct(),
+        projectedSchema.asStruct(),
+        projectedFields);
   }
 
   /**
@@ -63,11 +83,42 @@ public class RowDataProjection implements RowData {
    */
   public static RowDataProjection create(
       RowType rowType, Types.StructType schema, Types.StructType projectedSchema) {
-    return new RowDataProjection(rowType, schema, projectedSchema);
+    return RowDataProjection.create(rowType, schema, projectedSchema, null);
+  }
+
+  /**
+   * Creates a projecting wrapper for {@link RowData} rows.
+   *
+   * <p>This projection will not project the nested children types of repeated types like lists and
+   * maps.
+   *
+   * @param rowType flink row type of rows wrapped by this projection
+   * @param schema schema of rows wrapped by this projection
+   * @param projectedSchema result schema of the projected rows
+   * @param projectedFields mapping of nested fields
+   * @return a wrapper to project rows
+   */
+  public static RowDataProjection create(
+      RowType rowType,
+      Types.StructType schema,
+      Types.StructType projectedSchema,
+      int[][] projectedFields) {
+    return new RowDataProjection(rowType, schema, projectedSchema, projectedFields);
   }
 
   private final RowData.FieldGetter[] getters;
   private RowData rowData;
+  private int[][] projectedFields;
+  private final Map<Integer, Object> valueCache = Maps.newHashMap();
+
+  private RowDataProjection(
+      RowType rowType,
+      Types.StructType rowStruct,
+      Types.StructType projectType,
+      int[][] projectedFields) {
+    this(rowType, rowStruct, projectType);
+    this.projectedFields = projectedFields;
+  }
 
   private RowDataProjection(
       RowType rowType, Types.StructType rowStruct, Types.StructType projectType) {
@@ -152,11 +203,30 @@ public class RowDataProjection implements RowData {
 
   public RowData wrap(RowData row) {
     this.rowData = row;
+    this.valueCache.clear();
     return this;
   }
 
   private Object getValue(int pos) {
-    return getters[pos].getFieldOrNull(rowData);
+    return valueCache.computeIfAbsent(
+        pos,
+        key -> {
+          Object value = null;
+          if (projectedFields != null) {
+            int[] projectedField = projectedFields[key];
+            for (int index : projectedField) {
+              value =
+                  value instanceof RowDataProjection
+                      ? ((RowDataProjection) value)
+                          .getters[index].getFieldOrNull((RowDataProjection) value)
+                      : getters[index].getFieldOrNull(rowData);
+            }
+          } else {
+            value = getters[key].getFieldOrNull(rowData);
+          }
+
+          return value;
+        });
   }
 
   @Override
