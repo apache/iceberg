@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.source.BaseDataReader;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -131,16 +132,20 @@ public class TestSparkOrcReadDefaultValue {
     }
 
     // vectorized-read
-    // try (CloseableIterable<ColumnarBatch> reader = ORC.read(Files.localInput(orcFile))
-    //     .project(readSchema)
-    //     .createBatchedReaderFunc(readOrcSchema ->
-    //         VectorizedSparkOrcReaders.buildReader(readSchema, readOrcSchema, ImmutableMap.of()))
-    //     .build()) {
-    //   final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
-    //   final InternalRow actualFirstRow = actualRows.next();
-    //
-    //   assertEquals(readSchema, expectedFirstRow, actualFirstRow);
-    // }
+    try (CloseableIterable<ColumnarBatch> reader = ORC.read(Files.localInput(testFile))
+        .project(readSchema)
+        .createBatchedReaderFunc(readOrcSchema ->
+            VectorizedSparkOrcReaders.buildReader(readSchema, readOrcSchema, ImmutableMap.of()))
+        .build()) {
+      final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
+      final Iterator<InternalRow> expectedRows = expected.iterator();
+
+      while (expectedRows.hasNext()) {
+        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertEquals(readSchema, expectedRows.next(), actualRows.next());
+      }
+      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+    }
   }
 
   private Iterator<InternalRow> batchesToRows(Iterator<ColumnarBatch> batches) {

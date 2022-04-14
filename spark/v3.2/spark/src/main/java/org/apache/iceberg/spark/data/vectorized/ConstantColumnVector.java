@@ -21,7 +21,14 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.util.ArrayData;
+import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
@@ -36,6 +43,16 @@ class ConstantColumnVector extends ColumnVector {
     super(SparkSchemaUtil.convert(type));
     this.constant = constant;
     this.batchSize = batchSize;
+  }
+
+  ConstantColumnVector(DataType type, int batchSize, Object constant) {
+    super(type);
+    this.constant = constant;
+    this.batchSize = batchSize;
+  }
+
+  protected int getBatchSize() {
+    return batchSize;
   }
 
   @Override
@@ -94,12 +111,20 @@ class ConstantColumnVector extends ColumnVector {
 
   @Override
   public ColumnarArray getArray(int rowId) {
-    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
+    return new ColumnarArray(
+        new ConstantArrayColumnVector(((ArrayType) type).elementType(), batchSize,
+            ((ArrayData) constant).array()),
+        0,
+        ((ArrayData) constant).numElements());
   }
 
   @Override
   public ColumnarMap getMap(int ordinal) {
-    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
+    ColumnVector keys = new ConstantArrayColumnVector(((MapType) type).keyType(), batchSize,
+        ((MapData) constant).keyArray().array());
+    ColumnVector values = new ConstantArrayColumnVector(((MapType) type).valueType(), batchSize,
+        ((MapData) constant).valueArray().array());
+    return new ColumnarMap(keys, values, 0, ((MapData) constant).numElements());
   }
 
   @Override
@@ -119,6 +144,8 @@ class ConstantColumnVector extends ColumnVector {
 
   @Override
   public ColumnVector getChild(int ordinal) {
-    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
+    DataType fieldType = ((StructType) type).fields()[ordinal].dataType();
+    return new ConstantColumnVector(fieldType, batchSize,
+        ((InternalRow) constant).get(ordinal, fieldType));
   }
 }
