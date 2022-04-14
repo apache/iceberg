@@ -35,7 +35,7 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   public static <T> T visit(Type iType, Schema schema, AvroSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
-        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
+        return visitor.visitRecord(iType != null ? iType.asStructType() : null, schema);
 
       case UNION:
         return visitUnion(iType, schema, visitor);
@@ -53,13 +53,13 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     }
   }
 
-  private static <T> T visitRecord(Types.StructType struct, Schema record, AvroSchemaWithTypeVisitor<T> visitor) {
+  protected T visitRecord(Types.StructType struct, Schema record) {
     // check to make sure this hasn't been visited before
     String name = record.getFullName();
-    Preconditions.checkState(!visitor.recordLevels.contains(name),
+    Preconditions.checkState(!recordLevels.contains(name),
         "Cannot process recursive Avro record %s", name);
 
-    visitor.recordLevels.push(name);
+    recordLevels.push(name);
 
     List<Schema.Field> fields = record.getFields();
     List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
@@ -68,12 +68,12 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
       int fieldId = AvroSchemaUtil.getFieldId(field);
       Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
       names.add(field.name());
-      results.add(visit(iField != null ? iField.type() : null, field.schema(), visitor));
+      results.add(visit(iField != null ? iField.type() : null, field.schema(), this));
     }
 
-    visitor.recordLevels.pop();
+    recordLevels.pop();
 
-    return visitor.record(struct, record, names, results);
+    return record(struct, record, names, results);
   }
 
   private static <T> T visitUnion(Type type, Schema union, AvroSchemaWithTypeVisitor<T> visitor) {
@@ -107,7 +107,7 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     }
   }
 
-  private Deque<String> recordLevels = Lists.newLinkedList();
+  protected Deque<String> recordLevels = Lists.newLinkedList();
 
   public T record(Types.StructType iStruct, Schema record, List<String> names, List<T> fields) {
     return null;

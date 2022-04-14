@@ -99,16 +99,25 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       if (avroField != null) {
         updatedFields.add(avroField);
-
       } else {
         Preconditions.checkArgument(
-            field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
+            (field.isRequired() && field.initialDefaultValue() != null) ||
+                field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
             "Missing required field: %s", field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField = new Schema.Field(
             field.name() + "_r" + field.fieldId(),
             AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
+        // If the field from Iceberg schema has initial default value, we give a special
+        // mark to this created avro field, so that in the later stage, the reader can identify
+        // this field and use a constant reader to read the field, rather than returning null
+        // as delegated from avro file reader
+        if (field.initialDefaultValue() != null) {
+          newField.addProp(AvroSchemaUtil.SHOULD_USE_INIT_DEFAULT, true);
+        } else {
+          newField.addProp(AvroSchemaUtil.SHOULD_USE_INIT_DEFAULT, false);
+        }
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
         updatedFields.add(newField);
         hasChange = true;
@@ -146,7 +155,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         // always copy because fields can't be reused
         return AvroSchemaUtil.copyField(field, field.schema(), field.name());
       }
-
     } finally {
       this.current = struct;
     }
@@ -191,11 +199,9 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         }
 
         return array;
-
       } finally {
         this.current = asMapType;
       }
-
     } else {
       Preconditions.checkArgument(current.isListType(),
           "Incompatible projected type: %s", current);
@@ -210,7 +216,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         }
 
         return array;
-
       } finally {
         this.current = list;
       }
@@ -234,7 +239,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       }
 
       return map;
-
     } finally {
       this.current = asMapType;
     }
@@ -260,5 +264,4 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         return primitive;
     }
   }
-
 }

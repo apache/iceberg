@@ -31,7 +31,7 @@ import org.apache.iceberg.spark.source.BaseDataReader;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
-public class SparkDefaultValueAwareOrcSchemaWithTypeVisitor<T> extends OrcSchemaWithTypeVisitor<T> {
+public abstract class SparkDefaultValueAwareOrcSchemaWithTypeVisitor<T> extends OrcSchemaWithTypeVisitor<T> {
 
   private final Map<Integer, Object> idToConstant;
 
