@@ -133,7 +133,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
    * @return this for method chaining
    */
   public BaseRewriteDataFilesAction<ThisT> outputSpecId(int specId) {
-    Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %d", specId);
+    Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %s", specId);
     this.spec = table.specs().get(specId);
     return this;
   }
@@ -145,7 +145,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
    * @return this for method chaining
    */
   public BaseRewriteDataFilesAction<ThisT> targetSizeInBytes(long targetSize) {
-    Preconditions.checkArgument(targetSize > 0L, "Invalid target rewrite data file size in bytes %d",
+    Preconditions.checkArgument(targetSize > 0L, "Invalid target rewrite data file size in bytes %s",
         targetSize);
     this.targetSizeInBytes = targetSize;
     return this;
@@ -163,7 +163,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
    * @return this for method chaining
    */
   public BaseRewriteDataFilesAction<ThisT> splitLookback(int lookback) {
-    Preconditions.checkArgument(lookback > 0L, "Invalid split lookback %d", lookback);
+    Preconditions.checkArgument(lookback > 0L, "Invalid split lookback %s", lookback);
     this.splitLookback = lookback;
     return this;
   }
@@ -179,7 +179,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
    * @return this for method chaining
    */
   public BaseRewriteDataFilesAction<ThisT> splitOpenFileCost(long openFileCost) {
-    Preconditions.checkArgument(openFileCost > 0L, "Invalid split openFileCost %d", openFileCost);
+    Preconditions.checkArgument(openFileCost > 0L, "Invalid split openFileCost %s", openFileCost);
     this.splitOpenFileCost = openFileCost;
     return this;
   }
