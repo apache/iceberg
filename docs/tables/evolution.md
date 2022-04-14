@@ -87,7 +87,7 @@ Similar to partition spec, Iceberg sort order can also be updated in an existing
 When you evolve a sort order, the old data written with an earlier order remains unchanged.
 Engines can always choose to write data in the latest sort order or unsorted when sorting is prohibitively expensive.
 
-Iceberg's Java table API provides `replaceSortOrder` API to update partition spec. 
+Iceberg's Java table API provides `replaceSortOrder` API to update sort order. 
 For example, the following code could be used to create a new sort order 
 with `id` column sorted in ascending order with nulls last,
 and `category` column sorted in descending order with nulls first:
