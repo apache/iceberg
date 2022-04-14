@@ -123,7 +123,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
 
   private Dataset<Row> readAppendDataFiles(long snapshotId, int commitOrder) {
     List<FileScanTask> appendedFileTasks = planAppendedFiles(snapshotId);
-    if (appendedFileTasks.size() <= 0) {
+    if (appendedFileTasks.isEmpty()) {
       return null;
     }
 
@@ -150,7 +150,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
     }
 
     List<FileScanTask> appendedFiles = Lists.newLinkedList();
-    if (dataFiles.size() <= 0) {
+    if (dataFiles.isEmpty()) {
       return appendedFiles;
     }
 
@@ -172,7 +172,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
 
   private Dataset<Row> readMetadataDeletedFiles(long snapshotId, int commitOrder) {
     List<FileScanTask> appendedFileTasks = planMetadataDeletedFiles(snapshotId);
-    if (appendedFileTasks.size() <= 0) {
+    if (appendedFileTasks.isEmpty()) {
       return null;
     }
 
@@ -198,7 +198,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
 
   private Dataset<Row> readRowLevelDeletes(long snapshotId, int commitOrder) {
     List<FileScanTask> fileScanTasks = planRowLevelDeleteFiles(snapshotId);
-    if (fileScanTasks.size() <= 0) {
+    if (fileScanTasks.isEmpty()) {
       return null;
     }
 
