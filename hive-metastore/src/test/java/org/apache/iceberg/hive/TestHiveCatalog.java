@@ -32,7 +32,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
@@ -63,6 +62,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -250,8 +250,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals("Order ID must match", 0, table.sortOrder().orderId());
       Assert.assertTrue("Order must unsorted", table.sortOrder().isUnsorted());
 
-      Assert.assertTrue("Must not have default sort order in catalog",
-          !hmsTableParameters().containsKey(DEFAULT_SORT_ORDER));
+      Assert.assertFalse("Must not have default sort order in catalog",
+          hmsTableParameters().containsKey(DEFAULT_SORT_ORDER));
     } finally {
       catalog.dropTable(tableIdent);
     }
@@ -565,18 +565,16 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         required(1, "id", Types.IntegerType.get(), "unique ID"),
         required(2, "data", Types.StringType.get())
     );
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .bucket("data", 16)
-        .build();
     TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
 
     try {
-      catalog.buildTable(tableIdent, schema)
-          .withPartitionSpec(spec)
-          .create();
+      Table table = catalog.buildTable(tableIdent, schema).create();
+      Assert.assertFalse("Must not have default partition spec",
+          hmsTableParameters().containsKey(TableProperties.DEFAULT_PARTITION_SPEC));
 
-      Assert.assertEquals(PartitionSpecParser.toJson(spec),
-          hmsTableParameters().get(TableProperties.DEFAULT_PARTITION_SPEC));
+      table.updateSpec().addField(bucket("data", 16)).commit();
+      Assert.assertTrue("Must have default partition spec",
+          hmsTableParameters().containsKey(TableProperties.DEFAULT_PARTITION_SPEC));
     } finally {
       catalog.dropTable(tableIdent);
     }
