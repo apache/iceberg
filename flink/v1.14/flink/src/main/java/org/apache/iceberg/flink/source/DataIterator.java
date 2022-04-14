@@ -76,7 +76,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
         "Seek should be called before any other iterator actions");
     // skip files
     Preconditions.checkState(startingFileOffset < combinedTask.files().size(),
-        "Invalid starting file offset %d for combined scan task with %d files: %s",
+        "Invalid starting file offset %s for combined scan task with %s files: %s",
         startingFileOffset, combinedTask.files().size(), combinedTask);
     for (long i = 0L; i < startingFileOffset; ++i) {
       tasks.next();
