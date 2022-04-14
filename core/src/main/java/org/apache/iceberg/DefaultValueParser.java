@@ -30,10 +30,9 @@ import com.fasterxml.jackson.databind.ser.std.ByteBufferSerializer;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +41,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
@@ -88,15 +88,9 @@ public class DefaultValueParser {
       case UUID:
         return jsonNode.textValue();
       case DATE:
-        return LocalDate.parse(jsonNode.textValue());
       case TIME:
-        return LocalTime.parse(jsonNode.textValue());
       case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return OffsetDateTime.parse(jsonNode.textValue());
-        } else {
-          return LocalDateTime.parse(jsonNode.textValue());
-        }
+        return Literal.of(jsonNode.textValue()).to(type).value();
       case FIXED:
         byte[] fixedBytes = BaseEncoding.base16().decode(jsonNode.textValue().toUpperCase(Locale.ROOT).replaceFirst(
             "^0X",
@@ -243,6 +237,25 @@ public class DefaultValueParser {
       // The ByteBuffer should always wrap an array from how it's constructed during deserialization
       Preconditions.checkState(bbuf.hasArray());
       gen.writeString("0X" + BaseEncoding.base16().encode(bbuf.array()));
+    }
+  }
+
+  public static Object unparseJavaDefaultValue(Type type, Object value) {
+    switch (type.typeId()) {
+      case DATE:
+        return Literal.ofDateLiteral((int) value).to(Types.StringType.get()).value();
+      case TIME:
+        return Literal.ofTimeLiteral((long) value).to(Types.StringType.get()).value();
+      case TIMESTAMP:
+        String localDateTime = (String) Literal.ofTimestampLiteral((long) value).to(Types.StringType.get()).value();
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return LocalDateTime.parse(localDateTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+              .atOffset(ZoneOffset.UTC)
+              .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        }
+        return localDateTime;
+      default:
+        return value;
     }
   }
 }

@@ -35,12 +35,12 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestDefaultValuesValidation {
+public class TestDefaultValuesValidationAndParsing {
 
   private final Type type;
   private final JsonNode defaultValue;
 
-  public TestDefaultValuesValidation(Type type, JsonNode defaultValue) {
+  public TestDefaultValuesValidationAndParsing(Type type, JsonNode defaultValue) {
     this.type = type;
     this.defaultValue = defaultValue;
   }

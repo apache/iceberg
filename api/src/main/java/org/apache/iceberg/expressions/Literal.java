@@ -71,6 +71,18 @@ public interface Literal<T> extends Serializable {
     return new Literals.DecimalLiteral(value);
   }
 
+  static Literal<Integer> ofDateLiteral(int value) {
+    return new Literals.DateLiteral(value);
+  }
+
+  static Literal<Long> ofTimeLiteral(long value) {
+    return new Literals.TimeLiteral(value);
+  }
+
+  static Literal<Long> ofTimestampLiteral(long value) {
+    return new Literals.TimestampLiteral(value);
+  }
+
   /**
    * Returns the value wrapped by this literal.
    */
