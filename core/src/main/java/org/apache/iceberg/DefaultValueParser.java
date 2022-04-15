@@ -23,11 +23,9 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.ByteBufferSerializer;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
@@ -55,8 +53,6 @@ public class DefaultValueParser {
 
   static {
     MAPPER = new ObjectMapper(FACTORY);
-    MAPPER.registerModule(new JavaTimeModule());
-    MAPPER.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
     SimpleModule customModule = new SimpleModule();
     customModule.addSerializer(ByteBuffer.class, new HexStringCustomByteBufferSerializer());
     MAPPER.registerModule(customModule);
