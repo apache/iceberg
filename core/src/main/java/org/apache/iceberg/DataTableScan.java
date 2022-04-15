@@ -49,7 +49,7 @@ public class DataTableScan extends BaseTableScan {
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     Preconditions.checkState(snapshotId() == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", snapshotId());
-    return new IncrementalDataTableScan(ops(), table(), schema(),
+    return new IncrementalDataTableScan(tableOps(), table(), schema(),
         context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
@@ -67,7 +67,7 @@ public class DataTableScan extends BaseTableScan {
     // we do not use its return value
     super.useSnapshot(scanSnapshotId);
     Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
-    return newRefinedScan(ops(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
+    return newRefinedScan(tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
@@ -100,7 +100,7 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public long targetSplitSize() {
-    long tableValue = ops().current().propertyAsLong(
+    long tableValue = tableOps().current().propertyAsLong(
         TableProperties.SPLIT_SIZE,
         TableProperties.SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);

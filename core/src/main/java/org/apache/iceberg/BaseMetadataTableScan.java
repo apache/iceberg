@@ -60,7 +60,7 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
 
   @Override
   public long targetSplitSize() {
-    long tableValue = ops().current().propertyAsLong(
+    long tableValue = tableOps().current().propertyAsLong(
         TableProperties.METADATA_SPLIT_SIZE,
         TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);

@@ -63,7 +63,7 @@ abstract class BaseTableScan implements TableScan {
     this.context = context;
   }
 
-  protected TableOperations ops() {
+  protected TableOperations tableOps() {
     return ops;
   }
 
@@ -209,7 +209,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public int splitLookback() {
-    int tableValue = ops().current().propertyAsInt(
+    int tableValue = tableOps().current().propertyAsInt(
         TableProperties.SPLIT_LOOKBACK,
         TableProperties.SPLIT_LOOKBACK_DEFAULT);
     return PropertyUtil.propertyAsInt(options(), TableProperties.SPLIT_LOOKBACK, tableValue);
@@ -217,7 +217,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public long splitOpenFileCost() {
-    long tableValue = ops().current().propertyAsLong(
+    long tableValue = tableOps().current().propertyAsLong(
         TableProperties.SPLIT_OPEN_FILE_COST,
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
