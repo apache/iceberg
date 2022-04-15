@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
@@ -32,7 +33,9 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.ParseException;
@@ -42,8 +45,8 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.slf4j.Logger;
@@ -60,12 +63,14 @@ public class HTTPClient implements RESTClient {
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
   private final Map<String, String> additionalHeaders;
+  private final Set<String> exchangeHeaders;
 
   private HTTPClient(
-      String uri, CloseableHttpClient httpClient, Map<String, String> additionalHeaders) {
+      String uri, CloseableHttpClient httpClient, Map<String, String> additionalHeaders, Set<String> exchangeHeaders) {
     this.uri = uri;
     this.httpClient = httpClient != null ? httpClient : HttpClients.createDefault();
-    this.additionalHeaders = additionalHeaders != null ? additionalHeaders : ImmutableMap.of();
+    this.additionalHeaders = additionalHeaders;
+    this.exchangeHeaders = exchangeHeaders;
     this.mapper = RESTObjectMapper.mapper();
   }
 
@@ -163,6 +168,8 @@ public class HTTPClient implements RESTClient {
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
+      // exchange response headers for future requests
+      exchangeHeaders(response);
 
       // Skip parsing the response stream for any successful request not expecting a response body
       if (response.getCode() == HttpStatus.SC_NO_CONTENT || (responseType == null && isSuccessful(response))) {
@@ -224,6 +231,17 @@ public class HTTPClient implements RESTClient {
     additionalHeaders.forEach(request::setHeader);
   }
 
+  private void exchangeHeaders(HttpResponse response) {
+    if (!exchangeHeaders.isEmpty()) {
+      exchangeHeaders.forEach(exchangeHeader -> {
+        Header responseHeader = response.getFirstHeader(exchangeHeader);
+        if (responseHeader != null) {
+          additionalHeaders.put(responseHeader.getName(), responseHeader.getValue());
+        }
+      });
+    }
+  }
+
   @Override
   public void close() throws IOException {
     httpClient.close(CloseMode.GRACEFUL);
@@ -235,6 +253,7 @@ public class HTTPClient implements RESTClient {
 
   public static class Builder {
     private final Map<String, String> additionalHeaders = Maps.newHashMap();
+    private final Set<String> exchangeHeaders = Sets.newHashSet();
     private String uri;
     private CloseableHttpClient httpClient;
     private ObjectMapper mapper;
@@ -249,6 +268,12 @@ public class HTTPClient implements RESTClient {
     public Builder uri(String baseUri) {
       Preconditions.checkNotNull(baseUri, "Invalid uri for http client: null");
       this.uri = RESTUtil.stripTrailingSlash(baseUri);
+      return this;
+    }
+
+    public Builder withExchangeHeader(String header) {
+      Preconditions.checkNotNull(header, "Invalid exchange header for http client: null");
+      exchangeHeaders.add(header.trim());
       return this;
     }
 
@@ -269,7 +294,7 @@ public class HTTPClient implements RESTClient {
     }
 
     public HTTPClient build() {
-      return new HTTPClient(uri, httpClient, additionalHeaders);
+      return new HTTPClient(uri, httpClient, additionalHeaders, exchangeHeaders);
     }
   }
 }

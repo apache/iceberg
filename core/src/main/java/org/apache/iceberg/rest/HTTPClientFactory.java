@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.rest;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
@@ -31,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * RESTCatalog.
  */
 public class HTTPClientFactory implements Function<Map<String, String>, RESTClient> {
+  private static final String EXCHANGE_HEADER_DELIM = ",";
 
   @Override
   public RESTClient apply(Map<String, String> properties) {
@@ -46,6 +48,14 @@ public class HTTPClientFactory implements Function<Map<String, String>, RESTClie
     String token = properties.get(RESTCatalogProperties.AUTH_TOKEN);
     if (token != null && !token.trim().isEmpty()) {
       builder.withBearerAuth(token.trim());
+    }
+
+    // Apply exchange headers if provided
+    String exchangeHeaders = properties.get(RESTCatalogProperties.EXCHANGE_HEADERS);
+    if (exchangeHeaders != null && !exchangeHeaders.trim().isEmpty()) {
+      Arrays.stream(exchangeHeaders.split(EXCHANGE_HEADER_DELIM))
+          .map(String::trim)
+          .forEach(builder::withExchangeHeader);
     }
 
     return builder.build();

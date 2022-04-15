@@ -32,4 +32,9 @@ public class RESTCatalogProperties {
    * A Bearer authorization token which will be used to authenticate requests with the server.
    */
   public static final String AUTH_TOKEN = "token";
+
+  /**
+   * Comma separated list of response headers that should be exchanged for future requests.
+   */
+  public static final String EXCHANGE_HEADERS = "exchange.headers";
 }

@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
@@ -48,6 +49,7 @@ public class TestHTTPClient {
 
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
+  private static final String EXCHANGE_HEADER = "Exchange_1";
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
@@ -61,6 +63,7 @@ public class TestHTTPClient {
         .builder()
         .uri(URI)
         .withBearerAuth(BEARER_AUTH_TOKEN)
+        .withExchangeHeader(EXCHANGE_HEADER)
         .build();
   }
 
@@ -108,6 +111,25 @@ public class TestHTTPClient {
   @Test
   public void testHeadFailure() throws JsonProcessingException {
     testHttpMethodOnFailure(HttpMethod.HEAD);
+  }
+
+  @Test
+  public void testHeaderExchange() throws JsonProcessingException {
+    String exchangeValue = "exchanged-value";
+    String path = "exchange";
+
+    HttpRequest request = request("/" + path).withMethod(HttpMethod.GET.name());
+
+    // Response with an exchange header after the first request
+    mockServer.when(request).respond(response().withStatusCode(HttpStatus.SC_NO_CONTENT)
+        .withHeader(EXCHANGE_HEADER, exchangeValue));
+
+    // First request without header
+    restClient.get(path, null, null);
+
+    // Following request should have the header requested to be exchanged by the server
+    restClient.get(path, null, null);
+    mockServer.verify(request().withHeader(EXCHANGE_HEADER, exchangeValue));
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
