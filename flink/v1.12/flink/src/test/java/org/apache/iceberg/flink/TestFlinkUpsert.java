@@ -130,15 +130,15 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
 
     try {
       sql("INSERT INTO %s VALUES " +
-          "(1, 'a', TO_DATE('2022-03-01'))," +
-          "(2, 'b', TO_DATE('2022-03-01'))," +
-          "(1, 'b', TO_DATE('2022-03-01'))",
+          "(1, 'a', DATE '2022-03-01')," +
+          "(2, 'b', DATE '2022-03-01')," +
+          "(1, 'b', DATE '2022-03-01')",
           tableName);
 
       sql("INSERT INTO %s VALUES " +
-          "(4, 'a', TO_DATE('2022-03-02'))," +
-          "(5, 'b', TO_DATE('2022-03-02'))," +
-          "(1, 'b', TO_DATE('2022-03-02'))",
+          "(4, 'a', DATE '2022-03-02')," +
+          "(5, 'b', DATE '2022-03-02')," +
+          "(1, 'b', DATE '2022-03-02')",
           tableName);
 
       List<Row> rowsOn20220301 = Lists.newArrayList(Row.of(2, "b", dt20220301), Row.of(1, "a", dt20220301));
@@ -211,9 +211,9 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           tableName, toWithClause(tableUpsertProps));
 
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 1)," +
-          "('aaa', TO_DATE('2022-03-01'), 2)," +
-          "('bbb', TO_DATE('2022-03-01'), 3)",
+              "('aaa', DATE '2022-03-01', 1)," +
+              "('aaa', DATE '2022-03-01', 2)," +
+              "('bbb', DATE '2022-03-01', 3)",
           tableName);
 
       TestHelpers.assertRows(
@@ -221,8 +221,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           Lists.newArrayList(Row.of("aaa", dt, 2), Row.of("bbb", dt, 3)));
 
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 4)," +
-          "('bbb', TO_DATE('2022-03-01'), 5)",
+          "('aaa', DATE '2022-03-01', 4)," +
+          "('bbb', DATE '2022-03-01', 5)",
           tableName);
 
       TestHelpers.assertRows(
@@ -230,8 +230,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           Lists.newArrayList(Row.of("aaa", dt, 4), Row.of("bbb", dt, 5)));
 
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 6)," +
-          "('bbb', TO_DATE('2022-03-01'), 7)",
+          "('aaa', DATE '2022-03-01', 6)," +
+          "('bbb', DATE '2022-03-01', 7)",
           tableName);
 
       TestHelpers.assertRows(
@@ -254,9 +254,9 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           tableName, toWithClause(tableUpsertProps));
 
       sql("INSERT INTO %s VALUES " +
-          "(1, 'aaa', TO_DATE('2022-03-01'))," +
-          "(2, 'aaa', TO_DATE('2022-03-01'))," +
-          "(3, 'bbb', TO_DATE('2022-03-01'))",
+          "(1, 'aaa', DATE '2022-03-01')," +
+          "(2, 'aaa', DATE '2022-03-01')," +
+          "(3, 'bbb', DATE '2022-03-01')",
           tableName);
 
       TestHelpers.assertRows(
@@ -264,8 +264,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           Lists.newArrayList(Row.of(2, "aaa", dt), Row.of(3, "bbb", dt)));
 
       sql("INSERT INTO %s VALUES " +
-          "(4, 'aaa', TO_DATE('2022-03-01'))," +
-          "(5, 'bbb', TO_DATE('2022-03-01'))",
+          "(4, 'aaa', DATE '2022-03-01')," +
+          "(5, 'bbb', DATE '2022-03-01')",
           tableName);
 
       TestHelpers.assertRows(
@@ -273,8 +273,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           Lists.newArrayList(Row.of(4, "aaa", dt), Row.of(5, "bbb", dt)));
 
       sql("INSERT INTO %s VALUES " +
-          "(6, 'aaa', TO_DATE('2022-03-01'))," +
-          "(7, 'bbb', TO_DATE('2022-03-01'))",
+          "(6, 'aaa', DATE '2022-03-01')," +
+          "(7, 'bbb', DATE '2022-03-01')",
           tableName);
 
       TestHelpers.assertRows(
