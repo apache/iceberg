@@ -40,16 +40,16 @@ import org.apache.iceberg.rest.RESTResponse;
  *   <li> overrides - properties that should be used to override client configuration </li>
  * </ul>
  */
-public class RESTCatalogConfigResponse implements RESTResponse {
+public class ConfigResponse implements RESTResponse {
 
   private Map<String, String> defaults;
   private Map<String, String> overrides;
 
-  public RESTCatalogConfigResponse() {
+  public ConfigResponse() {
     // Required for Jackson deserialization
   }
 
-  private RESTCatalogConfigResponse(Map<String, String> defaults, Map<String, String> overrides) {
+  private ConfigResponse(Map<String, String> defaults, Map<String, String> overrides) {
     this.defaults = defaults;
     this.overrides = overrides;
     validate();
@@ -152,8 +152,8 @@ public class RESTCatalogConfigResponse implements RESTResponse {
       return this;
     }
 
-    public RESTCatalogConfigResponse build() {
-      return new RESTCatalogConfigResponse(defaults, overrides);
+    public ConfigResponse build() {
+      return new ConfigResponse(defaults, overrides);
     }
   }
 }

@@ -45,8 +45,8 @@ import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.RESTCatalogConfigResponse;
 import org.apache.iceberg.util.Pair;
 
 /**
@@ -154,7 +154,7 @@ public class RESTCatalogAdapter implements RESTClient {
                                                   Object body, Class<T> responseType) {
     switch (route) {
       case CONFIG:
-        return castResponse(responseType, RESTCatalogConfigResponse.builder().build());
+        return castResponse(responseType, ConfigResponse.builder().build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {

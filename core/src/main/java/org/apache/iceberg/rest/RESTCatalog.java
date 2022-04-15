@@ -54,12 +54,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
-import org.apache.iceberg.rest.responses.RESTCatalogConfigResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -85,7 +85,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
   @Override
   public void initialize(String name, Map<String, String> props) {
-    RESTCatalogConfigResponse config = fetchConfig(props);
+    ConfigResponse config = fetchConfig(props);
     Map<String, String> mergedProps = config.merge(props);
     this.client = clientBuilder.apply(mergedProps);
     this.catalogName = name;
@@ -429,14 +429,14 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     return Pair.of(tableClient, tableIO);
   }
 
-  private RESTCatalogConfigResponse fetchConfig(Map<String, String> props) {
+  private ConfigResponse fetchConfig(Map<String, String> props) {
     // Create a client for one time use, as we will reconfigure the client using the merged server and application
     // defined configuration.
     RESTClient singleUseClient = clientBuilder.apply(props);
 
     try {
-      RESTCatalogConfigResponse configResponse = singleUseClient
-          .get(ResourcePaths.config(), RESTCatalogConfigResponse.class, ErrorHandlers.defaultErrorHandler());
+      ConfigResponse configResponse = singleUseClient
+          .get(ResourcePaths.config(), ConfigResponse.class, ErrorHandlers.defaultErrorHandler());
       configResponse.validate();
       return configResponse;
     } finally {
