@@ -41,6 +41,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -76,6 +77,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.RewriteExecutionContext;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -807,6 +809,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         () -> basicRewrite(table)
             .option("foobarity", "-5")
             .execute());
+
+    AssertHelpers.assertThrows("Cannot set rewrite.job-order to foo",
+        IllegalArgumentException.class,
+        () -> basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo")
+            .execute());
   }
 
   @Test
@@ -1036,6 +1044,144 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     AssertHelpers.assertThrows("Should be unable to set Strategy more than once", IllegalArgumentException.class,
         "Cannot set strategy", () -> actions().rewriteDataFiles(table).sort(SortOrder.unsorted()).binPack());
+  }
+
+  @Test
+  public void testRewriteJobOrderBytesAsc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.BYTES_ASC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.naturalOrder());
+    Assert.assertEquals("Size in bytes order should be ascending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Size in bytes order should not be descending", actual, expected);
+  }
+
+  @Test
+  public void testRewriteJobOrderBytesDesc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.BYTES_DESC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.reverseOrder());
+    Assert.assertEquals("Size in bytes order should be descending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Size in bytes order should not be ascending", actual, expected);
+  }
+
+  @Test
+  public void testRewriteJobOrderFilesAsc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.FILES_ASC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.naturalOrder());
+    Assert.assertEquals("Number of files order should be ascending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Number of files order should not be descending", actual, expected);
+  }
+
+  @Test
+  public void testRewriteJobOrderFilesDesc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.FILES_DESC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.reverseOrder());
+    Assert.assertEquals("Number of files order should be descending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Number of files order should not be ascending", actual, expected);
+  }
+
+  private Stream<RewriteFileGroup> toGroupStream(Table table,
+      BaseRewriteDataFilesSparkAction rewrite) {
+    rewrite.validateAndInitOptions();
+    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
+        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
+
+    return rewrite.toGroupStream(
+        new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);
   }
 
   protected List<Object[]> currentData() {

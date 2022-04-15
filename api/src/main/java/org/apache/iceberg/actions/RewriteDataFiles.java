@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
@@ -87,6 +88,21 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    */
   String USE_STARTING_SEQUENCE_NUMBER = "use-starting-sequence-number";
   boolean USE_STARTING_SEQUENCE_NUMBER_DEFAULT = true;
+
+  /**
+   * Forces the rewrite job order based on the value.
+   * <p><ul>
+   * <li> If rewrite.job-order=bytes-asc, then rewrite the smallest job groups first.
+   * <li> If rewrite.job-order=bytes-desc, then rewrite the largest job groups first.
+   * <li> If rewrite.job-order=files-asc, then rewrite the job groups with the least files first.
+   * <li> If rewrite.job-order=files-desc, then rewrite the job groups with the most files first.
+   * <li> If rewrite.job-order=none, then rewrite job groups in the order they were planned (no
+   * specific ordering).
+   * </ul><p>
+   * Defaults to none.
+   */
+  String REWRITE_JOB_ORDER = "rewrite.job-order";
+  String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
    * Choose BINPACK as a strategy for this rewrite operation
