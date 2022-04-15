@@ -31,8 +31,6 @@ import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,11 +40,14 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class DefaultValueParser {
+  private DefaultValueParser() {
+  }
 
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER;
@@ -97,13 +98,13 @@ public class DefaultValueParser {
             "^0X", ""));
         return ByteBuffer.wrap(binaryBytes);
       case LIST:
-        List<Object> defaultList = new ArrayList<>();
+        List<Object> defaultList = Lists.newArrayList();
         for (JsonNode element : jsonNode) {
           defaultList.add(parseDefaultFromJson(type.asListType().elementType(), element));
         }
         return defaultList;
       case MAP:
-        Map<Object, Object> defaultMap = new HashMap<>();
+        Map<Object, Object> defaultMap = Maps.newHashMap();
         List<JsonNode> keysAndValues = StreamSupport
             .stream(jsonNode.spliterator(), false)
             .collect(Collectors.toList());
@@ -120,7 +121,7 @@ public class DefaultValueParser {
         }
         return defaultMap;
       case STRUCT:
-        Map<Integer, Object> defaultStruct = new HashMap<>();
+        Map<Integer, Object> defaultStruct = Maps.newHashMap();
         for (Types.NestedField subField : type.asStructType().fields()) {
           String fieldIdAsString = String.valueOf(subField.fieldId());
           Object value = jsonNode.has(fieldIdAsString) ? parseDefaultFromJson(
@@ -223,11 +224,6 @@ public class DefaultValueParser {
   }
 
   private static class HexStringCustomByteBufferSerializer extends ByteBufferSerializer {
-
-    public HexStringCustomByteBufferSerializer() {
-      super();
-    }
-
     @Override
     public void serialize(ByteBuffer bbuf, JsonGenerator gen, SerializerProvider provider) throws IOException {
       // The ByteBuffer should always wrap an array from how it's constructed during deserialization

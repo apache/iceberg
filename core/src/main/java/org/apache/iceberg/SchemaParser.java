@@ -35,8 +35,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
-import static org.apache.iceberg.DefaultValueParser.unparseJavaDefaultValue;
-
 public class SchemaParser {
 
   private static final String SCHEMA_ID = "schema-id";
@@ -102,15 +100,17 @@ public class SchemaParser {
       }
       if (field.initialDefaultValue() != null) {
         generator.writeFieldName(INITIAL_DEFAULT);
-        generator.writeRawValue(DefaultValueParser.mapper().writeValueAsString(unparseJavaDefaultValue(
-            field.type(),
-            field.initialDefaultValue())));
+        generator.writeRawValue(DefaultValueParser.mapper()
+            .writeValueAsString(DefaultValueParser.unparseJavaDefaultValue(
+                field.type(),
+                field.initialDefaultValue())));
       }
       if (field.writeDefaultValue() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
-        generator.writeRawValue(DefaultValueParser.mapper().writeValueAsString(unparseJavaDefaultValue(
-            field.type(),
-            field.writeDefaultValue())));
+        generator.writeRawValue(DefaultValueParser.mapper()
+            .writeValueAsString(DefaultValueParser.unparseJavaDefaultValue(
+                field.type(),
+                field.writeDefaultValue())));
       }
       generator.writeEndObject();
     }
