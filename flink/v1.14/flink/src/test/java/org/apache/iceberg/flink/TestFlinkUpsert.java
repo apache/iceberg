@@ -221,8 +221,8 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
           Lists.newArrayList(Row.of("aaa", dt, 2), Row.of("bbb", dt, 3)));
 
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 4)," +
-          "('bbb', TO_DATE('2022-03-01'), 5)",
+          "('aaa', DATE '2022-03-01', 4)," +
+          "('bbb', DATE '2022-03-01', 5)",
           tableName);
 
       TestHelpers.assertRows(
