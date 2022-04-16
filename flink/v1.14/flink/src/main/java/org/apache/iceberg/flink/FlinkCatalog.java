@@ -414,8 +414,8 @@ public class FlinkCatalog extends AbstractCatalog {
     // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
     // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
     if (!equalsPrimary &&
-            ts1.getTableColumns().equals(ts2.getTableColumns()) &&
-            ts1.getWatermarkSpecs().equals(ts2.getWatermarkSpecs())) {
+          ts1.getTableColumns().equals(ts2.getTableColumns()) &&
+          ts1.getWatermarkSpecs().equals(ts2.getWatermarkSpecs())) {
       throw new UnsupportedOperationException("Altering schema is not supported yet.");
     }
 
