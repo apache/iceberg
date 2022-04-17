@@ -35,6 +35,8 @@ import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 public class TestAzureBlobInputStream {
   private static AzureProperties azureProperties;
@@ -106,14 +108,45 @@ public class TestAzureBlobInputStream {
     writeAzureBlobData(blobClient, data);
 
     try (SeekableInputStream in = new AzureBlobInputStream(uri, azureProperties, blobClient)) {
-      in.seek(data.length / 2);
-      byte[] actual = new byte[data.length / 2];
-
-      IOUtils.readFully(in, actual, 0, data.length / 2);
-
-      byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
-      Assertions.assertThat(actual).isEqualTo(expected);
+      // In the first iteration, we'll be seeking forward since nothing is read yet
+      // in the second iteration, we'll be seeking backward since the stream is fully read
+      for (int i = 0; i < 2; i++) {
+        in.seek(data.length / 2);
+        byte[] actual = new byte[data.length / 2];
+        IOUtils.readFully(in, actual, 0, data.length / 2);
+        byte[] expected = Arrays.copyOfRange(data, data.length / 2, data.length);
+        Assertions.assertThat(actual).isEqualTo(expected);
+      }
     }
+  }
+
+  @Test
+  public void testSeekDoesNotOpenInputStream() throws IOException {
+    Random random = AzureTestUtils.random("testSeekOccursLazily");
+    String location = AzureBlobTestUtils.abfsLocation(storageAccount, containerName,
+        "/path/to/lazy-seek.dat");
+    AzureURI uri = AzureURI.from(location);
+    BlobClient blobClient = container.getBlobClient(uri.path());
+    int streamLength = 1024;
+    byte[] data = AzureTestUtils.randomBytes(streamLength, random);
+    writeAzureBlobData(blobClient, data);
+
+    BlobClient mockedBlobClient = Mockito.mock(BlobClient.class);
+    // BlobInputStream cannot be mocked since it is final class, thus creating an actual stream to the blob.
+    Mockito.when(mockedBlobClient.openInputStream(ArgumentMatchers.any())).thenReturn(blobClient.openInputStream());
+
+    try (SeekableInputStream in = new AzureBlobInputStream(uri, azureProperties, mockedBlobClient)) {
+      // seek forward
+      for (long i = 0; i < streamLength; i++) {
+        in.seek(i);
+      }
+      // seek backward
+      for (long i = streamLength - 1L; i >= 0; i--) {
+        in.seek(i);
+      }
+    }
+    // Assert the InputStream is created only once in the constructor, and not every time we seek.
+    Mockito.verify(mockedBlobClient, Mockito.times(1)).openInputStream(ArgumentMatchers.any());
   }
 
   @Test

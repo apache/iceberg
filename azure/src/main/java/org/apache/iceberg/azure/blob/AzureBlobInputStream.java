@@ -43,6 +43,7 @@ public class AzureBlobInputStream extends SeekableInputStream {
   private final BlobClient blobClient;
 
   private long pos = 0L;
+  private long next = pos;
   private boolean closed = false;
   private BlobInputStream stream;
 
@@ -56,46 +57,32 @@ public class AzureBlobInputStream extends SeekableInputStream {
 
   @Override
   public long getPos() {
-    return pos;
+    return next;
   }
 
   @Override
   public void seek(long newPos) {
     Preconditions.checkState(!closed, "Stream already closed");
     Preconditions.checkArgument(newPos >= 0, "New position cannot be negative: %s", newPos);
-
-    if (newPos == pos) {
-      // Already at the specified position.
-      return;
-    }
-
-    if (newPos > pos) {
-      // Seeking forward.
-      long bytesToSkip = newPos - pos;
-      // BlobInputStream#skip only repositions the internal pointers,
-      // the actual bytes are skipped when BlobInputStream#read is invoked.
-      long bytesSkipped = stream.skip(bytesToSkip);
-    } else {
-      // Seeking backward.
-      stream.close();
-      openStream(newPos);
-    }
-
-    pos = newPos;
+    next = newPos;
   }
 
   @Override
   public int read() throws IOException {
     Preconditions.checkState(!closed, "Cannot read: stream already closed");
+    repositionStream();
     pos++;
+    next++;
     return stream.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot read: stream already closed");
+    repositionStream();
     int numOfBytesRead = stream.read(b, off, len);
     pos += numOfBytesRead;
+    next += numOfBytesRead;
     return numOfBytesRead;
   }
 
@@ -127,5 +114,25 @@ public class AzureBlobInputStream extends SeekableInputStream {
         .setBlockSize(azureProperties.readBlockSize(azureURI.storageAccount()));
     stream = blobClient.openInputStream(options);
     pos = offset;
+  }
+
+  private void repositionStream() {
+    if (next == pos) {
+      return;
+    }
+
+    if (next > pos) {
+      // Seeking forward.
+      long bytesToSkip = next - pos;
+      // BlobInputStream#skip only repositions the internal pointers,
+      // the actual bytes are skipped when BlobInputStream#read is invoked.
+      long bytesSkipped = stream.skip(bytesToSkip);
+    } else {
+      // Seeking backward.
+      stream.close();
+      openStream(next);
+    }
+
+    pos = next;
   }
 }
