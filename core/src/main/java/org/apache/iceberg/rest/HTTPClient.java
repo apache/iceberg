@@ -143,7 +143,8 @@ public class HTTPClient implements RESTClient {
    * @return The response entity, parsed and converted to its type T
    */
   private <T> T execute(
-      Method method, String path, Object requestBody, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+      Method method, String path, Object requestBody, Class<T> responseType, Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
@@ -151,7 +152,7 @@ public class HTTPClient implements RESTClient {
 
     String fullUri = String.format("%s/%s", uri, path);
     HttpUriRequestBase request = new HttpUriRequestBase(method.name(), URI.create(fullUri));
-    addRequestHeaders(request);
+    addRequestHeaders(request, headers);
 
     if (requestBody != null) {
       try {
@@ -195,33 +196,34 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public void head(String path, Consumer<ErrorResponse> errorHandler) {
-    execute(Method.HEAD, path, null, null, errorHandler);
+  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    execute(Method.HEAD, path, null, null, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Class<T> responseType,
+  public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
                                         Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.GET, path, null, responseType, errorHandler);
+    return execute(Method.GET, path, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                         Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, body, responseType, errorHandler);
+                                         Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.POST, path, body, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T delete(String path, Class<T> responseType,
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                            Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, null, responseType, errorHandler);
+    return execute(Method.DELETE, path, null, responseType, headers, errorHandler);
   }
 
-  private void addRequestHeaders(HttpUriRequest request) {
+  private void addRequestHeaders(HttpUriRequest request, Map<String, String> requestHeaders) {
     request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
     // Many systems require that content type is set regardless and will fail, even on an empty bodied request.
     request.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
     additionalHeaders.forEach(request::setHeader);
+    requestHeaders.forEach(request::setHeader);
   }
 
   @Override

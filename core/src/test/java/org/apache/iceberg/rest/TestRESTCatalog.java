@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.rest;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -28,25 +29,29 @@ import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
+public class TestRESTCatalog<C extends Catalog & SupportsNamespaces> extends CatalogTests<C> {
   @TempDir
   public Path temp;
 
-  private RESTCatalog restCatalog;
+  private C catalog;
   private JdbcCatalog backendCatalog;
 
   @BeforeEach
+  @SuppressWarnings("unchecked")
   public void createCatalog() {
     File warehouse = temp.toFile();
     Configuration conf = new Configuration();
@@ -60,18 +65,29 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     backendCatalog.initialize("backend", backendCatalogProperties);
 
-    RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog);
+    Map<String, String> testHeaders = ImmutableMap.of("header", "value");
 
-    this.restCatalog = new RESTCatalog((config) -> adaptor);
+    RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog) {
+      @Override
+      public <T extends RESTResponse> T execute(RESTCatalogAdapter.HTTPMethod method, String path, Object body,
+                                                Class<T> responseType, Map<String, String> headers,
+                                                Consumer<ErrorResponse> errorHandler) {
+        Assertions.assertEquals(headers, testHeaders, "Should pass headers through");
+        return super.execute(method, path, body, responseType, headers, errorHandler);
+      }
+    };
+
+    RESTCatalog restCatalog = new RESTCatalog((config) -> adaptor);
     restCatalog.setConf(conf);
 
-    restCatalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored"));
+    this.catalog = (C) restCatalog.withHeaders(testHeaders);
+    catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored"));
   }
 
   @AfterEach
   public void closeCatalog() throws IOException {
-    if (restCatalog != null) {
-      restCatalog.close();
+    if (catalog != null && catalog instanceof Closeable) {
+      ((Closeable) catalog).close();
     }
 
     if (backendCatalog != null) {
@@ -80,8 +96,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Override
-  protected RESTCatalog catalog() {
-    return restCatalog;
+  protected C catalog() {
+    return catalog;
   }
 
   @Override
@@ -100,18 +116,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testConfigRoute() throws IOException {
     RESTClient testClient = new RESTClient() {
       @Override
-      public void head(String path, Consumer<ErrorResponse> errorHandler) {
+      public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
         throw new UnsupportedOperationException("Should not be called for testConfigRoute");
       }
 
       @Override
-      public <T extends RESTResponse> T delete(String path, Class<T> responseType,
+      public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                                Consumer<ErrorResponse> errorHandler) {
         throw new UnsupportedOperationException("Should not be called for testConfigRoute");
       }
 
       @Override
-      public <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+      public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
+                                            Consumer<ErrorResponse> errorHandler) {
         return (T) ConfigResponse
             .builder()
             .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
@@ -121,7 +138,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
       @Override
       public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                             Consumer<ErrorResponse> errorHandler) {
+                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
         throw new UnsupportedOperationException("Should not be called for testConfigRoute");
       }
 

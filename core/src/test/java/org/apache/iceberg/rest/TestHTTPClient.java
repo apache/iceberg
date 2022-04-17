@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.AfterClass;
@@ -198,14 +199,14 @@ public class TestHTTPClient {
   private static Item doExecuteRequest(HttpMethod method, String path, Item body, Consumer<ErrorResponse> onError) {
     switch (method) {
       case POST:
-        return restClient.post(path, body, Item.class, onError);
+        return restClient.post(path, body, Item.class, ImmutableMap.of(), onError);
       case GET:
-        return restClient.get(path, Item.class, onError);
+        return restClient.get(path, Item.class, ImmutableMap.of(), onError);
       case HEAD:
-        restClient.head(path, onError);
+        restClient.head(path, ImmutableMap.of(), onError);
         return null;
       case DELETE:
-        return restClient.delete(path, Item.class, onError);
+        return restClient.delete(path, Item.class, ImmutableMap.of(), onError);
       default:
         throw new IllegalArgumentException(String.format("Invalid method: %s", method));
     }
