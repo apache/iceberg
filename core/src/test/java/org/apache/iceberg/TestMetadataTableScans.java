@@ -757,7 +757,14 @@ public class TestMetadataTableScans extends TableTestBase {
     // All 4 original data files written by old spec, plus one data file written by new spec
     Assert.assertEquals(5, Iterables.size(tasks));
 
-    // We cannot query old partition key in V1 due to https://github.com/apache/iceberg/pull/3411/
+    filter = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    scan = metadataTable.newScan().filter(filter);
+    tasks = scan.planFiles();
+
+    // 1 original data file written by old spec (V1 filters out new specs which don't have this value)
+    Assert.assertEquals(1, Iterables.size(tasks));
   }
 
   @Test
