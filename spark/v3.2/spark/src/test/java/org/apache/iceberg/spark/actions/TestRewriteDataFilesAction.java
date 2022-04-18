@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.actions;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -87,6 +88,9 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -1093,9 +1097,11 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     List<Row> originalRaw = spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
     List<Object[]> originalData = rowsToJava(originalRaw);
 
+    // TODO add in UUID when it is supported in Spark
     RewriteDataFiles.Result result =
         basicRewrite(table)
-            .zOrder("longCol", "intCol", "floatCol", "doubleCol", "dateCol", "timestampCol", "stringCol")
+            .zOrder("longCol", "intCol", "floatCol", "doubleCol", "dateCol", "timestampCol", "stringCol", "binaryCol",
+                "booleanCol")
             .option(SortStrategy.MIN_INPUT_FILES, "1")
             .option(SortStrategy.REWRITE_ALL, "true")
             .execute();
@@ -1415,9 +1421,11 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         required(2, "intCol", Types.IntegerType.get()),
         required(3, "floatCol", Types.FloatType.get()),
         optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+        optional(5, "dateCol", Types.DateType.get()),
+        optional(6, "timestampCol", Types.TimestampType.withZone()),
+        optional(7, "stringCol", Types.StringType.get()),
+        optional(8, "booleanCol", Types.BooleanType.get()),
+        optional(9, "binaryCol", Types.BinaryType.get()));
 
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), options, tableLocation);
@@ -1430,6 +1438,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .withColumn("dateCol", date_add(current_date(), 1))
         .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
         .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("booleanCol", expr("longCol > 5"))
+        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
         .write()
         .format("iceberg")
         .mode("append")

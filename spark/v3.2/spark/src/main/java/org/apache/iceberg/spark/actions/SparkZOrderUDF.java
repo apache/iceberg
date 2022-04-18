@@ -44,7 +44,7 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.TimestampType;
 import scala.collection.Seq;
 
-class Spark3ZOrderUDF implements Serializable {
+class SparkZOrderUDF implements Serializable {
   private static final byte[] PRIMITIVE_EMPTY = new byte[ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE];
 
   /**
@@ -53,7 +53,7 @@ class Spark3ZOrderUDF implements Serializable {
    */
   private transient ThreadLocal<ByteBuffer> outputBuffer;
   private transient ThreadLocal<byte[][]> inputHolder;
-  private transient ThreadLocal<ByteBuffer>[] inputBuffers;
+  private transient ThreadLocal<ByteBuffer[]> inputBuffers;
   private transient ThreadLocal<CharsetEncoder> encoder;
 
   private final int numCols;
@@ -63,7 +63,7 @@ class Spark3ZOrderUDF implements Serializable {
   private final int varTypeSize;
   private final int maxOutputSize;
 
-  Spark3ZOrderUDF(int numCols, int varTypeSize, int maxOutputSize) {
+  SparkZOrderUDF(int numCols, int varTypeSize, int maxOutputSize) {
     this.numCols = numCols;
     this.varTypeSize = varTypeSize;
     this.maxOutputSize = maxOutputSize;
@@ -71,18 +71,22 @@ class Spark3ZOrderUDF implements Serializable {
 
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     in.defaultReadObject();
-    inputBuffers = new ThreadLocal[numCols];
+    if (totalOutputBytes > maxOutputSize) {
+      totalOutputBytes = maxOutputSize;
+    }
+    inputBuffers = ThreadLocal.withInitial(() -> new ByteBuffer[numCols]);
     inputHolder = ThreadLocal.withInitial(() -> new byte[numCols][]);
     outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(totalOutputBytes));
     encoder = ThreadLocal.withInitial(() -> StandardCharsets.UTF_8.newEncoder());
   }
 
   private ByteBuffer inputBuffer(int position, int size) {
-    if (inputBuffers[position] == null) {
-      // May over allocate on concurrent calls
-      inputBuffers[position] = ThreadLocal.withInitial(() -> ByteBuffer.allocate(size));
+    ByteBuffer buffer = inputBuffers.get()[position];
+    if (buffer == null) {
+      buffer = ByteBuffer.allocate(size);
+      inputBuffers.get()[position] = buffer;
     }
-    return inputBuffers[position].get();
+    return buffer;
   }
 
   byte[] interleaveBits(Seq<byte[]> scalaBinary) {
@@ -216,6 +220,20 @@ class Spark3ZOrderUDF implements Serializable {
     return udf;
   }
 
+  private UserDefinedFunction booleanToOrderedBytesUDF() {
+    int position = inputCol;
+    UserDefinedFunction udf = functions.udf((Boolean value) -> {
+      ByteBuffer buffer = inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
+      buffer.put(0, (byte) (value ? -127 : 0));
+      return buffer.array();
+    }, DataTypes.BinaryType)
+        .withName("BOOLEAN-LEXICAL-BYTES");
+
+    this.inputCol++;
+    this.totalOutputBytes += ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE;
+    return udf;
+  }
+
   private final UserDefinedFunction interleaveUDF =
       functions.udf((Seq<byte[]> arrayBinary) -> interleaveBits(arrayBinary), DataTypes.BinaryType)
           .withName("INTERLEAVE_BYTES");
@@ -243,7 +261,7 @@ class Spark3ZOrderUDF implements Serializable {
     } else if (type instanceof BinaryType) {
       return bytesTruncateUDF().apply(column);
     } else if (type instanceof BooleanType) {
-      return bytesTruncateUDF().apply(column);
+      return booleanToOrderedBytesUDF().apply(column);
     } else if (type instanceof TimestampType) {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
     } else if (type instanceof DateType) {

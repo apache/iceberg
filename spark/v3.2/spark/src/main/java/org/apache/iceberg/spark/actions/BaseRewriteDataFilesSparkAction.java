@@ -106,11 +106,6 @@ public class BaseRewriteDataFilesSparkAction
     return this;
   }
 
-  /**
-   * The framework specific ZOrder Strategy
-   */
-  protected abstract SortStrategy zOrderStrategy(String... columnNames);
-
   @Override
   public RewriteDataFiles binPack() {
     Preconditions.checkArgument(this.strategy == null,
@@ -438,6 +433,10 @@ public class BaseRewriteDataFilesSparkAction
 
   private SortStrategy sortStrategy() {
     return new SparkSortStrategy(table, spark());
+  }
+
+  private SortStrategy zOrderStrategy(String... columnNames) {
+    return new SparkZOrderStrategy(table, spark(), Lists.newArrayList(columnNames));
   }
 
   @VisibleForTesting

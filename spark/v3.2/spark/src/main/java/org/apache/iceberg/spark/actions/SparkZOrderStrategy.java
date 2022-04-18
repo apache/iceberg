@@ -55,8 +55,11 @@ import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructField;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class Spark3ZOrderStrategy extends Spark3SortStrategy {
+public class SparkZOrderStrategy extends SparkSortStrategy {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkZOrderStrategy.class);
 
   private static final String Z_COLUMN = "ICEZVALUE";
   private static final Schema Z_SCHEMA = new Schema(NestedField.required(0, Z_COLUMN, Types.BinaryType.get()));
@@ -78,7 +81,7 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
   private static final int DEFAULT_VAR_LENGTH_CONTRIBUTION = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE;
 
   private final List<String> zOrderColNames;
-  private final Spark3ZOrderUDF zOrderUDF;
+  private final SparkZOrderUDF zOrderUDF;
 
   private int maxOutputSize;
   private int varLengthContribution;
@@ -102,16 +105,15 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
         "Cannot use less than 1 byte for variable length types with zOrder, %s was set to %s",
         VAR_LENGTH_CONTRIBUTION_KEY, varLengthContribution);
 
-
     maxOutputSize = PropertyUtil.propertyAsInt(options, MAX_OUTPUT_SIZE_KEY, DEFAULT_MAX_OUTPUT_SIZE);
     Preconditions.checkArgument(maxOutputSize > 0,
         "Cannot have the interleaved ZOrder value use less than 1 byte, %s was set to %s",
         MAX_OUTPUT_SIZE_KEY, maxOutputSize);
 
-    return  this;
+    return this;
   }
 
-  public Spark3ZOrderStrategy(Table table, SparkSession spark, List<String> zOrderColNames) {
+  public SparkZOrderStrategy(Table table, SparkSession spark, List<String> zOrderColNames) {
     super(table, spark);
 
     Preconditions.checkArgument(zOrderColNames != null && !zOrderColNames.isEmpty(),
@@ -123,14 +125,16 @@ public class Spark3ZOrderStrategy extends Spark3SortStrategy {
     List<String> partZOrderCols = identityPartitionColumns
         .filter(zOrderColNames::contains)
         .collect(Collectors.toList());
-    Preconditions.checkArgument(
-        partZOrderCols.isEmpty(),
-        "Cannot ZOrder on an Identity partition column as these values are constant within a partition, " +
-            "ZOrdering requested on Identity columns: %s",
-        partZOrderCols);
 
-    this.zOrderUDF = new Spark3ZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
+    if (!partZOrderCols.isEmpty()) {
+      LOG.warn("Cannot ZOrder on an Identity partition column as these values are constant within a partition " +
+                      "they will be removed from the ZOrder expression: {}", partZOrderCols);
+      zOrderColNames.removeAll(partZOrderCols);
+      Preconditions.checkArgument(!zOrderColNames.isEmpty(),
+          "Cannot perform ZOrdering, all columns provided were identity partition columns and cannot be used.");
+    }
 
+    this.zOrderUDF = new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
     this.zOrderColNames = zOrderColNames;
   }
 

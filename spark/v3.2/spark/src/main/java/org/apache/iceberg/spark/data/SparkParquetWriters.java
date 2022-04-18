@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.UUID;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -296,6 +298,28 @@ public class SparkParquetWriters {
     @Override
     public void write(int repetitionLevel, byte[] bytes) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(bytes));
+    }
+  }
+
+  private static PrimitiveWriter<UTF8String> uuids(ColumnDescriptor desc) {
+    return new UUIDWriter(desc);
+  }
+
+  private static class UUIDWriter extends PrimitiveWriter<UTF8String> {
+    private ByteBuffer buffer = ByteBuffer.allocate(16);
+
+    private UUIDWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, UTF8String string) {
+      UUID uuid = UUID.fromString(string.toString());
+      buffer.rewind();
+      buffer.putLong(uuid.getMostSignificantBits());
+      buffer.putLong(uuid.getLeastSignificantBits());
+      buffer.rewind();
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
     }
   }
 
