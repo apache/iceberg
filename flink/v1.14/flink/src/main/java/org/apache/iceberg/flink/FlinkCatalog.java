@@ -404,18 +404,18 @@ public class FlinkCatalog extends AbstractCatalog {
     TableSchema ts1 = ct1.getSchema();
     TableSchema ts2 = ct2.getSchema();
     boolean equalsPrimary = false;
+
     if (ts1.getPrimaryKey().isPresent() && ts2.getPrimaryKey().isPresent()) {
-      equalsPrimary = ts1.getPrimaryKey().get().getType().equals(ts2.getPrimaryKey().get().getType()) &&
-              ts1.getPrimaryKey().get().getColumns().equals(ts2.getPrimaryKey().get().getColumns());
+      equalsPrimary =
+          Objects.equals(ts1.getPrimaryKey().get().getType(), ts2.getPrimaryKey().get().getType()) &&
+          Objects.equals(ts1.getPrimaryKey().get().getColumns(), ts2.getPrimaryKey().get().getColumns());
     } else if (!ts1.getPrimaryKey().isPresent() && !ts2.getPrimaryKey().isPresent()) {
       equalsPrimary = true;
     }
 
-    // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
-    // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
-    if (!equalsPrimary &&
-          ts1.getTableColumns().equals(ts2.getTableColumns()) &&
-          ts1.getWatermarkSpecs().equals(ts2.getWatermarkSpecs())) {
+    if (!(Objects.equals(ts1.getTableColumns(), ts2.getTableColumns()) &&
+          Objects.equals(ts1.getWatermarkSpecs(), ts2.getWatermarkSpecs()) &&
+          equalsPrimary)) {
       throw new UnsupportedOperationException("Altering schema is not supported yet.");
     }
 
