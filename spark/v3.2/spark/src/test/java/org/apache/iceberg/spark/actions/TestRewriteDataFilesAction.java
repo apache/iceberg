@@ -810,7 +810,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .option("foobarity", "-5")
             .execute());
 
-    AssertHelpers.assertThrows("Cannot set rewrite.job-order to foo",
+    AssertHelpers.assertThrows("Cannot set rewrite-job-order to foo",
         IllegalArgumentException.class,
         () -> basicRewrite(table)
             .option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo")
