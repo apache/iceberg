@@ -92,16 +92,16 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   /**
    * Forces the rewrite job order based on the value.
    * <p><ul>
-   * <li> If rewrite.job-order=bytes-asc, then rewrite the smallest job groups first.
-   * <li> If rewrite.job-order=bytes-desc, then rewrite the largest job groups first.
-   * <li> If rewrite.job-order=files-asc, then rewrite the job groups with the least files first.
-   * <li> If rewrite.job-order=files-desc, then rewrite the job groups with the most files first.
-   * <li> If rewrite.job-order=none, then rewrite job groups in the order they were planned (no
+   * <li> If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.
+   * <li> If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.
+   * <li> If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.
+   * <li> If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.
+   * <li> If rewrite-job-order=none, then rewrite job groups in the order they were planned (no
    * specific ordering).
    * </ul><p>
    * Defaults to none.
    */
-  String REWRITE_JOB_ORDER = "rewrite.job-order";
+  String REWRITE_JOB_ORDER = "rewrite-job-order";
   String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
