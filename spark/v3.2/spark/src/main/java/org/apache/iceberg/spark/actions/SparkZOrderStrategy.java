@@ -81,7 +81,6 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
   private static final int DEFAULT_VAR_LENGTH_CONTRIBUTION = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE;
 
   private final List<String> zOrderColNames;
-  private final SparkZOrderUDF zOrderUDF;
 
   private int maxOutputSize;
   private int varLengthContribution;
@@ -134,7 +133,6 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           "Cannot perform ZOrdering, all columns provided were identity partition columns and cannot be used.");
     }
 
-    this.zOrderUDF = new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
     this.zOrderColNames = zOrderColNames;
   }
 
@@ -151,6 +149,8 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
 
   @Override
   public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
+    SparkZOrderUDF zOrderUDF = new SparkZOrderUDF(zOrderColNames.size(), varLengthContribution, maxOutputSize);
+
     String groupID = UUID.randomUUID().toString();
     boolean requiresRepartition = !filesToRewrite.get(0).spec().equals(table().spec());
 

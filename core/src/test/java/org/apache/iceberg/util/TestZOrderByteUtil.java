@@ -56,6 +56,13 @@ public class TestZOrderByteUtil {
    */
   private byte[]  generateRandomBytes() {
     int length = Math.abs(random.nextInt(100) + 1);
+    return generateRandomBytes(length);
+  }
+
+  /**
+   * Returns a byte array of a specified length
+   */
+  private byte[]  generateRandomBytes(int length) {
     byte[] result = new byte[length];
     random.nextBytes(result);
     return result;
@@ -99,6 +106,28 @@ public class TestZOrderByteUtil {
 
       int zOrderSize = Arrays.stream(testBytes).mapToInt(column -> column.length).sum();
       byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, zOrderSize);
+      String byteResultAsString = bytesToString(byteResult);
+
+      String stringResult = interleaveStrings(testStrings);
+
+      Assert.assertEquals("String interleave didn't match byte interleave", stringResult, byteResultAsString);
+    }
+  }
+
+  @Test
+  public void testReuseInterleaveBuffer() {
+    int numByteArrays = 2;
+    int colLength = 16;
+    ByteBuffer interleaveBuffer = ByteBuffer.allocate(numByteArrays * colLength);
+    for (int test = 0; test < NUM_INTERLEAVE_TESTS; test++) {
+      byte[][] testBytes =  new byte[numByteArrays][];
+      String[] testStrings = new String[numByteArrays];
+      for (int byteIndex = 0;  byteIndex < numByteArrays; byteIndex++) {
+        testBytes[byteIndex] = generateRandomBytes(colLength);
+        testStrings[byteIndex] = bytesToString(testBytes[byteIndex]);
+      }
+
+      byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, numByteArrays * colLength, interleaveBuffer);
       String byteResultAsString = bytesToString(byteResult);
 
       String stringResult = interleaveStrings(testStrings);

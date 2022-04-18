@@ -167,6 +167,8 @@ public class ZOrderByteUtils {
    */
   public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize, ByteBuffer reuse) {
     byte[] interleavedBytes = reuse.array();
+    Arrays.fill(interleavedBytes, 0, interleavedSize, (byte) 0x00);
+
     int sourceColumn = 0;
     int sourceByte = 0;
     int sourceBit = 7;

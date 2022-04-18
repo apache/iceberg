@@ -71,9 +71,6 @@ class SparkZOrderUDF implements Serializable {
 
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     in.defaultReadObject();
-    if (totalOutputBytes > maxOutputSize) {
-      totalOutputBytes = maxOutputSize;
-    }
     inputBuffers = ThreadLocal.withInitial(() -> new ByteBuffer[numCols]);
     inputHolder = ThreadLocal.withInitial(() -> new byte[numCols][]);
     outputBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocate(totalOutputBytes));
@@ -106,7 +103,7 @@ class SparkZOrderUDF implements Serializable {
     }, DataTypes.BinaryType).withName("TINY_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += Byte.BYTES;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
 
     return udf;
   }
@@ -122,7 +119,7 @@ class SparkZOrderUDF implements Serializable {
     }, DataTypes.BinaryType).withName("SHORT_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += Short.BYTES;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
 
     return udf;
   }
@@ -138,7 +135,7 @@ class SparkZOrderUDF implements Serializable {
     }, DataTypes.BinaryType).withName("INT_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += Integer.BYTES;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
 
     return udf;
   }
@@ -154,7 +151,7 @@ class SparkZOrderUDF implements Serializable {
     }, DataTypes.BinaryType).withName("LONG_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += Long.BYTES;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
 
     return udf;
   }
@@ -170,7 +167,7 @@ class SparkZOrderUDF implements Serializable {
     }, DataTypes.BinaryType).withName("FLOAT_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += Float.BYTES;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
 
     return udf;
   }
@@ -186,7 +183,7 @@ class SparkZOrderUDF implements Serializable {
     }, DataTypes.BinaryType).withName("DOUBLE_ORDERED_BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += Double.BYTES;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
 
     return udf;
   }
@@ -202,7 +199,7 @@ class SparkZOrderUDF implements Serializable {
           .withName("STRING-LEXICAL-BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += varTypeSize;
+    increaseOutputSize(varTypeSize);
 
     return udf;
   }
@@ -215,7 +212,7 @@ class SparkZOrderUDF implements Serializable {
         .withName("BYTE-TRUNCATE");
 
     this.inputCol++;
-    this.totalOutputBytes += varTypeSize;
+    increaseOutputSize(varTypeSize);
 
     return udf;
   }
@@ -230,7 +227,7 @@ class SparkZOrderUDF implements Serializable {
         .withName("BOOLEAN-LEXICAL-BYTES");
 
     this.inputCol++;
-    this.totalOutputBytes += ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
     return udf;
   }
 
@@ -270,6 +267,13 @@ class SparkZOrderUDF implements Serializable {
       throw new IllegalArgumentException(
           String.format("Cannot use column %s of type %s in ZOrdering, the type is unsupported",
               column, type));
+    }
+  }
+
+  private void increaseOutputSize(int bytes) {
+    totalOutputBytes += bytes;
+    if (totalOutputBytes > maxOutputSize) {
+      totalOutputBytes = maxOutputSize;
     }
   }
 }
