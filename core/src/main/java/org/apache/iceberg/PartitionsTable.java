@@ -24,7 +24,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -106,9 +105,7 @@ public class PartitionsTable extends BaseMetadataTable {
     return partitions.all();
   }
 
-  private static PartitionData normalizePartition(PartitionData partition, Types.StructType newSchema) {
-    Preconditions.checkArgument(partition.getPartitionType().fields().size() == partition.size(),
-        "Partition values must match size");
+  private static PartitionData normalizePartition(PartitionData partition, Types.StructType normalizedPartitionSchema) {
     Map<Integer, Object> fieldIdToValues = Maps.newHashMap();
     int originalPartitionIndex = 0;
     for (Types.NestedField f : partition.getPartitionType().fields()) {
@@ -116,14 +113,14 @@ public class PartitionsTable extends BaseMetadataTable {
       originalPartitionIndex++;
     }
 
-    PartitionData result = new PartitionData(newSchema);
+    PartitionData normalizedPartition = new PartitionData(normalizedPartitionSchema);
 
-    int finalPartitionIndex = 0;
-    for (Types.NestedField f : newSchema.fields()) {
-      result.set(finalPartitionIndex, fieldIdToValues.get(f.fieldId()));
-      finalPartitionIndex++;
+    int normalizedPartitionIndex = 0;
+    for (Types.NestedField f : normalizedPartitionSchema.fields()) {
+      normalizedPartition.set(normalizedPartitionIndex, fieldIdToValues.get(f.fieldId()));
+      normalizedPartitionIndex++;
     }
-    return result;
+    return normalizedPartition;
   }
 
   @VisibleForTesting

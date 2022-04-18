@@ -425,6 +425,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
         "STRUCT<data:STRING,category:STRING>",
         PARTITIONS);
 
+    // verify the metadata tables after removing the first partition column
     table.updateSpec()
         .removeField("data")
         .commit();
@@ -444,6 +445,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
         "STRUCT<data:STRING,category:STRING>",
         PARTITIONS);
 
+    // verify the metadata tables after renaming the remaining partition column
     table.updateSpec()
         .renameField("category", "category_another_name")
         .commit();
@@ -460,6 +462,34 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
             row("d2", "c2")),
         "STRUCT<data:STRING,category_another_name:STRING>",
         PARTITIONS);
+
+    // verify the metadata tables after re-adding the first dropped column in the second location
+    table.updateSpec()
+        .addField("data")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
+
+    // Re-added partition fields currently not re-associated: https://github.com/apache/iceberg/issues/4292
+    // In V1, dropped partition fields show separately when field is re-added
+    // In V2, re-added field currently conflicts with its deleted form
+    if (formatVersion == 1) {
+      assertPartitions(
+          ImmutableList.of(
+              row(null, null, null),
+              row(null, "c1", null),
+              row(null, "c1", "d1"),
+              row(null, "c2", null),
+              row(null, "c2", "d2"),
+              row("d1", null, null),
+              row("d1", "c1", null),
+              row("d2", null, null),
+              row("d2", "c2", null)),
+          "STRUCT<data_1000:STRING,category_another_name:STRING,data:STRING>",
+          PARTITIONS);
+    }
   }
 
   @Test
