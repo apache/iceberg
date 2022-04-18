@@ -3,7 +3,7 @@ title: "Amazon EMR"
 bookIconImage: ../img/emr-logo.png
 bookFlatSection: true
 weight: 450
-bookExternalUrlNewWindow: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-create-cluster.html
+bookExternalUrlNewWindow: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
