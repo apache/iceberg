@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.rest;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -29,9 +28,8 @@ import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
-import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -43,15 +41,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestRESTCatalog<C extends Catalog & SupportsNamespaces> extends CatalogTests<C> {
+public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @TempDir
   public Path temp;
 
-  private C catalog;
+  private RESTCatalog restCatalog;
   private JdbcCatalog backendCatalog;
 
   @BeforeEach
-  @SuppressWarnings("unchecked")
   public void createCatalog() {
     File warehouse = temp.toFile();
     Configuration conf = new Configuration();
@@ -65,29 +62,32 @@ public class TestRESTCatalog<C extends Catalog & SupportsNamespaces> extends Cat
         JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     backendCatalog.initialize("backend", backendCatalogProperties);
 
-    Map<String, String> testHeaders = ImmutableMap.of("header", "value");
+    Map<String, String> testHeaders = ImmutableMap.of(
+        "x-iceberg-identity", "user",
+        "x-iceberg-credential", "12345");
 
     RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog) {
       @Override
       public <T extends RESTResponse> T execute(RESTCatalogAdapter.HTTPMethod method, String path, Object body,
                                                 Class<T> responseType, Map<String, String> headers,
                                                 Consumer<ErrorResponse> errorHandler) {
-        Assertions.assertEquals(headers, testHeaders, "Should pass headers through");
+        Assertions.assertEquals(testHeaders, headers, "Should pass headers through");
         return super.execute(method, path, body, responseType, headers, errorHandler);
       }
     };
 
-    RESTCatalog restCatalog = new RESTCatalog((config) -> adaptor);
-    restCatalog.setConf(conf);
+    SessionCatalog.SessionContext context = new SessionCatalog.SessionContext(
+        UUID.randomUUID().toString(), "user", "12345", ImmutableMap.of());
 
-    this.catalog = (C) restCatalog.withHeaders(testHeaders);
-    catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored"));
+    this.restCatalog = new RESTCatalog(context, (config) -> adaptor);
+    restCatalog.setConf(conf);
+    restCatalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored"));
   }
 
   @AfterEach
   public void closeCatalog() throws IOException {
-    if (catalog != null && catalog instanceof Closeable) {
-      ((Closeable) catalog).close();
+    if (restCatalog != null) {
+      restCatalog.close();
     }
 
     if (backendCatalog != null) {
@@ -96,8 +96,8 @@ public class TestRESTCatalog<C extends Catalog & SupportsNamespaces> extends Cat
   }
 
   @Override
-  protected C catalog() {
-    return catalog;
+  protected RESTCatalog catalog() {
+    return restCatalog;
   }
 
   @Override
