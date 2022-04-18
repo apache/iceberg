@@ -53,9 +53,9 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
   private Map<String, String> properties = null;
 
   @Override
-  public void initialize(String name, Map<String, String> properties) {
-    this.name = name;
-    this.properties = properties;
+  public void initialize(String catalogName, Map<String, String> props) {
+    this.name = catalogName;
+    this.properties = props;
   }
 
   @Override

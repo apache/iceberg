@@ -72,8 +72,6 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   private final Cache<String, Map<String, String>> headers = Caffeine.newBuilder().build();
   private Map<String, String> baseHeaders = ImmutableMap.of();
   private RESTClient client = null;
-  private String catalogName = null;
-  private Map<String, String> properties = null;
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
@@ -93,11 +91,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     ConfigResponse config = fetchConfig(props);
     Map<String, String> mergedProps = config.merge(props);
     this.client = clientBuilder.apply(mergedProps);
-    this.catalogName = name;
-    this.properties = mergedProps;
-    this.paths = ResourcePaths.forCatalogProperties(properties);
-    String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
+    super.initialize(name, mergedProps);
+    this.paths = ResourcePaths.forCatalogProperties(mergedProps);
+    String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
+    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
   }
 
   Map<String, String> headers(SessionContext context) {
@@ -117,18 +114,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     });
   }
 
-  public Map<String, String> properties() {
-    return properties;
-  }
-
   @Override
   public void setConf(Configuration newConf) {
     this.conf = newConf;
-  }
-
-  @Override
-  public String name() {
-    return catalogName;
   }
 
   @Override
@@ -435,11 +423,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   }
 
   private String fullTableName(TableIdentifier ident) {
-    return String.format("%s.%s", catalogName, ident);
+    return String.format("%s.%s", name(), ident);
   }
 
   private Map<String, String> fullConf(Map<String, String> config) {
-    Map<String, String> fullConf = Maps.newHashMap(properties);
+    Map<String, String> fullConf = Maps.newHashMap(properties());
     fullConf.putAll(config);
     return fullConf;
   }

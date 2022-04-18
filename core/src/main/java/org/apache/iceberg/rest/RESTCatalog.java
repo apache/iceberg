@@ -65,10 +65,10 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public void initialize(String name, Map<String, String> props) {
+  public void initialize(String catalogName, Map<String, String> props) {
     Preconditions.checkArgument(props != null, "Invalid configuration: null");
 
-    this.name = name;
+    this.name = catalogName;
 
     Map<String, String> contextHeaders = sessionCatalog.headers(context);
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
@@ -94,8 +94,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public boolean tableExists(TableIdentifier identifier) {
-    return delegate.tableExists(identifier);
+  public boolean tableExists(TableIdentifier ident) {
+    return delegate.tableExists(ident);
   }
 
   @Override
@@ -114,20 +114,20 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Table createTable(TableIdentifier identifier, Schema schema, PartitionSpec spec, String location,
-                           Map<String, String> properties) {
-    return delegate.createTable(identifier, schema, spec, location, properties);
+  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec, String location,
+                           Map<String, String> props) {
+    return delegate.createTable(ident, schema, spec, location, props);
   }
 
   @Override
-  public Table createTable(TableIdentifier identifier, Schema schema, PartitionSpec spec,
-                           Map<String, String> properties) {
-    return delegate.createTable(identifier, schema, spec, properties);
+  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec,
+                           Map<String, String> props) {
+    return delegate.createTable(ident, schema, spec, props);
   }
 
   @Override
-  public Table createTable(TableIdentifier identifier, Schema schema, PartitionSpec spec) {
-    return delegate.createTable(identifier, schema, spec);
+  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
+    return delegate.createTable(ident, schema, spec);
   }
 
   @Override
@@ -136,20 +136,20 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec,
-                                               String location, Map<String, String> properties) {
-    return delegate.newCreateTableTransaction(identifier, schema, spec, location, properties);
+  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
+                                               String location, Map<String, String> props) {
+    return delegate.newCreateTableTransaction(ident, schema, spec, location, props);
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec,
-                                               Map<String, String> properties) {
-    return delegate.newCreateTableTransaction(identifier, schema, spec, properties);
+  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
+                                               Map<String, String> props) {
+    return delegate.newCreateTableTransaction(ident, schema, spec, props);
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec) {
-    return delegate.newCreateTableTransaction(identifier, schema, spec);
+  public Transaction newCreateTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec) {
+    return delegate.newCreateTableTransaction(ident, schema, spec);
   }
 
   @Override
@@ -158,26 +158,26 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec,
-                                                String location, Map<String, String> properties, boolean orCreate) {
-    return delegate.newReplaceTableTransaction(identifier, schema, spec, location, properties, orCreate);
+  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
+                                                String location, Map<String, String> props, boolean orCreate) {
+    return delegate.newReplaceTableTransaction(ident, schema, spec, location, props, orCreate);
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec,
-                                                Map<String, String> properties, boolean orCreate) {
-    return delegate.newReplaceTableTransaction(identifier, schema, spec, properties, orCreate);
+  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
+                                                Map<String, String> props, boolean orCreate) {
+    return delegate.newReplaceTableTransaction(ident, schema, spec, props, orCreate);
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec,
+  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, PartitionSpec spec,
                                                 boolean orCreate) {
-    return delegate.newReplaceTableTransaction(identifier, schema, spec, orCreate);
+    return delegate.newReplaceTableTransaction(ident, schema, spec, orCreate);
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier identifier, Schema schema, boolean orCreate) {
-    return delegate.newReplaceTableTransaction(identifier, schema, orCreate);
+  public Transaction newReplaceTableTransaction(TableIdentifier ident, Schema schema, boolean orCreate) {
+    return delegate.newReplaceTableTransaction(ident, schema, orCreate);
   }
 
   @Override
@@ -196,8 +196,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   }
 
   @Override
-  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
-    return delegate.registerTable(identifier, metadataFileLocation);
+  public Table registerTable(TableIdentifier ident, String metadataFileLocation) {
+    return delegate.registerTable(ident, metadataFileLocation);
   }
 
   @Override
