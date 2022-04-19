@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -215,7 +216,7 @@ public class BaseExpireSnapshotsSparkAction
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, table.io());
-    return withFileType(buildValidContentFileDF(staticTable), CONTENT_FILE)
+    return buildValidContentFileWithTypeDF(staticTable)
         .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
         .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
@@ -228,6 +229,8 @@ public class BaseExpireSnapshotsSparkAction
    */
   private BaseExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
     AtomicLong dataFileCount = new AtomicLong(0L);
+    AtomicLong posDeleteFileCount = new AtomicLong(0L);
+    AtomicLong eqDeleteFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
 
@@ -243,23 +246,31 @@ public class BaseExpireSnapshotsSparkAction
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
           deleteFunc.accept(file);
-          switch (type) {
-            case CONTENT_FILE:
-              dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Content File: {}", file);
-              break;
-            case MANIFEST:
-              manifestCount.incrementAndGet();
-              LOG.debug("Deleted Manifest: {}", file);
-              break;
-            case MANIFEST_LIST:
-              manifestListCount.incrementAndGet();
-              LOG.debug("Deleted Manifest List: {}", file);
-              break;
+
+          if (FileContent.DATA.name().equalsIgnoreCase(type)) {
+            dataFileCount.incrementAndGet();
+            LOG.trace("Deleted Data File: {}", file);
+          } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
+            posDeleteFileCount.incrementAndGet();
+            LOG.trace("Deleted Positional Delete File: {}", file);
+          } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
+            eqDeleteFileCount.incrementAndGet();
+            LOG.trace("Deleted Equality Delete File: {}", file);
+          } else if (MANIFEST.equals(type)) {
+            manifestCount.incrementAndGet();
+            LOG.debug("Deleted Manifest: {}", file);
+          } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
+            manifestListCount.incrementAndGet();
+            LOG.debug("Deleted Manifest List: {}", file);
+          } else {
+            throw new ValidationException("Illegal file type: %s", type);
           }
         });
 
-    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
-    return new BaseExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+    long contentFileCount = dataFileCount.get() + posDeleteFileCount.get() + eqDeleteFileCount.get();
+    LOG.info("Deleted {} total files", contentFileCount + manifestCount.get() + manifestListCount.get());
+
+    return new BaseExpireSnapshotsActionResult(dataFileCount.get(), posDeleteFileCount.get(),
+        eqDeleteFileCount.get(), manifestCount.get(), manifestListCount.get());
   }
 }
