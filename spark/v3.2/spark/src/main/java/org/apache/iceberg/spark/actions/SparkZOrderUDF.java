@@ -265,8 +265,7 @@ class SparkZOrderUDF implements Serializable {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
     } else {
       throw new IllegalArgumentException(
-          String.format("Cannot use column %s of type %s in ZOrdering, the type is unsupported",
-              column, type));
+          String.format("Cannot use column %s of type %s in ZOrdering, the type is unsupported", column, type));
     }
   }
 

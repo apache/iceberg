@@ -143,7 +143,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
 
   @Override
   protected void validateOptions() {
-    // TODO implement ZOrder Strategy in API Module
+    // Ignore SortStrategy validation
     return;
   }
 

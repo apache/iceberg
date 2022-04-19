@@ -301,28 +301,6 @@ public class SparkParquetWriters {
     }
   }
 
-  private static PrimitiveWriter<UTF8String> uuids(ColumnDescriptor desc) {
-    return new UUIDWriter(desc);
-  }
-
-  private static class UUIDWriter extends PrimitiveWriter<UTF8String> {
-    private ByteBuffer buffer = ByteBuffer.allocate(16);
-
-    private UUIDWriter(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public void write(int repetitionLevel, UTF8String string) {
-      UUID uuid = UUID.fromString(string.toString());
-      buffer.rewind();
-      buffer.putLong(uuid.getMostSignificantBits());
-      buffer.putLong(uuid.getLeastSignificantBits());
-      buffer.rewind();
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
-    }
-  }
-
   private static class ArrayDataWriter<E> extends RepeatedWriter<ArrayData, E> {
     private final DataType elementType;
 
