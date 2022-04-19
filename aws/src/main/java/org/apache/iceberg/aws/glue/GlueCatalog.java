@@ -87,7 +87,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private LockManager lockManager;
-
   private Map<String, String> catalogProperties;
 
   // Attempt to set versionId if available on the path
