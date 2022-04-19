@@ -106,8 +106,7 @@ public class NessieIcebergClient implements AutoCloseable {
       return new UpdateableReference(ref, hash != null);
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
-        throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist. This ref must exist " +
-            "before creating a NessieCatalog.", requestedRef), ex);
+        throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist", requestedRef), ex);
       }
 
       throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch. " +

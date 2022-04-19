@@ -340,10 +340,6 @@ public class TestNessieTable extends BaseTestIceberg {
         .hasSize(2)
         .containsExactly(commit.getHash(), branch.getHash());
 
-    // previously this would fail with "Cannot commit: Reference hash is out of date. Update the reference ..."
-    // because the UpdateableReference between NessieCatalog and NessieTableOperations was updated independently of each
-    // other. However, given that both classes now share the same UpdateableReference via NessieIcebergClient,
-    // the error doesn't happen anymore, so we just make sure that all 3 commits exist.
     icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit();
     Branch latest = (Branch) api.getReference().refName(BRANCH).get();
     Assertions.assertThat(api.getCommitLog().refName(BRANCH).get().getLogEntries())
