@@ -42,6 +42,7 @@ import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.TimestampType;
+import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 class SparkZOrderUDF implements Serializable {
@@ -87,8 +88,7 @@ class SparkZOrderUDF implements Serializable {
   }
 
   byte[] interleaveBits(Seq<byte[]> scalaBinary) {
-    byte[][] columnsBinary = scala.collection.JavaConverters.seqAsJavaList(scalaBinary)
-        .toArray(inputHolder.get());
+    byte[][] columnsBinary = JavaConverters.seqAsJavaList(scalaBinary).toArray(inputHolder.get());
     return ZOrderByteUtils.interleaveBits(columnsBinary, totalOutputBytes, outputBuffer.get());
   }
 
