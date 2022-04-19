@@ -29,6 +29,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -61,8 +63,27 @@ public class RESTSerializers {
         .addSerializer(UnboundPartitionSpec.class, new UnboundPartitionSpecSerializer())
         .addDeserializer(UnboundPartitionSpec.class, new UnboundPartitionSpecDeserializer())
         .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
-        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer());
+        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer())
+        .addSerializer(MetadataUpdate.class, new MetadataUpdateSerializer())
+        .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer());
     mapper.registerModule(module);
+  }
+
+  public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate> {
+    @Override
+    public MetadataUpdate deserialize(JsonParser p, DeserializationContext ctxt)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return MetadataUpdateParser.fromJson(node);
+    }
+  }
+
+  public static class MetadataUpdateSerializer extends JsonSerializer<MetadataUpdate> {
+    @Override
+    public void serialize(MetadataUpdate value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      MetadataUpdateParser.toJson(value, gen);
+    }
   }
 
   public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {
