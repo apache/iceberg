@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-enum SnapshotRefType {
+public enum SnapshotRefType {
     BRANCH,
     TAG
 }
