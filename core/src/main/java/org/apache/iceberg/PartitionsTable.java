@@ -95,11 +95,11 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
-
-    PartitionMap partitions = new PartitionMap(Partitioning.partitionType(table));
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    PartitionMap partitions = new PartitionMap(partitionType);
     for (FileScanTask task : tasks) {
       PartitionData original = (PartitionData) task.file().partition();
-      PartitionData normalized = normalizePartition(original, Partitioning.partitionType(table));
+      PartitionData normalized = normalizePartition(original, partitionType);
       partitions.get(normalized).update(task.file());
     }
     return partitions.all();
