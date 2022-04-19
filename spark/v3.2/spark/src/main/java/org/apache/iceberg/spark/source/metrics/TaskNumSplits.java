@@ -17,12 +17,16 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.spark.source.metrics;
 
-import java.text.NumberFormat;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-public class NumSplits implements CustomMetric {
+public class TaskNumSplits implements CustomTaskMetric {
+  private long value;
+
+  public TaskNumSplits(long value) {
+    this.value = value;
+  }
 
   @Override
   public String name() {
@@ -30,16 +34,7 @@ public class NumSplits implements CustomMetric {
   }
 
   @Override
-  public String description() {
-    return "number of file splits read";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    long sum = initialValue;
-    for (int i = 0; i < taskMetrics.length; i++) {
-      sum += taskMetrics[i];
-    }
-    return NumberFormat.getIntegerInstance().format(sum);
+  public long value() {
+    return value;
   }
 }

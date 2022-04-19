@@ -39,6 +39,8 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.source.metrics.NumSplits;
+import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -214,7 +216,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
       numSplits = numFilesToScan(task.task);
-      LOG.debug("reading {} file splits for table {}", numSplits, task.table().name());
+      LOG.debug("reading {} file splits for table {} using RowReader", numSplits, task.table().name());
     }
 
     @Override
@@ -229,7 +231,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
       numSplits = numFilesToScan(task.task);
-      LOG.debug("reading {} file splits for table {}", numSplits, task.table().name());
+      LOG.debug("reading {} file splits for table {} using BatchReader", numSplits, task.table().name());
     }
 
     @Override
