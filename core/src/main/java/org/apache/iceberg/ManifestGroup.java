@@ -281,13 +281,11 @@ public class ManifestGroup {
           }
 
           if (ignoreAdded) {
-            entries = CloseableIterable.filter(entries,
-                entry -> entry.status() != ManifestEntry.Status.ADDED);
+            entries = CloseableIterable.filter(entries, entry -> entry.status() != ManifestEntry.Status.ADDED);
           }
 
-          if (onlyWithDeletes) {
-            entries = CloseableIterable.filter(entries,
-                entry -> hasDeletes(entry, deleteFiles));
+          if (onlyWithDeletes && deleteFiles != null) {
+            entries = CloseableIterable.filter(entries, entry -> deleteFiles.forEntry(entry).length > 0);
           }
 
           if (evaluator != null) {
@@ -298,10 +296,5 @@ public class ManifestGroup {
           entries = CloseableIterable.filter(entries, manifestEntryPredicate);
           return entryFn.apply(manifest, entries);
         });
-  }
-
-  private boolean hasDeletes(ManifestEntry<DataFile> entry, DeleteFileIndex deleteFiles) {
-    DeleteFile[] deleteFileArray = deleteFiles.forEntry(entry);
-    return deleteFileArray.length > 0;
   }
 }

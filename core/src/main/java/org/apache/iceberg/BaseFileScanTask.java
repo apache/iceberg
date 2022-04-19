@@ -48,7 +48,7 @@ public class BaseFileScanTask implements FileScanTask {
   }
 
   public BaseFileScanTask cloneWithoutDeletes() {
-    return new BaseFileScanTask(file, null, schemaString, specString, residuals);
+    return new BaseFileScanTask(file, new DeleteFile[0], schemaString, specString, residuals);
   }
 
   @Override

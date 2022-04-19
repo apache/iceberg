@@ -238,6 +238,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   @Override
   public Cdc useSnapshot(long snapshotId) {
     if (table.snapshot(snapshotId) != null) {
+      snapshotIds.clear();
       snapshotIds.add(snapshotId);
     }
     return this;
@@ -249,7 +250,11 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
         "The fromSnapshotId(%s) is invalid", fromSnapshotId);
     Preconditions.checkArgument(table.snapshot(toSnapshotId) != null,
         "The toSnapshotId(%s) is invalid", toSnapshotId);
+    Preconditions.checkArgument(SnapshotUtil.isAncestorOf(table, toSnapshotId, fromSnapshotId),
+        "The fromSnapshot(%s) is not an ancestor of the toSnapshot(%s)", fromSnapshotId, toSnapshotId);
 
+    snapshotIds.clear();
+    // include the fromSnapshotId
     snapshotIds.add(fromSnapshotId);
     SnapshotUtil.ancestorIdsBetween(toSnapshotId, fromSnapshotId, table::snapshot).forEach(snapshotIds::add);
     return this;

@@ -159,7 +159,7 @@ public class VectorHolder {
 
     @Override
     public int numValues() {
-      return this.numRows;
+      return numRows;
     }
   }
 
