@@ -35,6 +35,7 @@ public class LocationProviders {
   }
 
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
+    String sanitizedLocation = stripTrailingSlash(location);
     if (properties.containsKey(TableProperties.WRITE_LOCATION_PROVIDER_IMPL)) {
       String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
       DynConstructors.Ctor<LocationProvider> ctor;
@@ -51,7 +52,7 @@ public class LocationProviders {
             impl, LocationProvider.class), e);
       }
       try {
-        return ctor.newInstance(location, properties);
+        return ctor.newInstance(sanitizedLocation, properties);
       } catch (ClassCastException e) {
         throw new IllegalArgumentException(
             String.format("Provided implementation for dynamic instantiation should implement %s.",
@@ -60,9 +61,9 @@ public class LocationProviders {
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
-      return new ObjectStoreLocationProvider(location, properties);
+      return new ObjectStoreLocationProvider(sanitizedLocation, properties);
     } else {
-      return new DefaultLocationProvider(location, properties);
+      return new DefaultLocationProvider(sanitizedLocation, properties);
     }
   }
 
