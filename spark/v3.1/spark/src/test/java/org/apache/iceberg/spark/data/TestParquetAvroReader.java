@@ -45,6 +45,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestParquetAvroReader {
   private static final Logger LOG = LoggerFactory.getLogger(TestParquetAvroReader.class);
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 

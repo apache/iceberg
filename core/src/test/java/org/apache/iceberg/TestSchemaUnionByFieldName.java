@@ -53,6 +53,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class TestSchemaUnionByFieldName {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestSchemaUnionByFieldName.class);
+
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 

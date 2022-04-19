@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 public class TestSparkDateTimes {
   private static final Logger LOG = LoggerFactory.getLogger(TestSparkDateTimes.class);
+
   @Test
   public void testSparkDate() {
     // checkSparkDate("1582-10-14"); // -141428
