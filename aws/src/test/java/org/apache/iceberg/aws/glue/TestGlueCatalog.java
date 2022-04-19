@@ -83,7 +83,7 @@ public class TestGlueCatalog {
   public void testConstructorEmptyWarehousePath() {
     AssertHelpers.assertThrows("warehouse path cannot be null",
         IllegalArgumentException.class,
-        "Cannot initialize Catalog because warehousePath must not be null or empty",
+        "Cannot initialize GlueCatalog because warehousePath must not be null or empty",
         () -> {
             GlueCatalog catalog = new GlueCatalog();
             catalog.initialize(CATALOG_NAME, null, new AwsProperties(), glue,

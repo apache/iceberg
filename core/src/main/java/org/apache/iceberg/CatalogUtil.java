@@ -341,15 +341,4 @@ public class CatalogUtil {
 
     setConf.invoke(conf);
   }
-
-  public static String cleanWarehousePath(String path) {
-    Preconditions.checkArgument(path != null && path.length() > 0,
-        "Cannot initialize Catalog because warehousePath must not be null or empty");
-    int len = path.length();
-    if (path.charAt(len - 1) == '/') {
-      return path.substring(0, len - 1);
-    } else {
-      return path;
-    }
-  }
 }

@@ -30,6 +30,7 @@ import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -163,9 +164,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @VisibleForTesting
   void initialize(String name, String path, AwsProperties properties, GlueClient client, LockManager lock, FileIO io) {
+    Preconditions.checkArgument(path != null && path.length() > 0,
+        "Cannot initialize GlueCatalog because warehousePath must not be null or empty");
+
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = CatalogUtil.cleanWarehousePath(path);
+    this.warehousePath = LocationProviders.stripTrailingSlash(path);
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;

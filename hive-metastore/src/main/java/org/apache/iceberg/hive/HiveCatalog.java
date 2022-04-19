@@ -40,6 +40,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
@@ -90,7 +91,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
-          CatalogUtil.cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
+          LocationProviders.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
     }
 
     this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, LIST_ALL_TABLES_DEFAULT));

@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -102,9 +103,12 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        "Cannot initialize EcsCatalog because warehousePath must not be null or empty");
+
     this.catalogName = name;
-    this.warehouseLocation =
-        new EcsURI(CatalogUtil.cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
+    this.warehouseLocation = new EcsURI(LocationProviders.stripTrailingSlash(inputWarehouseLocation));
     this.client = DellClientFactories.from(properties).ecsS3();
     this.fileIO = initializeFileIO(properties);
 

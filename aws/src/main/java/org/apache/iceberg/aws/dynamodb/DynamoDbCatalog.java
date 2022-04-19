@@ -31,6 +31,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -48,6 +49,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -126,9 +128,12 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
   @VisibleForTesting
   void initialize(String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
+    Preconditions.checkArgument(path != null && path.length() > 0,
+        "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
+
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = CatalogUtil.cleanWarehousePath(path);
+    this.warehousePath = LocationProviders.stripTrailingSlash(path);
     this.dynamo = client;
     this.fileIO = io;
 

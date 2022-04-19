@@ -38,6 +38,7 @@ import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
@@ -98,8 +99,12 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
+
     this.catalogName = name;
-    this.warehouseLocation = CatalogUtil.cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    this.warehouseLocation = LocationProviders.stripTrailingSlash(inputWarehouseLocation);
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);

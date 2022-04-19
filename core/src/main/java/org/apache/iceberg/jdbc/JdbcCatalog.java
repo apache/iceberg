@@ -40,6 +40,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -81,7 +82,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     String uri = properties.get(CatalogProperties.URI);
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
-    this.warehouseLocation = CatalogUtil.cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        "Cannot initialize JDBCCatalog because warehousePath must not be null or empty");
+
+    this.warehouseLocation = LocationProviders.stripTrailingSlash(inputWarehouseLocation);
 
     if (name != null) {
       this.catalogName = name;
