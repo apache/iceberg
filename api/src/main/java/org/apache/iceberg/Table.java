@@ -54,13 +54,13 @@ public interface Table {
   TableScan newScan();
 
   /**
-   * Create a new {@link IncrementalTableScan scan} for this table.
+   * Create a new {@link IncrementalScan scan} for this table.
    * <p>
    * Once a scan is created, it can be refined to project columns and filter data.
    *
    * @return an incremental scan for this table
    */
-  default IncrementalTableScan newIncrementalScan() {
+  default IncrementalScan newIncrementalScan() {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
 

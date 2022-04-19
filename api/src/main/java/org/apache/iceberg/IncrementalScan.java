@@ -23,17 +23,17 @@ package org.apache.iceberg;
 /**
  * API for configuring an incremental table scan
  */
-public interface IncrementalTableScan extends Scan<IncrementalTableScan> {
+public interface IncrementalScan extends Scan<IncrementalScan> {
 
   /**
    * Optional. if not set, null value will be used for the start snapshot id.
-   * That would include the oldest ancestor of the {@link IncrementalTableScan#toSnapshotId(long)},
+   * That would include the oldest ancestor of the {@link IncrementalScan#toSnapshotId(long)},
    * as its parent snapshot id is null which matches the null start snapshot id
    *
    * @param fromSnapshotId the start snapshot id (exclusive)
    * @return an incremental table scan from {@code fromSnapshotId} exclusive
    */
-  IncrementalTableScan fromSnapshotId(long fromSnapshotId);
+  IncrementalScan fromSnapshotId(long fromSnapshotId);
 
   /**
    * Optional. if not set, current table snapshot id is used as the end snapshot id
@@ -41,17 +41,17 @@ public interface IncrementalTableScan extends Scan<IncrementalTableScan> {
    * @param toSnapshotId the end snapshot id (inclusive)
    * @return an incremental table scan up to {@code toSnapshotId} inclusive
    */
-  IncrementalTableScan toSnapshotId(long toSnapshotId);
+  IncrementalScan toSnapshotId(long toSnapshotId);
 
   /**
    * Only interested in snapshots with append operation
    */
-  IncrementalTableScan appendsOnly();
+  IncrementalScan appendsOnly();
 
   /**
    * Ignore snapshots with overwrite operation.
    *
    * Default behavior for incremental scan fails if there are overwrite operations in the incremental snapshot range
    */
-  IncrementalTableScan ignoreOverwrites();
+  IncrementalScan ignoreOverwrites();
 }
