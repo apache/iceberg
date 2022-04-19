@@ -21,7 +21,9 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * Scan objects are immutable and can be shared between threads. Refinement methods, like
@@ -81,4 +83,35 @@ public interface Scan<T extends Scan> {
    * @return a new scan based on this with results filtered by the expression
    */
   T filter(Expression expr);
+
+  /**
+   * Create a new {@link TableScan} to use a particular executor to plan. The default worker pool will be
+   * used by default.
+   *
+   * @param executorService the provided executor
+   * @return a table scan that uses the provided executor to access manifests
+   */
+  T planWith(ExecutorService executorService);
+
+  /**
+   * Plan the {@link FileScanTask files} that will be read by this scan.
+   * <p>
+   * Each file has a residual expression that should be applied to filter the file's rows.
+   * <p>
+   * This simple plan returns file scans for each file from position 0 to the file's length. For
+   * planning that will combine small files, split large files, and attempt to balance work, use
+   * {@link #planTasks()} instead.
+   *
+   * @return an Iterable of file tasks that are required by this scan
+   */
+  CloseableIterable<FileScanTask> planFiles();
+
+  /**
+   * Plan the {@link CombinedScanTask tasks} for this scan.
+   * <p>
+   * Tasks created by this method may read partial input files, multiple input files, or both.
+   *
+   * @return an Iterable of tasks for this scan
+   */
+  CloseableIterable<CombinedScanTask> planTasks();
 }
