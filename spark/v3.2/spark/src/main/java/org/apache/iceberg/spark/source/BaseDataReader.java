@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.CombinedScanTask;
@@ -36,13 +35,10 @@ import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -65,7 +61,7 @@ abstract class BaseDataReader<T> implements Closeable {
 
   private final Table table;
   private final Iterator<FileScanTask> tasks;
-  private final Map<String, InputFile> inputFiles;
+  private final InputFilesDecryptor inputFilesDecryptor;
 
   private CloseableIterator<T> currentIterator;
   private T current = null;
@@ -74,20 +70,7 @@ abstract class BaseDataReader<T> implements Closeable {
   BaseDataReader(Table table, CombinedScanTask task) {
     this.table = table;
     this.tasks = task.files().iterator();
-    Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
-    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
-        .map(entry -> EncryptedFiles.encryptedInput(table.io().newInputFile(entry.getKey()), entry.getValue()));
-
-    // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-    Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encrypted::iterator);
-
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
-    decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-    this.inputFiles = ImmutableMap.copyOf(files);
-
+    this.inputFilesDecryptor = new InputFilesDecryptor(task, table().io(), table.encryption());
     this.currentIterator = CloseableIterator.empty();
   }
 
@@ -139,11 +122,11 @@ abstract class BaseDataReader<T> implements Closeable {
 
   protected InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return inputFiles.get(task.file().path().toString());
+    return inputFilesDecryptor.getInputFile(task);
   }
 
   protected InputFile getInputFile(String location) {
-    return inputFiles.get(location);
+    return inputFilesDecryptor.getInputFile(location);
   }
 
   protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
