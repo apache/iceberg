@@ -120,8 +120,8 @@ public class TestParquetAvroReader {
         long end = System.currentTimeMillis();
         long duration = end - start;
 
-        LOG.error("XOR val: " + val);
-        LOG.error(String.format("Reassembled %d records in %d ms", count, duration));
+        LOG.error("XOR val: {}", val);
+        LOG.error("Reassembled {} records in {} ms", count, duration);
 
         if (i >= warmups) {
           sum += duration;
@@ -133,8 +133,7 @@ public class TestParquetAvroReader {
     double mean = ((double) sum) / trials;
     double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
 
-    LOG.error(String.format(
-        "Ran %d trials: mean time: %.3f ms, stddev: %.3f ms", trials, mean, stddev));
+    LOG.error("Ran {} trials: mean time: {} ms, stddev: {} ms", trials, mean, stddev);
   }
 
   @Ignore
@@ -160,8 +159,8 @@ public class TestParquetAvroReader {
         }
         long end = System.currentTimeMillis();
 
-        LOG.error("XOR val: " + val);
-        LOG.error("Old read path: read " + count + " records in " + (end - start) + " ms");
+        LOG.error("XOR val: {}", val);
+        LOG.error("Old read path: read {} records in {} ms", count, end - start);
       }
 
       // clean up as much memory as possible to avoid a large GC during the timed run
@@ -182,8 +181,8 @@ public class TestParquetAvroReader {
         }
         long end = System.currentTimeMillis();
 
-        LOG.error("XOR val: " + val);
-        LOG.error("New read path: read " + count + " records in " + (end - start) + " ms");
+        LOG.error("XOR val: {}", val);
+        LOG.error("New read path: read {} records in {} ms", count, end - start);
       }
     }
   }
