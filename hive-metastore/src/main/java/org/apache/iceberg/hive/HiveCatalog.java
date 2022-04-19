@@ -89,7 +89,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-      this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+      this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
+          cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
     }
 
     this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, LIST_ALL_TABLES_DEFAULT));
@@ -540,5 +541,16 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @VisibleForTesting
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;
+  }
+
+  private String cleanWarehousePath(String path) {
+    Preconditions.checkArgument(path != null && path.length() > 0,
+        "Cannot initialize HiveCatalog because warehousePath must not be null or empty");
+    int len = path.length();
+    if (path.charAt(len - 1) == '/') {
+      return path.substring(0, len - 1);
+    } else {
+      return path;
+    }
   }
 }
