@@ -569,7 +569,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     catalogWithSlash.initialize("hive_catalog", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION,
         wareHousePath + "/"));
-    Assert.assertEquals("Should have trailing slash stripped", "s3://bucket/db/tbl", catalogWithSlash.getConf().get(
+    Assert.assertEquals("Should have trailing slash stripped", wareHousePath, catalogWithSlash.getConf().get(
         HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
   }
 }

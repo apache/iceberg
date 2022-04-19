@@ -81,9 +81,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     String uri = properties.get(CatalogProperties.URI);
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
-    String warehouse = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
-    Preconditions.checkNotNull(warehouse, "JDBC warehouse location is required");
-    this.warehouseLocation = warehouse.replaceAll("/*$", "");
+    this.warehouseLocation = CatalogUtil.cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
 
     if (name != null) {
       this.catalogName = name;

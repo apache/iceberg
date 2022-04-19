@@ -48,7 +48,6 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -129,7 +128,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   void initialize(String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = cleanWarehousePath(path);
+    this.warehousePath = CatalogUtil.cleanWarehousePath(path);
     this.dynamo = client;
     this.fileIO = io;
 
@@ -498,17 +497,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
       return io;
     } else {
       return CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf);
-    }
-  }
-
-  private String cleanWarehousePath(String path) {
-    Preconditions.checkArgument(path != null && path.length() > 0,
-        "Cannot initialize DynamoDbCatalog because warehousePath must not be null");
-    int len = path.length();
-    if (path.charAt(len - 1) == '/') {
-      return path.substring(0, len - 1);
-    } else {
-      return path;
     }
   }
 

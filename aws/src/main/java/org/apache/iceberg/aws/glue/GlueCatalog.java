@@ -165,7 +165,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   void initialize(String name, String path, AwsProperties properties, GlueClient client, LockManager lock, FileIO io) {
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = cleanWarehousePath(path);
+    this.warehousePath = CatalogUtil.cleanWarehousePath(path);
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
@@ -175,17 +175,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
     closeableGroup.addCloseable(lockManager);
     closeableGroup.addCloseable(fileIO);
     closeableGroup.setSuppressCloseFailure(true);
-  }
-
-  private String cleanWarehousePath(String path) {
-    Preconditions.checkArgument(path != null && path.length() > 0,
-        "Cannot initialize GlueCatalog because warehousePath must not be null");
-    int len = path.length();
-    if (path.charAt(len - 1) == '/') {
-      return path.substring(0, len - 1);
-    } else {
-      return path;
-    }
   }
 
   @Override
