@@ -37,11 +37,14 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestParquetAvroReader {
+  private static final Logger LOG = LoggerFactory.getLogger(TestParquetAvroReader.class);
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -116,8 +119,8 @@ public class TestParquetAvroReader {
         long end = System.currentTimeMillis();
         long duration = end - start;
 
-        System.err.println("XOR val: " + val);
-        System.err.println(String.format("Reassembled %d records in %d ms", count, duration));
+        LOG.error("XOR val: " + val);
+        LOG.error(String.format("Reassembled %d records in %d ms", count, duration));
 
         if (i >= warmups) {
           sum += duration;
@@ -129,7 +132,7 @@ public class TestParquetAvroReader {
     double mean = ((double) sum) / trials;
     double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
 
-    System.err.println(String.format(
+    LOG.error(String.format(
         "Ran %d trials: mean time: %.3f ms, stddev: %.3f ms", trials, mean, stddev));
   }
 
@@ -156,8 +159,8 @@ public class TestParquetAvroReader {
         }
         long end = System.currentTimeMillis();
 
-        System.err.println("XOR val: " + val);
-        System.err.println("Old read path: read " + count + " records in " + (end - start) + " ms");
+        LOG.error("XOR val: " + val);
+        LOG.error("Old read path: read " + count + " records in " + (end - start) + " ms");
       }
 
       // clean up as much memory as possible to avoid a large GC during the timed run
@@ -178,8 +181,8 @@ public class TestParquetAvroReader {
         }
         long end = System.currentTimeMillis();
 
-        System.err.println("XOR val: " + val);
-        System.err.println("New read path: read " + count + " records in " + (end - start) + " ms");
+        LOG.error("XOR val: " + val);
+        LOG.error("New read path: read " + count + " records in " + (end - start) + " ms");
       }
     }
   }

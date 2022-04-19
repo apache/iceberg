@@ -24,11 +24,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestReadabilityChecks {
+  private static final Logger LOG = LoggerFactory.getLogger(TestReadabilityChecks.class);
   private static final Type.PrimitiveType[] PRIMITIVES = new Type.PrimitiveType[] {
       Types.BooleanType.get(),
       Types.IntegerType.get(),
@@ -362,7 +365,7 @@ public class TestReadabilityChecks {
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce 1 error message", 1, errors.size());
 
-    System.err.println(errors);
+    LOG.error(errors.toString());
     Assert.assertTrue("Should complain about field_b before field_a",
         errors.get(0).contains("field_b is out of order, before field_a"));
   }
