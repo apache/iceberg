@@ -38,11 +38,9 @@ import org.slf4j.LoggerFactory;
  */
 public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
-  private static final String DEFAULT_SCHEME = "fs";
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO = ImmutableMap.of(
-      DEFAULT_SCHEME, FALLBACK_IMPL,
       "s3", S3_FILE_IO_IMPL,
       "s3a", S3_FILE_IO_IMPL,
       "s3n", S3_FILE_IO_IMPL
@@ -129,15 +127,20 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
       try {
         io = CatalogUtil.loadFileIO(impl, properties, conf);
       } catch (IllegalArgumentException e) {
-        LOG.warn("Failed to load FileIO implementation: {}, falling back to {}", impl, FALLBACK_IMPL, e);
-        try {
-          // couldn't load the normal class, fall back to HadoopFileIO
-          io = CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf);
-        } catch (IllegalArgumentException suppressed) {
-          LOG.warn("Failed to load FileIO implementation: {} (fallback)", FALLBACK_IMPL, suppressed);
-          // both attempts failed, throw the original exception with the later exception suppressed
-          e.addSuppressed(suppressed);
+        if (impl.equals(FALLBACK_IMPL)) {
+          // no implementation to fall back to, throw the exception
           throw e;
+        } else {
+          // couldn't load the normal class, fall back to HadoopFileIO
+          LOG.warn("Failed to load FileIO implementation: {}, falling back to {}", impl, FALLBACK_IMPL, e);
+          try {
+            io = CatalogUtil.loadFileIO(FALLBACK_IMPL, properties, conf);
+          } catch (IllegalArgumentException suppressed) {
+            LOG.warn("Failed to load FileIO implementation: {} (fallback)", FALLBACK_IMPL, suppressed);
+            // both attempts failed, throw the original exception with the later exception suppressed
+            e.addSuppressed(suppressed);
+            throw e;
+          }
         }
       }
 
@@ -157,6 +160,6 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
       return location.substring(0, colonPos);
     }
 
-    return DEFAULT_SCHEME;
+    return null;
   }
 }

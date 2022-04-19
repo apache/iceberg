@@ -66,30 +66,41 @@ public class ParquetTypeVisitor<T> {
     Preconditions.checkArgument(list.getFieldCount() == 1,
         "Invalid list: does not contain single repeated field: %s", list);
 
-    GroupType repeatedElement = list.getFields().get(0).asGroupType();
+    Type repeatedElement = list.getFields().get(0);
     Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
         "Invalid list: inner group is not repeated");
-    Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
-        "Invalid list: repeated group is not a single field: %s", list);
 
-    visitor.beforeRepeatedElement(repeatedElement);
-    try {
-      T elementResult = null;
-      if (repeatedElement.getFieldCount() > 0) {
-        Type elementField = repeatedElement.getType(0);
-        visitor.beforeElementField(elementField);
-        try {
-          elementResult = visit(elementField, visitor);
-        } finally {
-          visitor.afterElementField(elementField);
-        }
-      }
-
+    Type listElement = ParquetSchemaUtil.determineListElementType(list);
+    if (listElement.isRepetition(Type.Repetition.REPEATED)) {
+      T elementResult = visitListElement(listElement, visitor);
       return visitor.list(list, elementResult);
-
-    } finally {
-      visitor.afterRepeatedElement(repeatedElement);
+    } else {
+      return visitThreeLevelList(list, repeatedElement, listElement, visitor);
     }
+  }
+
+  private static <T> T visitThreeLevelList(
+      GroupType list, Type repeated, Type listElement, ParquetTypeVisitor<T> visitor) {
+    visitor.beforeRepeatedElement(repeated);
+    try {
+      T elementResult = visitListElement(listElement, visitor);
+      return visitor.list(list, elementResult);
+    } finally {
+      visitor.afterRepeatedElement(repeated);
+    }
+  }
+
+  private static <T> T visitListElement(Type listElement, ParquetTypeVisitor<T> visitor) {
+    T elementResult = null;
+
+    visitor.beforeElementField(listElement);
+    try {
+      elementResult = visit(listElement, visitor);
+    } finally {
+      visitor.afterElementField(listElement);
+    }
+
+    return elementResult;
   }
 
   private static <T> T visitMap(GroupType map, ParquetTypeVisitor<T> visitor) {

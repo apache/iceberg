@@ -168,7 +168,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     AssertHelpers.assertThrows(
         "Should not be possible to start a new replace table txn",
         NoSuchTableException.class,
-        "No such table: hivedb.tbl",
+        "Table does not exist: hivedb.tbl",
         () -> catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, SPEC, false));
   }
 

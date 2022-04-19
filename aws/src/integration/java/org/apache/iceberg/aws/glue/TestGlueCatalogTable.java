@@ -22,6 +22,7 @@ package org.apache.iceberg.aws.glue;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.DataFile;
@@ -63,7 +64,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testCreateTable() {
     String namespace = createNamespace();
     String tableName = getRandomName();
-    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
     // verify table exists in Glue
     GetTableResponse response = glue.getTable(GetTableRequest.builder()
         .databaseName(namespace).name(tableName).build());
@@ -74,6 +75,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertTrue(response.table().parameters().containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
     Assert.assertEquals(schema.columns().size(), response.table().storageDescriptor().columns().size());
     Assert.assertEquals(partitionSpec.fields().size(), response.table().partitionKeys().size());
+    Assert.assertEquals("additionalLocations should match",
+        tableLocationProperties.values().stream().sorted().collect(Collectors.toList()),
+        response.table().storageDescriptor().additionalLocations().stream().sorted().collect(Collectors.toList()));
     // verify metadata file exists in S3
     String metaLocation = response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     String key = metaLocation.split(testBucketName, -1)[1].substring(1);
@@ -298,9 +302,17 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
-    table.updateSchema().addColumn("c2", Types.StructType.of(
-        Types.NestedField.required(3, "z", Types.IntegerType.get())), "c2").commit();
+    table.updateSchema()
+        .addColumn("c2",
+            Types.StructType.of(Types.NestedField.required(3, "z", Types.IntegerType.get())), "c2")
+        .addColumn("c3", Types.StringType.get())
+        .addColumn("c4", Types.StringType.get())
+        .commit();
     table.updateSpec().addField(truncate("c1", 8)).commit();
+    table.updateSchema()
+        .deleteColumn("c3")
+        .renameColumn("c4", "c5")
+        .commit();
     GetTableResponse response = glue.getTable(GetTableRequest.builder()
         .databaseName(namespace).name(tableName).build());
     List<Column> actualColumns = response.table().storageDescriptor().columns();
@@ -311,11 +323,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .type("string")
             .comment("c1")
             .parameters(ImmutableMap.of(
-                IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
                 IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
                 IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
-                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string",
-                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRING"
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
             ))
             .build(),
         Column.builder()
@@ -323,37 +333,37 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .type("struct<z:int>")
             .comment("c2")
             .parameters(ImmutableMap.of(
-                IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_COLUMN,
                 IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
                 IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
-                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "struct<z:int>",
-                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRUCT"
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
             ))
             .build(),
         Column.builder()
-            .name("z")
-            .type("int")
-            .parameters(ImmutableMap.of(
-                IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.SCHEMA_SUBFIELD,
-                IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
-                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
-                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "int",
-                IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "INTEGER"
-            ))
-            .build(),
-        Column.builder()
-            .name("c1_trunc_8")
+            .name("c5")
             .type("string")
-            .parameters(ImmutableMap.<String, String>builder()
-                .put(IcebergToGlueConverter.ICEBERG_FIELD_USAGE, IcebergToGlueConverter.PARTITION_FIELD)
-                .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_TYPE_ID, "STRING")
-                .put(IcebergToGlueConverter.ICEBERG_FIELD_TYPE_STRING, "string")
-                .put(IcebergToGlueConverter.ICEBERG_FIELD_ID, "1000")
-                .put(IcebergToGlueConverter.ICEBERG_PARTITION_FIELD_ID, "1000")
-                .put(IcebergToGlueConverter.ICEBERG_PARTITION_SOURCE_ID, "1")
-                .put(IcebergToGlueConverter.ICEBERG_PARTITION_TRANSFORM, "truncate[8]")
-                .build()
-            )
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "5",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
+            ))
+            .build(),
+        Column.builder()
+            .name("c3")
+            .type("string")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "4",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"
+            ))
+            .build(),
+        Column.builder()
+            .name("c4")
+            .type("string")
+            .parameters(ImmutableMap.of(
+                IcebergToGlueConverter.ICEBERG_FIELD_ID, "5",
+                IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"
+            ))
             .build()
     );
     Assert.assertEquals("Columns do not match", expectedColumns, actualColumns);

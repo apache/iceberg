@@ -21,15 +21,22 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -51,17 +58,58 @@ public class TestMetadataTableScans extends TableTestBase {
 
   private void preparePartitionedTable() {
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
+        .appendFile(FILE_A)
         .commit();
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
+        .appendFile(FILE_C)
         .commit();
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
+        .appendFile(FILE_D)
         .commit();
     table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
+        .appendFile(FILE_B)
         .commit();
+
+    if (formatVersion == 2) {
+      table.newRowDelta()
+          .addDeletes(FILE_A_DELETES)
+          .commit();
+      table.newRowDelta()
+          .addDeletes(FILE_B_DELETES)
+          .commit();
+      table.newRowDelta()
+          .addDeletes(FILE_C2_DELETES)
+          .commit();
+      table.newRowDelta()
+          .addDeletes(FILE_D2_DELETES)
+          .commit();
+    }
+  }
+
+  @Test
+  public void testManifestsTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    Table manifestsTable = new ManifestsTable(table.ops(), table);
+    TableScan scan = manifestsTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+    }
   }
 
   @Test
@@ -81,6 +129,32 @@ public class TestMetadataTableScans extends TableTestBase {
       for (FileScanTask task : tasks) {
         Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
       }
+    }
+  }
+
+  @Test
+  public void testDataFilesTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+    TableScan scan = dataFilesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
     }
   }
 
@@ -123,6 +197,32 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testManifestEntriesTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    Table manifestEntriesTable = new ManifestEntriesTable(table.ops(), table);
+    TableScan scan = manifestEntriesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+    }
+  }
+
+  @Test
   public void testAllDataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -142,6 +242,32 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testAllDataFilesTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    Table allDataFilesTable = new AllDataFilesTable(table.ops(), table);
+    TableScan scan = allDataFilesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+    }
+  }
+
+  @Test
   public void testAllEntriesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -158,6 +284,59 @@ public class TestMetadataTableScans extends TableTestBase {
         .filter(Expressions.equal("snapshot_id", 1L))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
+  }
+
+  @Test
+  public void testAllEntriesTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    Table allEntriesTable = new AllEntriesTable(table.ops(), table);
+    TableScan scan = allEntriesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+    }
+  }
+
+  @Test
+  public void testAllManifestsTableWithDroppedPartition() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
+    Table allManifestsTable = new AllManifestsTable(table.ops(), table);
+
+    TableScan scan = allManifestsTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+    }
   }
 
   @Test
@@ -309,152 +488,63 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testFilesTableScanNoFilter() {
+  public void testFilesTableScanWithDroppedPartition() throws IOException {
     preparePartitionedTable();
 
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.refresh();
+
+    table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
+
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
-    Types.StructType expected = new Schema(
-        required(102, "partition", Types.StructType.of(
-            optional(1000, "data_bucket", Types.IntegerType.get())),
-            "Partition data tuple, schema based on the partition spec")).asStruct();
+    TableScan scan = dataFilesTable.newScan();
 
-    TableScan scanNoFilter = dataFilesTable.newScan().select("partition.data_bucket");
-    Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
-    CloseableIterable<FileScanTask> tasksAndEq = scanNoFilter.planFiles();
+    Schema schema = dataFilesTable.schema();
+    Types.StructType actualType = schema.findField(DataFile.PARTITION_ID).type().asStructType();
+    Types.StructType expectedType = Types.StructType.of(
+        Types.NestedField.optional(1000, "data_bucket", Types.IntegerType.get()),
+        Types.NestedField.optional(1001, "data_bucket_16", Types.IntegerType.get()),
+        Types.NestedField.optional(1002, "data_trunc_2", Types.StringType.get())
+    );
+    Assert.assertEquals("Partition type must match", expectedType, actualType);
+    Accessor<StructLike> accessor = schema.accessorForField(1000);
 
-    Assert.assertEquals(4, Iterables.size(tasksAndEq));
-    validateFileScanTasks(tasksAndEq, 0);
-    validateFileScanTasks(tasksAndEq, 1);
-    validateFileScanTasks(tasksAndEq, 2);
-    validateFileScanTasks(tasksAndEq, 3);
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      Set<Integer> results = StreamSupport.stream(tasks.spliterator(), false)
+          .flatMap(fileScanTask -> Streams.stream(fileScanTask.asDataTask().rows()))
+          .map(accessor::get).map(i -> (Integer) i).collect(Collectors.toSet());
+      Assert.assertEquals("Partition value must match", Sets.newHashSet(0, 1, 2, 3), results);
+    }
   }
 
   @Test
-  public void testFilesTableScanAndFilter() {
-    preparePartitionedTable();
+  public void testDeleteFilesTableSelection() throws IOException {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
 
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-
-    Expression andEquals = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
-        Expressions.greaterThan("record_count", 0));
-    TableScan scanAndEq = dataFilesTable.newScan().filter(andEquals);
-    CloseableIterable<FileScanTask> tasksAndEq = scanAndEq.planFiles();
-    Assert.assertEquals(1, Iterables.size(tasksAndEq));
-    validateFileScanTasks(tasksAndEq, 0);
-  }
-
-  @Test
-  public void testFilesTableScanAndFilterWithPlanTasks() {
-    preparePartitionedTable();
-
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-
-    Expression andEquals = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
-        Expressions.greaterThan("record_count", 0));
-    TableScan scanAndEq = dataFilesTable.newScan().filter(andEquals);
-    CloseableIterable<CombinedScanTask> tasksAndEq = scanAndEq.planTasks();
-    Assert.assertEquals(1, Iterables.size(tasksAndEq));
-    validateCombinedScanTasks(tasksAndEq, 0);
-  }
-
-  @Test
-  public void testFilesTableScanLtFilter() {
-    preparePartitionedTable();
-
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-
-    Expression lt = Expressions.lessThan("partition.data_bucket", 2);
-    TableScan scan = dataFilesTable.newScan().filter(lt);
-    CloseableIterable<FileScanTask> tasksLt = scan.planFiles();
-    Assert.assertEquals(2, Iterables.size(tasksLt));
-    validateFileScanTasks(tasksLt, 0);
-    validateFileScanTasks(tasksLt, 1);
-  }
-
-  @Test
-  public void testFilesTableScanOrFilter() {
-    preparePartitionedTable();
-
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-
-    Expression or = Expressions.or(
-        Expressions.equal("partition.data_bucket", 2),
-        Expressions.greaterThan("record_count", 0));
-    TableScan scan = dataFilesTable.newScan()
-        .filter(or);
-    CloseableIterable<FileScanTask> tasksOr = scan.planFiles();
-    Assert.assertEquals(4, Iterables.size(tasksOr));
-    validateFileScanTasks(tasksOr, 0);
-    validateFileScanTasks(tasksOr, 1);
-    validateFileScanTasks(tasksOr, 2);
-    validateFileScanTasks(tasksOr, 3);
-  }
-
-  @Test
-  public void testFilesScanNotFilter() {
-    preparePartitionedTable();
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-
-    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
-    TableScan scan = dataFilesTable.newScan()
-        .filter(not);
-    CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
-    Assert.assertEquals(2, Iterables.size(tasksNot));
-    validateFileScanTasks(tasksNot, 2);
-    validateFileScanTasks(tasksNot, 3);
-  }
-
-  @Test
-  public void testFilesTableScanInFilter() {
-    preparePartitionedTable();
-
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-
-    Expression set = Expressions.in("partition.data_bucket", 2, 3);
-    TableScan scan = dataFilesTable.newScan()
-          .filter(set);
-    CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
-    Assert.assertEquals(2, Iterables.size(tasksNot));
-
-    validateFileScanTasks(tasksNot, 2);
-    validateFileScanTasks(tasksNot, 3);
-  }
-
-  @Test
-  public void testFilesTableScanNotNullFilter() {
-    preparePartitionedTable();
-
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
-    Expression unary = Expressions.notNull("partition.data_bucket");
-    TableScan scan = dataFilesTable.newScan()
-        .filter(unary);
-    CloseableIterable<FileScanTask> tasksUnary = scan.planFiles();
-    Assert.assertEquals(4, Iterables.size(tasksUnary));
-
-    validateFileScanTasks(tasksUnary, 0);
-    validateFileScanTasks(tasksUnary, 1);
-    validateFileScanTasks(tasksUnary, 2);
-    validateFileScanTasks(tasksUnary, 3);
-  }
-
-  @Test
-  public void testDataFilesTableSelection() throws IOException {
     table.newFastAppend()
         .appendFile(FILE_A)
-        .appendFile(FILE_B)
         .commit();
 
-    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_A2_DELETES)
+        .commit();
 
-    TableScan scan = dataFilesTable.newScan()
+    Table deleteFilesTable = new DeleteFilesTable(table.ops(), table);
+
+    TableScan scan = deleteFilesTable.newScan()
         .filter(Expressions.equal("record_count", 1))
         .select("content", "record_count");
     validateTaskScanResiduals(scan, false);
     Types.StructType expected = new Schema(
         optional(134, "content", Types.IntegerType.get(),
-                 "Contents of the file: 0=data, 1=position deletes, 2=equality deletes"),
+            "Contents of the file: 0=data, 1=position deletes, 2=equality deletes"),
         required(103, "record_count", Types.LongType.get(), "Number of records in the file")
     ).asStruct();
     Assert.assertEquals(expected, scan.schema().asStruct());
@@ -516,6 +606,65 @@ public class TestMetadataTableScans extends TableTestBase {
     validateIncludesPartitionScan(tasksAndEq, 0);
   }
 
+
+  @Test
+  public void testAllDataFilesTableScanWithPlanExecutor() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Table allDataFilesTable = new AllDataFilesTable(table.ops(), table);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = allDataFilesTable.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testAllEntriesTableScanWithPlanExecutor() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Table allEntriesTable = new AllEntriesTable(table.ops(), table);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = allEntriesTable.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testPartitionsTableScanWithPlanExecutor() {
+    preparePartitionedTable();
+
+    Table partitionsTable = new PartitionsTable(table.ops(), table);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    TableScan scan = partitionsTable.newScan()
+        .planWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+    CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
+    Assert.assertEquals(4, Iterables.size(tasks));
+    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
       Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
@@ -535,20 +684,6 @@ public class TestMetadataTableScans extends TableTestBase {
     Assert.assertTrue("File scan tasks do not include correct file",
         StreamSupport.stream(tasks.spliterator(), false).anyMatch(
             a -> a.file().partition().get(0, Object.class).equals(partValue)));
-  }
-
-  private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
-    Assert.assertTrue("File scan tasks do not include correct file",
-        StreamSupport.stream(fileScanTasks.spliterator(), false).anyMatch(t -> {
-          ManifestFile mf = ((DataFilesTable.ManifestReadTask) t).manifest();
-          return manifestHasPartition(mf, partValue);
-        }));
-  }
-
-  private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
-    StreamSupport.stream(tasks.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).manifest()))
-        .anyMatch(m -> manifestHasPartition(m, partValue));
   }
 
   private boolean manifestHasPartition(ManifestFile mf, int partValue) {

@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.core.execution.JobClient;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -66,12 +65,10 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
         if (tEnv == null) {
           EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
               .newInstance()
-              .useBlinkPlanner()
               .inStreamingMode();
 
           StreamExecutionEnvironment env = StreamExecutionEnvironment
               .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
-          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
           env.enableCheckpointing(400);
 
           StreamTableEnvironment streamTableEnv = StreamTableEnvironment.create(env, settingsBuilder.build());

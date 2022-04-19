@@ -32,6 +32,7 @@ import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -210,7 +211,8 @@ public class Partitioning {
     }
 
     Map<Integer, PartitionField> fieldMap = Maps.newHashMap();
-    List<NestedField> structFields = Lists.newArrayList();
+    Map<Integer, Type> typeMap = Maps.newHashMap();
+    Map<Integer, String> nameMap = Maps.newHashMap();
 
     // sort the spec IDs in descending order to pick up the most recent field names
     List<Integer> specIds = table.specs().keySet().stream()
@@ -222,25 +224,38 @@ public class Partitioning {
 
       for (PartitionField field : spec.fields()) {
         int fieldId = field.fieldId();
+        NestedField structField = spec.partitionType().field(fieldId);
         PartitionField existingField = fieldMap.get(fieldId);
 
         if (existingField == null) {
           fieldMap.put(fieldId, field);
-          NestedField structField = spec.partitionType().field(fieldId);
-          structFields.add(structField);
+          typeMap.put(fieldId, structField.type());
+          nameMap.put(fieldId, structField.name());
+
         } else {
           // verify the fields are compatible as they may conflict in v1 tables
           ValidationException.check(equivalentIgnoringNames(field, existingField),
               "Conflicting partition fields: ['%s', '%s']",
               field, existingField);
+
+          // use the correct type for dropped partitions in v1 tables
+          if (isVoidTransform(existingField) && !isVoidTransform(field)) {
+            fieldMap.put(fieldId, field);
+            typeMap.put(fieldId, structField.type());
+          }
         }
       }
     }
 
-    List<NestedField> sortedStructFields = structFields.stream()
-        .sorted(Comparator.comparingInt(NestedField::fieldId))
+    List<NestedField> sortedStructFields = fieldMap.keySet().stream()
+        .sorted(Comparator.naturalOrder())
+        .map(fieldId -> NestedField.optional(fieldId, nameMap.get(fieldId), typeMap.get(fieldId)))
         .collect(Collectors.toList());
     return StructType.of(sortedStructFields);
+  }
+
+  private static boolean isVoidTransform(PartitionField field) {
+    return field.transform().equals(Transforms.alwaysNull());
   }
 
   private static List<Transform<?, ?>> collectUnknownTransforms(Table table) {

@@ -33,6 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A rewrite strategy for data files which determines which files to rewrite
@@ -45,6 +47,8 @@ import org.apache.iceberg.util.PropertyUtil;
  * {@link RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
  */
 public abstract class BinPackStrategy implements RewriteStrategy {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BinPackStrategy.class);
 
   /**
    * The minimum number of files that need to be in a file group for it to be considered for
@@ -89,12 +93,20 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   static final long SPLIT_OVERHEAD = 1024 * 5;
 
+  /**
+   * Rewrites all files, regardless of their size. Defaults to false, rewriting only mis-sized
+   * files;
+   */
+  public static final String REWRITE_ALL = "rewrite-all";
+  public static final boolean REWRITE_ALL_DEFAULT = false;
+
   private int minInputFiles;
   private int deleteFileThreshold;
   private long minFileSize;
   private long maxFileSize;
   private long targetFileSize;
   private long maxGroupSize;
+  private boolean rewriteAll;
 
   @Override
   public String name() {
@@ -107,7 +119,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES,
         DELETE_FILE_THRESHOLD,
         MIN_FILE_SIZE_BYTES,
-        MAX_FILE_SIZE_BYTES
+        MAX_FILE_SIZE_BYTES,
+        REWRITE_ALL
     );
   }
 
@@ -140,25 +153,40 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         DELETE_FILE_THRESHOLD,
         DELETE_FILE_THRESHOLD_DEFAULT);
 
+    rewriteAll = PropertyUtil.propertyAsBoolean(options,
+        REWRITE_ALL,
+        REWRITE_ALL_DEFAULT);
+
     validateOptions();
     return this;
   }
 
   @Override
   public Iterable<FileScanTask> selectFilesToRewrite(Iterable<FileScanTask> dataFiles) {
-    return FluentIterable.from(dataFiles)
-        .filter(scanTask -> scanTask.length() < minFileSize || scanTask.length() > maxFileSize ||
-                taskHasTooManyDeletes(scanTask));
+    if (rewriteAll) {
+      LOG.info("Table {} set to rewrite all data files", table().name());
+      return dataFiles;
+    } else {
+      return FluentIterable.from(dataFiles)
+          .filter(scanTask -> scanTask.length() < minFileSize || scanTask.length() > maxFileSize ||
+              taskHasTooManyDeletes(scanTask));
+    }
   }
 
   @Override
   public Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> dataFiles) {
     ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
-    return potentialGroups.stream().filter(group ->
-      group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize ||
+    if (rewriteAll) {
+      return potentialGroups;
+    } else {
+      return potentialGroups.stream().filter(group ->
+          (group.size() >= minInputFiles && group.size() > 1) ||
+              (sizeOfInputFiles(group) > targetFileSize && group.size() > 1) ||
+              sizeOfInputFiles(group) > maxFileSize ||
               group.stream().anyMatch(this::taskHasTooManyDeletes)
-    ).collect(Collectors.toList());
+      ).collect(Collectors.toList());
+    }
   }
 
   protected long targetFileSize() {
@@ -214,10 +242,6 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     return fileToRewrite.stream().mapToLong(FileScanTask::length).sum();
   }
 
-  protected long maxGroupSize() {
-    return maxGroupSize;
-  }
-
   /**
    * Estimates a larger max target file size than our target size used in task creation to avoid
    * tasks which are predicted to have a certain size, but exceed that target size when serde is complete creating
@@ -247,27 +271,27 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   private void validateOptions() {
     Preconditions.checkArgument(minFileSize >= 0,
-        "Cannot set %s to a negative number, %d < 0",
+        "Cannot set %s to a negative number, %s < 0",
         MIN_FILE_SIZE_BYTES, minFileSize);
 
     Preconditions.checkArgument(maxFileSize > minFileSize,
-        "Cannot set %s greater than or equal to %s, %d >= %d",
+        "Cannot set %s greater than or equal to %s, %s >= %s",
         MIN_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, minFileSize, maxFileSize);
 
     Preconditions.checkArgument(targetFileSize > minFileSize,
-        "Cannot set %s greater than or equal to %s, all files written will be smaller than the threshold, %d >= %d",
+        "Cannot set %s greater than or equal to %s, all files written will be smaller than the threshold, %s >= %s",
         MIN_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, minFileSize, targetFileSize);
 
     Preconditions.checkArgument(targetFileSize < maxFileSize,
-        "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %d >= %d",
+        "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %s >= %s",
         RewriteDataFiles.TARGET_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, targetFileSize, maxFileSize);
 
     Preconditions.checkArgument(minInputFiles > 0,
-        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %s < 1",
         MIN_INPUT_FILES, minInputFiles);
 
     Preconditions.checkArgument(deleteFileThreshold > 0,
-        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %s < 1",
         DELETE_FILE_THRESHOLD, deleteFileThreshold);
   }
 }

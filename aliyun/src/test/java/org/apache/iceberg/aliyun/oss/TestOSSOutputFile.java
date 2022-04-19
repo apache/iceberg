@@ -32,6 +32,7 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.Test;
@@ -108,7 +109,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   @Test
   public void testLocation() {
     OSSURI uri = randomURI();
-    OutputFile out = new OSSOutputFile(ossClient, uri, aliyunProperties);
+    OutputFile out = new OSSOutputFile(ossClient, uri, aliyunProperties, MetricsContext.nullMetrics());
     Assert.assertEquals("Location should match", uri.location(), out.location());
   }
 
@@ -117,7 +118,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
 
-    OutputFile out = new OSSOutputFile(ossClient, randomURI(), aliyunProperties);
+    OutputFile out = new OSSOutputFile(ossClient, randomURI(), aliyunProperties, MetricsContext.nullMetrics());
     try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
       ByteStreams.copy(is, os);
     }

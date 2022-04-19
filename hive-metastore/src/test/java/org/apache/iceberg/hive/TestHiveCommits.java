@@ -24,9 +24,13 @@ import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -273,6 +277,21 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
     Assert.assertEquals("The column addition from the concurrent commit should have been successful",
         2, ops.current().schema().columns().size());
+  }
+
+  @Test
+  public void testInvalidObjectException() {
+    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`tbl`");
+    Assert.assertThrows(String.format("Invalid table name for %s.%s", DB_NAME, "`tbl`"),
+        ValidationException.class,
+        () -> catalog.createTable(badTi, schema, PartitionSpec.unpartitioned()));
+  }
+
+  @Test
+  public void testAlreadyExistsException() {
+    Assert.assertThrows(String.format("Table already exists: %s.%s", DB_NAME, TABLE_NAME),
+        AlreadyExistsException.class,
+        () -> catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned()));
   }
 
   private void commitAndThrowException(HiveTableOperations realOperations, HiveTableOperations spyOperations)

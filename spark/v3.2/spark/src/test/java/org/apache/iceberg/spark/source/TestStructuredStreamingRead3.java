@@ -346,8 +346,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     appendData(orcFileRecords, "orc");
     appendData(avroFileRecords, "avro");
 
-    table.refresh();
-
     StreamingQuery query = startStream();
     Assertions.assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(parquetFileRecords, orcFileRecords, avroFileRecords));
@@ -403,8 +401,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected);
 
-    table.refresh();
-
     // this should create a snapshot with type Replace.
     table.rewriteManifests()
         .clusterBy(f -> 1)
@@ -425,13 +421,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .addField(ref("id"))
         .commit();
 
-    table.refresh();
-
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots);
-
-    table.refresh();
 
     // this should create a snapshot with type delete.
     table.newDelete()
@@ -439,7 +431,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .commit();
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
-    table.refresh();
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
     StreamingQuery query = startStream();
@@ -459,13 +450,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .addField(ref("id"))
         .commit();
 
-    table.refresh();
-
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots);
-
-    table.refresh();
 
     // this should create a snapshot with type delete.
     table.newDelete()
@@ -473,10 +460,33 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .commit();
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
-    table.refresh();
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true");
+    Assertions.assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
+  @Test
+  public void testReadStreamWithSnapshotTypeDeleteAndSkipOverwriteOption() throws Exception {
+    table.updateSpec()
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+
+    // this should create a snapshot with type overwrite.
+    table.newOverwrite()
+        .overwriteByRowFilter(Expressions.greaterThan("id", 4))
+        .commit();
+
+    // check pre-condition - that the above delete operation on table resulted in Snapshot of Type OVERWRITE.
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
     Assertions.assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }

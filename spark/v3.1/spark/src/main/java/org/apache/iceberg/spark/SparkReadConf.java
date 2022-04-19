@@ -104,6 +104,13 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean streamingSkipOverwriteSnapshots() {
+    return confParser.booleanConf()
+        .option(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS)
+        .defaultValue(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT)
+        .parse();
+  }
+
   public boolean parquetVectorizationEnabled() {
     return confParser.booleanConf()
         .option(SparkReadOptions.VECTORIZATION_ENABLED)

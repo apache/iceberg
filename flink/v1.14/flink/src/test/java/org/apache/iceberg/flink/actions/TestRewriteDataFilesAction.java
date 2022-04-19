@@ -23,6 +23,7 @@ package org.apache.iceberg.flink.actions;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
@@ -50,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -322,7 +322,6 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
    */
   @Test
   public void testRewriteAvoidRepeateCompress() throws IOException {
-    Assume.assumeFalse("ORC does not support getting length when file is opening", format.equals(FileFormat.ORC));
     List<Record> expected = Lists.newArrayList();
     Schema schema = icebergTableUnPartitioned.schema();
     GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
@@ -331,7 +330,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
       long filesize = 20000;
       for (; fileAppender.length() < filesize; count++) {
-        Record record = SimpleDataUtil.createRecord(count, "iceberg");
+        Record record = SimpleDataUtil.createRecord(count, UUID.randomUUID().toString());
         fileAppender.add(record);
         expected.add(record);
       }

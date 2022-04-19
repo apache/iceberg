@@ -17,18 +17,11 @@
  * under the License.
  */
 
-def flinkProjects = [
-  project(':iceberg-flink:iceberg-flink-1.14'),
-  project(':iceberg-flink:iceberg-flink-runtime-1.14')
-]
+String flinkVersion = '1.14.0'
+String flinkMajorVersion = '1.14'
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
-configure(flinkProjects) {
-  project.ext {
-    flinkVersion = '1.14.0'
-  }
-}
-
-project(':iceberg-flink:iceberg-flink-1.14') {
+project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -40,10 +33,10 @@ project(':iceberg-flink:iceberg-flink-1.14') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
-    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}"
-    compileOnly "org.apache.flink:flink-streaming-java_2.12:${flinkVersion}:tests"
-    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12:${flinkVersion}"
-    compileOnly "org.apache.flink:flink-table-planner_2.12:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-streaming-java_${scalaVersion}:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-streaming-java_${scalaVersion}:${flinkVersion}:tests"
+    compileOnly "org.apache.flink:flink-table-api-java-bridge_${scalaVersion}:${flinkVersion}"
+    compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${flinkVersion}"
     compileOnly "org.apache.hadoop:hadoop-hdfs"
     compileOnly "org.apache.hadoop:hadoop-common"
     compileOnly("org.apache.hadoop:hadoop-minicluster") {
@@ -72,7 +65,7 @@ project(':iceberg-flink:iceberg-flink-1.14') {
     testImplementation ("org.apache.flink:flink-test-utils-junit:${flinkVersion}") {
       exclude group: 'junit'
     }
-    testImplementation("org.apache.flink:flink-test-utils_2.12:${flinkVersion}") {
+    testImplementation("org.apache.flink:flink-test-utils_${scalaVersion}:${flinkVersion}") {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
     }
@@ -116,7 +109,7 @@ project(':iceberg-flink:iceberg-flink-1.14') {
   }
 }
 
-project(':iceberg-flink:iceberg-flink-runtime-1.14') {
+project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -136,7 +129,7 @@ project(':iceberg-flink:iceberg-flink-runtime-1.14') {
   }
 
   dependencies {
-    implementation project(':iceberg-flink:iceberg-flink-1.14')
+    implementation project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}")
     implementation project(':iceberg-aws')
     implementation(project(':iceberg-aliyun')) {
       exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'

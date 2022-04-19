@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -115,6 +116,14 @@ public class SparkWriteConf {
     return sessionConf.get("spark.wap.id", null);
   }
 
+  public boolean mergeSchema() {
+    return confParser.booleanConf()
+        .option(SparkWriteOptions.MERGE_SCHEMA)
+        .option(SparkWriteOptions.SPARK_MERGE_SCHEMA)
+        .defaultValue(SparkWriteOptions.MERGE_SCHEMA_DEFAULT)
+        .parse();
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString = confParser.stringConf()
         .option(SparkWriteOptions.WRITE_FORMAT)
@@ -198,7 +207,7 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode copyOnWriteDeleteDistributionMode() {
+  public DistributionMode deleteDistributionMode() {
     String deleteModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
@@ -207,7 +216,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(deleteModeName);
   }
 
-  public DistributionMode copyOnWriteUpdateDistributionMode() {
+  public DistributionMode updateDistributionMode() {
     String updateModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
@@ -230,29 +239,12 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode positionDeleteDistributionMode() {
-    String deleteModeName = confParser.stringConf()
+  public DistributionMode positionDeltaMergeDistributionMode() {
+    String mergeModeName = confParser.stringConf()
         .option(SparkWriteOptions.DISTRIBUTION_MODE)
-        .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
         .parseOptional();
-
-    if (deleteModeName != null) {
-      DistributionMode deleteMode = DistributionMode.fromName(deleteModeName);
-      if (deleteMode == HASH && table.spec().isUnpartitioned()) {
-        return NONE;
-      } else {
-        return deleteMode;
-      }
-    } else {
-      // use hash distribution if write distribution is range or hash and table is partitioned
-      // avoid range-based shuffles unless the user asks explicitly
-      DistributionMode writeMode = distributionMode();
-      if (writeMode != NONE && table.spec().isPartitioned()) {
-        return HASH;
-      } else {
-        return writeMode;
-      }
-    }
+    return mergeModeName != null ? DistributionMode.fromName(mergeModeName) : distributionMode();
   }
 
   public boolean useTableDistributionAndOrdering() {
@@ -260,5 +252,18 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .parse();
+  }
+
+  public Long validateFromSnapshotId() {
+    return confParser.longConf()
+        .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID)
+        .parseOptional();
+  }
+
+  public IsolationLevel isolationLevel() {
+    String isolationLevelName = confParser.stringConf()
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
+        .parseOptional();
+    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
   }
 }

@@ -132,7 +132,6 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private CloseableIterable<RowData> newParquetIterable(
       FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
     Parquet.ReadBuilder builder = Parquet.read(inputFilesDecryptor.getInputFile(task))
-        .reuseContainers()
         .split(task.start(), task.length())
         .project(schema)
         .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
@@ -173,7 +172,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
     FlinkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
                       InputFilesDecryptor inputFilesDecryptor) {
-      super(task, tableSchema, requestedSchema);
+      super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
       this.requiredRowType = FlinkSchemaUtil.convert(requiredSchema());
       this.asStructLike = new RowDataWrapper(requiredRowType, requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;

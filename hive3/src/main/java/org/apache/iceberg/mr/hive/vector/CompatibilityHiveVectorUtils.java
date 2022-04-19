@@ -18,6 +18,7 @@
 
 package org.apache.iceberg.mr.hive.vector;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
 import org.apache.commons.lang3.StringUtils;
@@ -203,7 +204,7 @@ public class CompatibilityHiveVectorUtils {
           bytesColumnVector.isNull[0] = true;
           bytesColumnVector.isRepeating = true;
         } else {
-          bytesColumnVector.setVal(0, sVal.getBytes());
+          bytesColumnVector.setVal(0, sVal.getBytes(StandardCharsets.UTF_8));
           bytesColumnVector.isRepeating = true;
         }
         break;

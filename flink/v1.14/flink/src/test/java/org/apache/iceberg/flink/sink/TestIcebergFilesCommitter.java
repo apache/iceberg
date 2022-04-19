@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -57,6 +58,7 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -204,6 +206,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows));
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(jobID, i);
+        Assert.assertEquals(TestIcebergFilesCommitter.class.getName(),
+            table.currentSnapshot().summary().get("flink.test"));
       }
     }
   }
@@ -574,6 +578,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       SimpleDataUtil.assertTableRows(table, tableRows);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, Long.MAX_VALUE);
+      Assert.assertEquals(TestIcebergFilesCommitter.class.getName(),
+          table.currentSnapshot().summary().get("flink.test"));
     }
   }
 
@@ -599,8 +605,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.snapshot(checkpoint, ++timestamp);
       List<Path> manifestPaths = assertFlinkManifests(1);
       Path manifestPath = manifestPaths.get(0);
+      String operatorId = harness.getOneInputOperator().getOperatorID().toString();
       Assert.assertEquals("File name should have the expected pattern.",
-          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
+          String.format("%s-%s-%05d-%d-%d-%05d.avro", jobId, operatorId, 0, 0, checkpoint, 1),
+          manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
@@ -640,8 +648,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.snapshot(checkpoint, ++timestamp);
       List<Path> manifestPaths = assertFlinkManifests(1);
       Path manifestPath = manifestPaths.get(0);
+      String operatorId = harness.getOneInputOperator().getOperatorID().toString();
       Assert.assertEquals("File name should have the expected pattern.",
-          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
+          String.format("%s-%s-%05d-%d-%d-%05d.avro", jobId, operatorId, 0, 0, checkpoint, 1),
+          manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
@@ -816,7 +826,9 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
+      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false,
+          Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
+          ThreadPools.WORKER_THREAD_POOL_SIZE);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

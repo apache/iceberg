@@ -41,13 +41,53 @@ public class TableProperties {
   public static final String FORMAT_VERSION = "format-version";
 
   /**
+   * Reserved table property for UUID.
+   * <p>
+   * This reserved property is used to store the UUID of the table.
+   */
+  public static final String UUID = "uuid";
+
+  /**
+   * Reserved table property for the total number of snapshots.
+   * <p>
+   * This reserved property is used to store the total number of snapshots.
+   */
+  public static final String SNAPSHOT_COUNT = "snapshot-count";
+
+  /**
+   * Reserved table property for current snapshot summary.
+   * <p>
+   * This reserved property is used to store the current snapshot summary.
+   */
+  public static final String CURRENT_SNAPSHOT_SUMMARY = "current-snapshot-summary";
+
+  /**
+   * Reserved table property for current snapshot id.
+   * <p>
+   * This reserved property is used to store the current snapshot id.
+   */
+  public static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
+
+  /**
+   * Reserved table property for current snapshot timestamp.
+   * <p>
+   * This reserved property is used to store the current snapshot timestamp.
+   */
+  public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
+
+  /**
    * Reserved Iceberg table properties list.
    * <p>
    * Reserved table properties are only used to control behaviors when creating or updating a table.
    * The value of these properties are not persisted as a part of the table metadata.
    */
   public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
-      FORMAT_VERSION
+      FORMAT_VERSION,
+      UUID,
+      SNAPSHOT_COUNT,
+      CURRENT_SNAPSHOT_ID,
+      CURRENT_SNAPSHOT_SUMMARY,
+      CURRENT_SNAPSHOT_TIMESTAMP
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
@@ -89,15 +129,15 @@ public class TableProperties {
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
   public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = "write.delete.parquet.row-group-size-bytes";
-  public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = "134217728"; // 128 MB
+  public static final int PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
   public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = "write.delete.parquet.page-size-bytes";
-  public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB
+  public static final int PARQUET_PAGE_SIZE_BYTES_DEFAULT = 1024 * 1024; // 1 MB
 
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
   public static final String DELETE_PARQUET_DICT_SIZE_BYTES = "write.delete.parquet.dict-size-bytes";
-  public static final String PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"; // 2 MB
+  public static final int PARQUET_DICT_SIZE_BYTES_DEFAULT = 2 * 1024 * 1024; // 2 MB
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
@@ -107,9 +147,45 @@ public class TableProperties {
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL = "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
+  public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
+      "write.parquet.row-group-check-min-record-count";
+  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
+      "write.delete.parquet.row-group-check-min-record-count";
+  public static final int PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT = 100;
+
+  public static final String PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
+      "write.parquet.row-group-check-max-record-count";
+  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
+      "write.delete.parquet.row-group-check-max-record-count";
+  public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
+
+  public static final String AVRO_COMPRESSION_LEVEL = "write.avro.compression-level";
+  public static final String DELETE_AVRO_COMPRESSION_LEVEL = "write.delete.avro.compression-level";
+  public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
+
+  public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
+  public static final String DELETE_ORC_STRIPE_SIZE_BYTES = "write.delete.orc.stripe-size-bytes";
+  public static final long ORC_STRIPE_SIZE_BYTES_DEFAULT = 64L * 1024 * 1024; // 64 MB
+
+  public static final String ORC_BLOCK_SIZE_BYTES = "write.orc.block-size-bytes";
+  public static final String DELETE_ORC_BLOCK_SIZE_BYTES = "write.delete.orc.block-size-bytes";
+  public static final long ORC_BLOCK_SIZE_BYTES_DEFAULT = 256L * 1024 * 1024; // 256 MB
+
+  public static final String ORC_WRITE_BATCH_SIZE = "write.orc.vectorized.batch-size";
+  public static final String DELETE_ORC_WRITE_BATCH_SIZE = "write.delete.orc.vectorized.batch-size";
+  public static final int ORC_WRITE_BATCH_SIZE_DEFAULT = 1024;
+
+  public static final String ORC_COMPRESSION = "write.orc.compression-codec";
+  public static final String DELETE_ORC_COMPRESSION = "write.delete.orc.compression-codec";
+  public static final String ORC_COMPRESSION_DEFAULT = "zlib";
+
+  public static final String ORC_COMPRESSION_STRATEGY = "write.orc.compression-strategy";
+  public static final String DELETE_ORC_COMPRESSION_STRATEGY = "write.delete.orc.compression-strategy";
+  public static final String ORC_COMPRESSION_STRATEGY_DEFAULT = "speed";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
@@ -124,7 +200,7 @@ public class TableProperties {
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
-  public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = false;
+  public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = true;
 
   public static final String PARQUET_BATCH_SIZE = "read.parquet.vectorization.batch-size";
   public static final int PARQUET_BATCH_SIZE_DEFAULT = 5000;
@@ -151,12 +227,6 @@ public class TableProperties {
    */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
-
-  /**
-   * @deprecated will be removed in 0.14.0, use {@link #WRITE_DATA_LOCATION} instead
-   */
-  @Deprecated
-  public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
@@ -202,6 +272,9 @@ public class TableProperties {
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
 
+  public static final String SPARK_WRITE_ACCEPT_ANY_SCHEMA = "write.spark.accept-any-schema";
+  public static final boolean SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT = false;
+
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 
@@ -212,11 +285,6 @@ public class TableProperties {
   public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
   public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
-  /**
-   * @deprecated will be removed in 0.14.0, use specific modes instead
-   */
-  @Deprecated
-  public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = WRITE_DISTRIBUTION_MODE_NONE;
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;

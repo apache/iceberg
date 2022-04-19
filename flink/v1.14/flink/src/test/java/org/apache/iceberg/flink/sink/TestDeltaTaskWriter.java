@@ -136,7 +136,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     WriteResult result = writer.complete();
     Assert.assertEquals(partitioned ? 7 : 1, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 6 : 2, result.deleteFiles().length);
+    Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records.", expectedRowSet(
@@ -306,13 +306,13 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer.write(createInsert(1, "aaa"));
     writer.write(createInsert(2, "aaa"));
 
-    writer.write(createDelete(2, "aaa")); // 1 pos-delete and 1 eq-delete.
+    writer.write(createDelete(2, "aaa")); // 1 pos-delete.
 
     WriteResult result = writer.complete();
     Assert.assertEquals(1, result.dataFiles().length);
-    Assert.assertEquals(2, result.deleteFiles().length);
-    Assert.assertEquals(Sets.newHashSet(FileContent.EQUALITY_DELETES, FileContent.POSITION_DELETES),
-        Sets.newHashSet(result.deleteFiles()[0].content(), result.deleteFiles()[1].content()));
+    Assert.assertEquals(1, result.deleteFiles().length);
+    Assert.assertEquals(Sets.newHashSet(FileContent.POSITION_DELETES),
+        Sets.newHashSet(result.deleteFiles()[0].content()));
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(

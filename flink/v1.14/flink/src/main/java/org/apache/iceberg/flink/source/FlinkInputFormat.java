@@ -20,8 +20,10 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
+import org.apache.flink.api.common.io.LocatableInputSplitAssigner;
 import org.apache.flink.api.common.io.RichInputFormat;
 import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.configuration.Configuration;
@@ -33,6 +35,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Flink {@link InputFormat} for Iceberg.
@@ -75,15 +78,20 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   public FlinkInputSplit[] createInputSplits(int minNumSplits) throws IOException {
     // Called in Job manager, so it is OK to load table from catalog.
     tableLoader.open();
+    final ExecutorService workerPool = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", context.planParallelism());
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
-      return FlinkSplitPlanner.planInputSplits(table, context);
+      return FlinkSplitPlanner.planInputSplits(table, context, workerPool);
+    } finally {
+      workerPool.shutdown();
     }
   }
 
   @Override
   public InputSplitAssigner getInputSplitAssigner(FlinkInputSplit[] inputSplits) {
-    return new DefaultInputSplitAssigner(inputSplits);
+    return context.exposeLocality() ?
+        new LocatableInputSplitAssigner(inputSplits) :
+        new DefaultInputSplitAssigner(inputSplits);
   }
 
   @Override

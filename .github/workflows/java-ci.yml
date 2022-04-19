@@ -20,17 +20,11 @@
 name: "Java CI"
 on:
   push:
-    paths-ignore:
-    - '.github/workflows/python-ci.yml'
-    - '.github/workflows/spark-ci.yml'
-    - '.github/workflows/flink-ci.yml'
-    - '.github/workflows/hive-ci.yml'
-    - '.github/workflows/cancel-duplicate-workflow-runs.yml'
-    - '.gitignore'
-    - 'dev/**'
-    - 'python/**'
-    - 'python_legacy/**'
-    - 'site/**'
+    branches:
+    - 'master'
+    - '0.**'
+    tags:
+    - 'apache-iceberg-**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
@@ -41,7 +35,16 @@ on:
     - 'dev/**'
     - 'python/**'
     - 'python_legacy/**'
-    - 'site/**'
+    - 'docs/**'
+    - 'open-api/**'
+    - 'format/**'
+    - '.gitattributes'
+    - 'README.md'
+    - 'CONTRIBUTING.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   core-tests:
@@ -77,7 +80,7 @@ jobs:
     - uses: actions/setup-java@v1
       with:
         java-version: 8
-    - run: ./gradlew -DflinkVersions=1.12,1.13,1.14 -DsparkVersions=2.4,3.0,3.1,3.2 -DhiveVersions=2,3 build -x test -x javadoc -x integrationTest
+    - run: ./gradlew -DflinkVersions=1.13,1.14 -DsparkVersions=2.4,3.0,3.1,3.2 -DhiveVersions=2,3 build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-latest

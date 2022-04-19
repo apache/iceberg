@@ -27,7 +27,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -135,9 +134,7 @@ public class TestHelpers {
   }
 
   public static void assertRows(List<Row> results, List<Row> expected) {
-    expected.sort(Comparator.comparing(Row::toString));
-    results.sort(Comparator.comparing(Row::toString));
-    Assert.assertEquals(expected, results);
+    Assertions.assertThat(results).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   public static void assertRowData(Schema schema, StructLike expected, RowData actual) {

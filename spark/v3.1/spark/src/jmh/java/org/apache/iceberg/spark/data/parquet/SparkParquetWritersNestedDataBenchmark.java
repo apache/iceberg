@@ -35,6 +35,7 @@ import org.apache.spark.sql.types.StructType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
@@ -51,9 +52,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * A benchmark that evaluates the performance of writing nested Parquet data using
  * Iceberg and Spark Parquet writers.
  *
- * To run this benchmark for either spark-2 or spark-3:
+ * To run this benchmark for spark-3.1:
  * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
+ *   ./gradlew -DsparkVersions=3.1 :iceberg-spark:iceberg-spark-3.1_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetWritersNestedDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-writers-nested-data-benchmark-result.txt
  * </code>
@@ -84,7 +85,7 @@ public class SparkParquetWritersNestedDataBenchmark {
     dataFile.delete();
   }
 
-  @TearDown
+  @TearDown(Level.Iteration)
   public void tearDownBenchmark() {
     if (dataFile != null) {
       dataFile.delete();

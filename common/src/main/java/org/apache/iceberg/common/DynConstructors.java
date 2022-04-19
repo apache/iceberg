@@ -223,8 +223,7 @@ public class DynConstructors {
       if (ctor != null) {
         return ctor;
       }
-      throw new NoSuchMethodException("Cannot find constructor for " +
-          baseClass + "\n" + formatProblems(problems));
+      throw buildCheckedException(baseClass, problems);
     }
 
     @SuppressWarnings("unchecked")
@@ -232,8 +231,7 @@ public class DynConstructors {
       if (ctor != null) {
         return ctor;
       }
-      throw new RuntimeException("Cannot find constructor for " +
-          baseClass + "\n" + formatProblems(problems));
+      throw buildRuntimeException(baseClass, problems);
     }
   }
 
@@ -249,6 +247,20 @@ public class DynConstructors {
       hidden.setAccessible(true);
       return null;
     }
+  }
+
+  private static NoSuchMethodException buildCheckedException(Class<?> baseClass, Map<String, Throwable> problems) {
+    NoSuchMethodException exc = new NoSuchMethodException(
+        "Cannot find constructor for " + baseClass + "\n" + formatProblems(problems));
+    problems.values().forEach(exc::addSuppressed);
+    return exc;
+  }
+
+  private static RuntimeException buildRuntimeException(Class<?> baseClass, Map<String, Throwable> problems) {
+    RuntimeException exc = new RuntimeException(
+        "Cannot find constructor for " + baseClass + "\n" + formatProblems(problems));
+    problems.values().forEach(exc::addSuppressed);
+    return exc;
   }
 
   private static String formatProblems(Map<String, Throwable> problems) {

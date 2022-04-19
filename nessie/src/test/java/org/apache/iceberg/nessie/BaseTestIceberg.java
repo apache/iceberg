@@ -20,6 +20,7 @@
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
@@ -50,9 +51,11 @@ import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
+import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -70,12 +73,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter
+  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
   static DatabaseAdapter databaseAdapter;
   @RegisterExtension
   static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
   @TempDir
   public Path temp;
@@ -102,9 +105,9 @@ public abstract class BaseTestIceberg {
   }
 
   @BeforeEach
-  public void beforeEach() throws IOException {
-    uri = server.getURI().toString();
-    this.api = HttpClientBuilder.builder().withUri(uri).build(NessieApiV1.class);
+  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
+    this.uri = nessieUri.toString();
+    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
     resetData();
 
@@ -133,7 +136,7 @@ public abstract class BaseTestIceberg {
     try {
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
-      LOGGER.error("unable to do create " + tableIdentifier.toString(), t);
+      LOG.error("unable to do create " + tableIdentifier.toString(), t);
       throw t;
     }
   }

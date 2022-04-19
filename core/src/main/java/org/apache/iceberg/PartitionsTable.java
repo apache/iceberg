@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
  * A {@link Table} implementation that exposes a table's partitions as rows.
@@ -46,9 +45,10 @@ public class PartitionsTable extends BaseMetadataTable {
     super(ops, table, name);
 
     this.schema = new Schema(
-        Types.NestedField.required(1, "partition", table.spec().partitionType()),
+        Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
         Types.NestedField.required(2, "record_count", Types.LongType.get()),
-        Types.NestedField.required(3, "file_count", Types.IntegerType.get())
+        Types.NestedField.required(3, "file_count", Types.IntegerType.get()),
+        Types.NestedField.required(4, "spec_id", Types.IntegerType.get())
     );
   }
 
@@ -90,7 +90,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
-    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount);
+    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount, partition.specId);
   }
 
   private static Iterable<Partition> partitions(StaticTableScan scan) {
@@ -111,7 +111,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
     // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
     Expression partitionFilter = Projections
-        .inclusive(transformSpec(scan.schema(), table.spec(), PARTITION_FIELD_PREFIX), caseSensitive)
+        .inclusive(transformSpec(scan.schema(), table.spec()), caseSensitive)
         .project(scan.filter());
 
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
@@ -125,8 +125,9 @@ public class PartitionsTable extends BaseMetadataTable {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && scan.snapshot().dataManifests().size() > 1) {
-      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+    if (scan.snapshot().dataManifests().size() > 1 &&
+        (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
+      manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
     }
 
     return manifestGroup.planFiles();
@@ -167,16 +168,19 @@ public class PartitionsTable extends BaseMetadataTable {
     private final StructLike key;
     private long recordCount;
     private int fileCount;
+    private int specId;
 
     Partition(StructLike key) {
       this.key = key;
       this.recordCount = 0;
       this.fileCount = 0;
+      this.specId = 0;
     }
 
     void update(DataFile file) {
       this.recordCount += file.recordCount();
       this.fileCount += 1;
+      this.specId = file.specId();
     }
   }
 }
