@@ -482,4 +482,59 @@ public class TestTypeUtil {
     Schema actualNoStruct = TypeUtil.selectNot(schema, Sets.newHashSet(2));
     Assert.assertEquals(schema.asStruct(), actualNoStruct.asStruct());
   }
+
+  @Test
+  public void testSelectNotInnerStruct() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get()),
+                required(5, "address", Types.StructType.of(
+                    required(6, "number", Types.DoubleType.get()),
+                    required(7, "street", Types.DoubleType.get())
+                )
+        )))));
+
+    // Expected that filter inner struct if all struct is not filtered
+    Schema expectedFilteredStruct = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of(
+                required(4, "long", Types.DoubleType.get()),
+                required(5, "address", Types.StructType.of(
+                    required(6, "number", Types.DoubleType.get()),
+                    required(7, "street", Types.DoubleType.get())
+                )
+        )))));
+    Schema actualFilteredStruct = TypeUtil.selectNot(schema, Sets.newHashSet(3),
+        true /* doesNeedToKeepInnerStruct */);
+    Assert.assertEquals(expectedFilteredStruct.asStruct(), actualFilteredStruct.asStruct());
+
+    // Expected that do not filter inner struct if all struct is filtered
+    Schema actualNotInnerStruct = TypeUtil.selectNot(schema, Sets.newHashSet(3, 4, 5),
+        true /* doesNeedToKeepInnerStruct */);
+    Assert.assertEquals(schema.asStruct(), actualNotInnerStruct.asStruct());
+
+    Schema actualNotSubInnerStruct = TypeUtil.selectNot(schema, Sets.newHashSet(6, 7),
+        true /* doesNeedToKeepInnerStruct */);
+    Assert.assertEquals(schema.asStruct(), actualNotSubInnerStruct.asStruct());
+
+    Schema expectedFilteredInnerStruct = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get()),
+                required(5, "address", Types.StructType.of(
+                    required(7, "street", Types.DoubleType.get())
+                )
+        )))));
+
+    Schema actualSubInnerStruct = TypeUtil.selectNot(schema, Sets.newHashSet(6),
+        true /* doesNeedToFilteredInnerStruct */);
+    Assert.assertEquals(expectedFilteredInnerStruct.asStruct(), actualSubInnerStruct.asStruct());
+  }
+
 }

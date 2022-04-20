@@ -103,7 +103,8 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
       Set<Integer> constantFieldIds = idToConstant.keySet();
       Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
       Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
-      Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema, constantAndMetadataFieldIds);
+      Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(
+          expectedSchema, constantAndMetadataFieldIds, true);
       ORC.ReadBuilder builder = ORC.read(location)
           .project(schemaWithoutConstantAndMetadataFields)
           .split(task.start(), task.length())

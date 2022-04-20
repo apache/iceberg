@@ -149,7 +149,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private CloseableIterable<RowData> newOrcIterable(
       FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(schema,
-        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()), true);
 
     ORC.ReadBuilder builder = ORC.read(inputFilesDecryptor.getInputFile(task))
         .project(readSchemaWithoutConstantAndMetadataFields)

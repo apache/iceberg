@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class TypeUtil {
 
@@ -130,15 +131,47 @@ public class TypeUtil {
     return visit(type, new GetProjectedIds(includeStructIds));
   }
 
+  private static Set<Integer> innerCheck(Set<Integer> filteredIds, Types.NestedField innerField) {
+    // If it's a struct and if all ids need to be filtered we keep all.
+    // So we remove all ids from filtered ids set
+    if (innerField.type().isStructType()) {
+      if (innerField.type().asStructType().fields()
+              .stream().allMatch(f -> filteredIds.contains(f.fieldId()))) {
+        filteredIds.removeAll(innerField.type().asStructType().fields().stream()
+                .map(Types.NestedField::fieldId).collect(Collectors.toSet()));
+      }
+      innerField.type().asStructType().fields().forEach(f -> innerCheck(filteredIds, f));
+    }
+    return filteredIds;
+  }
+
+  private static void filter(Set<Integer> projectedIds, Types.StructType struct, Set<Integer> fieldIds,
+                              boolean doesNeedToKeepInnerStruct) {
+    Set<Integer> filteredIds = Sets.newHashSet(fieldIds);
+    if (doesNeedToKeepInnerStruct) {
+      struct.fields().forEach(f -> innerCheck(filteredIds, f));
+    }
+    projectedIds.removeAll(filteredIds);
+  }
+
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
+    return selectNot(struct, fieldIds, false);
+  }
+
+  public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds,
+                                           boolean doesNeedToKeepInnerStruct) {
     Set<Integer> projectedIds = getIdsInternal(struct, false);
-    projectedIds.removeAll(fieldIds);
+    filter(projectedIds, struct, fieldIds, doesNeedToKeepInnerStruct);
     return project(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
+    return selectNot(schema, fieldIds, false);
+  }
+
+  public static Schema selectNot(Schema schema, Set<Integer> fieldIds, boolean doesNeedToKeepInnerStruct) {
     Set<Integer> projectedIds = getIdsInternal(schema.asStruct(), false);
-    projectedIds.removeAll(fieldIds);
+    filter(projectedIds, schema.asStruct(), fieldIds, doesNeedToKeepInnerStruct);
     return project(schema, projectedIds);
   }
 

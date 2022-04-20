@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.extensions;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -397,6 +398,26 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
     sql("DESCRIBE %s", tableName);
     Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+  }
+
+  @Test
+  public void testAddPartitionStruct() {
+    FORMATS.forEach(this::testAddPartitionInAStruct);
+  }
+
+  private void testAddPartitionInAStruct(String format) {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("CREATE TABLE %s (id INT, st struct<id:INT, data:string>) USING iceberg " +
+        "TBLPROPERTIES ('write.format.default'='%s')", tableName, format);
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct('id', 10, 'data', 'v1'))," +
+        "(2, named_struct('id', 20, 'data', 'v2'))", tableName);
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD st.data as data", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct('id', 11, 'data', 'v1'))", tableName);
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(row("v1"), row("v2"));
+    assertEquals("Should have expected rows", expectedRows,
+        sql("select distinct st.data from %s order by data", tableName));
   }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {

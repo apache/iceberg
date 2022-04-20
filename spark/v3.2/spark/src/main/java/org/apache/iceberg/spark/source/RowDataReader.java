@@ -155,7 +155,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
-        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()), true);
 
     ORC.ReadBuilder builder = ORC.read(location)
         .project(readSchemaWithoutConstantAndMetadataFields)

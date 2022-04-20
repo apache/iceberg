@@ -393,7 +393,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Map<Integer, ?> idToConstant = constantsMap(task, IdentityPartitionConverters::convertConstant);
       Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
-          Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+          Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()), true);
 
       CloseableIterable<T> orcIterator = null;
       // ORC does not support reuse containers yet
