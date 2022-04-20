@@ -22,12 +22,14 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 
 /**
  * A {@link Table} implementation that exposes a table's partitions as rows.
@@ -96,35 +98,72 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap();
 
-    LoadingCache<PartitionData, PartitionData> normalizedPartitions = Caffeine.newBuilder().build(
-        pData -> normalizePartition(pData, partitionType));
+    LoadingCache<Integer, Integer[]> originalPartitionFieldPositionsBySpec = Caffeine.newBuilder().build(specId ->
+        originalPositions(table, specId, normalizedPartitionType));
+    LoadingCache<Pair<PartitionData, Integer>, PartitionData> normalizedPartitions = Caffeine.newBuilder().build(
+        pData -> normalizePartition(pData, normalizedPartitionType, originalPartitionFieldPositionsBySpec));
 
     for (FileScanTask task : tasks) {
       PartitionData original = (PartitionData) task.file().partition();
-      PartitionData normalized = normalizedPartitions.get(original);
+      int specId = task.spec().specId();
+      PartitionData normalized = normalizedPartitions.get(Pair.of(original, specId));
       partitions.get(normalized).update(task.file());
     }
     return partitions.all();
   }
 
-  private static PartitionData normalizePartition(PartitionData partition, Types.StructType normalizedPartitionSchema) {
-    Map<Integer, Object> fieldIdToValues = Maps.newHashMap();
+  /**
+   * Returns an array of original partition field positions, indexed by normalized partition field positions
+   */
+  private static Integer[] originalPositions(Table table,
+                                             int originalSpecId,
+                                             Types.StructType normalizedPartitionType) {
+    Types.StructType originalType = table.specs().get(originalSpecId).partitionType();
+
+    Map<Integer, Integer> originalFieldIdsToPosition = Maps.newHashMapWithExpectedSize(
+        originalType.fields().size());
     int originalPartitionIndex = 0;
-    for (Types.NestedField f : partition.getPartitionType().fields()) {
-      fieldIdToValues.put(f.fieldId(), partition.get(originalPartitionIndex));
+    for (Types.NestedField originalField : originalType.fields()) {
+      originalFieldIdsToPosition.put(originalField.fieldId(), originalPartitionIndex);
       originalPartitionIndex++;
     }
+    Integer[] result = normalizedPartitionType.fields().stream().map(f -> {
+      Integer originalFieldPosition = originalFieldIdsToPosition.get(f.fieldId());
+      return (originalFieldPosition == null) ? null : originalFieldPosition;
+    }).toArray(Integer[]::new);
+    return result;
+  }
+
+  /**
+   * Convert a partition data written by an old spec, to table's normalized partition form, which is a common partition
+   * type for all specs of the table.
+   * @param originalPartition un-normalized partition data and its spec id
+   * @param normalizedPartitionSchema table's normalized partition form {@link Partitioning#partitionType(Table)}
+   * @param originalPartitionFieldPositionsBySpec map of partition spec id to an array of positional indexes
+   *                                              of the spec's partition fields indexed by position in the
+   *                                              normalized partition type
+   * @return the normalized partition data
+   */
+  private static PartitionData normalizePartition(Pair<PartitionData, Integer> originalPartition,
+                                                  Types.StructType normalizedPartitionSchema,
+                                                  LoadingCache<Integer, Integer[]>
+                                                      originalPartitionFieldPositionsBySpec) {
+    int originalSpecId = originalPartition.second();
+    Integer[] originalPartitionFieldPositions = originalPartitionFieldPositionsBySpec.get(originalSpecId);
 
     PartitionData normalizedPartition = new PartitionData(normalizedPartitionSchema);
 
-    int normalizedPartitionIndex = 0;
-    for (Types.NestedField f : normalizedPartitionSchema.fields()) {
-      normalizedPartition.set(normalizedPartitionIndex, fieldIdToValues.get(f.fieldId()));
-      normalizedPartitionIndex++;
-    }
+    IntStream.range(0, normalizedPartitionSchema.fields().size()).forEach(normalizedPartitionFieldIndex -> {
+      Integer originalPartitionPosition = originalPartitionFieldPositions[normalizedPartitionFieldIndex];
+      if (originalPartitionPosition != null) {
+        Object originalPartitionValue = originalPartition.first().get(originalPartitionPosition);
+        normalizedPartition.put(normalizedPartitionFieldIndex, originalPartitionValue);
+      }
+    });
+
     return normalizedPartition;
   }
 
