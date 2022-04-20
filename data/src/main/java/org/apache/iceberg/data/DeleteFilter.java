@@ -67,6 +67,8 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
+  private final boolean hasMetadataColumnIsDeleted;
+  private final int isDeletedColumnIndex;
 
   private PositionDeleteIndex deleteRowPositions = null;
   private Predicate<T> eqDeleteRows = null;
@@ -94,6 +96,22 @@ public abstract class DeleteFilter<T> {
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
+    this.hasMetadataColumnIsDeleted = requestedSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
+    this.isDeletedColumnIndex = getIndexOfIsDeletedMetadataColumn();
+  }
+
+  private int getIndexOfIsDeletedMetadataColumn() {
+    List<Types.NestedField> icebergFields = requiredSchema.asStruct().fields();
+    for (int i = 0; i < icebergFields.size(); i++) {
+      if (icebergFields.get(i).fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  protected int isDeletedColumnIndex() {
+    return isDeletedColumnIndex;
   }
 
   public Schema requiredSchema() {
@@ -185,14 +203,35 @@ public abstract class DeleteFilter<T> {
         .reduce(Predicate::and)
         .orElse(t -> true);
 
-    Filter<T> remainingRowsFilter = new Filter<T>() {
+    Filter<T> remainingRowsFilter = hasMetadataColumnIsDeleted ? getMarker(remainingRows) : getFilter(remainingRows);
+
+    return remainingRowsFilter.filter(records);
+  }
+
+  private Filter<T> getFilter(Predicate<T> remainingRows) {
+    return new Filter<T>() {
       @Override
       protected boolean shouldKeep(T item) {
         return remainingRows.test(item);
       }
     };
+  }
 
-    return remainingRowsFilter.filter(records);
+  private Filter<T> getMarker(Predicate<T> remainingRows) {
+    return new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        if (!remainingRows.test(item)) {
+          // if the row is deleted, set the metadata column to true
+          markRowDeleted(item);
+        }
+        return true;  // keep the row even if it is deleted by equality deletions
+      }
+    };
+  }
+
+  protected void markRowDeleted(T item) {
+    throw new UnsupportedOperationException("Method markRowDeleted not implemented");
   }
 
   public Predicate<T> eqDeletedRowFilter() {
@@ -226,10 +265,14 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      return Deletes.filter(records, this::pos, Deletes.toPositionIndex(filePath, deletes));
+      return hasMetadataColumnIsDeleted ?
+          Deletes.marker(records, this::pos, Deletes.toPositionIndex(filePath, deletes), this::markRowDeleted) :
+          Deletes.filter(records, this::pos, Deletes.toPositionIndex(filePath, deletes));
     }
 
-    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
+    return hasMetadataColumnIsDeleted ?
+        Deletes.streamingMarker(records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted) :
+        Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {

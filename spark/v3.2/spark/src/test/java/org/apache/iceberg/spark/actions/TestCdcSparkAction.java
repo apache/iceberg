@@ -208,6 +208,44 @@ public class TestCdcSparkAction extends SparkTestBase {
   }
 
   @Test
+  public void testNonVectorizedReadEqualityDeleteRows() throws IOException {
+    Table tbl = createMetastoreTable(Maps.newHashMap(), 3);
+    TableOperations ops = ((BaseTable) tbl).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    // non-vectorized
+    tbl.updateProperties()
+        .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
+        .commit();
+
+    Schema deleteSchema = tbl.schema().select("c1");
+    Record idDelete = GenericRecord.create(deleteSchema);
+    List<Record> idDeletes = Lists.newArrayList(
+        idDelete.copy("c1", 0),
+        idDelete.copy("c1", 1)
+    );
+
+    DeleteFile eqDelete = FileHelpers.writeDeleteFile(
+        tbl, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), idDeletes, deleteSchema);
+
+    tbl.newRowDelta()
+        .addDeletes(eqDelete)
+        .commit();
+
+    Cdc.Result result = actions().generateCdcRecords(tbl).execute();
+    // verify the results
+    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
+    Snapshot snapshot = tbl.currentSnapshot();
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(0, "AAAAAAAAAA", "AAAA", "D", snapshot.snapshotId(), snapshot.timestampMillis(), 0),
+        row(1, "AAAAAAAAAA", "AAAA", "D", snapshot.snapshotId(), snapshot.timestampMillis(), 0)
+    );
+    assertEquals("Should have expected rows", expectedRows, actualRecords);
+  }
+
+  @Test
   public void testReadEqualityDeleteRowsWithNoResult() throws IOException {
     Table tbl = createMetastoreTable(Maps.newHashMap());
     TableOperations ops = ((BaseTable) tbl).operations();

@@ -54,14 +54,23 @@ public class TestCdcWithMerge extends SparkRowLevelOperationsTestBase {
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}," +
       " format = {3}, vectorized = {4}, distributionMode = {5}")
   public static Object[][] parameters() {
-    return new Object[][] {
-        { "testhive", SparkCatalog.class.getName(),
+    return new Object[][]{
+        {"testhive", SparkCatalog.class.getName(),
             ImmutableMap.of(
                 "type", "hive",
                 "default-namespace", "default"
             ),
             "parquet",
             true,
+            WRITE_DISTRIBUTION_MODE_NONE
+        },
+        {"testhive", SparkCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default"
+            ),
+            "parquet",
+            false,
             WRITE_DISTRIBUTION_MODE_NONE
         }
     };
