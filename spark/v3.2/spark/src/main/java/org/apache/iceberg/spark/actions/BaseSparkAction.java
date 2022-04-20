@@ -62,6 +62,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected static final String FILE_PATH = "file_path";
   protected static final String FILE_TYPE = "file_type";
+  protected static final String LAST_MODIFIED = "last_modified";
 
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
 

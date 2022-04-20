@@ -24,6 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.actions.BaseDeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -50,7 +51,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("location", DataTypes.StringType),
       ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
       ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("actual_files_table", DataTypes.StringType)
+      ProcedureParameter.optional("file_list_view", DataTypes.StringType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -88,15 +89,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     String location = args.isNullAt(2) ? null : args.getString(2);
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
-    String tableWithActualFilePaths = args.isNullAt(5) ? null : args.getString(5);
+    String fileListView = args.isNullAt(5) ? null : args.getString(5);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
-
-    Preconditions.checkArgument(
-            tableWithActualFilePaths == null || (location == null && olderThanMillis == null),
-            "actual_files_table cannot be used with `location` or `older_than`"
-    );
 
     return withIcebergTable(tableIdent, table -> {
       DeleteOrphanFiles action = actions().deleteOrphanFiles(table);
@@ -121,8 +117,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
       }
 
-      if (tableWithActualFilePaths != null) {
-        action.actualFilesTable(tableWithActualFilePaths);
+      if (fileListView != null) {
+        ((BaseDeleteOrphanFilesSparkAction) action).compareToFileList(spark().table(fileListView));
       }
 
       DeleteOrphanFiles.Result result = action.execute();

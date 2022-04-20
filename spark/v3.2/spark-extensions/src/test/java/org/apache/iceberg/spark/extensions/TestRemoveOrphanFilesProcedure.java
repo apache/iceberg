@@ -316,41 +316,45 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
             catalogName, tableIdent, -1));
 
-    AssertHelpers.assertThrows("Should reject calls with both actual_files_table and location args",
-        IllegalArgumentException.class, "actual_files_table cannot be used with",
-        () -> sql(
-            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '', location => '')",
-            catalogName, tableIdent));
-
-    AssertHelpers.assertThrows("Should reject calls with both actual_files_table and older_than args",
-        IllegalArgumentException.class, "actual_files_table cannot be used with",
-        () -> sql(
-            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '', older_than => TIMESTAMP '%s')",
-            catalogName, tableIdent, "1000-01-01 00:00:00"));
-
-    AssertHelpers.assertThrows("Should throw an error if actual_files_table does not exist",
-        ValidationException.class, "does not exist",
-        () -> sql(
-            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => 'missing')",
-            catalogName, tableIdent));
-
-    String tempViewName = "actual_files_test";
+    String tempViewName = "file_list_test";
     spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
 
-    AssertHelpers.assertThrows("Should throw an error if actual_files_table is missing required column",
-        ValidationException.class, "is missing required `file_path` column",
-        () -> sql(
-            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '%s')",
-            catalogName, tableIdent, tempViewName));
+    AssertHelpers.assertThrows(
+        "Should throw an error if file_list_view is missing required columns",
+        IllegalArgumentException.class,
+        "does not exist. Available:",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
 
-    spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
-    spark.createDataset(Lists.newArrayList(), Encoders.INT()).toDF("file_path").createOrReplaceTempView(tempViewName);
+    spark
+        .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))
+        .toDF("file_path", "last_modified")
+        .createOrReplaceTempView(tempViewName);
 
-    AssertHelpers.assertThrows("Should throw an error if actual_files_table has wrong schema",
-        ValidationException.class, "Invalid schema",
-        () -> sql(
-            "CALL %s.system.remove_orphan_files(table => '%s', actual_files_table => '%s')",
-            catalogName, tableIdent, tempViewName));
+    AssertHelpers.assertThrows(
+        "Should throw an error if file_path has wrong type",
+        IllegalArgumentException.class,
+        "Invalid file_path column",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
+
+    spark
+        .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
+        .toDF("file_path", "last_modified")
+        .createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if last_modified has wrong type",
+        IllegalArgumentException.class,
+        "Invalid last_modified column",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
   }
 
   @Test

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -150,20 +152,10 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Assert.assertEquals("Action should find 1 file", invalidFiles, result2.orphanFileLocations());
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
 
-    String actualFilesTableName = "actualFilesTable";
-    spark.createDataset(allFiles, Encoders.STRING()).toDF("file_path").createOrReplaceTempView(actualFilesTableName);
     DeleteOrphanFiles.Result result3 = actions.deleteOrphanFiles(table)
-        .deleteWith(s -> { })
-        .actualFilesTable(actualFilesTableName)
-        .execute();
-
-    Assert.assertEquals("Action should find 1 file", invalidFiles, result3.orphanFileLocations());
-    Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
-
-    DeleteOrphanFiles.Result result4 = actions.deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis())
         .execute();
-    Assert.assertEquals("Action should delete 1 file", invalidFiles, result4.orphanFileLocations());
+    Assert.assertEquals("Action should delete 1 file", invalidFiles, result3.orphanFileLocations());
     Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -712,5 +704,121 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     AssertHelpers.assertThrows("Should complain about removing orphan files",
         ValidationException.class, "Cannot delete orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
+  }
+
+  @Test
+  public void testCompareToFileList() throws IOException, InterruptedException {
+    Table table =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    List<FilePathLastModifiedRecord> validFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(
+                file ->
+                    new FilePathLastModifiedRecord(
+                        file.getPath().toString(), new Timestamp(file.getModificationTime())))
+            .collect(Collectors.toList());
+
+    Assert.assertEquals("Should be 2 valid files", 2, validFiles.size());
+
+    df.write().mode("append").parquet(tableLocation + "/data");
+
+    List<FilePathLastModifiedRecord> allFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(
+                file ->
+                    new FilePathLastModifiedRecord(
+                        file.getPath().toString(), new Timestamp(file.getModificationTime())))
+            .collect(Collectors.toList());
+
+    Assert.assertEquals("Should be 3 files", 3, allFiles.size());
+
+    List<FilePathLastModifiedRecord> invalidFiles = Lists.newArrayList(allFiles);
+    invalidFiles.removeAll(validFiles);
+    List<String> invalidFilePaths =
+        invalidFiles.stream()
+            .map(FilePathLastModifiedRecord::getFilePath)
+            .collect(Collectors.toList());
+    Assert.assertEquals("Should be 1 invalid file", 1, invalidFiles.size());
+
+    // sleep for 1 second to ensure files will be old enough
+    Thread.sleep(1000);
+
+    SparkActions actions = SparkActions.get();
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result1 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileList)
+            .deleteWith(s -> { })
+            .execute();
+    Assert.assertTrue(
+        "Default olderThan interval should be safe",
+        Iterables.isEmpty(result1.orphanFileLocations()));
+
+    DeleteOrphanFiles.Result result2 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> { })
+            .execute();
+    Assert.assertEquals(
+        "Action should find 1 file", invalidFilePaths, result2.orphanFileLocations());
+    Assert.assertTrue(
+        "Invalid file should be present", fs.exists(new Path(invalidFilePaths.get(0))));
+
+    DeleteOrphanFiles.Result result3 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
+    Assert.assertEquals(
+        "Action should delete 1 file", invalidFilePaths, result3.orphanFileLocations());
+    Assert.assertFalse(
+        "Invalid file should not be present", fs.exists(new Path(invalidFilePaths.get(0))));
+
+    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(records);
+    expectedRecords.addAll(records);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+
+    List<FilePathLastModifiedRecord> outsideLocationMockFiles =
+        Lists.newArrayList(new FilePathLastModifiedRecord("/tmp/mock1", new Timestamp(0L)));
+
+    Dataset<Row> compareToFileListWithOutsideLocation =
+        spark
+            .createDataFrame(outsideLocationMockFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result4 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileListWithOutsideLocation)
+            .deleteWith(s -> { })
+            .execute();
+    Assert.assertEquals(
+        "Action should find nothing", Lists.newArrayList(), result4.orphanFileLocations());
   }
 }
