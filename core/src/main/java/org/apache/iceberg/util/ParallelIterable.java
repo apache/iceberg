@@ -23,11 +23,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -55,7 +55,9 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final Iterator<Runnable> tasks;
     private final ExecutorService workerPool;
     private final Future<?>[] taskFutures;
-    private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
+    private final int queueSize = SystemProperties.getInt(SystemProperties.SCAN_SHARED_QUEUE_SIZE,
+        SystemProperties.SCAN_SHARED_QUEUE_SIZE_DEFAULT);
+    private final LinkedBlockingQueue<T> queue = new LinkedBlockingQueue<>(queueSize);
     private boolean closed = false;
 
     private ParallelIterator(Iterable<? extends Iterable<T>> iterables,
@@ -65,10 +67,10 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             try (Closeable ignored = (iterable instanceof Closeable) ?
                 (Closeable) iterable : () -> { }) {
               for (T item : iterable) {
-                queue.add(item);
+                queue.put(item);
               }
-            } catch (IOException e) {
-              throw new RuntimeIOException(e, "Failed to close iterable");
+            } catch (IOException | InterruptedException e) {
+              throw new RuntimeException("Failed to close iterable", e);
             }
           }).iterator();
       this.workerPool = workerPool;

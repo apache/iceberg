@@ -39,10 +39,24 @@ public class SystemProperties {
    */
   public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
 
-  static boolean getBoolean(String systemProperty, boolean defaultValue) {
+  /**
+   * Sets the size of the queue, which is used to avoid consuming too much memory.
+   */
+  public static final String SCAN_SHARED_QUEUE_SIZE = "iceberg.scan.shared-queue-size";
+  public static final int SCAN_SHARED_QUEUE_SIZE_DEFAULT = 1000;
+
+  public static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);
     if (value != null) {
       return Boolean.parseBoolean(value);
+    }
+    return defaultValue;
+  }
+
+  public static int getInt(String systemProperty, int defaultValue) {
+    String value = System.getProperty(systemProperty);
+    if (value != null) {
+      return Integer.parseInt(value);
     }
     return defaultValue;
   }
