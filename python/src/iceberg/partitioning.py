@@ -21,6 +21,12 @@ class PartitionField:
     """
     PartitionField is a single element with name and unique id,
     It represents how one partition value is derived from the source column via transformation
+
+    Attributes:
+        source_id(int): The source column id of table's schema
+        field_id(int): The partition field id across all the table metadata's partition specs
+        transform(Transform): The transform used to produce partition values from source column
+        name(str): The name of this partition field
     """
 
     def __init__(self, source_id: int, field_id: int, transform: Transform, name: str):
@@ -53,5 +59,5 @@ class PartitionField:
 
     def __repr__(self):
         return (
-            f"PartitionField(field_id={self.field_id}, name={self.name}, transform={self._transform}, source_id={self.source_id})"
+            f"PartitionField(field_id={self.field_id}, name={self.name}, transform={self.transform}, source_id={self.source_id})"
         )
