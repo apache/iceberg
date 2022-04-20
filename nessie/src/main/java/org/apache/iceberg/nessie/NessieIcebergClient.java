@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
@@ -70,7 +71,7 @@ public class NessieIcebergClient implements AutoCloseable {
       NessieApiV1 api, String requestedRef, String requestedHash, Map<String, String> catalogOptions) {
     this.api = api;
     this.catalogOptions = catalogOptions;
-    this.reference = () -> loadReference(requestedRef, requestedHash);
+    this.reference = Suppliers.memoize(() -> loadReference(requestedRef, requestedHash));
   }
 
   public NessieApiV1 getApi() {
