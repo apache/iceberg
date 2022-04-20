@@ -45,6 +45,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -213,7 +214,6 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
         "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
     initTable();
-
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
 
@@ -312,7 +312,6 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
   public void testEntriesMetadataTable() throws ParseException {
     sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
-
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
     // verify the metadata tables while the current spec is still unpartitioned
@@ -379,13 +378,11 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
           tableType);
     }
   }
-
   @Test
-  public void testPartitionMetadataTable() throws ParseException {
+  public void testPartitionsTableAddRemoveFields() throws ParseException {
     sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
         "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
     initTable();
-
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
 
@@ -444,26 +441,90 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
             row("d2", "c2")),
         "STRUCT<data:STRING,category:STRING>",
         PARTITIONS);
+  }
 
-    // verify the metadata tables after renaming the remaining partition column
+  @Test
+  public void testPartitionsTableRenameFields() throws ParseException {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
+        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    initTable();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateSpec()
+        .addField("data")
+        .addField("category")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
+
+    assertPartitions(ImmutableList.of(
+            row("d1", "c1"),
+            row("d2", "c2")),
+        "STRUCT<data:STRING,category:STRING>",
+        PARTITIONS);
+
     table.updateSpec()
         .renameField("category", "category_another_name")
         .commit();
     sql("REFRESH TABLE %s", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
 
     assertPartitions(
         ImmutableList.of(
-            row(null, null),
-            row(null, "c1"),
-            row(null, "c2"),
-            row("d1", null),
             row("d1", "c1"),
-            row("d2", null),
             row("d2", "c2")),
         "STRUCT<data:STRING,category_another_name:STRING>",
         PARTITIONS);
+  }
+
+  @Test
+  public void testPartitionsTableSwitchFields() throws Exception {
+    // Re-added partition fields currently not re-associated: https://github.com/apache/iceberg/issues/4292
+    // In V1, dropped partition fields show separately when field is re-added
+    // In V2, re-added field currently conflicts with its deleted form
+    Assume.assumeTrue(formatVersion == 1);
+
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
+        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    initTable();
+    Table table = validationCatalog.loadTable(tableIdent);
 
     // verify the metadata tables after re-adding the first dropped column in the second location
+    table.updateSpec()
+        .addField("data")
+        .addField("category")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
+
+    assertPartitions(ImmutableList.of(
+            row("d1", "c1"),
+            row("d2", "c2")),
+        "STRUCT<data:STRING,category:STRING>",
+        PARTITIONS);
+
+    table.updateSpec()
+        .removeField("data")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
+
+    assertPartitions(
+        ImmutableList.of(
+            row(null, "c1"),
+            row(null, "c2"),
+            row("d1", "c1"),
+            row("d2", "c2")),
+        "STRUCT<data:STRING,category:STRING>",
+        PARTITIONS);
+
     table.updateSpec()
         .addField("data")
         .commit();
@@ -472,29 +533,22 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
 
-    // Re-added partition fields currently not re-associated: https://github.com/apache/iceberg/issues/4292
-    // In V1, dropped partition fields show separately when field is re-added
-    // In V2, re-added field currently conflicts with its deleted form
-    if (formatVersion == 1) {
-      assertPartitions(
-          ImmutableList.of(
-              row(null, null, null),
-              row(null, "c1", null),
-              row(null, "c1", "d1"),
-              row(null, "c2", null),
-              row(null, "c2", "d2"),
-              row("d1", null, null),
-              row("d1", "c1", null),
-              row("d2", null, null),
-              row("d2", "c2", null)),
-          "STRUCT<data_1000:STRING,category_another_name:STRING,data:STRING>",
-          PARTITIONS);
-    }
+    assertPartitions(
+        ImmutableList.of(
+            row(null, "c1", null),
+            row(null, "c1", "d1"),
+            row(null, "c2", null),
+            row(null, "c2", "d2"),
+            row("d1", "c1", null),
+            row("d2", "c2", null)),
+        "STRUCT<data_1000:STRING,category:STRING,data:STRING>",
+        PARTITIONS);
   }
 
   @Test
   public void testMetadataTablesWithUnknownTransforms() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
+        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
     initTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);

@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
@@ -26,7 +28,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructLikeWrapper;
 
 /**
  * A {@link Table} implementation that exposes a table's partitions as rows.
@@ -96,10 +97,14 @@ public class PartitionsTable extends BaseMetadataTable {
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
     Types.StructType partitionType = Partitioning.partitionType(table);
-    PartitionMap partitions = new PartitionMap(partitionType);
+    PartitionMap partitions = new PartitionMap();
+
+    LoadingCache<PartitionData, PartitionData> normalizedPartitions = Caffeine.newBuilder().build(
+        pData -> normalizePartition(pData, partitionType));
+
     for (FileScanTask task : tasks) {
       PartitionData original = (PartitionData) task.file().partition();
-      PartitionData normalized = normalizePartition(original, partitionType);
+      PartitionData normalized = normalizedPartitions.get(original);
       partitions.get(normalized).update(task.file());
     }
     return partitions.all();
@@ -160,20 +165,13 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   static class PartitionMap {
-    private final Map<StructLikeWrapper, Partition> partitions = Maps.newHashMap();
-    private final Types.StructType type;
-    private final StructLikeWrapper reused;
-
-    PartitionMap(Types.StructType type) {
-      this.type = type;
-      this.reused = StructLikeWrapper.forType(type);
-    }
+    private final Map<StructLike, Partition> partitions = Maps.newHashMap();
 
     Partition get(StructLike key) {
-      Partition partition = partitions.get(reused.set(key));
+      Partition partition = partitions.get(key);
       if (partition == null) {
         partition = new Partition(key);
-        partitions.put(StructLikeWrapper.forType(type).set(key), partition);
+        partitions.put(key, partition);
       }
       return partition;
     }
