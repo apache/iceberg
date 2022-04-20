@@ -23,9 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -558,5 +560,16 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
     spyOps.setSnapshotSummary(parameters, snapshot);
     Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameters.size());
+  }
+
+  @Test
+  public void testConstructorWarehousePathWithEndSlash() {
+    HiveCatalog catalogWithSlash = new HiveCatalog();
+    String wareHousePath = "s3://bucket/db/tbl";
+
+    catalogWithSlash.initialize("hive_catalog", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION,
+        wareHousePath + "/"));
+    Assert.assertEquals("Should have trailing slash stripped", wareHousePath, catalogWithSlash.getConf().get(
+        HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
   }
 }
