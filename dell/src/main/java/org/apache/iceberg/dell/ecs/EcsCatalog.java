@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -59,6 +58,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,7 +108,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
         "Cannot initialize EcsCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
-    this.warehouseLocation = new EcsURI(LocationProviders.stripTrailingSlash(inputWarehouseLocation));
+    this.warehouseLocation = new EcsURI(LocationUtil.stripTrailingSlash(inputWarehouseLocation));
     this.client = DellClientFactories.from(properties).ecsS3();
     this.fileIO = initializeFileIO(properties);
 

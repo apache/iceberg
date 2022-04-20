@@ -31,7 +31,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
@@ -53,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,7 +133,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = LocationProviders.stripTrailingSlash(path);
+    this.warehousePath = LocationUtil.stripTrailingSlash(path);
     this.dynamo = client;
     this.fileIO = io;
 

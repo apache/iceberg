@@ -40,7 +40,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -57,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +86,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
         "Cannot initialize JDBCCatalog because warehousePath must not be null or empty");
 
-    this.warehouseLocation = LocationProviders.stripTrailingSlash(inputWarehouseLocation);
+    this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
 
     if (name != null) {
       this.catalogName = name;
