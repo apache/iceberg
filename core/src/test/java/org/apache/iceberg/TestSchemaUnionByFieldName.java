@@ -44,15 +44,11 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSchemaUnionByFieldName {
-
-  private static final Logger LOG = LoggerFactory.getLogger(TestSchemaUnionByFieldName.class);
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -202,7 +198,6 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema = new Schema(optional(1, "aMap",
         Types.MapType.ofOptional(2, 3, StringType.get(), LongType.get())));
     Schema apply = new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply();
-    LOG.info(apply.toString());
   }
 
   @Test

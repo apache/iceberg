@@ -27,12 +27,8 @@ import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.catalyst.util.TimestampFormatter;
 import org.junit.Assert;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TestSparkDateTimes {
-  private static final Logger LOG = LoggerFactory.getLogger(TestSparkDateTimes.class);
-
   @Test
   public void testSparkDate() {
     // checkSparkDate("1582-10-14"); // -141428
@@ -52,7 +48,6 @@ public class TestSparkDateTimes {
   public void checkSparkDate(String dateString) {
     Literal<Integer> date = Literal.of(dateString).to(Types.DateType.get());
     String sparkDate = DateTimeUtils.toJavaDate(date.value()).toString();
-    LOG.error(dateString + ": " + date.value());
     Assert.assertEquals("Should be the same date (" + date.value() + ")", dateString, sparkDate);
   }
 
@@ -74,7 +69,6 @@ public class TestSparkDateTimes {
     ZoneId zoneId = DateTimeUtils.getZoneId("UTC");
     TimestampFormatter formatter = TimestampFormatter.getFractionFormatter(zoneId);
     String sparkTimestamp = DateTimeUtils.timestampToString(formatter, ts.value());
-    LOG.error(timestampString + ": " + ts.value());
     Assert.assertEquals("Should be the same timestamp (" + ts.value() + ")",
         sparkRepr, sparkTimestamp);
   }

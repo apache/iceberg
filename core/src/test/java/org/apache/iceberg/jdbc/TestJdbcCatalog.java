@@ -62,8 +62,6 @@ import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
@@ -71,7 +69,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestJdbcCatalog.class);
   static final Schema SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get(), "unique ID"),
       required(2, "data", Types.StringType.get())
@@ -489,7 +486,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    LOG.info(tblSet2.toString());
     Assert.assertEquals(tblSet2.size(), 3);
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));

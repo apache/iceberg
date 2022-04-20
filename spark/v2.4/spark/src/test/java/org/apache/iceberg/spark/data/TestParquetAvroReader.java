@@ -37,15 +37,11 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestParquetAvroReader {
-  private static final Logger LOG = LoggerFactory.getLogger(TestParquetAvroReader.class);
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -120,9 +116,6 @@ public class TestParquetAvroReader {
         long end = System.currentTimeMillis();
         long duration = end - start;
 
-        LOG.error("XOR val: {}", val);
-        LOG.error("Reassembled {} records in {} ms", count, duration);
-
         if (i >= warmups) {
           sum += duration;
           sumSq += duration * duration;
@@ -132,8 +125,6 @@ public class TestParquetAvroReader {
 
     double mean = ((double) sum) / trials;
     double stddev = Math.sqrt((((double) sumSq) / trials) - (mean * mean));
-
-    LOG.error("Ran {} trials: mean time: {} ms, stddev: {} ms", trials, mean, stddev);
   }
 
   @Ignore
@@ -158,9 +149,6 @@ public class TestParquetAvroReader {
           count += 1;
         }
         long end = System.currentTimeMillis();
-
-        LOG.error("XOR val: {}", val);
-        LOG.error("Old read path: read {} records in {} ms", count, end - start);
       }
 
       // clean up as much memory as possible to avoid a large GC during the timed run
@@ -180,9 +168,6 @@ public class TestParquetAvroReader {
           count += 1;
         }
         long end = System.currentTimeMillis();
-
-        LOG.error("XOR val: {}", val);
-        LOG.error("New read path: read {} records in {} ms", count, end - start);
       }
     }
   }
