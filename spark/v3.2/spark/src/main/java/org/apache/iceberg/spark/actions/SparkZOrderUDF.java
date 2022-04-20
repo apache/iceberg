@@ -188,6 +188,19 @@ class SparkZOrderUDF implements Serializable {
     return udf;
   }
 
+  private UserDefinedFunction booleanToOrderedBytesUDF() {
+    int position = inputCol;
+    UserDefinedFunction udf = functions.udf((Boolean value) -> {
+      ByteBuffer buffer = inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
+      buffer.put(0, (byte) (value ? -127 : 0));
+      return buffer.array();
+    }, DataTypes.BinaryType).withName("BOOLEAN-LEXICAL-BYTES");
+
+    this.inputCol++;
+    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
+    return udf;
+  }
+
   private UserDefinedFunction stringToOrderedBytesUDF() {
     int position = inputCol;
     UserDefinedFunction udf = functions.udf((String value) ->
@@ -214,20 +227,6 @@ class SparkZOrderUDF implements Serializable {
     this.inputCol++;
     increaseOutputSize(varTypeSize);
 
-    return udf;
-  }
-
-  private UserDefinedFunction booleanToOrderedBytesUDF() {
-    int position = inputCol;
-    UserDefinedFunction udf = functions.udf((Boolean value) -> {
-      ByteBuffer buffer = inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
-      buffer.put(0, (byte) (value ? -127 : 0));
-      return buffer.array();
-    }, DataTypes.BinaryType)
-        .withName("BOOLEAN-LEXICAL-BYTES");
-
-    this.inputCol++;
-    increaseOutputSize(ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE);
     return udf;
   }
 
@@ -270,9 +269,6 @@ class SparkZOrderUDF implements Serializable {
   }
 
   private void increaseOutputSize(int bytes) {
-    totalOutputBytes += bytes;
-    if (totalOutputBytes > maxOutputSize) {
-      totalOutputBytes = maxOutputSize;
-    }
+    totalOutputBytes = Math.min(totalOutputBytes + bytes, maxOutputSize);
   }
 }

@@ -127,7 +127,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
 
     if (!partZOrderCols.isEmpty()) {
       LOG.warn("Cannot ZOrder on an Identity partition column as these values are constant within a partition " +
-                      "they will be removed from the ZOrder expression: {}", partZOrderCols);
+                      "and will be removed from the ZOrder expression: {}", partZOrderCols);
       zOrderColNames.removeAll(partZOrderCols);
       Preconditions.checkArgument(!zOrderColNames.isEmpty(),
           "Cannot perform ZOrdering, all columns provided were identity partition columns and cannot be used.");

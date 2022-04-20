@@ -46,7 +46,6 @@ public class ZOrderByteUtils {
   public static final int PRIMITIVE_BUFFER_SIZE = 8;
 
   private ZOrderByteUtils() {
-
   }
 
   static ByteBuffer allocatePrimitiveBuffer() {
