@@ -29,7 +29,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -274,12 +273,9 @@ public class NessieIcebergClient implements AutoCloseable {
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
       // details and all kinds of network devices can induce unexpected behavior. So better be
       // safe than sorry.
-      throw new CommitStateUnknownException(ex);
+      throw new CommitFailedException(ex, "Cannot rename table '%s' to '%s': " +
+          "Reason: %s", from.name(), to.name(), ex.getMessage());
     }
-    // Intentionally just "throw through" Nessie's HttpClientException here and do not "special case"
-    // just the "timeout" variant to propagate all kinds of network errors (e.g. connection reset).
-    // Network code implementation details and all kinds of network devices can induce unexpected
-    // behavior. So better be safe than sorry.
   }
 
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
