@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -133,9 +133,9 @@ public class TestS3InputStream {
       readAndCheckRanges(in, expected, position, actual, offset, length);
 
       // middle 2k
-      position = dataSize/2 - 1024;
-      offset = dataSize/2 - 1024;
-      length = 1024*2;
+      position = dataSize / 2 - 1024;
+      offset = dataSize / 2 - 1024;
+      length = 1024 * 2;
       readAndCheckRanges(in, expected, position, actual, offset, length);
     }
   }
@@ -146,8 +146,8 @@ public class TestS3InputStream {
     in.readFully(position, buffer, offset, length);
 
     assertArrayEquals(
-        Arrays.copyOfRange(original, offset, offset+length),
-        Arrays.copyOfRange(buffer, offset, offset+length));
+        Arrays.copyOfRange(original, offset, offset + length),
+        Arrays.copyOfRange(buffer, offset, offset + length));
   }
 
   @Test
