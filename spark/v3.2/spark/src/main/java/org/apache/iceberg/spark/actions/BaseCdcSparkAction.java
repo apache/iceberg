@@ -60,11 +60,12 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   public static final String COMMIT_SNAPSHOT_ID = "_commit_snapshot_id";
   public static final String COMMIT_TIMESTAMP = "_commit_timestamp";
   public static final String COMMIT_ORDER = "_commit_order";
+
   private final List<Long> snapshotIds = Lists.newLinkedList();
   private final Table table;
   private final List<Dataset<Row>> dfs = Lists.newLinkedList();
-  private boolean ignoreRowsDeletedWithinSnapshot = true;
 
+  private boolean ignoreRowsDeletedWithinSnapshot = true;
   private Expression filter = Expressions.alwaysTrue();
 
   protected BaseCdcSparkAction(SparkSession spark, Table table) {
@@ -102,12 +103,6 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
       return;
     }
 
-    // new data file as the insert
-    Dataset<Row> df = readAppendDataFiles(snapshotId, commitOrder);
-    if (df != null) {
-      dfs.add(df);
-    }
-
     // metadata deleted data files
     Dataset<Row> deletedDf = readMetadataDeletedFiles(snapshotId, commitOrder);
     if (deletedDf != null) {
@@ -118,6 +113,12 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
     Dataset<Row> rowLevelDeleteDf = readRowLevelDeletes(snapshotId, commitOrder);
     if (rowLevelDeleteDf != null) {
       dfs.add(rowLevelDeleteDf);
+    }
+
+    // new data file as the insert
+    Dataset<Row> df = readAppendDataFiles(snapshotId, commitOrder);
+    if (df != null) {
+      dfs.add(df);
     }
   }
 

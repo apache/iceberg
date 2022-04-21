@@ -107,6 +107,7 @@ public abstract class DeleteFilter<T> {
         return i;
       }
     }
+
     return -1;
   }
 
