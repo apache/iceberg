@@ -66,7 +66,7 @@ public class AllDataFilesTable extends BaseFilesTable {
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return allManifests(Snapshot::dataManifests);
+      return reachableManifests(Snapshot::dataManifests);
     }
   }
 }

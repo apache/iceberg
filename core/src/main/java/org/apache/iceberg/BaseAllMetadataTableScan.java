@@ -61,7 +61,7 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
     return doPlanFiles();
   }
 
-  protected CloseableIterable<ManifestFile> allManifests(Function<Snapshot, Iterable<ManifestFile>> toManifests) {
+  protected CloseableIterable<ManifestFile> reachableManifests(Function<Snapshot, Iterable<ManifestFile>> toManifests) {
     Iterable<Snapshot> snapshots = table().snapshots();
     Iterable<Iterable<ManifestFile>> manifestIterables = Iterables.transform(snapshots, toManifests);
 
