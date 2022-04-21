@@ -440,14 +440,25 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private void setPartitionSpec(TableMetadata metadata, Map<String, String> parameters) {
     parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
     if (metadata.spec() != null && metadata.spec().isPartitioned()) {
-      parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, PartitionSpecParser.toJsonWithSourceName(metadata.spec()));
+      String spec = PartitionSpecParser.toJsonWithSourceName(metadata.spec());
+      if (spec.length() <= maxHiveTablePropertySize) {
+        parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, spec);
+      } else {
+        LOG.warn("Not exposing the current partition spec in HMS since it exceeds {} characters",
+            maxHiveTablePropertySize);
+      }
     }
   }
 
   private void setSortOrder(TableMetadata metadata, Map<String, String> parameters) {
     parameters.remove(TableProperties.DEFAULT_SORT_ORDER);
     if (metadata.sortOrder() != null && metadata.sortOrder().isSorted()) {
-      parameters.put(TableProperties.DEFAULT_SORT_ORDER, SortOrderParser.toJson(metadata.sortOrder()));
+      String sortOrder = SortOrderParser.toJson(metadata.sortOrder());
+      if (sortOrder.length() <= maxHiveTablePropertySize) {
+        parameters.put(TableProperties.DEFAULT_SORT_ORDER, sortOrder);
+      } else {
+        LOG.warn("Not exposing the current sort order in HMS since it exceeds {} characters", maxHiveTablePropertySize);
+      }
     }
   }
 
