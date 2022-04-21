@@ -45,7 +45,7 @@ public interface RangeReadable extends AutoCloseable {
    * @param offset offset in the buffer to copy the data
    * @param length size of the read
    */
-  void readFully(long position, byte [] buffer, int offset, int length);
+  void readFully(long position, byte[] buffer, int offset, int length);
 
   /**
    * Fill the entire buffer with the contents of the input source starting
@@ -54,7 +54,7 @@ public interface RangeReadable extends AutoCloseable {
    * @param position start position of the read
    * @param buffer target buffer to copy data
    */
-  default void readFully(long position, byte [] buffer) {
+  default void readFully(long position, byte[] buffer) {
     readFully(position, buffer, 0, buffer.length);
   }
 }
