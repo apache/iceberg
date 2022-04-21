@@ -21,15 +21,6 @@ from decimal import Decimal
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import (
-    BinaryType,
-    BooleanType,
-    DecimalType,
-    FloatType,
-    IntegerType,
-    StringType,
-    UUIDType,
-)
 
 
 @pytest.mark.parametrize(
@@ -88,15 +79,15 @@ def test_accessor_base_class(foo_struct):
     foo_struct.set(10, False)
     foo_struct.set(11, b"\x19\x04\x9e?")
 
-    assert base.Accessor(position=0, iceberg_type=StringType).get(foo_struct) == "foo"
-    assert base.Accessor(position=1, iceberg_type=StringType).get(foo_struct) == "bar"
-    assert base.Accessor(position=2, iceberg_type=StringType).get(foo_struct) == "baz"
-    assert base.Accessor(position=3, iceberg_type=IntegerType).get(foo_struct) == 1
-    assert base.Accessor(position=4, iceberg_type=IntegerType).get(foo_struct) == 2
-    assert base.Accessor(position=5, iceberg_type=IntegerType).get(foo_struct) == 3
-    assert base.Accessor(position=6, iceberg_type=FloatType).get(foo_struct) == 1.234
-    assert base.Accessor(position=7, iceberg_type=DecimalType).get(foo_struct) == Decimal("1.234")
-    assert base.Accessor(position=8, iceberg_type=UUIDType).get(foo_struct) == uuid_value
-    assert base.Accessor(position=9, iceberg_type=BooleanType).get(foo_struct) == True
-    assert base.Accessor(position=10, iceberg_type=BooleanType).get(foo_struct) == False
-    assert base.Accessor(position=11, iceberg_type=BinaryType).get(foo_struct) == b"\x19\x04\x9e?"
+    assert base.Accessor(position=0).get(foo_struct) == "foo"
+    assert base.Accessor(position=1).get(foo_struct) == "bar"
+    assert base.Accessor(position=2).get(foo_struct) == "baz"
+    assert base.Accessor(position=3).get(foo_struct) == 1
+    assert base.Accessor(position=4).get(foo_struct) == 2
+    assert base.Accessor(position=5).get(foo_struct) == 3
+    assert base.Accessor(position=6).get(foo_struct) == 1.234
+    assert base.Accessor(position=7).get(foo_struct) == Decimal("1.234")
+    assert base.Accessor(position=8).get(foo_struct) == uuid_value
+    assert base.Accessor(position=9).get(foo_struct) == True
+    assert base.Accessor(position=10).get(foo_struct) == False
+    assert base.Accessor(position=11).get(foo_struct) == b"\x19\x04\x9e?"
