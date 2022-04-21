@@ -47,7 +47,7 @@ public class MetadataUpdateParser {
   private static final String ADD_SORT_ORDER = "add-sort-order";
   private static final String SET_DEFAULT_SORT_ORDER = "set-default-sort-order";
   private static final String ADD_SNAPSHOT = "add-snapshot";
-  private static final String REMOVE_SNAPSHOT = "remove-snapshot";
+  private static final String REMOVE_SNAPSHOT = "remove-snapshots";
   private static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
   private static final String SET_PROPERTIES = "set-properties";
   private static final String REMOVE_PROPERTIES = "remove-properties";

@@ -1161,7 +1161,7 @@ components:
             - set-default-sort-order
             - add-snapshot
             - set-snapshot-ref
-            - remove-snapshot
+            - remove-snapshots
             - set-location
             - set-properties
             - remove-properties
