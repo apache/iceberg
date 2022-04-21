@@ -440,7 +440,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private void setPartitionSpec(TableMetadata metadata, Map<String, String> parameters) {
     parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
     if (metadata.spec() != null && metadata.spec().isPartitioned()) {
-      parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, PartitionSpecParser.toJson(metadata.spec()));
+      parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, PartitionSpecParser.toJsonWithSourceName(metadata.spec()));
     }
   }
 

@@ -32,6 +32,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
@@ -573,8 +574,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           hmsTableParameters().containsKey(TableProperties.DEFAULT_PARTITION_SPEC));
 
       table.updateSpec().addField(bucket("data", 16)).commit();
-      Assert.assertTrue("Must have default partition spec",
-          hmsTableParameters().containsKey(TableProperties.DEFAULT_PARTITION_SPEC));
+      Assert.assertEquals(PartitionSpecParser.toJsonWithSourceName(table.spec()),
+          hmsTableParameters().get(TableProperties.DEFAULT_PARTITION_SPEC));
     } finally {
       catalog.dropTable(tableIdent);
     }

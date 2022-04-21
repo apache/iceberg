@@ -41,51 +41,37 @@ public class TableProperties {
   public static final String FORMAT_VERSION = "format-version";
 
   /**
-   * Reserved table property for UUID.
-   * <p>
-   * This reserved property is used to store the UUID of the table.
+   * Reserved table property for table UUID.
    */
   public static final String UUID = "uuid";
 
   /**
    * Reserved table property for the total number of snapshots.
-   * <p>
-   * This reserved property is used to store the total number of snapshots.
    */
   public static final String SNAPSHOT_COUNT = "snapshot-count";
 
   /**
    * Reserved table property for current snapshot summary.
-   * <p>
-   * This reserved property is used to store the current snapshot summary.
    */
   public static final String CURRENT_SNAPSHOT_SUMMARY = "current-snapshot-summary";
 
   /**
    * Reserved table property for current snapshot id.
-   * <p>
-   * This reserved property is used to store the current snapshot id.
    */
   public static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
 
   /**
    * Reserved table property for current snapshot timestamp.
-   * <p>
-   * This reserved property is used to store the current snapshot timestamp.
    */
   public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
 
   /**
-   * Reserved table property for default partition spec.
-   * <p>
-   * This reserved property is used to store the default partition spec.
+   * Reserved table property for the JSON representation of current partition spec.
    */
   public static final String DEFAULT_PARTITION_SPEC = "default-partition-spec";
 
   /**
-   * Reserved table property for default sort order.
-   * <p>
-   * This reserved property is used to store the default sort order.
+   * Reserved table property for the JSON representation of current sort order.
    */
   public static final String DEFAULT_SORT_ORDER = "default-sort-order";
 
