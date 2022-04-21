@@ -47,7 +47,7 @@ public class MetadataUpdateParser {
   private static final String ADD_SORT_ORDER = "add-sort-order";
   private static final String SET_DEFAULT_SORT_ORDER = "set-default-sort-order";
   private static final String ADD_SNAPSHOT = "add-snapshot";
-  private static final String REMOVE_SNAPSHOT = "remove-snapshots";
+  private static final String REMOVE_SNAPSHOTS = "remove-snapshots";
   private static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
   private static final String SET_PROPERTIES = "set-properties";
   private static final String REMOVE_PROPERTIES = "remove-properties";
@@ -67,7 +67,7 @@ public class MetadataUpdateParser {
       .put(MetadataUpdate.AddSortOrder.class, ADD_SORT_ORDER)
       .put(MetadataUpdate.SetDefaultSortOrder.class, SET_DEFAULT_SORT_ORDER)
       .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
-      .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOT)
+      .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
       .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
       .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
       .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
