@@ -107,7 +107,7 @@ public class MetadataUpdateParser {
       case ASSIGN_UUID:
         throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for AssignUUID");
       case UPGRADE_FORMAT_VERSION:
-        writeUpgradeFormatVersion(metadataUpdate, generator);
+        writeUpgradeFormatVersion((MetadataUpdate.UpgradeFormatVersion) metadataUpdate, generator);
         break;
       default:
         throw new IllegalArgumentException(
@@ -149,9 +149,9 @@ public class MetadataUpdateParser {
   }
 
   // Write all fields specific to UpgradeFormatVersion
-  private static void writeUpgradeFormatVersion(MetadataUpdate metadataUpdate, JsonGenerator gen) throws IOException {
-    MetadataUpdate.UpgradeFormatVersion upgradeFormatVersion = (MetadataUpdate.UpgradeFormatVersion) metadataUpdate;
-    gen.writeNumberField(FORMAT_VERSION, upgradeFormatVersion.formatVersion());
+  private static void writeUpgradeFormatVersion(MetadataUpdate.UpgradeFormatVersion update, JsonGenerator gen)
+      throws IOException {
+    gen.writeNumberField(FORMAT_VERSION, update.formatVersion());
   }
 
   private static MetadataUpdate readAsUpgradeFormatVersion(JsonNode node) {
