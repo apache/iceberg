@@ -33,7 +33,7 @@ from iceberg.types import (
 )
 
 
-class FooStruct(StructProtocol):
+class FooStruct:
     """An example of an object that abides by StructProtocol"""
 
     def __init__(self):
