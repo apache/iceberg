@@ -14,20 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-from iceberg.partitioning import PartitionField
-from iceberg.transforms import bucket
-from iceberg.types import IntegerType
-
-
-def test_partition_field_init():
-    bucket_transform = bucket(IntegerType(), 100)
-    partition_field = PartitionField(3, 1, bucket_transform, "id")
-
-    assert partition_field.source_id == 3
-    assert partition_field.field_id == 1
-    assert partition_field.transform == bucket_transform
-    assert partition_field.name == "id"
-    assert partition_field == partition_field
-    assert str(partition_field) == f"1: id: bucket[100]: (3)"
-    assert repr(partition_field) == f"PartitionField(field_id=1, name=id, transform=bucket[100], source_id=3)"

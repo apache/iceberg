@@ -61,3 +61,6 @@ class PartitionField:
         return (
             f"PartitionField(field_id={self.field_id}, name={self.name}, transform={self.transform}, source_id={self.source_id})"
         )
+
+    def __hash__(self):
+        return hash((self.source_id, self.field_id, self.name, self.transform))
