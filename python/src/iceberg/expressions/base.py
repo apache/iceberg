@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import Any, Generic, TypeVar
 
+from iceberg.files import StructProtocol
 from iceberg.types import IcebergType
 
 T = TypeVar("T")
@@ -126,12 +127,8 @@ class Literal(Generic[T], ABC):
         return self.value >= other.value
 
 
-class Accessor(Generic[T], ABC):
-    """An accessor for a specific position in a container of type T
-
-    Args:
-        Generic[T]: The type of container that can be accessed using this Accessor (The container must implement the StructProtocol)
-    """
+class Accessor:
+    """An accessor for a specific position in a container that implements the StructProtocol"""
 
     def __init__(self, position: int, iceberg_type: IcebergType):
         self._position = position
@@ -147,14 +144,13 @@ class Accessor(Generic[T], ABC):
         """The IcebergType of the value at the accessor position"""
         return self._value_type
 
-    @abstractmethod
-    def get(self, container: T) -> Any:
-        """Returns the value at self.position in a container of type T
+    def get(self, container: StructProtocol) -> Any:
+        """Returns the value at self.position in `container`
 
         Args:
-            container(T): A container to access at position `self.position`
+            container(StructProtocol): A container to access at position `self.position`
 
         Returns:
             Any: The value at position `self.position` in the container
         """
-        ...
+        return container.get(self.position)

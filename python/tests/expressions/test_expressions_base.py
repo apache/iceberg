@@ -17,7 +17,6 @@
 
 import uuid
 from decimal import Decimal
-from typing import Any, Union
 
 import pytest
 
@@ -31,26 +30,6 @@ from iceberg.types import (
     StringType,
     UUIDType,
 )
-
-
-class FooStruct:
-    """An example of an object that abides by StructProtocol"""
-
-    def __init__(self):
-        self.content = {}
-
-    def get(self, pos: int) -> Any:
-        return self.content[pos]
-
-    def set(self, pos: int, value) -> None:
-        self.content[pos] = value
-
-
-class FooAccessor(base.Accessor[FooStruct]):
-    """An accessor for FooStruct objects"""
-
-    def get(self, container: FooStruct) -> Union[bool, bytes, float, int, str, Decimal, uuid.UUID]:
-        return container.get(self.position)
 
 
 @pytest.mark.parametrize(
@@ -91,34 +70,33 @@ def test_raise_on_no_negation_for_operation(operation):
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
 
 
-def test_accessor_base_class():
+def test_accessor_base_class(foo_struct):
     """Test retrieving a value at a position of a container using an accessor"""
 
     uuid_value = uuid.uuid4()
 
-    container = FooStruct()
-    container.set(0, "foo")
-    container.set(1, "bar")
-    container.set(2, "baz")
-    container.set(3, 1)
-    container.set(4, 2)
-    container.set(5, 3)
-    container.set(6, 1.234)
-    container.set(7, Decimal("1.234"))
-    container.set(8, uuid_value)
-    container.set(9, True)
-    container.set(10, False)
-    container.set(11, b"\x19\x04\x9e?")
+    foo_struct.set(0, "foo")
+    foo_struct.set(1, "bar")
+    foo_struct.set(2, "baz")
+    foo_struct.set(3, 1)
+    foo_struct.set(4, 2)
+    foo_struct.set(5, 3)
+    foo_struct.set(6, 1.234)
+    foo_struct.set(7, Decimal("1.234"))
+    foo_struct.set(8, uuid_value)
+    foo_struct.set(9, True)
+    foo_struct.set(10, False)
+    foo_struct.set(11, b"\x19\x04\x9e?")
 
-    assert FooAccessor(position=0, iceberg_type=StringType).get(container) == "foo"
-    assert FooAccessor(position=1, iceberg_type=StringType).get(container) == "bar"
-    assert FooAccessor(position=2, iceberg_type=StringType).get(container) == "baz"
-    assert FooAccessor(position=3, iceberg_type=IntegerType).get(container) == 1
-    assert FooAccessor(position=4, iceberg_type=IntegerType).get(container) == 2
-    assert FooAccessor(position=5, iceberg_type=IntegerType).get(container) == 3
-    assert FooAccessor(position=6, iceberg_type=FloatType).get(container) == 1.234
-    assert FooAccessor(position=7, iceberg_type=DecimalType).get(container) == Decimal("1.234")
-    assert FooAccessor(position=8, iceberg_type=UUIDType).get(container) == uuid_value
-    assert FooAccessor(position=9, iceberg_type=BooleanType).get(container) == True
-    assert FooAccessor(position=10, iceberg_type=BooleanType).get(container) == False
-    assert FooAccessor(position=11, iceberg_type=BinaryType).get(container) == b"\x19\x04\x9e?"
+    assert base.Accessor(position=0, iceberg_type=StringType).get(foo_struct) == "foo"
+    assert base.Accessor(position=1, iceberg_type=StringType).get(foo_struct) == "bar"
+    assert base.Accessor(position=2, iceberg_type=StringType).get(foo_struct) == "baz"
+    assert base.Accessor(position=3, iceberg_type=IntegerType).get(foo_struct) == 1
+    assert base.Accessor(position=4, iceberg_type=IntegerType).get(foo_struct) == 2
+    assert base.Accessor(position=5, iceberg_type=IntegerType).get(foo_struct) == 3
+    assert base.Accessor(position=6, iceberg_type=FloatType).get(foo_struct) == 1.234
+    assert base.Accessor(position=7, iceberg_type=DecimalType).get(foo_struct) == Decimal("1.234")
+    assert base.Accessor(position=8, iceberg_type=UUIDType).get(foo_struct) == uuid_value
+    assert base.Accessor(position=9, iceberg_type=BooleanType).get(foo_struct) == True
+    assert base.Accessor(position=10, iceberg_type=BooleanType).get(foo_struct) == False
+    assert base.Accessor(position=11, iceberg_type=BinaryType).get(foo_struct) == b"\x19\x04\x9e?"
