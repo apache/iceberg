@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.Expression;
@@ -29,7 +27,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
 
 /**
  * A {@link Table} implementation that exposes a table's partitions as rows.
@@ -101,15 +98,15 @@ public class PartitionsTable extends BaseMetadataTable {
     Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap();
 
-    LoadingCache<Integer, Integer[]> originalPartitionFieldPositionsBySpec = Caffeine.newBuilder().build(specId ->
-        originalPositions(table, specId, normalizedPartitionType));
-    LoadingCache<Pair<PartitionData, Integer>, PartitionData> normalizedPartitions = Caffeine.newBuilder().build(
-        pData -> normalizePartition(pData, normalizedPartitionType, originalPartitionFieldPositionsBySpec));
+    // cache a position map needed by each partition spec to normalize partitions to final schema
+    Map<Integer, Integer[]> originalPartitionFieldPositionsBySpec =
+        Maps.newHashMapWithExpectedSize(table.specs().size());
 
     for (FileScanTask task : tasks) {
       PartitionData original = (PartitionData) task.file().partition();
-      int specId = task.spec().specId();
-      PartitionData normalized = normalizedPartitions.get(Pair.of(original, specId));
+      Integer[] originalPositions = originalPartitionFieldPositionsBySpec.computeIfAbsent(
+          task.spec().specId(), specId -> originalPositions(table, specId, normalizedPartitionType));
+      PartitionData normalized = normalizePartition(original, normalizedPartitionType, originalPositions);
       partitions.get(normalized).update(task.file());
     }
     return partitions.all();
@@ -140,26 +137,21 @@ public class PartitionsTable extends BaseMetadataTable {
   /**
    * Convert a partition data written by an old spec, to table's normalized partition form, which is a common partition
    * type for all specs of the table.
-   * @param originalPartition un-normalized partition data and its spec id
+   * @param originalPartition un-normalized partition data
    * @param normalizedPartitionSchema table's normalized partition form {@link Partitioning#partitionType(Table)}
-   * @param originalPartitionFieldPositionsBySpec map of partition spec id to an array of positional indexes
-   *                                              of the spec's partition fields indexed by position in the
-   *                                              normalized partition type
+   * @param originalPartitionFieldPositions an array of positional indexes of the spec's partition fields indexed by
+   *                                       position in the normalized partition type
    * @return the normalized partition data
    */
-  private static PartitionData normalizePartition(Pair<PartitionData, Integer> originalPartition,
+  private static PartitionData normalizePartition(PartitionData originalPartition,
                                                   Types.StructType normalizedPartitionSchema,
-                                                  LoadingCache<Integer, Integer[]>
-                                                      originalPartitionFieldPositionsBySpec) {
-    int originalSpecId = originalPartition.second();
-    Integer[] originalPartitionFieldPositions = originalPartitionFieldPositionsBySpec.get(originalSpecId);
-
+                                                  Integer[] originalPartitionFieldPositions) {
     PartitionData normalizedPartition = new PartitionData(normalizedPartitionSchema);
 
     IntStream.range(0, normalizedPartitionSchema.fields().size()).forEach(normalizedPartitionFieldIndex -> {
       Integer originalPartitionPosition = originalPartitionFieldPositions[normalizedPartitionFieldIndex];
       if (originalPartitionPosition != null) {
-        Object originalPartitionValue = originalPartition.first().get(originalPartitionPosition);
+        Object originalPartitionValue = originalPartition.get(originalPartitionPosition);
         normalizedPartition.put(normalizedPartitionFieldIndex, originalPartitionValue);
       }
     });
