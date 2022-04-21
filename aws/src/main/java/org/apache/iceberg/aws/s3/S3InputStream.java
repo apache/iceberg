@@ -24,8 +24,8 @@ import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
@@ -119,7 +119,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
         .bucket(location.bucket())
         .key(location.key())
-        .range(String.format("bytes=%s-%s", position, position+length));
+        .range(String.format("bytes=%s-%s", position, position + length));
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
