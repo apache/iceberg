@@ -23,7 +23,7 @@ if (jdkVersion != '8' && jdkVersion != '11') {
 
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-def jmhProjects = []
+def jmhProjects = [project(":iceberg-core")]
 
 if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-2.4"))

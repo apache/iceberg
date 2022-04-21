@@ -131,6 +131,12 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFiles zOrder(String... columnNames) {
+    this.strategy = zOrderStrategy(columnNames);
+    return this;
+  }
+
+  @Override
   public RewriteDataFiles filter(Expression expression) {
     filter = Expressions.and(filter, expression);
     return this;
@@ -427,6 +433,10 @@ public class BaseRewriteDataFilesSparkAction
 
   private SortStrategy sortStrategy() {
     return new SparkSortStrategy(table, spark());
+  }
+
+  private SortStrategy zOrderStrategy(String... columnNames) {
+    return new SparkZOrderStrategy(table, spark(), Lists.newArrayList(columnNames));
   }
 
   @VisibleForTesting
