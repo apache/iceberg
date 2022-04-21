@@ -25,6 +25,7 @@ import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
@@ -33,11 +34,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
-class S3InputStream extends SeekableInputStream {
+class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
   private final StackTraceElement[] createStack;
@@ -109,6 +112,19 @@ class S3InputStream extends SeekableInputStream {
     readOperations.increment();
 
     return bytesRead;
+  }
+
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) {
+    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
+        .bucket(location.bucket())
+        .key(location.key())
+        .range(String.format("bytes=%s-%s", position, position+length));
+
+    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+
+    ResponseBytes<GetObjectResponse> response = s3.getObject(requestBuilder.build(), ResponseTransformer.toBytes());
+    System.arraycopy(response.asByteArrayUnsafe(), 0, buffer, offset, length);
   }
 
   @Override
