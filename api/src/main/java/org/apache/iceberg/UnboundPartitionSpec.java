@@ -55,7 +55,11 @@ public class UnboundPartitionSpec {
     for (UnboundPartitionField field : fields) {
       Types.NestedField column = schema.findField(field.sourceId);
       if (column != null) {
-        builder.add(field.sourceId, field.partitionId, field.name, field.transformAsString);
+        if (field.partitionId != null) {
+          builder.add(field.sourceId, field.partitionId, field.name, field.transformAsString);
+        } else {
+          builder.add(field.sourceId, field.name, field.transformAsString);
+        }
       }
     }
 
