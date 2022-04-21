@@ -43,8 +43,11 @@ import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -285,16 +288,33 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
     Collection<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
 
-    if (dataFiles.size() > 0) {
+    boolean isOverwrite = conf.getBoolean(ConfigProperties.IS_OVERWRITE, false);
+
+    if (isOverwrite) {
+      if (!dataFiles.isEmpty()) {
+        ReplacePartitions overwrite = table.newReplacePartitions();
+        dataFiles.forEach(overwrite::addFile);
+        overwrite.commit();
+        LOG.info("Overwrite commit took {} ms for table: {} with {} file(s)", System.currentTimeMillis() - startTime,
+          table, dataFiles.size());
+      } else if (table.spec().isUnpartitioned()) {
+        table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+        LOG.info("Cleared table contents as part of empty overwrite for unpartitioned table. " +
+          "Commit took {} ms for table: {}", System.currentTimeMillis() - startTime, table);
+      }
+      LOG.debug("Overwrote partitions with files {}", dataFiles);
+    } else if (dataFiles.size() > 0) {
       // Appending data files to the table
+      // We only create a new commit if there's something to append
       AppendFiles append = table.newAppend();
       dataFiles.forEach(append::appendFile);
       append.commit();
-      LOG.info("Commit took {} ms for table: {} with {} file(s)", System.currentTimeMillis() - startTime, table,
-          dataFiles.size());
+      LOG.info("Append commit took {} ms for table: {} with {} file(s)", System.currentTimeMillis() - startTime, table,
+        dataFiles.size());
       LOG.debug("Added files {}", dataFiles);
     } else {
-      LOG.info("Commit took {} ms for table: {} with no new files", System.currentTimeMillis() - startTime, table);
+      LOG.info("Not creating a new commit for table: {}, jobID: {}, since there were no new files to append",
+        table, jobContext.getJobID());
     }
   }
 

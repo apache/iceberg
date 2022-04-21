@@ -341,6 +341,76 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
+  public void testInsertOverwriteNonPartitionedTable() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    TableIdentifier target = TableIdentifier.of("default", "target");
+    Table table = testTables.createTable(shell, target.name(), HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+      fileFormat, ImmutableList.of());
+
+    shell.executeStatement("set iceberg.mr.write.is.overwrite = true");
+
+    // IOW overwrites the whole table (empty target table)
+    testTables.createTable(shell, "source", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+      fileFormat, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    shell.executeStatement("INSERT OVERWRITE TABLE target SELECT * FROM source");
+
+    HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
+
+    // IOW overwrites the whole table (non-empty target table)
+    List<Record> newRecords = TestHelper.RecordsBuilder.newInstance(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+      .add(0L, "Mike", "Taylor")
+      .add(1L, "Christy", "Hubert")
+      .build();
+    shell.executeStatement(testTables.getInsertQuery(newRecords, target, true));
+
+    HiveIcebergTestUtils.validateData(table, newRecords, 0);
+
+    // IOW empty result set -> clears the target table
+    shell.executeStatement("INSERT OVERWRITE TABLE target SELECT * FROM source WHERE FALSE");
+
+    HiveIcebergTestUtils.validateData(table, ImmutableList.of(), 0);
+  }
+
+  @Test
+  public void testInsertOverwritePartitionedTable() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    TableIdentifier target = TableIdentifier.of("default", "target");
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+      .identity("last_name").build();
+    Table table = testTables.createTable(shell, target.name(), HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+      spec, fileFormat, ImmutableList.of());
+
+    shell.executeStatement("set iceberg.mr.write.is.overwrite = true");
+
+    // IOW into empty target table -> whole source result set is inserted
+    List<Record> expected = Lists.newArrayList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    expected.add(TestHelper.RecordsBuilder.newInstance(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+      .add(8L, "Sue", "Green").build().get(0)); // add one more to 'Green' so we have a partition w/ multiple records
+    shell.executeStatement(testTables.getInsertQuery(expected, target, true));
+
+    HiveIcebergTestUtils.validateData(table, expected, 0);
+
+    // IOW into non-empty target table -> only the affected partitions are overwritten
+    List<Record> newRecords = TestHelper.RecordsBuilder.newInstance(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+      .add(0L, "Mike", "Brown") // overwritten
+      .add(1L, "Christy", "Green") // overwritten (partition has this single record now)
+      .add(3L, "Bill", "Purple") // appended (new partition)
+      .build();
+    shell.executeStatement(testTables.getInsertQuery(newRecords, target, true));
+
+    expected = Lists.newArrayList(newRecords);
+    expected.add(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(2)); // existing, untouched partition ('Pink')
+    HiveIcebergTestUtils.validateData(table, expected, 0);
+
+    // IOW empty source result set -> has no effect on partitioned table
+    shell.executeStatement("INSERT OVERWRITE TABLE target SELECT * FROM target WHERE FALSE");
+
+    HiveIcebergTestUtils.validateData(table, expected, 0);
+  }
+
+  @Test
   public void testInsertSupportedTypes() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
