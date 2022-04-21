@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 
 public class UnboundPartitionSpec {
 
@@ -52,10 +53,9 @@ public class UnboundPartitionSpec {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
 
     for (UnboundPartitionField field : fields) {
-      if (field.partitionId != null) {
+      Types.NestedField column = schema.findField(field.sourceId);
+      if (column != null) {
         builder.add(field.sourceId, field.partitionId, field.name, field.transformAsString);
-      } else {
-        builder.add(field.sourceId, field.name, field.transformAsString);
       }
     }
 
