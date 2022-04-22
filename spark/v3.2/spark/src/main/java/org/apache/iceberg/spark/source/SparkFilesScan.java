@@ -43,15 +43,6 @@ class SparkFilesScan extends SparkScan {
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf) {
-    super(spark, table, readConf, table.schema(), ImmutableList.of());
-
-    this.taskSetID = readConf.fileScanTaskSetId();
-    this.splitSize = readConf.splitSize();
-    this.splitLookback = readConf.splitLookback();
-    this.splitOpenFileCost = readConf.splitOpenFileCost();
-  }
-
   SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf, Schema expectedSchema,
                  List<Expression> filterExpressions) {
     super(spark, table, readConf, expectedSchema == null ? table.schema() : expectedSchema, ImmutableList.of());

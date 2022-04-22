@@ -75,13 +75,6 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
 
   @Override
   public Result execute() {
-    // use the current snapshot by default
-    if (snapshotIds.isEmpty()) {
-      if (table.currentSnapshot() != null) {
-        snapshotIds.add(table.currentSnapshot().snapshotId());
-      }
-    }
-
     for (int i = 0; i < snapshotIds.size(); i++) {
       generateCdcRecordsPerSnapshot(snapshotIds.get(i), i);
     }
@@ -123,14 +116,14 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   private Dataset<Row> readAppendDataFiles(long snapshotId, int commitOrder) {
-    List<FileScanTask> appendedFileTasks = planAppendedFiles(snapshotId);
-    if (appendedFileTasks.isEmpty()) {
+    List<FileScanTask> fileScanTasks = planAppendedFiles(snapshotId);
+    if (fileScanTasks.isEmpty()) {
       return null;
     }
 
     String groupID = UUID.randomUUID().toString();
     FileScanTaskSetManager manager = FileScanTaskSetManager.get();
-    manager.stageTasks(table, groupID, appendedFileTasks);
+    manager.stageTasks(table, groupID, fileScanTasks);
     Dataset<Row> scanDF = spark().read().format("iceberg")
         .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
         .load(table.name());
@@ -172,14 +165,14 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   private Dataset<Row> readMetadataDeletedFiles(long snapshotId, int commitOrder) {
-    List<FileScanTask> appendedFileTasks = planMetadataDeletedFiles(snapshotId);
-    if (appendedFileTasks.isEmpty()) {
+    List<FileScanTask> fileScanTasks = planMetadataDeletedFiles(snapshotId);
+    if (fileScanTasks.isEmpty()) {
       return null;
     }
 
     String groupID = UUID.randomUUID().toString();
     FileScanTaskSetManager manager = FileScanTaskSetManager.get();
-    manager.stageTasks(table, groupID, appendedFileTasks);
+    manager.stageTasks(table, groupID, fileScanTasks);
     Dataset<Row> scanDF = spark().read().format("iceberg")
         .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
         .load(table.name());
@@ -223,7 +216,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
     // todo create a partition filter to filter out unrelated partitions
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), manifestFiles)
         .filterData(filter)
-        .onlyWithDeletes()
+        .onlyWithRowLevelDeletes()
         .specsById(((HasTableOperations) table).operations().current().specsById());
 
     return ImmutableList.copyOf(manifestGroup.planFiles());
@@ -237,10 +230,19 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   @Override
-  public Cdc useSnapshot(long snapshotId) {
+  public Cdc ofSnapshot(long snapshotId) {
     if (table.snapshot(snapshotId) != null) {
       snapshotIds.clear();
       snapshotIds.add(snapshotId);
+    }
+    return this;
+  }
+
+  @Override
+  public Cdc ofCurrentSnapshot() {
+    if (table.currentSnapshot() != null) {
+      snapshotIds.clear();
+      snapshotIds.add(table.currentSnapshot().snapshotId());
     }
     return this;
   }

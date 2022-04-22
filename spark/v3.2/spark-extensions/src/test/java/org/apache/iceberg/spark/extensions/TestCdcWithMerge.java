@@ -113,7 +113,7 @@ public class TestCdcWithMerge extends SparkRowLevelOperationsTestBase {
         "  UPDATE SET *", tableName);
 
     Table testTable = Spark3Util.loadIcebergTable(spark, tableName);
-    Cdc.Result result = actions().generateCdcRecords(testTable).execute();
+    Cdc.Result result = actions().generateCdcRecords(testTable).ofCurrentSnapshot().execute();
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
 
     // verify results
@@ -148,7 +148,7 @@ public class TestCdcWithMerge extends SparkRowLevelOperationsTestBase {
         "  UPDATE SET *", tableName);
 
     Table testTable = Spark3Util.loadIcebergTable(spark, tableName);
-    Cdc.Result result = actions().generateCdcRecords(testTable).execute();
+    Cdc.Result result = actions().generateCdcRecords(testTable).ofCurrentSnapshot().execute();
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
 
     // verify results

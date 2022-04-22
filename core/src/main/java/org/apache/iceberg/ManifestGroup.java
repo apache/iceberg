@@ -56,7 +56,7 @@ public class ManifestGroup {
   private boolean ignoreDeleted;
   private boolean ignoreExisting;
   private boolean ignoreAdded;
-  private boolean onlyWithDeletes;
+  private boolean onlyWithRowLevelDeletes;
   private boolean ignoreResiduals;
   private List<String> columns;
   private boolean caseSensitive;
@@ -78,7 +78,7 @@ public class ManifestGroup {
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
     this.ignoreAdded = false;
-    this.onlyWithDeletes = false;
+    this.onlyWithRowLevelDeletes = false;
     this.ignoreResiduals = false;
     this.columns = ManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
@@ -134,8 +134,8 @@ public class ManifestGroup {
     return this;
   }
 
-  public ManifestGroup onlyWithDeletes() {
-    this.onlyWithDeletes = true;
+  public ManifestGroup onlyWithRowLevelDeletes() {
+    this.onlyWithRowLevelDeletes = true;
     return this;
   }
 
@@ -284,7 +284,7 @@ public class ManifestGroup {
             entries = CloseableIterable.filter(entries, entry -> entry.status() != ManifestEntry.Status.ADDED);
           }
 
-          if (onlyWithDeletes && deleteFiles != null) {
+          if (onlyWithRowLevelDeletes && deleteFiles != null) {
             entries = CloseableIterable.filter(entries, entry -> deleteFiles.forEntry(entry).length > 0);
           }
 

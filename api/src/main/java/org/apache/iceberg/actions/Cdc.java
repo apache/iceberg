@@ -26,7 +26,14 @@ public interface Cdc extends Action<Cdc, Cdc.Result> {
    * @param snapshotId id of the snapshot to generate changed data
    * @return this for method chaining
    */
-  Cdc useSnapshot(long snapshotId);
+  Cdc ofSnapshot(long snapshotId);
+
+  /**
+   * Emit changed data set by the current snapshot.
+   *
+   * @return this for method chaining
+   */
+  Cdc ofCurrentSnapshot();
 
   /**
    * Emit changed data set by a range of snapshots

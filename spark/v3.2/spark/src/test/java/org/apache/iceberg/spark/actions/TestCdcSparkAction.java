@@ -128,7 +128,7 @@ public class TestCdcSparkAction extends SparkTestBase {
   @Test
   public void testAppendOnly() {
     // the current snapshot should only have one row
-    Cdc.Result result = actions().generateCdcRecords(table).execute();
+    Cdc.Result result = actions().generateCdcRecords(table).ofCurrentSnapshot().execute();
 
     // verifyData
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
@@ -146,7 +146,7 @@ public class TestCdcSparkAction extends SparkTestBase {
     // delete nothing, however, it generates a new snapshot with nothing has been changed
     sql("delete from hive.default.%s where c1 = 1", tableName);
     sourceTable.refresh();
-    Cdc.Result result = actions().generateCdcRecords(sourceTable).execute();
+    Cdc.Result result = actions().generateCdcRecords(sourceTable).ofCurrentSnapshot().execute();
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
     Assert.assertEquals("Incorrect result", null, resultDF);
   }
@@ -157,7 +157,7 @@ public class TestCdcSparkAction extends SparkTestBase {
     // delete the only row
     sql("delete from hive.default.%s where c1 = 0", tableName);
     tbl.refresh();
-    Cdc.Result result = actions().generateCdcRecords(tbl).execute();
+    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
 
     // verify results
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
@@ -195,7 +195,7 @@ public class TestCdcSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).execute();
+    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
     // verify the results
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -233,7 +233,7 @@ public class TestCdcSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).execute();
+    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
     // verify the results
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -271,7 +271,7 @@ public class TestCdcSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).execute();
+    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
     Assert.assertTrue("Must be no result since the c1 value in the eq delete file couldn't match any data file",
         result.cdcRecords() == null);
   }
@@ -314,7 +314,7 @@ public class TestCdcSparkAction extends SparkTestBase {
         .commit();
     Snapshot snapshotId2 = tbl.currentSnapshot();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).execute();
+    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
     // verify the results
     Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -324,7 +324,7 @@ public class TestCdcSparkAction extends SparkTestBase {
     assertEquals("Should have expected rows", expectedRows, actualRecords);
 
     // select the first eq delete snapshot
-    result = actions().generateCdcRecords(tbl).useSnapshot(snapshotId1).execute();
+    result = actions().generateCdcRecords(tbl).ofSnapshot(snapshotId1).execute();
     // verify the results
     resultDF = (Dataset<Row>) result.cdcRecords();
     actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
