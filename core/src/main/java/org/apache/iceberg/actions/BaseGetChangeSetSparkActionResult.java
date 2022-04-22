@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.iceberg.actions.GetChangeSet;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
+public class BaseGetChangeSetSparkActionResult<T> implements GetChangeSet.Result<T> {
+  private final T changeSet;
 
-public class BaseGetChangeSetSparkActionResult implements GetChangeSet.Result {
-  private final Dataset<Row> changeSet;
-
-  public BaseGetChangeSetSparkActionResult(Dataset<Row> changeSet) {
+  public BaseGetChangeSetSparkActionResult(T changeSet) {
     this.changeSet = changeSet;
   }
 
   @Override
-  public Object changeSet() {
+  public T changeSet() {
     return changeSet;
   }
 }

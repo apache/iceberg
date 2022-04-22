@@ -34,6 +34,7 @@ import org.apache.iceberg.ManifestGroup;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BaseGetChangeSetSparkActionResult;
 import org.apache.iceberg.actions.GetChangeSet;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -75,7 +76,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   }
 
   @Override
-  public Result execute() {
+  public Result<Dataset<Row>> execute() {
     for (int i = 0; i < snapshotIds.size(); i++) {
       generateCdcRecordsPerSnapshot(snapshotIds.get(i), i);
     }

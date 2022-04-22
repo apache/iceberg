@@ -55,10 +55,10 @@ public interface GetChangeSet extends Action<GetChangeSet, GetChangeSet.Result> 
   /**
    * The action result that contains a dataset of changed rows.
    */
-  interface Result {
+  interface Result<T> {
     /**
      * Returns the change set.
      */
-    Object changeSet();
+    T changeSet();
   }
 }
