@@ -71,12 +71,12 @@ public class TableProperties {
   public static final String CURRENT_SCHEMA = "current-schema";
 
   /**
-   * Reserved table property for the JSON representation of current partition spec.
+   * Reserved table property for the JSON representation of current(default) partition spec.
    */
   public static final String DEFAULT_PARTITION_SPEC = "default-partition-spec";
 
   /**
-   * Reserved table property for the JSON representation of current sort order.
+   * Reserved table property for the JSON representation of current(default) sort order.
    */
   public static final String DEFAULT_SORT_ORDER = "default-sort-order";
 
