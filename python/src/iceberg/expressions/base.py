@@ -158,8 +158,6 @@ class And(BooleanExpression):
         if not rest:
             self.left = left
             self.right = right
-        else:
-            raise ValueError("Expected only left and right operands")
             
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, And) and self.left == other.left and self.right == other.right)
@@ -197,8 +195,6 @@ class Or(BooleanExpression):
         if not rest:
             self.left = left
             self.right = right
-        else:
-            raise ValueError("Expected only left and right operands")
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, Or) and self.left == other.left and self.right == other.right)
