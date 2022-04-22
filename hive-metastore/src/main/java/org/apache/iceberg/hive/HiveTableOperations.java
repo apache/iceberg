@@ -443,11 +443,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     parameters.remove(TableProperties.CURRENT_SCHEMA);
     if (metadata.schema() != null) {
       String schema = SchemaParser.toJson(metadata.schema());
-      if (schema.length() <= maxHiveTablePropertySize) {
-        parameters.put(TableProperties.CURRENT_SCHEMA, schema);
-      } else {
-        LOG.warn("Not exposing the current schema in HMS since it exceeds {} characters", maxHiveTablePropertySize);
-      }
+      setField(parameters, TableProperties.CURRENT_SCHEMA, schema);
     }
   }
 
@@ -455,12 +451,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
     if (metadata.spec() != null && metadata.spec().isPartitioned()) {
       String spec = PartitionSpecParser.toJson(metadata.spec());
-      if (spec.length() <= maxHiveTablePropertySize) {
-        parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, spec);
-      } else {
-        LOG.warn("Not exposing the current partition spec in HMS since it exceeds {} characters",
-            maxHiveTablePropertySize);
-      }
+      setField(parameters, TableProperties.DEFAULT_PARTITION_SPEC, spec);
     }
   }
 
@@ -468,11 +459,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     parameters.remove(TableProperties.DEFAULT_SORT_ORDER);
     if (metadata.sortOrder() != null && metadata.sortOrder().isSorted()) {
       String sortOrder = SortOrderParser.toJson(metadata.sortOrder());
-      if (sortOrder.length() <= maxHiveTablePropertySize) {
-        parameters.put(TableProperties.DEFAULT_SORT_ORDER, sortOrder);
-      } else {
-        LOG.warn("Not exposing the current sort order in HMS since it exceeds {} characters", maxHiveTablePropertySize);
-      }
+      setField(parameters, TableProperties.DEFAULT_SORT_ORDER, sortOrder);
+    }
+  }
+
+  private void setField(Map<String, String> parameters, String key, String value) {
+    if (value.length() <= maxHiveTablePropertySize) {
+      parameters.put(key, value);
+    } else {
+      LOG.warn("Not exposing {} in HMS since it exceeds {} characters", key, maxHiveTablePropertySize);
     }
   }
 
