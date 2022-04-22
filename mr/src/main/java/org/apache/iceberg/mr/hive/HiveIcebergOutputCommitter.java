@@ -296,11 +296,14 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
         dataFiles.forEach(overwrite::addFile);
         overwrite.commit();
         LOG.info("Overwrite commit took {} ms for table: {} with {} file(s)", System.currentTimeMillis() - startTime,
-          table, dataFiles.size());
+            table, dataFiles.size());
       } else if (table.spec().isUnpartitioned()) {
         table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
         LOG.info("Cleared table contents as part of empty overwrite for unpartitioned table. " +
-          "Commit took {} ms for table: {}", System.currentTimeMillis() - startTime, table);
+            "Commit took {} ms for table: {}", System.currentTimeMillis() - startTime, table);
+      } else {
+        LOG.info("Do nothing when empty datafiles is to overwrite for partitioned table. " +
+            "Commit took {} ms for table: {}", System.currentTimeMillis() - startTime, table);
       }
       LOG.debug("Overwrote partitions with files {}", dataFiles);
     } else if (dataFiles.size() > 0) {
@@ -310,11 +313,11 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
       dataFiles.forEach(append::appendFile);
       append.commit();
       LOG.info("Append commit took {} ms for table: {} with {} file(s)", System.currentTimeMillis() - startTime, table,
-        dataFiles.size());
+          dataFiles.size());
       LOG.debug("Added files {}", dataFiles);
     } else {
       LOG.info("Not creating a new commit for table: {}, jobID: {}, since there were no new files to append",
-        table, jobContext.getJobID());
+          table, jobContext.getJobID());
     }
   }
 
