@@ -26,9 +26,9 @@ package org.apache.iceberg;
 public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
 
   /**
-   * Optional. if not set, null value will be used for the start snapshot id.
-   * That would include the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)},
-   * as its parent snapshot id is null which matches the null start snapshot id
+   * Optional. if from snapshot id (inclusive or exclusive) is not provided,
+   * the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)}
+   * will be included as the from snapshot.
    *
    * @param fromSnapshotId the start snapshot id inclusive
    * @return an incremental table scan from {@code fromSnapshotId} inclusive
@@ -36,9 +36,9 @@ public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
   IncrementalAppendScan fromSnapshotInclusive(long fromSnapshotId);
 
   /**
-   * Optional. if not set, null value will be used for the start snapshot id.
-   * That would include the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)},
-   * as its parent snapshot id is null which matches the null start snapshot id
+   * Optional. if from snapshot id (inclusive or exclusive) is not provided,
+   * the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)}
+   * will be included as the from snapshot.
    *
    * @param fromSnapshotId the start snapshot id (exclusive)
    * @return an incremental table scan from {@code fromSnapshotId} exclusive
@@ -46,7 +46,7 @@ public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
   IncrementalAppendScan fromSnapshotExclusive(long fromSnapshotId);
 
   /**
-   * Optional. if not set, current table snapshot id is used as the end snapshot id
+   * Required
    *
    * @param toSnapshotId the end snapshot id (inclusive)
    * @return an incremental table scan up to {@code toSnapshotId} inclusive
