@@ -39,8 +39,6 @@ public class TestPartitionSpecParser extends TableTestBase {
         "  } ]\n" +
         "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
-    Assert.assertTrue("Json must contain source name",
-        PartitionSpecParser.toJsonWithSourceName(table.spec()).contains("\"source-name\":\"data\""));
 
     PartitionSpec spec = PartitionSpec.builderFor(table.schema())
         .bucket("id", 8)

@@ -53,6 +53,7 @@ import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrderParser;
@@ -401,6 +402,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     setSnapshotStats(metadata, parameters);
+    setSchema(metadata, parameters);
     setPartitionSpec(metadata, parameters);
     setSortOrder(metadata, parameters);
 
@@ -437,10 +439,22 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
+  private void setSchema(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.CURRENT_SCHEMA);
+    if (metadata.schema() != null) {
+      String schema = SchemaParser.toJson(metadata.schema());
+      if (schema.length() <= maxHiveTablePropertySize) {
+        parameters.put(TableProperties.CURRENT_SCHEMA, schema);
+      } else {
+        LOG.warn("Not exposing the current schema in HMS since it exceeds {} characters", maxHiveTablePropertySize);
+      }
+    }
+  }
+
   private void setPartitionSpec(TableMetadata metadata, Map<String, String> parameters) {
     parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
     if (metadata.spec() != null && metadata.spec().isPartitioned()) {
-      String spec = PartitionSpecParser.toJsonWithSourceName(metadata.spec());
+      String spec = PartitionSpecParser.toJson(metadata.spec());
       if (spec.length() <= maxHiveTablePropertySize) {
         parameters.put(TableProperties.DEFAULT_PARTITION_SPEC, spec);
       } else {

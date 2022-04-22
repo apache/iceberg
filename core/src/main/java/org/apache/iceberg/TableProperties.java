@@ -66,6 +66,11 @@ public class TableProperties {
   public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
 
   /**
+   * Reserved table property for the JSON representation of current schema.
+   */
+  public static final String CURRENT_SCHEMA = "current-schema";
+
+  /**
    * Reserved table property for the JSON representation of current partition spec.
    */
   public static final String DEFAULT_PARTITION_SPEC = "default-partition-spec";
@@ -88,6 +93,7 @@ public class TableProperties {
       CURRENT_SNAPSHOT_ID,
       CURRENT_SNAPSHOT_SUMMARY,
       CURRENT_SNAPSHOT_TIMESTAMP,
+      CURRENT_SCHEMA,
       DEFAULT_PARTITION_SPEC,
       DEFAULT_SORT_ORDER
   );

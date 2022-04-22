@@ -39,61 +39,48 @@ public class PartitionSpecParser {
   private static final String SPEC_ID = "spec-id";
   private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
-  private static final String SOURCE_NAME = "source-name";
   private static final String FIELD_ID = "field-id";
   private static final String TRANSFORM = "transform";
   private static final String NAME = "name";
 
-  public static String toJsonWithSourceName(PartitionSpec spec) {
-    return toJson(spec.toUnbound(), spec.schema(), false);
+  public static void toJson(PartitionSpec spec, JsonGenerator generator) throws IOException {
+    toJson(spec.toUnbound(), generator);
   }
 
   public static String toJson(PartitionSpec spec) {
     return toJson(spec, false);
   }
 
+  public static String toJson(PartitionSpec spec, boolean pretty) {
+    return toJson(spec.toUnbound(), pretty);
+  }
+
+  public static void toJson(UnboundPartitionSpec spec, JsonGenerator generator) throws IOException {
+    generator.writeStartObject();
+    generator.writeNumberField(SPEC_ID, spec.specId());
+    generator.writeFieldName(FIELDS);
+    toJsonFields(spec, generator);
+    generator.writeEndObject();
+  }
+
   public static String toJson(UnboundPartitionSpec spec) {
     return toJson(spec, false);
   }
 
-  public static String toJson(PartitionSpec spec, boolean pretty) {
-    return toJson(spec.toUnbound(), null, pretty);
-  }
-
   public static String toJson(UnboundPartitionSpec spec, boolean pretty) {
-    return toJson(spec, null, pretty);
-  }
-
-  private static String toJson(UnboundPartitionSpec spec, Schema schema, boolean pretty) {
     try {
       StringWriter writer = new StringWriter();
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       if (pretty) {
         generator.useDefaultPrettyPrinter();
       }
-      toJson(spec, generator, schema);
+      toJson(spec, generator);
       generator.flush();
       return writer.toString();
 
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
-  }
-
-  public static void toJson(PartitionSpec spec, JsonGenerator generator) throws IOException {
-    toJson(spec.toUnbound(), generator);
-  }
-
-  public static void toJson(UnboundPartitionSpec spec, JsonGenerator generator) throws IOException {
-    toJson(spec, generator, null);
-  }
-
-  private static void toJson(UnboundPartitionSpec spec, JsonGenerator generator, Schema schema) throws IOException {
-    generator.writeStartObject();
-    generator.writeNumberField(SPEC_ID, spec.specId());
-    generator.writeFieldName(FIELDS);
-    toJsonFields(spec, generator, schema);
-    generator.writeEndObject();
   }
 
   public static PartitionSpec fromJson(Schema schema, JsonNode json) {
@@ -125,22 +112,16 @@ public class PartitionSpecParser {
   }
 
   static void toJsonFields(PartitionSpec spec, JsonGenerator generator) throws IOException {
-    toJsonFields(spec.toUnbound(), generator, null);
+    toJsonFields(spec.toUnbound(), generator);
   }
 
-  static void toJsonFields(UnboundPartitionSpec spec, JsonGenerator generator, Schema schema) throws IOException {
+  static void toJsonFields(UnboundPartitionSpec spec, JsonGenerator generator) throws IOException {
     generator.writeStartArray();
     for (UnboundPartitionSpec.UnboundPartitionField field : spec.fields()) {
       generator.writeStartObject();
       generator.writeStringField(NAME, field.name());
       generator.writeStringField(TRANSFORM, field.transformAsString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
-      if (schema != null) {
-        Types.NestedField nestedField = schema.findField(field.sourceId());
-        if (nestedField != null) {
-          generator.writeStringField(SOURCE_NAME, nestedField.name());
-        }
-      }
       generator.writeNumberField(FIELD_ID, field.partitionId());
       generator.writeEndObject();
     }

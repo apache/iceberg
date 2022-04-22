@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
@@ -574,8 +575,26 @@ public class TestHiveCatalog extends HiveMetastoreTest {
           hmsTableParameters().containsKey(TableProperties.DEFAULT_PARTITION_SPEC));
 
       table.updateSpec().addField(bucket("data", 16)).commit();
-      Assert.assertEquals(PartitionSpecParser.toJsonWithSourceName(table.spec()),
+      Assert.assertEquals(PartitionSpecParser.toJson(table.spec()),
           hmsTableParameters().get(TableProperties.DEFAULT_PARTITION_SPEC));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testSetCurrentSchema() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.buildTable(tableIdent, schema).create();
+
+      Assert.assertEquals(SchemaParser.toJson(table.schema()),
+          hmsTableParameters().get(TableProperties.CURRENT_SCHEMA));
     } finally {
       catalog.dropTable(tableIdent);
     }
