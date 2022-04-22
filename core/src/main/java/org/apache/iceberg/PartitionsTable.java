@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
@@ -99,38 +98,30 @@ public class PartitionsTable extends BaseMetadataTable {
     PartitionMap partitions = new PartitionMap();
 
     // cache a position map needed by each partition spec to normalize partitions to final schema
-    Map<Integer, Integer[]> originalPartitionFieldPositionsBySpec =
-        Maps.newHashMapWithExpectedSize(table.specs().size());
+    Map<Integer, int[]> normalizedPositionsBySpec = Maps.newHashMapWithExpectedSize(table.specs().size());
 
     for (FileScanTask task : tasks) {
       PartitionData original = (PartitionData) task.file().partition();
-      Integer[] originalPositions = originalPartitionFieldPositionsBySpec.computeIfAbsent(
-          task.spec().specId(), specId -> originalPositions(table, specId, normalizedPartitionType));
-      PartitionData normalized = normalizePartition(original, normalizedPartitionType, originalPositions);
+      int[] normalizedPositions = normalizedPositionsBySpec.computeIfAbsent(
+          task.spec().specId(), specId -> normalizedPositions(table, specId, normalizedPartitionType));
+      PartitionData normalized = normalizePartition(original, normalizedPartitionType, normalizedPositions);
       partitions.get(normalized).update(task.file());
     }
     return partitions.all();
   }
 
   /**
-   * Returns an array of original partition field positions, indexed by normalized partition field positions
+   * Builds an array of the field position of positions in the normalized partition type indexed by
+   * field position in the original partition type
    */
-  private static Integer[] originalPositions(Table table,
-                                             int originalSpecId,
-                                             Types.StructType normalizedPartitionType) {
-    Types.StructType originalType = table.specs().get(originalSpecId).partitionType();
-
-    Map<Integer, Integer> originalFieldIdsToPosition = Maps.newHashMapWithExpectedSize(
-        originalType.fields().size());
-    int originalPartitionIndex = 0;
-    for (Types.NestedField originalField : originalType.fields()) {
-      originalFieldIdsToPosition.put(originalField.fieldId(), originalPartitionIndex);
-      originalPartitionIndex++;
+  private static int[] normalizedPositions(Table table, int specId, Types.StructType normalizedType) {
+    Types.StructType originalType = table.specs().get(specId).partitionType();
+    int[] normalizedPositions = new int[originalType.fields().size()];
+    for (int originalIndex = 0; originalIndex < originalType.fields().size(); originalIndex++) {
+      Types.NestedField normalizedField = normalizedType.field(originalType.fields().get(originalIndex).fieldId());
+      normalizedPositions[originalIndex] = normalizedType.fields().indexOf(normalizedField);
     }
-
-    return normalizedPartitionType.fields().stream()
-        .map(f -> originalFieldIdsToPosition.get(f.fieldId()))
-        .toArray(Integer[]::new);
+    return normalizedPositions;
   }
 
   /**
@@ -138,23 +129,17 @@ public class PartitionsTable extends BaseMetadataTable {
    * type for all specs of the table.
    * @param originalPartition un-normalized partition data
    * @param normalizedPartitionType table's normalized partition type {@link Partitioning#partitionType(Table)}
-   * @param originalPartitionFieldPositions an array of positional indexes of the spec's partition fields indexed by
-   *                                       position in the normalized partition schema
+   * @param normalizedPositions field positions in the normalized partition type indexed by field position in
+   *                            the original partition type
    * @return the normalized partition data
    */
   private static PartitionData normalizePartition(PartitionData originalPartition,
                                                   Types.StructType normalizedPartitionType,
-                                                  Integer[] originalPartitionFieldPositions) {
+                                                  int[] normalizedPositions) {
     PartitionData normalizedPartition = new PartitionData(normalizedPartitionType);
-
-    IntStream.range(0, normalizedPartitionType.fields().size()).forEach(normalizedPartitionFieldIndex -> {
-      Integer originalPartitionPosition = originalPartitionFieldPositions[normalizedPartitionFieldIndex];
-      if (originalPartitionPosition != null) {
-        Object originalPartitionValue = originalPartition.get(originalPartitionPosition);
-        normalizedPartition.put(normalizedPartitionFieldIndex, originalPartitionValue);
-      }
-    });
-
+    for (int originalIndex = 0; originalIndex < originalPartition.size(); originalIndex++) {
+      normalizedPartition.put(normalizedPositions[originalIndex], originalPartition.get(originalIndex));
+    }
     return normalizedPartition;
   }
 
@@ -195,9 +180,9 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   static class PartitionMap {
-    private final Map<StructLike, Partition> partitions = Maps.newHashMap();
+    private final Map<PartitionData, Partition> partitions = Maps.newHashMap();
 
-    Partition get(StructLike key) {
+    Partition get(PartitionData key) {
       Partition partition = partitions.get(key);
       if (partition == null) {
         partition = new Partition(key);

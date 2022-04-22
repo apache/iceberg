@@ -214,6 +214,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
         "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
     initTable();
+
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
 
@@ -312,6 +313,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
   public void testEntriesMetadataTable() throws ParseException {
     sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
+
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
 
     // verify the metadata tables while the current spec is still unpartitioned
@@ -487,8 +489,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     // In V2, re-added field currently conflicts with its deleted form
     Assume.assumeTrue(formatVersion == 1);
 
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
-        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -547,8 +548,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testMetadataTablesWithUnknownTransforms() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
-        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
