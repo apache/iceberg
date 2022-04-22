@@ -377,7 +377,7 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
-      // read all the matching delete manifests in parallel and accumulate the matching files in a queue
+      // read all of the matching delete manifests in parallel and accumulate the matching files in a queue
       Queue<ManifestEntry<DeleteFile>> deleteEntries = new ConcurrentLinkedQueue<>();
       Tasks.foreach(deleteManifestReaders())
           .stopOnFailure().throwFailureWhenFinished()
