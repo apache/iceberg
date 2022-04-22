@@ -126,6 +126,10 @@ public class SparkWriteConf {
         .parse();
   }
 
+  public String overwriteFilter() {
+    return writeOptions.getOrDefault(SparkWriteOptions.PARTITION_OVERWRITE_FILTER, null);
+  }
+
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 

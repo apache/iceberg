@@ -53,4 +53,7 @@ public class SparkWriteOptions {
 
   // Controls whether to allow writing timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
+
+  // Passes a filter when doing an overwrite to decide which partitions to overwrite.
+  public static final String PARTITION_OVERWRITE_FILTER = "overwrite-partitions";
 }

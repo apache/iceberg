@@ -1415,6 +1415,89 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
+  @Test
+  public void testOverwritePartition() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    df1.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .save(loadLocation(tableIdentifier));
+
+    List<SimpleRecord> result = spark.read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier))
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    Assert.assertEquals(result, Lists.newArrayList(new SimpleRecord(1, "a")));
+
+    // Now, we try to overwrite the partition id=1
+    Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "b")), SimpleRecord.class);
+    df2.select("id", "data").write()
+            .format("iceberg")
+            .mode("overwrite")
+            .option("overwrite-partitions", "id=1")
+            .save(loadLocation(tableIdentifier));
+
+    result = spark.read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier))
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    Assert.assertEquals(result, Lists.newArrayList(new SimpleRecord(1, "b")));
+  }
+
+  @Test
+  public void testOverwritePartitionFilterMultipleSpecs() {
+    TableIdentifier identifier = TableIdentifier.of("db", "table");
+    Schema schema = new Schema(
+            Types.NestedField.optional(1, "ds", Types.StringType.get()),
+            Types.NestedField.optional(2, "data", Types.IntegerType.get()));
+    PartitionSpec originalSpec = PartitionSpec.builderFor(schema).identity("ds").build();
+    Table table = createTable(identifier, schema, originalSpec);
+
+    List<Row> records = Lists.newArrayList(
+            RowFactory.create("2021-01-01", 1),
+            RowFactory.create("2021-01-02", 2)
+    );
+    StructType originalSparkSchema = SparkSchemaUtil.convert(schema);
+    Dataset<Row> inputDf = spark.createDataFrame(records, originalSparkSchema);
+
+    inputDf.select("ds", "data").write()
+            .format("iceberg")
+            .mode(SaveMode.Overwrite)
+            .save(loadLocation(identifier));
+
+
+    Dataset<Row> readInputDf = spark.read()
+            .format("iceberg")
+            .load(loadLocation(identifier));
+    Assert.assertEquals(2, readInputDf.count());
+
+    // Now let's alter the partition spec.
+    table.updateSpec().addField("data").commit();
+
+    List<Row> insertRecords = Lists.newArrayList(
+            RowFactory.create("2021-01-01", 100)
+    );
+    spark.createDataFrame(insertRecords, originalSparkSchema)
+            .select("ds", "data")
+            .write()
+            .format("iceberg")
+            .option("overwrite-partitions", "ds='2021-01-01'")
+            .mode(SaveMode.Overwrite)
+            .save(loadLocation(identifier));
+
+    // When reading we should only see two rows still
+    readInputDf = spark.read()
+            .format("iceberg")
+            .load(loadLocation(identifier));
+    Assert.assertEquals(2, readInputDf.count());
+  }
+
+
   private void asMetadataRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
     file.put(3, 0); // specId

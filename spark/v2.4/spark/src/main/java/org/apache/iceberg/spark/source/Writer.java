@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
@@ -33,9 +34,11 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkWriteConf;
@@ -45,6 +48,8 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
@@ -66,10 +71,13 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 class Writer implements DataSourceWriter {
   private static final Logger LOG = LoggerFactory.getLogger(Writer.class);
 
+  private final SparkSession spark;
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final FileFormat format;
   private final boolean replacePartitions;
+
+  private final String overwriteFilter;
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
@@ -85,10 +93,12 @@ class Writer implements DataSourceWriter {
 
   Writer(SparkSession spark, Table table, SparkWriteConf writeConf, boolean replacePartitions,
          String applicationId, String wapId, Schema writeSchema, StructType dsSchema) {
+    this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.format = writeConf.dataFileFormat();
     this.replacePartitions = replacePartitions;
+    this.overwriteFilter = writeConf.overwriteFilter();
     this.applicationId = applicationId;
     this.wapId = wapId;
     this.targetFileSize = writeConf.targetDataFileSize();
@@ -112,8 +122,10 @@ class Writer implements DataSourceWriter {
 
   @Override
   public void commit(WriterCommitMessage[] messages) {
-    if (replacePartitions) {
+    if (replacePartitions && overwriteFilter == null) {
       replacePartitions(messages);
+    } else if (replacePartitions) {
+      replaceOverwritePartitions(messages);
     } else {
       append(messages);
     }
@@ -171,6 +183,38 @@ class Writer implements DataSourceWriter {
     }
 
     commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite");
+  }
+
+  private void replaceOverwritePartitions(WriterCommitMessage[] messages) {
+    final Expression overwriteExpression = parseOverwritePartitionFilter(overwriteFilter);
+    Iterable<DataFile> files = files(messages);
+
+    if (!files.iterator().hasNext()) {
+      LOG.info("Static overwrite is empty, skipping commit");
+      return;
+    }
+
+    OverwriteFiles overwriteFiles = table.newOverwrite()
+            .overwriteByRowFilter(overwriteExpression);
+
+    int numFiles = 0;
+    for (DataFile file : files) {
+      numFiles += 1;
+      overwriteFiles.addFile(file);
+    }
+
+    commitOperation(overwriteFiles, numFiles, "partition overwrite by expression");
+  }
+
+  private Expression parseOverwritePartitionFilter(String overwritePartitionFilter) {
+    Preconditions.checkNotNull(overwritePartitionFilter, "Partition filter should be non-empty");
+
+    try {
+      return SparkExpressionConverter.convertToIcebergExpression(
+              spark.sqlContext().sessionState().sqlParser().parseExpression(overwritePartitionFilter));
+    } catch (ParseException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
