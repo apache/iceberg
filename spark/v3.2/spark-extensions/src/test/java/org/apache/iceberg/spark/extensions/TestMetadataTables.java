@@ -20,11 +20,13 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.commons.collections.ListUtils;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
@@ -169,7 +171,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDataFiles.get(0), actualDataFiles.get(0));
 
-    // Check all files table
+    // Check files table
     List<Record> expectedFiles = Stream.concat(expectedDataFiles.stream(), expectedDeleteFiles.stream())
         .collect(Collectors.toList());
     Assert.assertEquals("Should have two file manifest entries", 2, expectedFiles.size());
@@ -182,7 +184,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testAllFiles() throws Exception {
+  public void testAllFilesUnpartitioned() throws Exception {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES" +
         "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
 
@@ -197,10 +199,14 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
         .writeTo(tableName)
         .append();
 
+    // Create delete file
+    sql("DELETE FROM %s WHERE id=1", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     Assert.assertEquals("Should have 1 data manifest", 1, expectedDataManifests.size());
+    List<ManifestFile> expectedDeleteManifests = TestHelpers.deleteManifests(table);
+    Assert.assertEquals("Should have 1 delete manifest", 1, expectedDeleteManifests.size());
 
     // Clear table to test whether 'all_files' can read past files
     List<Object[]> results = sql("DELETE FROM %s", tableName);
@@ -209,19 +215,35 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
+    // Check all data files table
     List<Row> actualDataFiles = spark.sql("SELECT * FROM " + tableName + ".all_data_files").collectAsList();
 
     List<Record> expectedDataFiles = expectedEntries(table, FileContent.DATA,
         entriesTableSchema, expectedDataManifests, null);
-
     Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
     Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
-
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDataFiles.get(0), actualDataFiles.get(0));
+
+    // Check all delete files table
+    List<Row> actualDeleteFiles = spark.sql("SELECT * FROM " + tableName + ".all_delete_files").collectAsList();
+    List<Record> expectedDeleteFiles = expectedEntries(table, FileContent.POSITION_DELETES,
+        entriesTableSchema, expectedDeleteManifests, null);
+    Assert.assertEquals("Should be one delete file manifest entry", 1, expectedDeleteFiles.size());
+    Assert.assertEquals("Metadata table should return one delete file", 1, actualDeleteFiles.size());
+    TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
+
+    // Check all files table
+    List<Row> actualFiles = spark.sql("SELECT * FROM " + tableName + ".all_files ORDER BY content")
+        .collectAsList();
+    List<Record> expectedFiles = ListUtils.union(expectedDataFiles, expectedDeleteFiles);
+    expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
+    Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
+    TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedFiles, actualFiles);
   }
 
   @Test
   public void testAllFilesPartitioned() throws Exception {
+    // Create table and insert data
     sql("CREATE TABLE %s (id bigint, data string) " +
         "USING iceberg " +
         "PARTITIONED BY (data) " +
@@ -246,27 +268,48 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
         .writeTo(tableName)
         .append();
 
+    // Create delete file
+    sql("DELETE FROM %s WHERE id=1", tableName);
+
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     Assert.assertEquals("Should have 2 data manifests", 2, expectedDataManifests.size());
+    List<ManifestFile> expectedDeleteManifests = TestHelpers.deleteManifests(table);
+    Assert.assertEquals("Should have 1 delete manifest", 1, expectedDeleteManifests.size());
 
     // Clear table to test whether 'all_files' can read past files
     List<Object[]> results = sql("DELETE FROM %s", tableName);
     Assert.assertEquals("Table should be cleared", 0, results.size());
 
-    List<Row> actualDataFiles = spark.sql("SELECT * FROM " + tableName + ".all_data_files " +
-        "WHERE partition.data='a'").collectAsList();
-
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
     Schema filesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".all_data_files").schema();
 
+    // Check all data files table
+    List<Row> actualDataFiles = spark.sql("SELECT * FROM " + tableName + ".all_data_files " +
+        "WHERE partition.data='a'").collectAsList();
     List<Record> expectedDataFiles = expectedEntries(table, FileContent.DATA,
         entriesTableSchema, expectedDataManifests, "a");
-
     Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
     Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
-
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDataFiles.get(0), actualDataFiles.get(0));
+
+    // Check all delete files table
+    List<Row> actualDeleteFiles = spark.sql("SELECT * FROM " + tableName + ".all_delete_files " +
+        "WHERE partition.data='a'").collectAsList();
+    List<Record> expectedDeleteFiles = expectedEntries(table, FileContent.POSITION_DELETES,
+        entriesTableSchema, expectedDeleteManifests, "a");
+    Assert.assertEquals("Should be one data file manifest entry", 1, expectedDeleteFiles.size());
+    Assert.assertEquals("Metadata table should return one data file", 1, actualDeleteFiles.size());
+
+    TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDeleteFiles.get(0), actualDeleteFiles.get(0));
+
+    // Check all files table
+    List<Row> actualFiles = spark.sql("SELECT * FROM " + tableName + ".all_files WHERE partition.data='a' " +
+        "ORDER BY content").collectAsList();
+    List<Record> expectedFiles = ListUtils.union(expectedDataFiles, expectedDeleteFiles);
+    expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
+    Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
+    TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedFiles, actualFiles);
   }
 
   /**
