@@ -21,7 +21,6 @@ package org.apache.iceberg.nessie;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configurable;
@@ -103,9 +102,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   @SuppressWarnings("checkstyle:HiddenField")
   public void initialize(String name, NessieIcebergClient client, FileIO fileIO, Map<String, String> catalogOptions) {
     this.name = name == null ? "nessie" : name;
-    this.client = Objects.requireNonNull(client, "client must be non-null");
-    this.fileIO = Objects.requireNonNull(fileIO, "fileIO must be non-null");
-    this.catalogOptions = Objects.requireNonNull(catalogOptions, "catalogOptions must be non-null");
+    this.client = Preconditions.checkNotNull(client, "client must be non-null");
+    this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
+    this.catalogOptions = Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
   }
 
