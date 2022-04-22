@@ -51,7 +51,7 @@ interface Scan<T extends Scan<T>> {
   /**
    * Create a new {@link TableScan} from this that, if data columns where selected
    * via {@link #select(java.util.Collection)}, controls whether the match to the schema will be done
-   * with case sensitivity.
+   * with case sensitivity. Default is true.
    *
    * @return a new scan based on this with case sensitivity as stated
    */
