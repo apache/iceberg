@@ -127,11 +127,10 @@ public class PartitionsTable extends BaseMetadataTable {
       originalFieldIdsToPosition.put(originalField.fieldId(), originalPartitionIndex);
       originalPartitionIndex++;
     }
-    Integer[] result = normalizedPartitionType.fields().stream().map(f -> {
-      Integer originalFieldPosition = originalFieldIdsToPosition.get(f.fieldId());
-      return (originalFieldPosition == null) ? null : originalFieldPosition;
-    }).toArray(Integer[]::new);
-    return result;
+
+    return normalizedPartitionType.fields().stream()
+        .map(f -> originalFieldIdsToPosition.get(f.fieldId()))
+        .toArray(Integer[]::new);
   }
 
   /**
