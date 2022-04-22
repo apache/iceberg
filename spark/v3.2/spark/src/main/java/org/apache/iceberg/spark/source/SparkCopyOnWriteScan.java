@@ -77,11 +77,6 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
     }
   }
 
-  @Override
-  public String description() {
-    return "IcebergCopyOnWriteScan " + super.description();
-  }
-
   Long snapshotId() {
     return snapshot != null ? snapshot.snapshotId() : null;
   }

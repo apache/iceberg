@@ -202,21 +202,13 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     }
   }
 
-  static long numFilesToScan(CombinedScanTask scanTask) {
-    long fileCount = 0L;
-    for (FileScanTask file : scanTask.files()) {
-      fileCount += 1L;
-    }
-    return fileCount;
-  }
-
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
     private long numSplits;
 
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
-      numSplits = numFilesToScan(task.task);
-      LOG.debug("reading {} file splits for table {} using RowReader", numSplits, task.table().name());
+      numSplits = (long) task.task.files().size();
+      LOG.debug("Reading {} file split(s) for table {} using RowReader", numSplits, task.table().name());
     }
 
     @Override
@@ -230,8 +222,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
-      numSplits = numFilesToScan(task.task);
-      LOG.debug("reading {} file splits for table {} using BatchReader", numSplits, task.table().name());
+      numSplits = (long) task.task.files().size();
+      LOG.debug("Reading {} file split(s) for table {} using BatchReader", numSplits, task.table().name());
     }
 
     @Override
