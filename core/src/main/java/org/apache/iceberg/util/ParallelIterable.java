@@ -55,13 +55,15 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final Iterator<Runnable> tasks;
     private final ExecutorService workerPool;
     private final Future<?>[] taskFutures;
-    private final int queueSize = SystemProperties.getInt(SystemProperties.SCAN_SHARED_QUEUE_SIZE,
-        SystemProperties.SCAN_SHARED_QUEUE_SIZE_DEFAULT);
-    private final LinkedBlockingQueue<T> queue = new LinkedBlockingQueue<>(queueSize);
+    private final int queueSize;
+    private final LinkedBlockingQueue<T> queue;
     private boolean closed = false;
 
     private ParallelIterator(Iterable<? extends Iterable<T>> iterables,
                              ExecutorService workerPool) {
+      this.queueSize = SystemProperties.getInt(SystemProperties.SCAN_SHARED_QUEUE_SIZE,
+          SystemProperties.SCAN_SHARED_QUEUE_SIZE_DEFAULT);
+      this.queue = new LinkedBlockingQueue<>(queueSize);
       this.tasks = Iterables.transform(iterables, iterable ->
           (Runnable) () -> {
             try (Closeable ignored = (iterable instanceof Closeable) ?
