@@ -72,12 +72,11 @@ public class SnapshotsTable extends BaseMetadataTable {
 
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this.metadataTableType().name(), SnapshotsTable.this::task);
+      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task);
     }
 
     SnapshotsTableScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this.metadataTableType().name(),
-              SnapshotsTable.this::task, context);
+      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task, context);
     }
 
     @Override
