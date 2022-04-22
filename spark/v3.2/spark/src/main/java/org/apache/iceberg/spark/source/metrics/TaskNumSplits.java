@@ -22,7 +22,7 @@ package org.apache.iceberg.spark.source.metrics;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
 public class TaskNumSplits implements CustomTaskMetric {
-  private long value;
+  private final long value;
 
   public TaskNumSplits(long value) {
     this.value = value;
