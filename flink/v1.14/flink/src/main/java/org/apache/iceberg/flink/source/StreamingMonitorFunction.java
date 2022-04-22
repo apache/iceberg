@@ -147,23 +147,29 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
 
-    Snapshot snapshot = table.currentSnapshot();
-    if (snapshot != null && snapshot.snapshotId() != lastSnapshotId) {
-      long snapshotId = snapshot.snapshotId();
+    Snapshot currentSnapshot = table.currentSnapshot();
+    if (currentSnapshot == null) {
+      return;
+    }
 
+    long currentSnapshotId = currentSnapshot.snapshotId();
+    while (currentSnapshotId != lastSnapshotId) {
       ScanContext newScanContext;
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
-        newScanContext = scanContext.copyWithSnapshotId(snapshotId);
+        newScanContext = scanContext.copyWithSnapshotId(currentSnapshotId);
+        lastSnapshotId = currentSnapshotId;
       } else {
+        // one snapshot at a time to avoid delete records out-of-order
+        long snapshotId = SnapshotUtil.snapshotAfter(table, lastSnapshotId).snapshotId();
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
+        lastSnapshotId = snapshotId;
       }
 
       FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
+      LOG.info("FlinkInputSplit: {}.", splits);
       for (FlinkInputSplit split : splits) {
         sourceContext.collect(split);
       }
-
-      lastSnapshotId = snapshotId;
     }
   }
 

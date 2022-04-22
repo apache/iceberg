@@ -142,6 +142,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
   private void processSplits() throws IOException {
     FlinkInputSplit split = splits.poll();
+    LOG.info("A new FlinkInputSplit: {}.", split);
     if (split == null) {
       currentSplitState = SplitState.IDLE;
       return;
@@ -152,6 +153,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
       RowData nextElement = null;
       while (!format.reachedEnd()) {
         nextElement = format.nextRecord(nextElement);
+        LOG.info("A new element: {}.", nextElement);
         sourceContext.collect(nextElement);
       }
     } finally {

@@ -137,6 +137,12 @@ public class RowDataProjection implements RowData {
     return this;
   }
 
+  public RowData wrapDelete(RowData row) {
+    row.setRowKind(RowKind.DELETE);
+    this.rowData = row;
+    return this;
+  }
+
   private Object getValue(int pos) {
     return getters[pos].getFieldOrNull(rowData);
   }
