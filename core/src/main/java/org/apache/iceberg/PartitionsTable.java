@@ -134,20 +134,20 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   /**
-   * Convert a partition data written by an old spec, to table's normalized partition form, which is a common partition
+   * Convert a partition data written by an old spec, to table's normalized partition type, which is a common partition
    * type for all specs of the table.
    * @param originalPartition un-normalized partition data
-   * @param normalizedPartitionSchema table's normalized partition form {@link Partitioning#partitionType(Table)}
+   * @param normalizedPartitionType table's normalized partition type {@link Partitioning#partitionType(Table)}
    * @param originalPartitionFieldPositions an array of positional indexes of the spec's partition fields indexed by
-   *                                       position in the normalized partition type
+   *                                       position in the normalized partition schema
    * @return the normalized partition data
    */
   private static PartitionData normalizePartition(PartitionData originalPartition,
-                                                  Types.StructType normalizedPartitionSchema,
+                                                  Types.StructType normalizedPartitionType,
                                                   Integer[] originalPartitionFieldPositions) {
-    PartitionData normalizedPartition = new PartitionData(normalizedPartitionSchema);
+    PartitionData normalizedPartition = new PartitionData(normalizedPartitionType);
 
-    IntStream.range(0, normalizedPartitionSchema.fields().size()).forEach(normalizedPartitionFieldIndex -> {
+    IntStream.range(0, normalizedPartitionType.fields().size()).forEach(normalizedPartitionFieldIndex -> {
       Integer originalPartitionPosition = originalPartitionFieldPositions[normalizedPartitionFieldIndex];
       if (originalPartitionPosition != null) {
         Object originalPartitionValue = originalPartition.get(originalPartitionPosition);
