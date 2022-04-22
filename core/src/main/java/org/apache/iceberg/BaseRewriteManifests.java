@@ -165,7 +165,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests();
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
-    validateDeletedManifests(currentManifestSet);
+    validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
 
     if (requiresRewrite(currentManifestSet)) {
       performRewrite(currentManifests);
@@ -251,13 +251,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     }
   }
 
-  private void validateDeletedManifests(Set<ManifestFile> currentManifests) {
+  private void validateDeletedManifests(Set<ManifestFile> currentManifests, long currentSnapshotId) {
     // directly deleted manifests must be still present in the current snapshot
     deletedManifests.stream()
         .filter(manifest -> !currentManifests.contains(manifest))
         .findAny()
         .ifPresent(manifest -> {
-          throw new ValidationException("Manifest is missing: %s", manifest.path());
+          throw new ValidationException("Cannot apply RewriteManifests result, " +
+                  "since some manifests being deleted have already been removed in current snapshot or not exist" +
+                  " at all. current-snapshot-id:%d, missing-manifest-path:%s", currentSnapshotId, manifest.path());
         });
   }
 

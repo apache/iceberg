@@ -895,7 +895,7 @@ public class TestRewriteManifests extends TableTestBase {
         .commit();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "Manifest is missing",
+        ValidationException.class, "Cannot apply RewriteManifests result, since some manifests",
         rewriteManifests::commit);
   }
 
