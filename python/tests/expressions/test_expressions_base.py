@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import uuid
+from decimal import Decimal
+
 import pytest
 
 from iceberg.expressions import base
@@ -56,3 +59,35 @@ def test_raise_on_no_negation_for_operation(operation):
         operation.negate()
 
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
+
+
+def test_accessor_base_class(foo_struct):
+    """Test retrieving a value at a position of a container using an accessor"""
+
+    uuid_value = uuid.uuid4()
+
+    foo_struct.set(0, "foo")
+    foo_struct.set(1, "bar")
+    foo_struct.set(2, "baz")
+    foo_struct.set(3, 1)
+    foo_struct.set(4, 2)
+    foo_struct.set(5, 3)
+    foo_struct.set(6, 1.234)
+    foo_struct.set(7, Decimal("1.234"))
+    foo_struct.set(8, uuid_value)
+    foo_struct.set(9, True)
+    foo_struct.set(10, False)
+    foo_struct.set(11, b"\x19\x04\x9e?")
+
+    assert base.Accessor(position=0).get(foo_struct) == "foo"
+    assert base.Accessor(position=1).get(foo_struct) == "bar"
+    assert base.Accessor(position=2).get(foo_struct) == "baz"
+    assert base.Accessor(position=3).get(foo_struct) == 1
+    assert base.Accessor(position=4).get(foo_struct) == 2
+    assert base.Accessor(position=5).get(foo_struct) == 3
+    assert base.Accessor(position=6).get(foo_struct) == 1.234
+    assert base.Accessor(position=7).get(foo_struct) == Decimal("1.234")
+    assert base.Accessor(position=8).get(foo_struct) == uuid_value
+    assert base.Accessor(position=9).get(foo_struct) == True
+    assert base.Accessor(position=10).get(foo_struct) == False
+    assert base.Accessor(position=11).get(foo_struct) == b"\x19\x04\x9e?"

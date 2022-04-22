@@ -16,7 +16,9 @@
 # under the License.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
+
+from iceberg.files import StructProtocol
 
 T = TypeVar("T")
 
@@ -122,3 +124,26 @@ class Literal(Generic[T], ABC):
 
     def __ge__(self, other):
         return self.value >= other.value
+
+
+class Accessor:
+    """An accessor for a specific position in a container that implements the StructProtocol"""
+
+    def __init__(self, position: int):
+        self._position = position
+
+    @property
+    def position(self):
+        """The position in the container to access"""
+        return self._position
+
+    def get(self, container: StructProtocol) -> Any:
+        """Returns the value at self.position in `container`
+
+        Args:
+            container(StructProtocol): A container to access at position `self.position`
+
+        Returns:
+            Any: The value at position `self.position` in the container
+        """
+        return container.get(self.position)
