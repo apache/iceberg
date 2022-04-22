@@ -19,19 +19,19 @@
 
 package org.apache.iceberg.spark.actions;
 
-import org.apache.iceberg.actions.Cdc;
+import org.apache.iceberg.actions.GetChangeSet;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 
-public class BaseCdcSparkActionResult implements Cdc.Result {
-  private final Dataset<Row> cdcRecords;
+public class BaseGetChangeSetSparkActionResult implements GetChangeSet.Result {
+  private final Dataset<Row> changeSet;
 
-  public BaseCdcSparkActionResult(Dataset<Row> cdcRecords) {
-    this.cdcRecords = cdcRecords;
+  public BaseGetChangeSetSparkActionResult(Dataset<Row> changeSet) {
+    this.changeSet = changeSet;
   }
 
   @Override
-  public Object cdcRecords() {
-    return cdcRecords;
+  public Object changeSet() {
+    return changeSet;
   }
 }

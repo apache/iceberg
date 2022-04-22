@@ -76,9 +76,9 @@ public interface ActionsProvider {
   }
 
   /**
-   * Instantiates an action to generate CDC records.
+   * Instantiates an action to generate a change data set.
    */
-  default Cdc generateCdcRecords(Table table) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement generateCdcRecords");
+  default GetChangeSet getChangeSet(Table table) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement getChangeSet");
   }
 }

@@ -19,38 +19,46 @@
 
 package org.apache.iceberg.actions;
 
-public interface Cdc extends Action<Cdc, Cdc.Result> {
+public interface GetChangeSet extends Action<GetChangeSet, GetChangeSet.Result> {
   /**
    * Emit changed data set by a snapshot id.
    *
    * @param snapshotId id of the snapshot to generate changed data
    * @return this for method chaining
    */
-  Cdc ofSnapshot(long snapshotId);
+  GetChangeSet forSnapshot(long snapshotId);
 
   /**
-   * Emit changed data set by the current snapshot.
+   * Emit changed data set for the current snapshot.
    *
    * @return this for method chaining
    */
-  Cdc ofCurrentSnapshot();
+  GetChangeSet forCurrentSnapshot();
 
   /**
-   * Emit changed data set by a range of snapshots
+   * Emit changed data from a particular snapshot(exclusive).
    *
-   * @param fromSnapshotId id of the first snapshot
-   * @param toSnapshotId id of the last snapshot
+   * @param fromSnapshotId id of the start snapshot
    * @return this for method chaining
    */
-  Cdc between(long fromSnapshotId, long toSnapshotId);
+  GetChangeSet afterSnapshot(long fromSnapshotId);
+
+  /**
+   * Emit change data set from the start snapshot (exclusive) to the end snapshot (inclusive).
+   *
+   * @param fromSnapshotId id of the start snapshot
+   * @param toSnapshotId   id of the end snapshot
+   * @return this for method chaining
+   */
+  GetChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId);
 
   /**
    * The action result that contains a dataset of changed rows.
    */
   interface Result {
     /**
-     * Returns CDC records.
+     * Returns the change set.
      */
-    Object cdcRecords();
+    Object changeSet();
   }
 }

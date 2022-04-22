@@ -34,7 +34,7 @@ import org.apache.iceberg.ManifestGroup;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.Cdc;
+import org.apache.iceberg.actions.GetChangeSet;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -54,8 +54,9 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.spark.sql.functions.lit;
 
-public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> implements Cdc {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseCdcSparkAction.class);
+public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, GetChangeSet.Result>
+    implements GetChangeSet {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseGetChangeSetSparkAction.class);
   public static final String RECORD_TYPE = "_record_type";
   public static final String COMMIT_SNAPSHOT_ID = "_commit_snapshot_id";
   public static final String COMMIT_TIMESTAMP = "_commit_timestamp";
@@ -68,7 +69,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   private boolean ignoreRowsDeletedWithinSnapshot = true;
   private Expression filter = Expressions.alwaysTrue();
 
-  protected BaseCdcSparkAction(SparkSession spark, Table table) {
+  protected BaseGetChangeSetSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
   }
@@ -87,7 +88,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
         outputDf = outputDf.unionByName(df, true);
       }
     }
-    return new BaseCdcSparkActionResult(outputDf);
+    return new BaseGetChangeSetSparkActionResult(outputDf);
   }
 
   private void generateCdcRecordsPerSnapshot(long snapshotId, int commitOrder) {
@@ -230,7 +231,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   @Override
-  public Cdc ofSnapshot(long snapshotId) {
+  public GetChangeSet forSnapshot(long snapshotId) {
     if (table.snapshot(snapshotId) != null) {
       snapshotIds.clear();
       snapshotIds.add(snapshotId);
@@ -239,7 +240,18 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   @Override
-  public Cdc ofCurrentSnapshot() {
+  public GetChangeSet afterSnapshot(long fromSnapshotId) {
+    Preconditions.checkArgument(table.snapshot(fromSnapshotId) != null,
+        "The fromSnapshotId(%s) is invalid", fromSnapshotId);
+    snapshotIds.clear();
+    SnapshotUtil.ancestorIdsBetween(table.currentSnapshot().snapshotId(), fromSnapshotId, table::snapshot)
+        .forEach(snapshotIds::add);
+
+    return this;
+  }
+
+  @Override
+  public GetChangeSet forCurrentSnapshot() {
     if (table.currentSnapshot() != null) {
       snapshotIds.clear();
       snapshotIds.add(table.currentSnapshot().snapshotId());
@@ -248,7 +260,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   @Override
-  public Cdc between(long fromSnapshotId, long toSnapshotId) {
+  public GetChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId) {
     Preconditions.checkArgument(table.snapshot(fromSnapshotId) != null,
         "The fromSnapshotId(%s) is invalid", fromSnapshotId);
     Preconditions.checkArgument(table.snapshot(toSnapshotId) != null,
@@ -264,7 +276,7 @@ public class BaseCdcSparkAction extends BaseSparkAction<Cdc, Cdc.Result> impleme
   }
 
   @Override
-  protected Cdc self() {
+  protected GetChangeSet self() {
     return this;
   }
 }

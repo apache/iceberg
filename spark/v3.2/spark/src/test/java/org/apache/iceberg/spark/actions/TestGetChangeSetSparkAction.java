@@ -36,7 +36,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.actions.Cdc;
+import org.apache.iceberg.actions.GetChangeSet;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
@@ -60,7 +60,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestCdcSparkAction extends SparkTestBase {
+public class TestGetChangeSetSparkAction extends SparkTestBase {
   protected ActionsProvider actions() {
     return SparkActions.get();
   }
@@ -128,10 +128,10 @@ public class TestCdcSparkAction extends SparkTestBase {
   @Test
   public void testAppendOnly() {
     // the current snapshot should only have one row
-    Cdc.Result result = actions().generateCdcRecords(table).ofCurrentSnapshot().execute();
+    GetChangeSet.Result result = actions().getChangeSet(table).forCurrentSnapshot().execute();
 
     // verifyData
-    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.collectAsList());
     Snapshot snapshot = table.currentSnapshot();
     ImmutableList<Object[]> expectedRows = ImmutableList.of(
@@ -146,8 +146,8 @@ public class TestCdcSparkAction extends SparkTestBase {
     // delete nothing, however, it generates a new snapshot with nothing has been changed
     sql("delete from hive.default.%s where c1 = 1", tableName);
     sourceTable.refresh();
-    Cdc.Result result = actions().generateCdcRecords(sourceTable).ofCurrentSnapshot().execute();
-    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    GetChangeSet.Result result = actions().getChangeSet(sourceTable).forCurrentSnapshot().execute();
+    Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     Assert.assertEquals("Incorrect result", null, resultDF);
   }
 
@@ -157,10 +157,10 @@ public class TestCdcSparkAction extends SparkTestBase {
     // delete the only row
     sql("delete from hive.default.%s where c1 = 0", tableName);
     tbl.refresh();
-    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
+    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
 
     // verify results
-    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.collectAsList());
     Snapshot snapshot = tbl.currentSnapshot();
     ImmutableList<Object[]> expectedRows = ImmutableList.of(
@@ -195,9 +195,9 @@ public class TestCdcSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
+    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
     // verify the results
-    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
     Snapshot snapshot = tbl.currentSnapshot();
     ImmutableList<Object[]> expectedRows = ImmutableList.of(
@@ -233,9 +233,9 @@ public class TestCdcSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
+    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
     // verify the results
-    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
     Snapshot snapshot = tbl.currentSnapshot();
     ImmutableList<Object[]> expectedRows = ImmutableList.of(
@@ -271,9 +271,9 @@ public class TestCdcSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
+    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
     Assert.assertTrue("Must be no result since the c1 value in the eq delete file couldn't match any data file",
-        result.cdcRecords() == null);
+        result.changeSet() == null);
   }
 
   @Test
@@ -314,9 +314,9 @@ public class TestCdcSparkAction extends SparkTestBase {
         .commit();
     Snapshot snapshotId2 = tbl.currentSnapshot();
 
-    Cdc.Result result = actions().generateCdcRecords(tbl).ofCurrentSnapshot().execute();
+    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
     // verify the results
-    Dataset<Row> resultDF = (Dataset<Row>) result.cdcRecords();
+    Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
     ImmutableList<Object[]> expectedRows = ImmutableList.of(
         row(1, "AAAAAAAAAA", "AAAA", "D", snapshotId2.snapshotId(), snapshotId2.timestampMillis(), 0)
@@ -324,9 +324,9 @@ public class TestCdcSparkAction extends SparkTestBase {
     assertEquals("Should have expected rows", expectedRows, actualRecords);
 
     // select the first eq delete snapshot
-    result = actions().generateCdcRecords(tbl).ofSnapshot(snapshotId1).execute();
+    result = actions().getChangeSet(tbl).forSnapshot(snapshotId1).execute();
     // verify the results
-    resultDF = (Dataset<Row>) result.cdcRecords();
+    resultDF = (Dataset<Row>) result.changeSet();
     actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
     expectedRows = ImmutableList.of(
         row(0, "AAAAAAAAAA", "AAAA", "D", snapshotId1, tbl.snapshot(snapshotId1).timestampMillis(), 0)
@@ -334,9 +334,9 @@ public class TestCdcSparkAction extends SparkTestBase {
     assertEquals("Should have expected rows", expectedRows, actualRecords);
 
     // select two snapshots
-    result = actions().generateCdcRecords(tbl).between(snapshotId1, snapshotId2.snapshotId()).execute();
+    result = actions().getChangeSet(tbl).betweenSnapshots(snapshotId1, snapshotId2.snapshotId()).execute();
     // verify the results
-    resultDF = (Dataset<Row>) result.cdcRecords();
+    resultDF = (Dataset<Row>) result.changeSet();
     actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
     expectedRows = ImmutableList.of(
         row(0, "AAAAAAAAAA", "AAAA", "D", snapshotId1, tbl.snapshot(snapshotId1).timestampMillis(), 0),
