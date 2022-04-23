@@ -74,7 +74,7 @@ public interface RangeReadable extends Closeable {
 
   /**
    * Read the full size of the buffer from the end of the file.
-   * 
+   *
    * @param buffer the buffer to write data into
    * @throws IOException if an error occurs while reading
    */
