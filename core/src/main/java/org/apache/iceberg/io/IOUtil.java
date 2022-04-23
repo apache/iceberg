@@ -38,6 +38,23 @@ public class IOUtil {
    */
   @SuppressWarnings("checkstyle:InnerAssignment")
   public static void readFully(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
+    if (readToEnd(stream, bytes, offset, length) != length) {
+      throw new IOException("End of stream reached before completing read");
+    }
+  }
+
+  /**
+   * Reads a buffer from a stream, making multiple read calls if necessary
+   * returning the number of bytes read until end of stream.
+   *
+   * @param stream an InputStream to read from
+   * @param bytes a buffer
+   * @param offset starting offset in the buffer for the data
+   * @param length length of bytes to copy from the input stream to the buffer
+   * @throws IOException if there is an error while reading
+   */
+  @SuppressWarnings("checkstyle:InnerAssignment")
+  public static int readToEnd(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
     int pos = offset;
     int bytesRead = 0;
 
@@ -45,8 +62,6 @@ public class IOUtil {
       pos += bytesRead;
     }
 
-    if (bytesRead != length) {
-      throw new IOException("End of stream reached before completing read");
-    }
+    return bytesRead;
   }
 }

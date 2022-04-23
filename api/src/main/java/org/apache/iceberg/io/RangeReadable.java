@@ -62,23 +62,24 @@ public interface RangeReadable extends Closeable {
   }
 
   /**
-   * Read the last {@code length} bytes from the file into the provided
-   * buffer at the given offset.
+   * Read the last {@code length} bytes from the file.
    *
    * @param buffer the buffer to write data into
    * @param offset the offset in the buffer to start writing
    * @param length the number of bytes from the end of the object to read
+   * @return the actual number of bytes read
    * @throws IOException if an error occurs while reading
    */
-  void readTail(byte [] buffer, int offset, int length) throws IOException;
+  int readTail(byte [] buffer, int offset, int length) throws IOException;
 
   /**
    * Read the full size of the buffer from the end of the file.
    *
    * @param buffer the buffer to write data into
+   * @return the actual number of bytes read
    * @throws IOException if an error occurs while reading
    */
-  default void readTail(byte [] buffer) throws IOException {
-    readTail(buffer, 0, buffer.length);
+  default int readTail(byte [] buffer) throws IOException {
+    return readTail(buffer, 0, buffer.length);
   }
 }
