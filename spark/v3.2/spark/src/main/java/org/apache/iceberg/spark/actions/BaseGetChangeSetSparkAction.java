@@ -187,7 +187,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
         .filterData(filter)
         .ignoreAdded()
-        .specsById(((HasTableOperations) table).operations().current().specsById());
+        .specsById(table.specs());
 
     return ImmutableList.copyOf(manifestGroup.planFiles());
   }
@@ -219,7 +219,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), manifestFiles)
         .filterData(filter)
         .onlyWithRowLevelDeletes()
-        .specsById(((HasTableOperations) table).operations().current().specsById());
+        .specsById(table.specs());
 
     return ImmutableList.copyOf(manifestGroup.planFiles());
   }
