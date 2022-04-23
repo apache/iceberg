@@ -37,15 +37,15 @@ public class IOUtil {
    * @throws IOException if there is an error while reading
    */
   @SuppressWarnings("checkstyle:InnerAssignment")
-  public static void readFully(
-      InputStream stream, byte[] bytes, int offset, int length) throws IOException {
+  public static void readFully(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
     int pos = offset;
-    int bytesRead;
-    while ((length - pos) > 0 && (bytesRead = stream.read(bytes, pos, length - pos)) > 0) {
+    int bytesRead = 0;
+
+    while ((length - bytesRead) > 0 && (bytesRead = stream.read(bytes, pos, length - bytesRead)) > 0) {
       pos += bytesRead;
     }
 
-    if (pos != length) {
+    if (bytesRead != length) {
       throw new IOException("End of stream reached before completing read");
     }
   }
