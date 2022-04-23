@@ -98,15 +98,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CatalogConfiguration'
+                $ref: '#/components/schemas/CatalogConfig'
               example: {
-                "data": {
-                  "overrides": {
-                    "warehouse": "s3://bucket/warehouse/"
-                  },
-                  "defaults": {
-                    "clients": "4"
-                  }
+                "overrides": {
+                  "warehouse": "s3://bucket/warehouse/"
+                },
+                "defaults": {
+                  "clients": "4"
                 }
               }
         400:
@@ -757,7 +755,7 @@ components:
           items:
             type: string
 
-    CatalogConfiguration:
+    CatalogConfig:
       type: object
       description: Server-provided configuration for the catalog.
       required:
@@ -1015,6 +1013,7 @@ components:
         - snapshot-id
         - timestamp-ms
         - manifest-list
+        - summary
       properties:
         snapshot-id:
           type: integer
@@ -1028,9 +1027,9 @@ components:
         summary:
           type: object
           required:
-            - summary
+            - operation
           properties:
-            summary:
+            operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:

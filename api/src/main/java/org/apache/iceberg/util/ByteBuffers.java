@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class ByteBuffers {
 
@@ -44,6 +45,16 @@ public class ByteBuffers {
       buffer.asReadOnlyBuffer().get(bytes);
       return bytes;
     }
+  }
+
+  public static ByteBuffer reuse(ByteBuffer reuse, int length) {
+    Preconditions.checkArgument(reuse.hasArray(), "Cannot reuse a buffer not backed by an array");
+    Preconditions.checkArgument(reuse.arrayOffset() == 0, "Cannot reuse a buffer whose array offset is not 0");
+    Preconditions.checkArgument(reuse.capacity() == length,
+        "Canout use a buffer whose capacity (%s) is not equal to the requested length (%s)", length, reuse.capacity());
+    reuse.position(0);
+    reuse.limit(length);
+    return reuse;
   }
 
   public static ByteBuffer copy(ByteBuffer buffer) {

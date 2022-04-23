@@ -271,27 +271,27 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   private void validateOptions() {
     Preconditions.checkArgument(minFileSize >= 0,
-        "Cannot set %s to a negative number, %d < 0",
+        "Cannot set %s to a negative number, %s < 0",
         MIN_FILE_SIZE_BYTES, minFileSize);
 
     Preconditions.checkArgument(maxFileSize > minFileSize,
-        "Cannot set %s greater than or equal to %s, %d >= %d",
+        "Cannot set %s greater than or equal to %s, %s >= %s",
         MIN_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, minFileSize, maxFileSize);
 
     Preconditions.checkArgument(targetFileSize > minFileSize,
-        "Cannot set %s greater than or equal to %s, all files written will be smaller than the threshold, %d >= %d",
+        "Cannot set %s greater than or equal to %s, all files written will be smaller than the threshold, %s >= %s",
         MIN_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, minFileSize, targetFileSize);
 
     Preconditions.checkArgument(targetFileSize < maxFileSize,
-        "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %d >= %d",
+        "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %s >= %s",
         RewriteDataFiles.TARGET_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, targetFileSize, maxFileSize);
 
     Preconditions.checkArgument(minInputFiles > 0,
-        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %s < 1",
         MIN_INPUT_FILES, minInputFiles);
 
     Preconditions.checkArgument(deleteFileThreshold > 0,
-        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %s < 1",
         DELETE_FILE_THRESHOLD, deleteFileThreshold);
   }
 }

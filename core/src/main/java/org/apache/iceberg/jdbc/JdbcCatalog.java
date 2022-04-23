@@ -56,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,9 +82,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     String uri = properties.get(CatalogProperties.URI);
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
-    String warehouse = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
-    Preconditions.checkNotNull(warehouse, "JDBC warehouse location is required");
-    this.warehouseLocation = warehouse.replaceAll("/*$", "");
+    String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        "Cannot initialize JDBCCatalog because warehousePath must not be null or empty");
+
+    this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
 
     if (name != null) {
       this.catalogName = name;

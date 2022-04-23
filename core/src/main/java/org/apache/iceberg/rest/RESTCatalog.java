@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.rest;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
@@ -59,8 +62,11 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Configuration> {
+public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Configuration>, Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(RESTCatalog.class);
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private RESTClient client = null;
   private String catalogName = null;
@@ -69,18 +75,28 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   private Object conf = null;
   private FileIO io = null;
 
+  public RESTCatalog() {
+    this(new HTTPClientFactory());
+  }
+
   RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
     this.clientBuilder = clientBuilder;
   }
 
   @Override
   public void initialize(String name, Map<String, String> props) {
-    this.client = clientBuilder.apply(props);
+    ConfigResponse config = fetchConfig(props);
+    Map<String, String> mergedProps = config.merge(props);
+    this.client = clientBuilder.apply(mergedProps);
     this.catalogName = name;
-    this.properties = ImmutableMap.copyOf(props);
-    this.paths = ResourcePaths.forCatalogProperties(props);
-    String ioImpl = props.get(CatalogProperties.FILE_IO_IMPL);
-    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), props, conf);
+    this.properties = mergedProps;
+    this.paths = ResourcePaths.forCatalogProperties(properties);
+    String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
+  }
+
+  public Map<String, String> properties() {
+    return properties;
   }
 
   @Override
@@ -197,6 +213,13 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   @Override
   public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
     return new Builder(identifier, schema);
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (client != null) {
+      client.close();
+    }
   }
 
   private class Builder implements TableBuilder {
@@ -404,5 +427,24 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     RESTClient tableClient = clientBuilder.apply(fullConf);
 
     return Pair.of(tableClient, tableIO);
+  }
+
+  private ConfigResponse fetchConfig(Map<String, String> props) {
+    // Create a client for one time use, as we will reconfigure the client using the merged server and application
+    // defined configuration.
+    RESTClient singleUseClient = clientBuilder.apply(props);
+
+    try {
+      ConfigResponse configResponse = singleUseClient
+          .get(ResourcePaths.config(), ConfigResponse.class, ErrorHandlers.defaultErrorHandler());
+      configResponse.validate();
+      return configResponse;
+    } finally {
+      try {
+        singleUseClient.close();
+      } catch (IOException e) {
+        LOG.error("Failed to close HTTP client used for getting catalog configuration. Possible resource leak.", e);
+      }
+    }
   }
 }

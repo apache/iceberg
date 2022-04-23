@@ -318,6 +318,30 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testAlterTableWithPrimaryKey() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT, PRIMARY KEY(id) NOT ENFORCED) WITH ('oldK'='oldV')");
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("oldK", "oldV");
+
+    // new
+    sql("ALTER TABLE tl SET('newK'='newV')");
+    properties.put("newK", "newV");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // update old
+    sql("ALTER TABLE tl SET('oldK'='oldV2')");
+    properties.put("oldK", "oldV2");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // remove property
+    CatalogTable catalogTable = catalogTable("tl");
+    properties.remove("oldK");
+    getTableEnv().getCatalog(getTableEnv().getCurrentCatalog()).get().alterTable(
+            new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
+    Assert.assertEquals(properties, table("tl").properties());
+  }
+
+  @Test
   public void testRelocateTable() {
     Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
 

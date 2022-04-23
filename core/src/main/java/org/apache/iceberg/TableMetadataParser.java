@@ -386,7 +386,8 @@ public class TableMetadataParser {
     if (lastAssignedPartitionId == null) {
       Preconditions.checkArgument(formatVersion == 1,
           "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
-      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
+      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max()
+          .orElse(PartitionSpec.unpartitioned().lastAssignedFieldId());
     }
 
     // parse the sort orders
