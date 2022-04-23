@@ -129,7 +129,6 @@ public class TestS3InputStream {
       // last 1k
       position = dataSize - 1024;
       offset = dataSize - 1024;
-      length = 1024;
       readAndCheckRanges(in, expected, position, actual, offset, length);
 
       // middle 2k
@@ -140,9 +139,9 @@ public class TestS3InputStream {
     }
   }
 
-  private void readAndCheckRanges(
+  private void readAndCheckRanges (
       RangeReadable in, byte [] original, long position, byte [] buffer, int offset,
-      int length) {
+      int length) throws IOException {
     in.readFully(position, buffer, offset, length);
 
     assertArrayEquals(

@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -34,11 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -115,16 +114,32 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   @Override
-  public void readFully(long position, byte[] buffer, int offset, int length) {
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+
+    String range = String.format("bytes=%s-%s", position, position + length - 1);
+
+    IOUtil.readFully(readRange(range), buffer, offset, length);
+  }
+
+  @Override
+  public void readTail(byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+
+    String range = String.format("bytes=-%s", length);
+
+    IOUtil.readFully(readRange(range), buffer, offset, length);
+  }
+
+  private InputStream readRange(String range) {
     GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
         .bucket(location.bucket())
         .key(location.key())
-        .range(String.format("bytes=%s-%s", position, position + length));
+        .range(range);
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
-    ResponseBytes<GetObjectResponse> response = s3.getObject(requestBuilder.build(), ResponseTransformer.toBytes());
-    System.arraycopy(response.asByteArrayUnsafe(), 0, buffer, offset, length);
+    return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
   }
 
   @Override

@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 /**
  * {@code RangeReadable} is an interface that allows for implementations
  * of {@link InputFile} streams to perform positional, range-based reads, which
@@ -34,7 +37,7 @@ package org.apache.iceberg.io;
  * based reads.
  *
  */
-public interface RangeReadable extends AutoCloseable {
+public interface RangeReadable extends Closeable {
 
   /**
    * Fill the provided buffer with the contents of the input source starting
@@ -45,7 +48,7 @@ public interface RangeReadable extends AutoCloseable {
    * @param offset offset in the buffer to copy the data
    * @param length size of the read
    */
-  void readFully(long position, byte[] buffer, int offset, int length);
+  void readFully(long position, byte[] buffer, int offset, int length) throws IOException;
 
   /**
    * Fill the entire buffer with the contents of the input source starting
@@ -54,7 +57,28 @@ public interface RangeReadable extends AutoCloseable {
    * @param position start position of the read
    * @param buffer target buffer to copy data
    */
-  default void readFully(long position, byte[] buffer) {
+  default void readFully(long position, byte[] buffer) throws IOException {
     readFully(position, buffer, 0, buffer.length);
+  }
+
+  /**
+   * Read the last {@code length} bytes from the file into the provided
+   * buffer at the given offset.
+   *
+   * @param buffer the buffer to write data into
+   * @param offset the offset in the buffer to start writing
+   * @param length the number of bytes from the end of the object to read
+   * @throws IOException if an error occurs while reading
+   */
+  void readTail(byte [] buffer, int offset, int length) throws IOException;
+
+  /**
+   * Read the full size of the buffer from the end of the file.
+   * 
+   * @param buffer the buffer to write data into
+   * @throws IOException if an error occurs while reading
+   */
+  default void readTail(byte [] buffer) throws IOException {
+    readTail(buffer, 0, buffer.length);
   }
 }
