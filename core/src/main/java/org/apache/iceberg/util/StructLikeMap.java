@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
-public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<StructLike, T> {
+public class StructLikeMap<T> extends AbstractMap<StructLike, T> {
 
   public static <T> StructLikeMap<T> create(Types.StructType type) {
     return new StructLikeMap<>(type);
@@ -104,7 +104,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
   }
 
   @Override
-  public Set<StructLike> keySet() {
+  public StructLikeSet keySet() {
     StructLikeSet keySet = StructLikeSet.create(type);
     for (StructLikeWrapper wrapper : wrapperMap.keySet()) {
       keySet.add(wrapper.get());

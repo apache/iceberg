@@ -39,7 +39,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   private final Map<Integer, Types.StructType> partitionTypeById;
-  private final Map<Integer, Set<StructLike>> partitionSetById;
+  private final Map<Integer, StructLikeSet> partitionSetById;
 
   private PartitionSet(Map<Integer, PartitionSpec> specsById) {
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
@@ -72,7 +72,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   public boolean contains(int specId, StructLike struct) {
-    Set<StructLike> partitionSet = partitionSetById.get(specId);
+    StructLikeSet partitionSet = partitionSetById.get(specId);
     if (partitionSet != null) {
       return partitionSet.contains(struct);
     }
@@ -87,7 +87,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   public boolean add(int specId, StructLike struct) {
-    Set<StructLike> partitionSet = partitionSetById.computeIfAbsent(specId,
+    StructLikeSet partitionSet = partitionSetById.computeIfAbsent(specId,
         id -> StructLikeSet.create(partitionTypeById.get(id)));
     return partitionSet.add(struct);
   }
@@ -106,7 +106,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   public boolean remove(int specId, StructLike struct) {
-    Set<StructLike> partitionSet = partitionSetById.get(specId);
+    StructLikeSet partitionSet = partitionSetById.get(specId);
     if (partitionSet != null) {
       return partitionSet.remove(struct);
     }
@@ -187,7 +187,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   @Override
   public String toString() {
     StringJoiner result = new StringJoiner(", ", "[", "]");
-    for (Map.Entry<Integer, Set<StructLike>> e : partitionSetById.entrySet()) {
+    for (Map.Entry<Integer, StructLikeSet> e : partitionSetById.entrySet()) {
       StringJoiner partitionDataJoiner = new StringJoiner(", ");
       Types.StructType structType = partitionTypeById.get(e.getKey());
       for (StructLike s : e.getValue()) {

@@ -97,7 +97,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
-    private Map<StructLike, PathOffset> insertedRowMap;
+    private StructLikeMap<PathOffset> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");

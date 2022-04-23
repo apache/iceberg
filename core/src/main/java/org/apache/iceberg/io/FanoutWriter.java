@@ -55,7 +55,7 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   }
 
   private FileWriter<T, R> writer(PartitionSpec spec, StructLike partition) {
-    Map<StructLike, FileWriter<T, R>> specWriters = writers.computeIfAbsent(
+    StructLikeMap<FileWriter<T, R>> specWriters = writers.computeIfAbsent(
         spec.specId(),
         id -> StructLikeMap.create(spec.partitionType()));
     FileWriter<T, R> writer = specWriters.get(partition);
@@ -79,7 +79,7 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   }
 
   private void closeWriters() throws IOException {
-    for (Map<StructLike, FileWriter<T, R>> specWriters : writers.values()) {
+    for (StructLikeMap<FileWriter<T, R>> specWriters : writers.values()) {
       for (FileWriter<T, R> writer : specWriters.values()) {
         writer.close();
         addResult(writer.result());
