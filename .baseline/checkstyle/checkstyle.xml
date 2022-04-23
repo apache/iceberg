@@ -53,7 +53,7 @@
     </module>
     <module name="RegexpSingleline">
         <property name="format" value="new HashMap&lt;&gt;\(.*\)"/>
-        <property name="message" value="Prefer using Maps.newHashMap instead."/>
+        <property name="message" value="Prefer using Maps.newHashMap() instead."/>
     </module>
     <module name="RegexpSingleline">
         <property name="format" value="new ConcurrentHashMap&lt;&gt;\(.*\)"/>
@@ -70,6 +70,14 @@
     <module name="RegexpSingleline">
         <property name="format" value="new LinkedHashSet&lt;&gt;\(.*\)"/>
         <property name="message" value="Prefer using Sets.newLinkedHashSet() instead."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="Map&lt;StructLike, .*&gt;"/>
+        <property name="message" value="Prefer using StructLikeMap instead."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="format" value="Set&lt;StructLike&gt;"/>
+        <property name="message" value="Prefer using StructLikeSet instead."/>
     </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
