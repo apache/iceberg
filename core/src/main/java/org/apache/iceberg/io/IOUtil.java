@@ -28,10 +28,10 @@ public class IOUtil {
   }
 
   /**
-   * Reads a buffer from a stream, making multiple read calls if necessary.
+   * Reads into a buffer from a stream, making multiple read calls if necessary.
    *
    * @param stream an InputStream to read from
-   * @param bytes a buffer
+   * @param bytes a buffer to write into
    * @param offset starting offset in the buffer for the data
    * @param length length of bytes to copy from the input stream to the buffer
    * @throws IOException if there is an error while reading
@@ -44,11 +44,11 @@ public class IOUtil {
   }
 
   /**
-   * Reads a buffer from a stream, making multiple read calls if necessary
+   * Reads into a buffer from a stream, making multiple read calls if necessary
    * returning the number of bytes read until end of stream.
    *
    * @param stream an InputStream to read from
-   * @param bytes a buffer
+   * @param bytes a buffer to write into
    * @param offset starting offset in the buffer for the data
    * @param length length of bytes to copy from the input stream to the buffer
    * @throws IOException if there is an error while reading
