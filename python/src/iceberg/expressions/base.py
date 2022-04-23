@@ -20,7 +20,7 @@ from functools import reduce
 from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
-from iceberg.types import Singleton
+from iceberg.types import IcebergType, NestedField, Singleton
 
 T = TypeVar("T")
 
@@ -287,3 +287,61 @@ class Accessor:
             Any: The value at position `self.position` in the container
         """
         return container.get(self.position)
+
+
+class BoundReference:
+    """A reference bound to a field with an accessor for acquiring the field's value
+
+    Args:
+        field (NestedField): A referenced field in an Iceberg schema
+        accessor (Accessor): An Accessor object to access the value at the field's position
+    """
+
+    def __init__(self, field: NestedField, accessor: Accessor):
+        self._field = field
+        self._accessor = accessor
+
+    def __str__(self):
+        return f"ref(id={self.field_id})"
+
+    def __repr__(self):
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self.accessor)})"
+
+    @property
+    def field(self) -> NestedField:
+        """The referenced field"""
+        return self._field
+
+    @property
+    def field_id(self) -> int:
+        """The ID referenced field"""
+        return self._field.field_id
+
+    @property
+    def field_type(self) -> IcebergType:
+        """The type of the referenced field"""
+        return self._field.type
+
+    @property
+    def accessor(self) -> Accessor:
+        """The accessor for retrieving the value at the referenced field's position"""
+        return self._accessor
+
+    def __eq__(self, other) -> bool:
+        if id(self) == id(other):
+            return True
+        elif other is None or not isinstance(other, BoundReference):
+            return False
+
+        return self.field_id == other.field_id and self.field_type == other.field_type
+
+    def eval(self, struct: StructProtocol) -> Any:
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+
+        Args:
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+
+        Returns:
+            Any: The value at the referenced field's position in `struct`
+        """
+        return self.accessor.get(struct)
