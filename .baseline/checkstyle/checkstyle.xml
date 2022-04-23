@@ -72,11 +72,11 @@
         <property name="message" value="Prefer using Sets.newLinkedHashSet() instead."/>
     </module>
     <module name="RegexpSingleline">
-        <property name="format" value="Map&lt;StructLike, .*&gt;"/>
+        <property name="format" value="^Map&lt;StructLike, .*&gt;"/>
         <property name="message" value="Prefer using StructLikeMap instead."/>
     </module>
     <module name="RegexpSingleline">
-        <property name="format" value="Set&lt;StructLike&gt;"/>
+        <property name="format" value="^Set&lt;StructLike&gt;"/>
         <property name="message" value="Prefer using StructLikeSet instead."/>
     </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
