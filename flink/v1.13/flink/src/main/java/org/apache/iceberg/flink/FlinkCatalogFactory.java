@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.File;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -64,6 +65,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
 
   public static final String HIVE_CONF_DIR = "hive-conf-dir";
+  public static final String HADOOP_CONF_DIR = "hadoop-conf-dir";
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String BASE_NAMESPACE = "base-namespace";
@@ -96,7 +98,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         // The values of properties 'uri', 'warehouse', 'hive-conf-dir' are allowed to be null, in that case it will
         // fallback to parse those values from hadoop configuration which is loaded from classpath.
         String hiveConfDir = properties.get(HIVE_CONF_DIR);
-        Configuration newHadoopConf = mergeHiveConf(hadoopConf, hiveConfDir);
+        String hadoopConfDir = properties.get(HADOOP_CONF_DIR);
+        Configuration newHadoopConf = mergeHiveConf(hadoopConf, hiveConfDir, hadoopConfDir);
         return CatalogLoader.hive(name, newHadoopConf, properties);
 
       case ICEBERG_CATALOG_TYPE_HADOOP:
@@ -139,11 +142,11 @@ public class FlinkCatalogFactory implements CatalogFactory {
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }
 
-  private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {
+  private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir, String hadoopConfDir) {
     Configuration newConf = new Configuration(hadoopConf);
     if (!Strings.isNullOrEmpty(hiveConfDir)) {
       Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),
-          "There should be a hive-site.xml file under the directory %s", hiveConfDir);
+              "There should be a hive-site.xml file under the directory %s", hiveConfDir);
       newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
     } else {
       // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
@@ -151,6 +154,17 @@ public class FlinkCatalogFactory implements CatalogFactory {
       URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
       if (configFile != null) {
         newConf.addResource(configFile);
+      }
+    }
+
+    if (!Strings.isNullOrEmpty(hadoopConfDir)) {
+      if (new File(hadoopConfDir).exists()) {
+        Preconditions.checkState(Files.exists(Paths.get(hadoopConfDir, "hdfs-site.xml")),
+                "There should be a hdfs-site.xml file under the directory %s", hadoopConfDir);
+        newConf.addResource(new Path(hadoopConfDir, "hdfs-site.xml"));
+        Preconditions.checkState(Files.exists(Paths.get(hadoopConfDir, "core-site.xml")),
+                "There should be a core-site.xml file under the directory %s", hadoopConfDir);
+        newConf.addResource(new Path(hadoopConfDir, "core-site.xml"));
       }
     }
     return newConf;
