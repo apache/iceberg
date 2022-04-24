@@ -20,7 +20,7 @@ from functools import reduce
 from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
-from iceberg.types import Singleton
+from iceberg.types import NestedField, Singleton
 
 T = TypeVar("T")
 
@@ -272,6 +272,12 @@ class Accessor:
     def __init__(self, position: int):
         self._position = position
 
+    def __str__(self):
+        return f"Accessor(position={self._position})"
+
+    def __repr__(self):
+        return f"Accessor(position={self._position})"
+
     @property
     def position(self):
         """The position in the container to access"""
@@ -287,3 +293,38 @@ class Accessor:
             Any: The value at position `self.position` in the container
         """
         return container.get(self.position)
+
+
+class BoundReference:
+    """A reference bound to a field in a schema
+
+    Args:
+        field (NestedField): A referenced field in an Iceberg schema
+        accessor (Accessor): An Accessor object to access the value at the field's position
+    """
+
+    def __init__(self, field: NestedField, accessor: Accessor):
+        self._field = field
+        self._accessor = accessor
+
+    def __str__(self):
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
+
+    def __repr__(self):
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
+
+    @property
+    def field(self) -> NestedField:
+        """The referenced field"""
+        return self._field
+
+    def eval(self, struct: StructProtocol) -> Any:
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+
+        Args:
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+
+        Returns:
+            Any: The value at the referenced field's position in `struct`
+        """
+        return self._accessor.get(struct)

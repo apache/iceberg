@@ -21,7 +21,7 @@ from decimal import Decimal
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import Singleton
+from iceberg.types import NestedField, Singleton, StringType
 
 
 @pytest.mark.parametrize(
@@ -217,3 +217,43 @@ def test_accessor_base_class(foo_struct):
     assert base.Accessor(position=9).get(foo_struct) == True
     assert base.Accessor(position=10).get(foo_struct) == False
     assert base.Accessor(position=11).get(foo_struct) == b"\x19\x04\x9e?"
+
+
+def test_bound_reference_str_and_repr():
+    """Test str and repr of BoundReference"""
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    position1_accessor = base.Accessor(position=1)
+    bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
+    assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
+    assert repr(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
+
+
+def test_bound_reference_field_property():
+    """Test str and repr of BoundReference"""
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    position1_accessor = base.Accessor(position=1)
+    bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
+    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+
+
+def test_bound_reference(table_schema_simple, foo_struct):
+    """Test creating a BoundReference and evaluating it on a StructProtocol"""
+    foo_struct.set(pos=1, value="foovalue")
+    foo_struct.set(pos=2, value=123)
+    foo_struct.set(pos=3, value=True)
+
+    position1_accessor = base.Accessor(position=1)
+    position2_accessor = base.Accessor(position=2)
+    position3_accessor = base.Accessor(position=3)
+
+    field1 = table_schema_simple.find_field(1)
+    field2 = table_schema_simple.find_field(2)
+    field3 = table_schema_simple.find_field(3)
+
+    bound_ref1 = base.BoundReference(field=field1, accessor=position1_accessor)
+    bound_ref2 = base.BoundReference(field=field2, accessor=position2_accessor)
+    bound_ref3 = base.BoundReference(field=field3, accessor=position3_accessor)
+
+    assert bound_ref1.eval(foo_struct) == "foovalue"
+    assert bound_ref2.eval(foo_struct) == 123
+    assert bound_ref3.eval(foo_struct) == True
