@@ -52,15 +52,15 @@ class PartitionField:
         return self._transform
 
     def __eq__(self, other):
-        return self.field_id == other.field_id
-
-    def __str__(self):
-        return f"{self.field_id}: {self.name}: {self.transform}: ({self.source_id})"
-
-    def __repr__(self):
         return (
-            f"PartitionField(field_id={self.field_id}, name={self.name}, transform={self.transform}, source_id={self.source_id})"
+            self.field_id == other.field_id
+            and self.source_id == other.source_id
+            and self.name == other.name
+            and self.transform == other.transform
         )
 
-    def __hash__(self):
-        return hash((self.source_id, self.field_id, self.name, self.transform))
+    def __str__(self):
+        return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
+
+    def __repr__(self):
+        return f"PartitionField(field_id={self.field_id}, name={self.name}, transform={repr(self.transform)}, source_id={self.source_id})"

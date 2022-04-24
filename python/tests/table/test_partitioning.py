@@ -23,13 +23,14 @@ from iceberg.types import IntegerType
 def test_partition_field_init():
     bucket_transform = bucket(IntegerType(), 100)
     partition_field = PartitionField(3, 1000, bucket_transform, "id")
-    partition_field_2 = PartitionField(3, 1000, bucket_transform, "id")
 
     assert partition_field.source_id == 3
     assert partition_field.field_id == 1000
     assert partition_field.transform == bucket_transform
     assert partition_field.name == "id"
     assert partition_field == partition_field
-    assert hash(partition_field) == hash(partition_field_2)
-    assert str(partition_field) == "1000: id: bucket[100]: (3)"
-    assert repr(partition_field) == "PartitionField(field_id=1000, name=id, transform=bucket[100], source_id=3)"
+    assert str(partition_field) == "1000: id: bucket[100](3)"
+    assert (
+        repr(partition_field)
+        == "PartitionField(field_id=1000, name=id, transform=transforms.bucket(source_type=IntegerType(), num_buckets=100), source_id=3)"
+    )
