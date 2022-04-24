@@ -139,7 +139,7 @@ public class TestS3InputStream {
     }
   }
 
-  private void readAndCheckRanges (
+  private void readAndCheckRanges(
       RangeReadable in, byte [] original, long position, byte [] buffer, int offset,
       int length) throws IOException {
     in.readFully(position, buffer, offset, length);
