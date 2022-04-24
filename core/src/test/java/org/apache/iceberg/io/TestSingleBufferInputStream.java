@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.io;
 
-import org.junit.Assert;
-import org.junit.Test;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
   private static final ByteBuffer DATA = ByteBuffer.wrap(new byte[] {
@@ -44,11 +44,12 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
   }
 
   @Test
+  @SuppressWarnings("LocalVariableName")
   public void testSliceData() throws Exception {
     ByteBufferInputStream stream = newStream();
     int length = stream.available();
 
-    List<ByteBuffer> buffers = new ArrayList<>();
+    List<ByteBuffer> buffers = Lists.newArrayList();
     // slice the stream into 3 8-byte buffers and 1 2-byte buffer
     while (stream.available() > 0) {
       int bytesToSlice = Math.min(stream.available(), 8);

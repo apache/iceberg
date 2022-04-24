@@ -22,12 +22,11 @@ package org.apache.iceberg.io;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.commons.compress.utils.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class MultiBufferInputStream extends ByteBufferInputStream {
   private static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
@@ -149,8 +148,8 @@ class MultiBufferInputStream extends ByteBufferInputStream {
   }
 
   @Override
-  public ByteBuffer slice(int length) throws EOFException {
-    if (length <= 0) {
+  public ByteBuffer slice(int len) throws EOFException {
+    if (len <= 0) {
       return EMPTY;
     }
 
@@ -159,19 +158,19 @@ class MultiBufferInputStream extends ByteBufferInputStream {
     }
 
     ByteBuffer slice;
-    if (length > current.remaining()) {
+    if (len > current.remaining()) {
       // a copy is needed to return a single buffer
-      slice = ByteBuffer.allocate(length);
+      slice = ByteBuffer.allocate(len);
       int bytesCopied = read(slice);
       slice.flip();
-      if (bytesCopied < length) {
+      if (bytesCopied < len) {
         throw new EOFException();
       }
     } else {
       slice = current.duplicate();
-      slice.limit(slice.position() + length);
-      current.position(slice.position() + length);
-      this.position += length;
+      slice.limit(slice.position() + len);
+      current.position(slice.position() + len);
+      this.position += len;
     }
 
     return slice;
@@ -186,7 +185,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
       throw new EOFException();
     }
 
-    List<ByteBuffer> buffers = Lists.newArrayList();
+    List<ByteBuffer> sliceBuffers = Lists.newArrayList();
     long bytesAccumulated = 0;
     while (bytesAccumulated < len) {
       if (current.remaining() > 0) {
@@ -195,7 +194,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
         int bufLen = (int) Math.min(len - bytesAccumulated, current.remaining());
         ByteBuffer slice = current.duplicate();
         slice.limit(slice.position() + bufLen);
-        buffers.add(slice);
+        sliceBuffers.add(slice);
         bytesAccumulated += bufLen;
 
         // update state; the bytes are considered read
@@ -207,7 +206,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
       }
     }
 
-    return buffers;
+    return sliceBuffers;
   }
 
   @Override

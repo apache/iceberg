@@ -43,11 +43,11 @@ public abstract class ByteBufferInputStream extends SeekableInputStream {
     }
   }
 
-  public void skipFully(long n) throws IOException {
-    long skipped = skip(n);
-    if (skipped < n) {
+  public void skipFully(long length) throws IOException {
+    long skipped = skip(length);
+    if (skipped < length) {
       throw new EOFException(
-          "Not enough bytes to skip: " + skipped + " < " + n);
+          "Not enough bytes to skip: " + skipped + " < " + length);
     }
   }
 

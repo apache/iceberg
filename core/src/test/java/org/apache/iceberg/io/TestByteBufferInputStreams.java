@@ -19,16 +19,16 @@
 
 package org.apache.iceberg.io;
 
-import org.apache.iceberg.AssertHelpers;
-import org.junit.Assert;
-import org.junit.Test;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.Assert;
+import org.junit.Test;
 
 public abstract class TestByteBufferInputStreams {
 
@@ -179,6 +179,7 @@ public abstract class TestByteBufferInputStreams {
   }
 
   @Test
+  @SuppressWarnings("LocalVariableName")
   public void testSlice() throws Exception {
     ByteBufferInputStream stream = newStream();
     int length = stream.available();
@@ -241,7 +242,7 @@ public abstract class TestByteBufferInputStreams {
       ByteBufferInputStream stream = newStream();
       int length = stream.available();
 
-      List<ByteBuffer> buffers = new ArrayList<>();
+      List<ByteBuffer> buffers = Lists.newArrayList();
       while (stream.available() > 0) {
         buffers.addAll(stream.sliceBuffers(Math.min(size, stream.available())));
       }

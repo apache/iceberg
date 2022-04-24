@@ -65,8 +65,8 @@ class SingleBufferInputStream extends ByteBufferInputStream {
   }
 
   @Override
-  public int read(byte[] bytes, int offset, int length) throws IOException {
-    if (length == 0) {
+  public int read(byte[] bytes, int offset, int len) throws IOException {
+    if (len == 0) {
       return 0;
     }
 
@@ -75,7 +75,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
       return -1;
     }
 
-    int bytesToRead = Math.min(buffer.remaining(), length);
+    int bytesToRead = Math.min(buffer.remaining(), len);
     buffer.get(bytes, offset, bytesToRead);
 
     return bytesToRead;
@@ -97,8 +97,8 @@ class SingleBufferInputStream extends ByteBufferInputStream {
   }
 
   @Override
-  public long skip(long n) {
-    if (n == 0) {
+  public long skip(long len) {
+    if (len == 0) {
       return 0;
     }
 
@@ -107,7 +107,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
     }
 
     // buffer.remaining is an int, so this will always fit in an int
-    int bytesToSkip = (int) Math.min(buffer.remaining(), n);
+    int bytesToSkip = (int) Math.min(buffer.remaining(), len);
     buffer.position(buffer.position() + bytesToSkip);
 
     return bytesToSkip;
@@ -136,31 +136,31 @@ class SingleBufferInputStream extends ByteBufferInputStream {
   }
 
   @Override
-  public ByteBuffer slice(int length) throws EOFException {
-    if (buffer.remaining() < length) {
+  public ByteBuffer slice(int len) throws EOFException {
+    if (buffer.remaining() < len) {
       throw new EOFException();
     }
 
     // length is less than remaining, so it must fit in an int
     ByteBuffer copy = buffer.duplicate();
-    copy.limit(copy.position() + length);
-    buffer.position(buffer.position() + length);
+    copy.limit(copy.position() + len);
+    buffer.position(buffer.position() + len);
 
     return copy;
   }
 
   @Override
-  public List<ByteBuffer> sliceBuffers(long length) throws EOFException {
-    if (length == 0) {
+  public List<ByteBuffer> sliceBuffers(long len) throws EOFException {
+    if (len == 0) {
       return Collections.emptyList();
     }
 
-    if (length > buffer.remaining()) {
+    if (len > buffer.remaining()) {
       throw new EOFException();
     }
 
     // length is less than remaining, so it must fit in an int
-    return Collections.singletonList(slice((int) length));
+    return Collections.singletonList(slice((int) len));
   }
 
   @Override
