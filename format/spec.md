@@ -1093,7 +1093,7 @@ Example
 
 ## Appendix D: Single-value serialization
 
-### Binary
+### Binary single-value serialization
 
 This serialization scheme is for storing single values as individual binary values in the lower and upper bounds maps of manifest files.
 
@@ -1117,7 +1117,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`list`**                   | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
 
-### JSON
+### JSON single-value serialization
 
  Single values are serialized as JSON by type according to the following table:
 
@@ -1146,7 +1146,9 @@ This serialization scheme is for storing single values as individual binary valu
 
 ### Version 3
 
-
+Default values are added to struct fields in v3.
+* The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
+* Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields that have an `initial-default` because the default is not supported, when reading data files that are missing the required fields.
 
 ### Version 2
 
