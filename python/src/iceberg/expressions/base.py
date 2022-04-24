@@ -330,7 +330,7 @@ class BoundReference:
     def __eq__(self, other) -> bool:
         if id(self) == id(other):
             return True
-        elif other is None or not isinstance(other, BoundReference):
+        elif not isinstance(other, BoundReference):
             return False
 
         return self.field_id == other.field_id and self.field_type == other.field_type
