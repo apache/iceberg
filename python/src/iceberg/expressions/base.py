@@ -22,7 +22,6 @@ from typing import Any, Generic, TypeVar
 from iceberg.files import StructProtocol
 from iceberg.types import Singleton
 
-
 T = TypeVar("T")
 
 
@@ -150,9 +149,17 @@ class And(BooleanExpression):
         elif right is AlwaysTrue():
             return left
         self = super().__new__(cls)
-        self.left = left
-        self.right = right
+        self._left = left  # type: ignore
+        self._right = right  # type: ignore
         return self
+
+    @property
+    def left(self) -> BooleanExpression:
+        return self._left  # type: ignore
+
+    @property
+    def right(self) -> BooleanExpression:
+        return self._right  # type: ignore
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, And) and self.left == other.left and self.right == other.right)
@@ -180,9 +187,17 @@ class Or(BooleanExpression):
         elif right is AlwaysFalse():
             return left
         self = super().__new__(cls)
-        self.left = left
-        self.right = right
+        self._left = left  # type: ignore
+        self._right = right  # type: ignore
         return self
+
+    @property
+    def left(self) -> BooleanExpression:
+        return self._left  # type: ignore
+
+    @property
+    def right(self) -> BooleanExpression:
+        return self._right  # type: ignore
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, Or) and self.left == other.left and self.right == other.right)
@@ -272,4 +287,3 @@ class Accessor:
             Any: The value at position `self.position` in the container
         """
         return container.get(self.position)
-
