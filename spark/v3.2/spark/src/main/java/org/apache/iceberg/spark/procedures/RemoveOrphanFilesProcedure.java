@@ -24,6 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.actions.BaseDeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -49,7 +50,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("location", DataTypes.StringType),
       ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
-      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType)
+      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+      ProcedureParameter.optional("file_list_view", DataTypes.StringType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -80,12 +82,14 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     String location = args.isNullAt(2) ? null : args.getString(2);
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
+    String fileListView = args.isNullAt(5) ? null : args.getString(5);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -111,6 +115,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
       if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+      }
+
+      if (fileListView != null) {
+        ((BaseDeleteOrphanFilesSparkAction) action).compareToFileList(spark().table(fileListView));
       }
 
       DeleteOrphanFiles.Result result = action.execute();
