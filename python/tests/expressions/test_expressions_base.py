@@ -21,7 +21,7 @@ from decimal import Decimal
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import IntegerType, NestedField, Singleton, StringType
+from iceberg.types import NestedField, Singleton, StringType
 
 
 @pytest.mark.parametrize(
@@ -224,76 +224,16 @@ def test_bound_reference_str_and_repr():
     field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
-    assert str(bound_ref) == "ref(id=1)"
+    assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
     assert repr(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
 
 
-@pytest.mark.parametrize(
-    "bound_ref1,bound_ref2,expected_equality",
-    [
-        (
-            base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            True,
-        ),
-        (
-            base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            base.BoundReference(
-                field=NestedField(field_id=2, name="foo", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            False,
-        ),
-        (
-            base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            base.BoundReference(
-                field=NestedField(field_id=1, name="bar", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            True,
-        ),
-        (
-            base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            base.BoundReference(
-                field=NestedField(field_id=1, name="foo", field_type=IntegerType(), is_optional=False),
-                accessor=base.Accessor(position=1),
-            ),
-            False,
-        ),
-    ],
-)
-def test_equality_between_bound_references(bound_ref1, bound_ref2, expected_equality):
-    """Test equality between BoundReference instances"""
-    assert (bound_ref1 == bound_ref2) == expected_equality
-    assert bound_ref1 == bound_ref1
-    assert bound_ref2 == bound_ref2
-    assert bound_ref1 != "foo"
-    assert bound_ref2 != "foo"
-
-
-def test_bound_reference_properties():
+def test_bound_reference_field_property():
     """Test str and repr of BoundReference"""
     field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
     assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
-    assert bound_ref.field_id == 1
-    assert bound_ref.field_type == StringType()
 
 
 def test_bound_reference(table_schema_simple, foo_struct):

@@ -20,7 +20,7 @@ from functools import reduce
 from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
-from iceberg.types import IcebergType, NestedField, Singleton
+from iceberg.types import NestedField, Singleton
 
 T = TypeVar("T")
 
@@ -272,6 +272,12 @@ class Accessor:
     def __init__(self, position: int):
         self._position = position
 
+    def __str__(self):
+        return f"Accessor(position={self._position})"
+
+    def __repr__(self):
+        return f"Accessor(position={self._position})"
+
     @property
     def position(self):
         """The position in the container to access"""
@@ -290,7 +296,7 @@ class Accessor:
 
 
 class BoundReference:
-    """A reference bound to a field with an accessor for acquiring the field's value
+    """A reference bound to a field in a schema
 
     Args:
         field (NestedField): A referenced field in an Iceberg schema
@@ -302,38 +308,15 @@ class BoundReference:
         self._accessor = accessor
 
     def __str__(self):
-        return f"ref(id={self.field_id})"
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
 
     def __repr__(self):
-        return f"BoundReference(field={repr(self.field)}, accessor={repr(self.accessor)})"
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
 
     @property
     def field(self) -> NestedField:
         """The referenced field"""
         return self._field
-
-    @property
-    def field_id(self) -> int:
-        """The ID referenced field"""
-        return self._field.field_id
-
-    @property
-    def field_type(self) -> IcebergType:
-        """The type of the referenced field"""
-        return self._field.type
-
-    @property
-    def accessor(self) -> Accessor:
-        """The accessor for retrieving the value at the referenced field's position"""
-        return self._accessor
-
-    def __eq__(self, other) -> bool:
-        if self is other:
-            return True
-        elif not isinstance(other, BoundReference):
-            return False
-
-        return self.field_id == other.field_id and self.field_type == other.field_type
 
     def eval(self, struct: StructProtocol) -> Any:
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol
@@ -344,4 +327,4 @@ class BoundReference:
         Returns:
             Any: The value at the referenced field's position in `struct`
         """
-        return self.accessor.get(struct)
+        return self._accessor.get(struct)
