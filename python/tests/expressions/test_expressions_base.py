@@ -21,6 +21,7 @@ from decimal import Decimal
 import pytest
 
 from iceberg.expressions import base
+from iceberg.types import Singleton
 
 
 @pytest.mark.parametrize(
@@ -59,6 +60,131 @@ def test_raise_on_no_negation_for_operation(operation):
         operation.negate()
 
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
+
+
+class TestExpressionA(base.BooleanExpression, Singleton):
+    def __invert__(self):
+        return TestExpressionB()
+
+    def __repr__(self):
+        return "TestExpressionA()"
+
+    def __str__(self):
+        return "testexpra"
+
+
+class TestExpressionB(base.BooleanExpression, Singleton):
+    def __invert__(self):
+        return TestExpressionA()
+
+    def __repr__(self):
+        return "TestExpressionB()"
+
+    def __str__(self):
+        return "testexprb"
+
+
+@pytest.mark.parametrize(
+    "op, rep",
+    [
+        (
+            base.And(TestExpressionA(), TestExpressionB()),
+            "And(TestExpressionA(), TestExpressionB())",
+        ),
+        (
+            base.Or(TestExpressionA(), TestExpressionB()),
+            "Or(TestExpressionA(), TestExpressionB())",
+        ),
+        (base.Not(TestExpressionA()), "Not(TestExpressionA())"),
+    ],
+)
+def test_reprs(op, rep):
+    assert repr(op) == rep
+
+
+@pytest.mark.parametrize(
+    "op, string",
+    [
+        (base.And(TestExpressionA(), TestExpressionB()), "(testexpra and testexprb)"),
+        (base.Or(TestExpressionA(), TestExpressionB()), "(testexpra or testexprb)"),
+        (base.Not(TestExpressionA()), "(not testexpra)"),
+    ],
+)
+def test_strs(op, string):
+    assert str(op) == string
+
+
+@pytest.mark.parametrize(
+    "input, testexpra, testexprb",
+    [
+        (
+            base.And(TestExpressionA(), TestExpressionB()),
+            base.And(TestExpressionA(), TestExpressionB()),
+            base.Or(TestExpressionA(), TestExpressionB()),
+        ),
+        (
+            base.Or(TestExpressionA(), TestExpressionB()),
+            base.Or(TestExpressionA(), TestExpressionB()),
+            base.And(TestExpressionA(), TestExpressionB()),
+        ),
+        (base.Not(TestExpressionA()), base.Not(TestExpressionA()), TestExpressionB()),
+        (TestExpressionA(), TestExpressionA(), TestExpressionB()),
+        (TestExpressionB(), TestExpressionB(), TestExpressionA()),
+    ],
+)
+def test_eq(input, testexpra, testexprb):
+    assert input == testexpra and input != testexprb
+
+
+@pytest.mark.parametrize(
+    "input, exp",
+    [
+        (
+            base.And(TestExpressionA(), TestExpressionB()),
+            base.Or(TestExpressionB(), TestExpressionA()),
+        ),
+        (
+            base.Or(TestExpressionA(), TestExpressionB()),
+            base.And(TestExpressionB(), TestExpressionA()),
+        ),
+        (base.Not(TestExpressionA()), TestExpressionA()),
+        (TestExpressionA(), TestExpressionB()),
+    ],
+)
+def test_negate(input, exp):
+    assert ~input == exp
+
+
+@pytest.mark.parametrize(
+    "input, exp",
+    [
+        (
+            base.And(TestExpressionA(), TestExpressionB(), TestExpressionA()),
+            base.And(base.And(TestExpressionA(), TestExpressionB()), TestExpressionA()),
+        ),
+        (
+            base.Or(TestExpressionA(), TestExpressionB(), TestExpressionA()),
+            base.Or(base.Or(TestExpressionA(), TestExpressionB()), TestExpressionA()),
+        ),
+        (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
+    ],
+)
+def test_reduce(input, exp):
+    assert input == exp
+
+
+@pytest.mark.parametrize(
+    "input, exp",
+    [
+        (base.And(base.AlwaysTrue(), TestExpressionB()), TestExpressionB()),
+        (base.And(base.AlwaysFalse(), TestExpressionB()), base.AlwaysFalse()),
+        (base.Or(base.AlwaysTrue(), TestExpressionB()), base.AlwaysTrue()),
+        (base.Or(base.AlwaysFalse(), TestExpressionB()), TestExpressionB()),
+        (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
+    ],
+)
+def test_base_AlwaysTrue_base_AlwaysFalse(input, exp):
+    assert input == exp
 
 
 def test_accessor_base_class(foo_struct):
