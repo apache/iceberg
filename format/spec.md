@@ -193,23 +193,19 @@ Notes:
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
-#### Default value
+
+#### Default values
 
 Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
-- `initial-default` is used to populate the field's value for all records that were written before the field was introduced.
-- `write-default` is used to populate the field's value for any records written after the field is introduced, when the writer does not supply the field's value.
+- `initial-default` is used to populate the field's value for all records that were written before the field was added to the schema
+- `write-default` is used to populate the field's value for any records written after the field was added to the schema, if the writer does not supply the field's value
 
-Note that all schema fields are required when writing data into a table. Omitting a known field from a data file is not allowed. The write default for a field should be written when a field is not supplied to a write. If the write default is not set, the writer must fail.
+The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 
-The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution.
+Together, the `initial-default` and `write-default` produce SQL default value behavior without rewriting data files. That is, changes to default values apply to future records only and all known fields are written into data files. To produce this behavior, all schema fields are required when writing data to a table. Omitting a known field from a data file is not allowed. The write default for a field should be written when a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
-Together, the `initial-default` and `write-default` produce SQL default value behavior without rewriting data files. That is, changes to default values apply to future records only and all known fields are written into data files.
+Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
-Default value can be set for any column types, when a querying a struct column with default value set, if one child field is not present in the default struct, it will traverse downward to look up a default value set at its child level recursively. Also, `initial-default` and `write-default` will cascade using the corresponding child `initial-default` and `write-default` independently. An example of this cascading logic is:
-
-Say there is an existing struct column with default `{ "a": 1, "b": 12.34 }`, and user adds a column `c` with default `foo` into the struct, then the **effective** default value for the struct column is `{ "a": 1, "b": 12.34, "c": "foo"}`, as it delegates the default value of `c` to the one defined at its child level.
-
-Default value is treated as an attribute of a nested field in the table schema and serialized together with it using JSON format, see Appendix C.
 
 #### Schema Evolution
 
@@ -226,6 +222,15 @@ Valid type promotions are:
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
+
+Struct evolution requires the following rules for default values:
+* The `initial-default` must be set when a field is added and cannot change
+* The `write-default` must be set when a field is added and may change
+* When a required field is added, both defaults must be set to a non-null value
+* When an optional field is added, the defaults may be null and should be explicitly set
+* When a new field is added to a struct with a default value, the default should be updated to include the new field's default
+* If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
+* If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
 
 #### Column Projection
@@ -986,27 +991,8 @@ Types are serialized according to this table:
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 
-For default values, the serialization depends on the type of the corresponding column or nested field. The mapping of types and their corresponding default value JSON serialization is described in the following table:
+Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 
-| Type               | Json type          | Example                                  | Note                                                                                                                                                                                                                                                                                                                      |
-|--------------------|--------------------|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`boolean`**      | **`json boolean`** | `true`                                   |                                                                                                                                                                                                                                                                                                                           |
-| **`int`**          | **`json int`**     | `1`                                      |                                                                                                                                                                                                                                                                                                                           |
-| **`long`**         | **`json long`**    | `1`                                      |                                                                                                                                                                                                                                                                                                                           |
-| **`float`**        | **`json float`**   | `1.1`                                    |                                                                                                                                                                                                                                                                                                                           |
-| **`double`**       | **`json double`**  | `1.1`                                    |                                                                                                                                                                                                                                                                                                                           |
-| **`decimal(P,S)`** | **`jaso number`**  | `123.45`                                 | Stores the decimal value as a general json number                                                                                                                                                                                                                                                                         |
-| **`date`**         | **`string`**       | `"2007-12-03"`                           | Stores ISO-8601 standard date                                                                                                                                                                                                                                                                                             |
-| **`time`**         | **`string`**       | `"10:15:30"`                             | Stores ISO-8601 standard time                                                                                                                                                                                                                                                                                             |
-| **`timestamp`**    | **`string`**       | `"2007-12-03T10:15:30"`                  | Stores ISO-8601 standard date-time without time-zone                                                                                                                                                                                                                                                                      |
-| **`timestamptz`**  | **`string`**       | `"2007-12-03T10:15:30"`                  | Stores ISO-8601 standard date-time with time-zone                                                                                                                                                                                                                                                                         |
-| **`string`**       | **`string`**       | `"foo"`                                  |                                                                                                                                                                                                                                                                                                                           |
-| **`uuid`**         | **`string`**       | `"eb26bdb1-a1d8-4aa6-990e-da940875492c"` | Stores the lowercase uuid string                                                                                                                                                                                                                                                                                          |
-| **`fixed(L)`**     | **`string`**       | `"0x3162"`                               | Stored as a hexadecimal byte literal string, prefixed by `0x`                                                                                                                                                                                                                                                             |
-| **`binary`**       | **`string`**       | `"0x3162"`                               | Stored as a hexadecimal byte literal string, prefixed by `0x`                                                                                                                                                                                                                                                             |
-| **`struct`**       | **`object`**       | `{"1": 1, "2": "bar"}`                   | Use a JSON map to represent struct data, the keys are the nested fields' ids in the struct schema, and the values are value literals of corresponding fields' type                                                                                                                                                        |
-| **`list`**         | **`array`**        | `[1, 2, 3]`                              | Each element in the JSON array should be value literal of the corresponding element type of the list                                                                                                                                                                                                                      |
-| **`map`**          | **`array`**        | `[["a", "b"], [1, 2]]`                   | Use a JSON array of two arrays to represent map data, the first inner array contains the key literals of the map key type, the second inner array contains the value literals of the map value type, key and value correspond according to their position in the array. The example represent a map of `{"a": 1, "b": 2}` |
 
 ### Partition Specs
 
@@ -1107,6 +1093,8 @@ Example
 
 ## Appendix D: Single-value serialization
 
+### Binary
+
 This serialization scheme is for storing single values as individual binary values in the lower and upper bounds maps of manifest files.
 
 | Type                         | Binary serialization                                                                                         |
@@ -1129,8 +1117,36 @@ This serialization scheme is for storing single values as individual binary valu
 | **`list`**                   | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
 
+### JSON
+
+ Single values are serialized as JSON by type according to the following table:
+
+| Type               | JSON representation                       | Example                                    | Description                                                                                                                 |
+| ------------------ | ----------------------------------------- | ------------------------------------------ | -- |
+| **`boolean`**      | **`JSON boolean`**                        | `true`                                     | |
+| **`int`**          | **`JSON int`**                            | `1`                                        | |
+| **`long`**         | **`JSON long`**                           | `1`                                        | |
+| **`float`**        | **`JSON number`**                         | `1.1`                                      | |
+| **`double`**       | **`JSON number`**                         | `1.1`                                      | |
+| **`decimal(P,S)`** | **`JSON number`**                         | `123.40`                                   | Stores the decimal value as a general json number |
+| **`date`**         | **`JSON string`**                         | `"2007-12-03"`                             | Stores ISO-8601 standard date |
+| **`time`**         | **`JSON string`**                         | `"10:15:30.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
+| **`timestamp`**    | **`JSON string`**                         | `"2007-12-03T10:15:30.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
+| **`timestamptz`**  | **`JSON string`**                         | `"2007-12-03T10:15:30.123456+"`            | Stores ISO-8601 standard timestamp with microsecond precision; must include a zone offset |
+| **`string`**       | **`JSON string`**                         | `"foo"`                                    | |
+| **`uuid`**         | **`JSON string`**                         | `"eb26bdb1-a1d8-4aa6-990e-da940875492c"`   | Stores the lowercase uuid string |
+| **`fixed(L)`**     | **`JSON string`**                         | `"0x3162"`                                 | Stored as a hexadecimal string, prefixed by `0x` |
+| **`binary`**       | **`JSON string`**                         | `"0x3162"`                                 | Stored as a hexadecimal string, prefixed by `0x` |
+| **`struct`**       | **`JSON object by field ID`**             | `{"1": 1, "2": "bar"}`                     | Stores struct fields using the field ID as the JSON field name; field values are stored using this JSON single-value format |
+| **`list`**         | **`JSON array of values`**                | `[1, 2, 3]`                                | Stores a JSON array of values that are serialized using this JSON single-value format |
+| **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
+
 
 ## Appendix E: Format version changes
+
+### Version 3
+
+
 
 ### Version 2
 
