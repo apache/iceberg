@@ -1124,15 +1124,15 @@ This serialization scheme is for storing single values as individual binary valu
 | Type               | JSON representation                       | Example                                    | Description                                                                                                                 |
 | ------------------ | ----------------------------------------- | ------------------------------------------ | -- |
 | **`boolean`**      | **`JSON boolean`**                        | `true`                                     | |
-| **`int`**          | **`JSON int`**                            | `1`                                        | |
-| **`long`**         | **`JSON long`**                           | `1`                                        | |
-| **`float`**        | **`JSON number`**                         | `1.1`                                      | |
-| **`double`**       | **`JSON number`**                         | `1.1`                                      | |
-| **`decimal(P,S)`** | **`JSON number`**                         | `123.40`                                   | Stores the decimal value as a general json number |
-| **`date`**         | **`JSON string`**                         | `"2007-12-03"`                             | Stores ISO-8601 standard date |
-| **`time`**         | **`JSON string`**                         | `"10:15:30.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
-| **`timestamp`**    | **`JSON string`**                         | `"2007-12-03T10:15:30.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
-| **`timestamptz`**  | **`JSON string`**                         | `"2007-12-03T10:15:30.123456+"`            | Stores ISO-8601 standard timestamp with microsecond precision; must include a zone offset |
+| **`int`**          | **`JSON int`**                            | `34`                                       | |
+| **`long`**         | **`JSON long`**                           | `34`                                       | |
+| **`float`**        | **`JSON number`**                         | `1.0`                                      | |
+| **`double`**       | **`JSON number`**                         | `1.0`                                      | |
+| **`decimal(P,S)`** | **`JSON number`**                         | `14.20`                                    | Stores the decimal value as a general json number |
+| **`date`**         | **`JSON string`**                         | `"2017-11-16"`                             | Stores ISO-8601 standard date |
+| **`time`**         | **`JSON string`**                         | `"22:31:08.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
+| **`timestamp`**    | **`JSON string`**                         | `"2017-11-16T22:31:08.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
+| **`timestamptz`**  | **`JSON string`**                         | `"2017-11-16T22:31:08.123456-07:00"`       | Stores ISO-8601 standard timestamp with microsecond precision; must include a zone offset |
 | **`string`**       | **`JSON string`**                         | `"foo"`                                    | |
 | **`uuid`**         | **`JSON string`**                         | `"eb26bdb1-a1d8-4aa6-990e-da940875492c"`   | Stores the lowercase uuid string |
 | **`fixed(L)`**     | **`JSON string`**                         | `"0x3162"`                                 | Stored as a hexadecimal string, prefixed by `0x` |
