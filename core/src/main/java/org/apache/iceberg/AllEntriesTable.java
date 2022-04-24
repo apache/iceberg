@@ -19,19 +19,14 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.ManifestEntriesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.ParallelIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
@@ -74,11 +69,11 @@ public class AllEntriesTable extends BaseMetadataTable {
   private static class Scan extends BaseAllMetadataTableScan {
 
     Scan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema);
+      super(ops, table, schema, MetadataTableType.ALL_ENTRIES);
     }
 
     private Scan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, context);
+      super(ops, table, schema, MetadataTableType.ALL_ENTRIES, context);
     }
 
     @Override
@@ -88,34 +83,16 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected String tableType() {
-      return MetadataTableType.ALL_ENTRIES.name();
-    }
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      CloseableIterable<ManifestFile> manifests = reachableManifests(Snapshot::allManifests);
 
-    @Override
-    protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allManifestFiles(
-          ops.current().snapshots(), context().planExecutor());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
-          ops.io(), manifest, schema(), schemaString, specString, residuals, ops.current().specsById()));
-    }
-  }
-
-  private static CloseableIterable<ManifestFile> allManifestFiles(
-      List<Snapshot> snapshots, ExecutorService workerPool) {
-    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.allManifests().iterator()),
-        workerPool)) {
-      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close parallel iterable");
+      return CloseableIterable.transform(manifests, manifest ->
+          new ManifestReadTask(table(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 }

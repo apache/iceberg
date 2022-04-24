@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -235,7 +236,7 @@ public class TestManifestWriterVersions {
   }
 
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
-    OutputFile manifestList = Files.localOutput(temp.newFile());
+    OutputFile manifestList = new InMemoryOutputFile();
     try (FileAppender<ManifestFile> writer = ManifestLists.write(
         formatVersion, manifestList, SNAPSHOT_ID, SNAPSHOT_ID - 1, formatVersion > 1 ? SEQUENCE_NUMBER : 0)) {
       writer.add(manifest);

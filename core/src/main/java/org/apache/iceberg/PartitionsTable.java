@@ -135,8 +135,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private class PartitionsScan extends StaticTableScan {
     PartitionsScan(TableOperations ops, Table table) {
-      super(ops, table, PartitionsTable.this.schema(), PartitionsTable.this.metadataTableType().name(),
-            PartitionsTable.this::task);
+      super(ops, table, PartitionsTable.this.schema(), MetadataTableType.PARTITIONS, PartitionsTable.this::task);
     }
   }
 

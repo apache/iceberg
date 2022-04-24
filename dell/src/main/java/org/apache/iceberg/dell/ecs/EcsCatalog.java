@@ -58,6 +58,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.apache.iceberg.util.LocationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,8 +103,12 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        "Cannot initialize EcsCatalog because warehousePath must not be null or empty");
+
     this.catalogName = name;
-    this.warehouseLocation = cleanWarehousePath(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    this.warehouseLocation = new EcsURI(LocationUtil.stripTrailingSlash(inputWarehouseLocation));
     this.client = DellClientFactories.from(properties).ecsS3();
     this.fileIO = initializeFileIO(properties);
 
@@ -111,17 +116,6 @@ public class EcsCatalog extends BaseMetastoreCatalog
     closeableGroup.addCloseable(client::destroy);
     closeableGroup.addCloseable(fileIO);
     closeableGroup.setSuppressCloseFailure(true);
-  }
-
-  private EcsURI cleanWarehousePath(String path) {
-    Preconditions.checkArgument(path != null && path.length() > 0,
-            "Cannot initialize EcsCatalog because warehousePath must not be null or empty string");
-    int len = path.length();
-    if (path.charAt(len - 1) == '/') {
-      return new EcsURI(path.substring(0, len - 1));
-    } else {
-      return new EcsURI(path);
-    }
   }
 
   private FileIO initializeFileIO(Map<String, String> properties) {

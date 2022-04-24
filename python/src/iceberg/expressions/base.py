@@ -17,9 +17,9 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from functools import reduce
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
-from iceberg.types import Singleton
+from iceberg.files import Singleton, StructProtocol
 
 T = TypeVar("T")
 
@@ -247,3 +247,27 @@ class AlwaysFalse(BooleanExpression, Singleton):
 
     def __str__(self) -> str:
         return "false"
+
+
+class Accessor:
+    """An accessor for a specific position in a container that implements the StructProtocol"""
+
+    def __init__(self, position: int):
+        self._position = position
+
+    @property
+    def position(self):
+        """The position in the container to access"""
+        return self._position
+
+    def get(self, container: StructProtocol) -> Any:
+        """Returns the value at self.position in `container`
+
+        Args:
+            container(StructProtocol): A container to access at position `self.position`
+
+        Returns:
+            Any: The value at position `self.position` in the container
+        """
+        return container.get(self.position)
+

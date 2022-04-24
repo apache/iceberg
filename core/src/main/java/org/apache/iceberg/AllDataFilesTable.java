@@ -19,12 +19,7 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.ParallelIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's valid data files as rows.
@@ -53,47 +48,25 @@ public class AllDataFilesTable extends BaseFilesTable {
     return MetadataTableType.ALL_DATA_FILES;
   }
 
-  public static class AllDataFilesTableScan extends BaseFilesTableScan {
+  public static class AllDataFilesTableScan extends BaseAllFilesTableScan {
 
-    AllDataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.ALL_DATA_FILES);
+    AllDataFilesTableScan(TableOperations ops, Table table, Schema schema) {
+      super(ops, table, schema, MetadataTableType.ALL_DATA_FILES);
     }
 
-    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
+    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema,
                                   TableScanContext context) {
-      super(ops, table, schema, fileSchema, context, MetadataTableType.ALL_DATA_FILES);
+      super(ops, table, schema, MetadataTableType.ALL_DATA_FILES, context);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, fileSchema(), context);
-    }
-
-    @Override
-    public TableScan useSnapshot(long scanSnapshotId) {
-      throw new UnsupportedOperationException("Cannot select snapshot: all_data_files is for all snapshots");
-    }
-
-    @Override
-    public TableScan asOfTime(long timestampMillis) {
-      throw new UnsupportedOperationException("Cannot select snapshot: all_data_files is for all snapshots");
-    }
-
-    @Override
-    public CloseableIterable<FileScanTask> planFiles() {
-      return super.planFilesAllSnapshots();
+      return new AllDataFilesTableScan(ops, table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-          Iterables.transform(table().snapshots(),
-              snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
-          context().planExecutor())) {
-        return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close parallel iterable");
-      }
+      return reachableManifests(Snapshot::dataManifests);
     }
   }
 }

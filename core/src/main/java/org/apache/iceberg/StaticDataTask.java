@@ -35,7 +35,7 @@ import org.apache.iceberg.util.StructProjection;
 class StaticDataTask implements DataTask {
 
   static <T> DataTask of(InputFile metadata, Schema tableSchema, Schema projectedSchema, Iterable<T> values,
-      Function<T, Row> transform) {
+                         Function<T, Row> transform) {
     return new StaticDataTask(metadata,
         tableSchema,
         projectedSchema,

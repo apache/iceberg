@@ -22,6 +22,8 @@ package org.apache.iceberg.nessie;
 import java.net.URI;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TestCatalogUtil;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.client.NessieClientBuilder;
@@ -80,6 +82,25 @@ public class TestCustomNessieClient extends BaseTestIceberg {
     })
         .isInstanceOf(RuntimeException.class)
         .hasMessage("BUILD CALLED");
+  }
+
+  @Test
+  public void testAlternativeInitializeWithNulls() {
+    NessieCatalog catalog = new NessieCatalog();
+    NessieIcebergClient client = new NessieIcebergClient(null, null, null, null);
+    FileIO fileIO = new TestCatalogUtil.TestFileIONoArg();
+
+    assertThatThrownBy(() -> catalog.initialize("nessie", null, null, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("client must be non-null");
+
+    assertThatThrownBy(() -> catalog.initialize("nessie", client, null, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("fileIO must be non-null");
+
+    assertThatThrownBy(() -> catalog.initialize("nessie", client, fileIO, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("catalogOptions must be non-null");
   }
 
   @SuppressWarnings("rawtypes")

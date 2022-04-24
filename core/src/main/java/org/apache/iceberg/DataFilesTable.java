@@ -46,17 +46,17 @@ public class DataFilesTable extends BaseFilesTable {
 
   public static class DataFilesTableScan extends BaseFilesTableScan {
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.DATA_FILES);
+    DataFilesTableScan(TableOperations ops, Table table, Schema schema) {
+      super(ops, table, schema, MetadataTableType.DATA_FILES);
     }
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
-      super(ops, table, schema, fileSchema, context, MetadataTableType.DATA_FILES);
+    DataFilesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      super(ops, table, schema, MetadataTableType.DATA_FILES, context);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DataFilesTableScan(ops, table, schema, fileSchema(), context);
+      return new DataFilesTableScan(ops, table, schema, context);
     }
 
     @Override
