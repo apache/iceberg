@@ -328,7 +328,7 @@ class BoundReference:
         return self._accessor
 
     def __eq__(self, other) -> bool:
-        if id(self) == id(other):
+        if self is other:
             return True
         elif not isinstance(other, BoundReference):
             return False
