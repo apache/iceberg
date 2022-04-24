@@ -19,7 +19,9 @@ from enum import Enum, auto
 from functools import reduce
 from typing import Any, Generic, TypeVar
 
-from iceberg.files import Singleton, StructProtocol
+from iceberg.files import StructProtocol
+from iceberg.types import Singleton
+
 
 T = TypeVar("T")
 
