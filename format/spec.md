@@ -202,7 +202,7 @@ Default values can be tracked for struct fields (both nested structs and the top
 
 The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 
-Together, the `initial-default` and `write-default` produce SQL default value behavior without rewriting data files. That is, changes to default values apply to future records only and all known fields are written into data files. To produce this behavior, all schema fields are required when writing data to a table. Omitting a known field from a data file is not allowed. The write default for a field should be written when a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
+Together, the `initial-default` and `write-default` produce SQL default value behavior without rewriting data files. That is, default value changes may only affect future records and all known fields are written into data files. To produce this behavior, omitting a known field when writing a data file is not allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
