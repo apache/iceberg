@@ -21,18 +21,21 @@ package org.apache.iceberg.flink;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -52,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -60,6 +64,9 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.apache.iceberg.flink.FlinkSchemaUtil.COMPUTED_COLUMNS_PREFIX;
+import static org.apache.iceberg.flink.FlinkSchemaUtil.WATERMARK_PREFIX;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
@@ -419,5 +426,167 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   private CatalogTable catalogTable(String name) throws TableNotExistException {
     return (CatalogTable) getTableEnv().getCatalog(getTableEnv().getCurrentCatalog()).get()
         .getTable(new ObjectPath(DATABASE, name));
+  }
+
+  private Map<String, String> createTableWithoutPrimaryKey() {
+    sql("create table tl (\n" +
+        "id int, \n" +
+        "id2 as id * 2, \n" +
+        "s varchar(10), \n" +
+        "f1 as TO_TIMESTAMP(FROM_UNIXTIME(id*3)), \n" +
+        "t1 timestamp(6), \n" +
+        "t2 as cast(t1 as timestamp(3)), \n" +
+        "watermark for t2 as t2 - INTERVAL '5' SECOND )");
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("flink.computed-columns.id2", "`id` * 2");
+    properties.put("flink.computed-columns.f1", "TO_TIMESTAMP(FROM_UNIXTIME(`id` * 3))");
+    properties.put("flink.computed-columns.t2", "CAST(`t1` AS TIMESTAMP(3))");
+    properties.put("flink.watermark.t2", "`t2` - INTERVAL '5' SECOND");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    return properties;
+  }
+
+  private Map<String, String> createTableWithPrimaryKey() {
+    sql("create table tl (\n" +
+        "id int, \n" +
+        "id2 as id * 2, \n" +
+        "s varchar(10), \n" +
+        "f1 as TO_TIMESTAMP(FROM_UNIXTIME(id*3)), \n" +
+        "t1 timestamp(6), \n" +
+        "primary key (id, s) not enforced, \n" +
+        "t2 as cast(t1 as timestamp(2)), \n" +
+        "watermark for t2 as t2 - INTERVAL '5' SECOND )");
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("flink.computed-columns.id2", "`id` * 2");
+    properties.put("flink.computed-columns.f1", "TO_TIMESTAMP(FROM_UNIXTIME(`id` * 3))");
+    properties.put("flink.computed-columns.t2", "CAST(`t1` AS TIMESTAMP(2))");
+    properties.put("flink.watermark.t2", "`t2` - INTERVAL '5' SECOND");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    return properties;
+  }
+
+  @Test
+  public void testComputedColumnsWithoutPrimaryKey() {
+    Map<String, String> properties = createTableWithoutPrimaryKey();
+    testComputedColumns(properties);
+  }
+
+  @Test
+  public void testComputedColumnsWithPrimaryKey() {
+    Map<String, String> properties = createTableWithPrimaryKey();
+    testComputedColumns(properties);
+  }
+
+  private void testComputedColumns(Map<String, String> properties) {
+    String id2Key = COMPUTED_COLUMNS_PREFIX + "id2";
+
+    // reset id2, success
+    sql("ALTER TABLE tl RESET ('" + id2Key + "')");
+    properties.remove(id2Key);
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // add id2, success
+    sql("ALTER TABLE tl SET ('" + id2Key + "'= 'id*3')");
+    properties.put(id2Key, "`id` * 3");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // update id2, success
+    sql("ALTER TABLE tl SET ('" + id2Key + "'='id*4')");
+    properties.put(id2Key, "`id` * 4");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // update id2, depend on column which not exist, failed
+    AssertHelpers.assertThrows("should throw TableException.",
+        TableException.class,
+        () -> sql("ALTER TABLE tl SET ('" + id2Key + "'='ab*4')"));
+
+    // update id2, error expr, failed
+    AssertHelpers.assertThrows("should throw TableException.",
+        TableException.class,
+        () -> sql("ALTER TABLE tl SET ('" + id2Key + "'='error*4')"));
+  }
+
+  @Test
+  public void testWatermarkWithoutPrimaryKey() {
+    Map<String, String> properties = createTableWithoutPrimaryKey();
+    testWatermark(properties);
+  }
+
+  @Test
+  public void testWatermarkWithPrimaryKey() {
+    Map<String, String> properties = createTableWithPrimaryKey();
+    testWatermark(properties);
+  }
+
+  private void testWatermark(Map<String, String> properties) {
+    String t2WaterMark = WATERMARK_PREFIX + "t2";
+
+    // add, error because the watermark already exists
+    AssertHelpers.assertThrows("should throw TableException.",
+        TableException.class,
+        () -> sql("ALTER TABLE tl SET ('flink.watermark.t3'='t2 - INTERVAL ''5'' SECOND')"));
+
+    // reset, success
+    sql("ALTER TABLE tl RESET ('" + t2WaterMark + "')");
+    properties.remove(t2WaterMark);
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // add, success
+    sql("ALTER TABLE tl SET ('" + t2WaterMark + "'='t2 - INTERVAL ''15'' SECOND')");
+    properties.put(t2WaterMark, "`t2` - INTERVAL '15' SECOND");
+
+    // update, success
+    sql("ALTER TABLE tl SET ('" + t2WaterMark + "'='t2 - INTERVAL ''25'' SECOND')");
+    properties.put(t2WaterMark, "`t2` - INTERVAL '25' SECOND");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // reset computed column t2, error because watermark t2 depend on computed column t2
+    AssertHelpers.assertThrows("should throw TableException.",
+        TableException.class,
+        () -> sql("ALTER TABLE tl RESET ('flink.computed-columns.t2')"));
+  }
+
+  @Test
+  public void testTableDataWithWatermarkAndComputedColumns() {
+    createTableWithoutPrimaryKey();
+
+    sql("INSERT INTO tl VALUES (1, 'abc', TO_TIMESTAMP(FROM_UNIXTIME(24)))");
+    List<String> expectResult = Lists.newArrayList();
+    expectResult.add("1");
+    expectResult.add("2");
+    expectResult.add("abc");
+    expectResult.add("1970-01-01T08:00:03");
+    expectResult.add("1970-01-01T08:00:24");
+    expectResult.add("1970-01-01T08:00:24");
+
+    List<String> result = Lists.newArrayList();
+    Row row = sql("SELECT id, id2, s, f1, t1, t2 FROM tl").get(0);
+    for (int i = 0; i < 6; i++) {
+      Object field = row.getField(i);
+      assert field != null;
+      result.add(field.toString());
+    }
+    Assert.assertEquals(expectResult, result);
+
+    // drop the physical column that the computed column depends on,
+    // the table will return physical columns only
+    table("tl").updateSchema().deleteColumn("id").commit();
+
+    List<String> expectResult2 = Lists.newArrayList();
+    expectResult2.add("abc");
+    expectResult2.add("1970-01-01T08:00:24");
+
+    List<String> result2 = Lists.newArrayList();
+    Row row2 = sql("SELECT * FROM tl").get(0);
+    for (int i = 0; i < 2; i++) {
+      Object field = row2.getField(i);
+      assert field != null;
+      result2.add(field.toString());
+    }
+    Assert.assertEquals(expectResult2, result2);
   }
 }

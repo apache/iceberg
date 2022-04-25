@@ -35,6 +35,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -306,10 +307,10 @@ public class TestFlinkSchemaUtil {
         Sets.newHashSet(1, 2)
     );
 
-    TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+    org.apache.flink.table.api.Schema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema, Maps.newHashMap());
     Assert.assertTrue(tableSchema.getPrimaryKey().isPresent());
     Assert.assertEquals(ImmutableSet.of("int", "string"),
-        ImmutableSet.copyOf(tableSchema.getPrimaryKey().get().getColumns()));
+        ImmutableSet.copyOf(tableSchema.getPrimaryKey().get().getColumnNames()));
   }
 
   @Test
@@ -323,6 +324,6 @@ public class TestFlinkSchemaUtil {
     AssertHelpers.assertThrows("Does not support the nested columns in flink schema's primary keys",
         ValidationException.class,
         "Column 'struct.inner' does not exist",
-        () -> FlinkSchemaUtil.toSchema(icebergSchema));
+        () -> FlinkSchemaUtil.toSchema(icebergSchema, Maps.newHashMap()));
   }
 }
