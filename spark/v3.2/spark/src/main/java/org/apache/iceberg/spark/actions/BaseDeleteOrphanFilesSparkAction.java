@@ -275,7 +275,8 @@ public class BaseDeleteOrphanFilesSparkAction
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
       dirs.forEachRemaining(dir -> {
-        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, pathFilter, files);
+        listDirRecursively(
+                dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, pathFilter, files);
       });
 
       if (!subDirs.isEmpty()) {
