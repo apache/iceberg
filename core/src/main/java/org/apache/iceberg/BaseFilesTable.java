@@ -115,7 +115,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     /**
-     * Returns list of {@link ManifestFile} files to explore for this file's metadata table scan
+     * Returns an iterable of manifest files to explore for this all files metadata table scan
      */
     protected abstract CloseableIterable<ManifestFile> manifests();
 
