@@ -295,7 +295,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
           .deleteFromRowFilter(deleteExpr)
           .commit();
     } catch (ValidationException e) {
-      throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
+      throw new ValidationException(e, "Failed to cleanly delete data files matching: %s", deleteExpr);
     }
   }
 
