@@ -28,10 +28,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.Schema.UnresolvedPrimaryKey;
 import org.apache.flink.table.api.TableException;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
@@ -53,7 +52,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -70,8 +68,8 @@ import static org.apache.iceberg.flink.FlinkSchemaUtil.WATERMARK_PREFIX;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogTable(String catalogName, Namespace baseNamepace) {
-    super(catalogName, baseNamepace);
+  public TestFlinkCatalogTable(String catalogName, Namespace baseNamespace) {
+    super(catalogName, baseNamespace);
   }
 
   @Override
@@ -116,7 +114,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "Table `tl` was not found.",
         () -> getTableEnv().from("tl")
     );
-    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getResolvedSchema());
     Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
 
@@ -131,7 +129,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(
+        org.apache.flink.table.api.Schema.newBuilder().column("id", DataTypes.BIGINT()).build(),
+        catalogTable.getUnresolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
@@ -145,10 +145,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().identifierFieldIds());
 
     CatalogTable catalogTable = catalogTable("tl");
-    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
+    Optional<UnresolvedPrimaryKey> primaryKey = catalogTable.getUnresolvedSchema().getPrimaryKey();
+    Assert.assertTrue("Should have the expected unique constraint", primaryKey.isPresent());
     Assert.assertEquals("Should have the expected columns",
-        ImmutableList.of("key"), uniqueConstraintOptional.get().getColumns());
+        ImmutableList.of("key"), primaryKey.get().getColumnNames());
   }
 
   @Test
@@ -163,10 +163,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().identifierFieldIds());
 
     CatalogTable catalogTable = catalogTable("tl");
-    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
+    Optional<UnresolvedPrimaryKey> primaryKey = catalogTable.getUnresolvedSchema().getPrimaryKey();
+    Assert.assertTrue("Should have the expected unique constraint", primaryKey.isPresent());
     Assert.assertEquals("Should have the expected columns",
-        ImmutableSet.of("data", "id"), ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()));
+        ImmutableList.of("id", "data"), primaryKey.get().getColumnNames());
   }
 
   @Test
@@ -208,7 +208,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl2");
-    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(
+        org.apache.flink.table.api.Schema.newBuilder().column("id", DataTypes.BIGINT()).build(),
+        catalogTable.getUnresolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
@@ -241,8 +243,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).field("dt", DataTypes.STRING()).build(),
-        catalogTable.getSchema());
+        org.apache.flink.table.api.Schema.newBuilder()
+            .column("id", DataTypes.BIGINT())
+            .column("dt", DataTypes.STRING()).build(),
+        catalogTable.getUnresolvedSchema()
+    );
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
   }
@@ -294,8 +299,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(),
-        catalogTable.getSchema());
+        org.apache.flink.table.api.Schema.newBuilder().column("id", DataTypes.BIGINT()).build(),
+        catalogTable.getUnresolvedSchema()
+    );
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
   }

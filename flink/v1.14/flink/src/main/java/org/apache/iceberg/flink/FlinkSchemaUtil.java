@@ -78,28 +78,54 @@ public class FlinkSchemaUtil {
    * Convert the flink table schema to apache iceberg schema.
    */
   public static Schema convert(TableSchema schema) {
-    LogicalType schemaType = schema.toPhysicalRowDataType().getLogicalType();
+    Schema iSchema = conv(schema.toPhysicalRowDataType().getLogicalType());
+    return freshIdentifierFieldIds(iSchema, schema);
+  }
+
+  /**
+   * Convert the flink table resolved schema to apache iceberg schema.
+   */
+  public static Schema convert(ResolvedSchema schema) {
+    Schema iSchema = conv(schema.toPhysicalRowDataType().getLogicalType());
+    return freshIdentifierFieldIds(iSchema, schema);
+  }
+
+  private static Schema conv(LogicalType schemaType) {
     Preconditions.checkArgument(schemaType instanceof RowType, "Schema logical type should be RowType.");
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
 
-    Schema iSchema = new Schema(converted.asStructType().fields());
-    return freshIdentifierFieldIds(iSchema, schema);
+    return new Schema(converted.asStructType().fields());
   }
 
   private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
     // Locate the identifier field id list.
-    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    List<String> primaryKeys = Lists.newArrayList();
     if (schema.getPrimaryKey().isPresent()) {
-      for (String column : schema.getPrimaryKey().get().getColumns()) {
+      primaryKeys.addAll(schema.getPrimaryKey().get().getColumns());
+    }
+    return freshIdentifier(iSchema, primaryKeys);
+  }
+
+  private static Schema freshIdentifierFieldIds(Schema iSchema, ResolvedSchema schema) {
+    List<String> primaryKeys = Lists.newArrayList();
+    if (schema.getPrimaryKey().isPresent()) {
+      primaryKeys.addAll(schema.getPrimaryKey().get().getColumns());
+    }
+    return freshIdentifier(iSchema, primaryKeys);
+  }
+
+  private static Schema freshIdentifier(Schema iSchema, List<String> keyColumns) {
+    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    if (!keyColumns.isEmpty()) {
+      for (String column : keyColumns) {
         Types.NestedField field = iSchema.findField(column);
         Preconditions.checkNotNull(field,
             "Cannot find field ID for the primary key column %s in schema %s", column, iSchema);
         identifierFieldIds.add(field.fieldId());
       }
     }
-
     return new Schema(iSchema.schemaId(), iSchema.asStruct().fields(), identifierFieldIds);
   }
 
