@@ -192,14 +192,15 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
 
   /**
    * A check for whether or not this file was originally created in a Hive ACID table.
-   *
-   * A file may be in a delta_x_y/ or base_x due to being added via
-   * "load data" command.  It could be located in a partition|table root due to table having
+   * <p>
+   * A file may be in a delta_x_y/ or base_x due to being added via "load data" command.
+   * <p>
+   * It could be located in a partition|table root due to table having
    * been converted from non-acid to acid table.  It could also even have paths containing
    * "warehouse/t/HIVE_UNION_SUBDIR_15/000000_0" if it was written by an
    * "insert into t select ... from A union all select ... from B"
    *
-   * @return true if the file was written originally by a Hive ACID table
+   * @return true if the file schema does not have ACID metadata columns
    */
   public boolean isOriginal() {
     return isOriginal;
