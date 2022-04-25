@@ -28,14 +28,13 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestGroup;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseGetChangeSetSparkActionResult;
-import org.apache.iceberg.actions.GetChangeSet;
+import org.apache.iceberg.actions.BaseGenerateChangeSetActionResult;
+import org.apache.iceberg.actions.GenerateChangeSet;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -55,9 +54,9 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.spark.sql.functions.lit;
 
-public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, GetChangeSet.Result>
-    implements GetChangeSet {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseGetChangeSetSparkAction.class);
+public class BaseGenerateChangeSetSparkAction extends BaseSparkAction<GenerateChangeSet, GenerateChangeSet.Result>
+    implements GenerateChangeSet {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseGenerateChangeSetSparkAction.class);
   public static final String RECORD_TYPE = "_record_type";
   public static final String COMMIT_SNAPSHOT_ID = "_commit_snapshot_id";
   public static final String COMMIT_TIMESTAMP = "_commit_timestamp";
@@ -70,7 +69,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   private boolean ignoreRowsDeletedWithinSnapshot = true;
   private Expression filter = Expressions.alwaysTrue();
 
-  protected BaseGetChangeSetSparkAction(SparkSession spark, Table table) {
+  protected BaseGenerateChangeSetSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
   }
@@ -89,7 +88,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
         outputDf = outputDf.unionByName(df, true);
       }
     }
-    return new BaseGetChangeSetSparkActionResult(outputDf);
+    return new BaseGenerateChangeSetActionResult(outputDf);
   }
 
   private void generateCdcRecordsPerSnapshot(long snapshotId, int commitOrder) {
@@ -232,7 +231,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   }
 
   @Override
-  public GetChangeSet forSnapshot(long snapshotId) {
+  public GenerateChangeSet forSnapshot(long snapshotId) {
     if (table.snapshot(snapshotId) != null) {
       snapshotIds.clear();
       snapshotIds.add(snapshotId);
@@ -241,7 +240,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   }
 
   @Override
-  public GetChangeSet afterSnapshot(long fromSnapshotId) {
+  public GenerateChangeSet afterSnapshot(long fromSnapshotId) {
     Preconditions.checkArgument(table.snapshot(fromSnapshotId) != null,
         "The fromSnapshotId(%s) is invalid", fromSnapshotId);
     snapshotIds.clear();
@@ -252,7 +251,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   }
 
   @Override
-  public GetChangeSet forCurrentSnapshot() {
+  public GenerateChangeSet forCurrentSnapshot() {
     if (table.currentSnapshot() != null) {
       snapshotIds.clear();
       snapshotIds.add(table.currentSnapshot().snapshotId());
@@ -261,7 +260,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   }
 
   @Override
-  public GetChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId) {
+  public GenerateChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId) {
     Preconditions.checkArgument(table.snapshot(fromSnapshotId) != null,
         "The fromSnapshotId(%s) is invalid", fromSnapshotId);
     Preconditions.checkArgument(table.snapshot(toSnapshotId) != null,
@@ -277,7 +276,7 @@ public class BaseGetChangeSetSparkAction extends BaseSparkAction<GetChangeSet, G
   }
 
   @Override
-  protected GetChangeSet self() {
+  protected GenerateChangeSet self() {
     return this;
   }
 }

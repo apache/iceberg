@@ -24,7 +24,7 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.DeleteReachableFiles;
 import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.actions.GetChangeSet;
+import org.apache.iceberg.actions.GenerateChangeSet;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteManifests;
@@ -98,7 +98,7 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
-  public GetChangeSet getChangeSet(Table table) {
-    return new BaseGetChangeSetSparkAction(spark, table);
+  public GenerateChangeSet generateChangeSet(Table table) {
+    return new BaseGenerateChangeSetSparkAction(spark, table);
   }
 }

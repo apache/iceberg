@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseGetChangeSetSparkActionResult<T> implements GetChangeSet.Result<T> {
+public class BaseGenerateChangeSetActionResult<T> implements GenerateChangeSet.Result<T> {
   private final T changeSet;
 
-  public BaseGetChangeSetSparkActionResult(T changeSet) {
+  public BaseGenerateChangeSetActionResult(T changeSet) {
     this.changeSet = changeSet;
   }
 

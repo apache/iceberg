@@ -78,7 +78,7 @@ public interface ActionsProvider {
   /**
    * Instantiates an action to generate a change data set.
    */
-  default GetChangeSet getChangeSet(Table table) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement getChangeSet");
+  default GenerateChangeSet generateChangeSet(Table table) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement generateChangeSet");
   }
 }

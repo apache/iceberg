@@ -36,7 +36,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.actions.GetChangeSet;
+import org.apache.iceberg.actions.GenerateChangeSet;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
@@ -60,7 +60,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestGetChangeSetSparkAction extends SparkTestBase {
+public class TestGenerateChangeSetSparkAction extends SparkTestBase {
   protected ActionsProvider actions() {
     return SparkActions.get();
   }
@@ -128,7 +128,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
   @Test
   public void testAppendOnly() {
     // the current snapshot should only have one row
-    GetChangeSet.Result result = actions().getChangeSet(table).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(table).forCurrentSnapshot().execute();
 
     // verifyData
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
@@ -146,7 +146,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
     // delete nothing, however, it generates a new snapshot with nothing has been changed
     sql("delete from hive.default.%s where c1 = 1", tableName);
     sourceTable.refresh();
-    GetChangeSet.Result result = actions().getChangeSet(sourceTable).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(sourceTable).forCurrentSnapshot().execute();
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     Assert.assertEquals("Incorrect result", null, resultDF);
   }
@@ -157,7 +157,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
     // delete the only row
     sql("delete from hive.default.%s where c1 = 0", tableName);
     tbl.refresh();
-    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(tbl).forCurrentSnapshot().execute();
 
     // verify results
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
@@ -195,7 +195,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(tbl).forCurrentSnapshot().execute();
     // verify the results
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -233,7 +233,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(tbl).forCurrentSnapshot().execute();
     // verify the results
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -271,7 +271,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
         .addDeletes(eqDelete)
         .commit();
 
-    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(tbl).forCurrentSnapshot().execute();
     Assert.assertTrue("Must be no result since the c1 value in the eq delete file couldn't match any data file",
         result.changeSet() == null);
   }
@@ -314,7 +314,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
         .commit();
     Snapshot snapshotId2 = tbl.currentSnapshot();
 
-    GetChangeSet.Result result = actions().getChangeSet(tbl).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(tbl).forCurrentSnapshot().execute();
     // verify the results
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
     List<Object[]> actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -324,7 +324,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
     assertEquals("Should have expected rows", expectedRows, actualRecords);
 
     // select the first eq delete snapshot
-    result = actions().getChangeSet(tbl).forSnapshot(snapshotId1).execute();
+    result = actions().generateChangeSet(tbl).forSnapshot(snapshotId1).execute();
     // verify the results
     resultDF = (Dataset<Row>) result.changeSet();
     actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());
@@ -334,7 +334,7 @@ public class TestGetChangeSetSparkAction extends SparkTestBase {
     assertEquals("Should have expected rows", expectedRows, actualRecords);
 
     // select two snapshots
-    result = actions().getChangeSet(tbl).betweenSnapshots(snapshotId1, snapshotId2.snapshotId()).execute();
+    result = actions().generateChangeSet(tbl).betweenSnapshots(snapshotId1, snapshotId2.snapshotId()).execute();
     // verify the results
     resultDF = (Dataset<Row>) result.changeSet();
     actualRecords = rowsToJava(resultDF.sort("c1").collectAsList());

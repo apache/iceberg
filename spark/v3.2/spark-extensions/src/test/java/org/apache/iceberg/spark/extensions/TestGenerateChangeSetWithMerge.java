@@ -24,7 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.actions.GetChangeSet;
+import org.apache.iceberg.actions.GenerateChangeSet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
@@ -40,11 +40,11 @@ import org.junit.Test;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
-import static org.apache.iceberg.spark.actions.BaseGetChangeSetSparkAction.RECORD_TYPE;
+import static org.apache.iceberg.spark.actions.BaseGenerateChangeSetSparkAction.RECORD_TYPE;
 
-public class TestGetChangeSetWithMerge extends SparkRowLevelOperationsTestBase {
-  public TestGetChangeSetWithMerge(String catalogName, String implementation, Map<String, String> config,
-                                   String fileFormat, boolean vectorized, String distributionMode) {
+public class TestGenerateChangeSetWithMerge extends SparkRowLevelOperationsTestBase {
+  public TestGenerateChangeSetWithMerge(String catalogName, String implementation, Map<String, String> config,
+                                        String fileFormat, boolean vectorized, String distributionMode) {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
@@ -113,7 +113,7 @@ public class TestGetChangeSetWithMerge extends SparkRowLevelOperationsTestBase {
         "  UPDATE SET *", tableName);
 
     Table testTable = Spark3Util.loadIcebergTable(spark, tableName);
-    GetChangeSet.Result result = actions().getChangeSet(testTable).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(testTable).forCurrentSnapshot().execute();
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
 
     // verify results
@@ -148,7 +148,7 @@ public class TestGetChangeSetWithMerge extends SparkRowLevelOperationsTestBase {
         "  UPDATE SET *", tableName);
 
     Table testTable = Spark3Util.loadIcebergTable(spark, tableName);
-    GetChangeSet.Result result = actions().getChangeSet(testTable).forCurrentSnapshot().execute();
+    GenerateChangeSet.Result result = actions().generateChangeSet(testTable).forCurrentSnapshot().execute();
     Dataset<Row> resultDF = (Dataset<Row>) result.changeSet();
 
     // verify results

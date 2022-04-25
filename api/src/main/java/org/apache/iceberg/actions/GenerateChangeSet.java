@@ -19,21 +19,21 @@
 
 package org.apache.iceberg.actions;
 
-public interface GetChangeSet extends Action<GetChangeSet, GetChangeSet.Result> {
+public interface GenerateChangeSet extends Action<GenerateChangeSet, GenerateChangeSet.Result> {
   /**
    * Emit changed data set by a snapshot id.
    *
    * @param snapshotId id of the snapshot to generate changed data
    * @return this for method chaining
    */
-  GetChangeSet forSnapshot(long snapshotId);
+  GenerateChangeSet forSnapshot(long snapshotId);
 
   /**
    * Emit changed data set for the current snapshot.
    *
    * @return this for method chaining
    */
-  GetChangeSet forCurrentSnapshot();
+  GenerateChangeSet forCurrentSnapshot();
 
   /**
    * Emit changed data from a particular snapshot(exclusive).
@@ -41,7 +41,7 @@ public interface GetChangeSet extends Action<GetChangeSet, GetChangeSet.Result> 
    * @param fromSnapshotId id of the start snapshot
    * @return this for method chaining
    */
-  GetChangeSet afterSnapshot(long fromSnapshotId);
+  GenerateChangeSet afterSnapshot(long fromSnapshotId);
 
   /**
    * Emit change data set from the start snapshot (exclusive) to the end snapshot (inclusive).
@@ -50,7 +50,7 @@ public interface GetChangeSet extends Action<GetChangeSet, GetChangeSet.Result> 
    * @param toSnapshotId   id of the end snapshot
    * @return this for method chaining
    */
-  GetChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId);
+  GenerateChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId);
 
   /**
    * The action result that contains a dataset of changed rows.
