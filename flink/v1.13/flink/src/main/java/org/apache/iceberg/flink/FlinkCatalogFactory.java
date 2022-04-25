@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink;
 
-import java.io.File;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -146,7 +145,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     Configuration newConf = new Configuration(hadoopConf);
     if (!Strings.isNullOrEmpty(hiveConfDir)) {
       Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),
-              "There should be a hive-site.xml file under the directory %s", hiveConfDir);
+          "There should be a hive-site.xml file under the directory %s", hiveConfDir);
       newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
     } else {
       // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
@@ -158,14 +157,12 @@ public class FlinkCatalogFactory implements CatalogFactory {
     }
 
     if (!Strings.isNullOrEmpty(hadoopConfDir)) {
-      if (new File(hadoopConfDir).exists()) {
-        Preconditions.checkState(Files.exists(Paths.get(hadoopConfDir, "hdfs-site.xml")),
-                "There should be a hdfs-site.xml file under the directory %s", hadoopConfDir);
-        newConf.addResource(new Path(hadoopConfDir, "hdfs-site.xml"));
-        Preconditions.checkState(Files.exists(Paths.get(hadoopConfDir, "core-site.xml")),
-                "There should be a core-site.xml file under the directory %s", hadoopConfDir);
-        newConf.addResource(new Path(hadoopConfDir, "core-site.xml"));
-      }
+      Preconditions.checkState(Files.exists(Paths.get(hadoopConfDir, "hdfs-site.xml")),
+          "Failed to load Hadoop configuration: missing %s", Paths.get(hadoopConfDir, "hdfs-site.xml"));
+      newConf.addResource(new Path(hadoopConfDir, "hdfs-site.xml"));
+      Preconditions.checkState(Files.exists(Paths.get(hadoopConfDir, "core-site.xml")),
+          "Failed to load Hadoop configuration: missing %s", Paths.get(hadoopConfDir, "core-site.xml"));
+      newConf.addResource(new Path(hadoopConfDir, "core-site.xml"));
     }
     return newConf;
   }
