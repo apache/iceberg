@@ -110,6 +110,8 @@ TBLPROPERTIES ('key'='value')
 AS SELECT ...
 ```
 
+The newly created table won't inherit the partition spec and table properties from the source table in SELECT, you can use PARTITIONED BY and TBLPROPERTIES in CTAS to declare partition spec and table properties for the new table.
+
 ## `REPLACE TABLE ... AS SELECT`
 
 Iceberg supports RTAS as an atomic operation when using a [`SparkCatalog`](../spark-configuration#catalog-configuration). RTAS is supported, but is not atomic when using [`SparkSessionCatalog`](../spark-configuration#replacing-the-session-catalog).
