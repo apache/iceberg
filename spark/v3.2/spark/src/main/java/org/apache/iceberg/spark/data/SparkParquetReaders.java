@@ -160,7 +160,11 @@ public class SparkParquetReaders {
         int id = field.fieldId();
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
-          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
+
+          // We use the max definition level of the parent node to infer the max definition level of the constant field
+          // in case of we could not find the given parquet field with typesById.
+          int fieldD = type.getMaxDefinitionLevel(currentPath());
+          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id), fieldD));
           types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
