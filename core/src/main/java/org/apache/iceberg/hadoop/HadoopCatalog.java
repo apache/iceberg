@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.LockManagers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,10 +100,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   @Override
   public void initialize(String name, Map<String, String> properties) {
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
-    Preconditions.checkArgument(inputWarehouseLocation != null && !inputWarehouseLocation.equals(""),
-        "Cannot instantiate hadoop catalog. No location provided for warehouse (Set warehouse config)");
+    Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
+        "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
+
     this.catalogName = name;
-    this.warehouseLocation = inputWarehouseLocation.replaceAll("/*$", "");
+    this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);

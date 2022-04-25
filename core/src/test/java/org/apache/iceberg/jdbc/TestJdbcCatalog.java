@@ -486,7 +486,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    System.out.println(tblSet2.toString());
     Assert.assertEquals(tblSet2.size(), 3);
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));

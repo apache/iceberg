@@ -401,6 +401,30 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
+  private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {
+    TableSchema ts1 = ct1.getSchema();
+    TableSchema ts2 = ct2.getSchema();
+    boolean equalsPrimary = false;
+
+    if (ts1.getPrimaryKey().isPresent() && ts2.getPrimaryKey().isPresent()) {
+      equalsPrimary =
+          Objects.equals(ts1.getPrimaryKey().get().getType(), ts2.getPrimaryKey().get().getType()) &&
+          Objects.equals(ts1.getPrimaryKey().get().getColumns(), ts2.getPrimaryKey().get().getColumns());
+    } else if (!ts1.getPrimaryKey().isPresent() && !ts2.getPrimaryKey().isPresent()) {
+      equalsPrimary = true;
+    }
+
+    if (!(Objects.equals(ts1.getTableColumns(), ts2.getTableColumns()) &&
+          Objects.equals(ts1.getWatermarkSpecs(), ts2.getWatermarkSpecs()) &&
+          equalsPrimary)) {
+      throw new UnsupportedOperationException("Altering schema is not supported yet.");
+    }
+
+    if (!ct1.getPartitionKeys().equals(ct2.getPartitionKeys())) {
+      throw new UnsupportedOperationException("Altering partition keys is not supported yet.");
+    }
+  }
+
   @Override
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
@@ -423,13 +447,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
     // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
-    if (!table.getSchema().equals(newTable.getSchema())) {
-      throw new UnsupportedOperationException("Altering schema is not supported yet.");
-    }
-
-    if (!table.getPartitionKeys().equals(((CatalogTable) newTable).getPartitionKeys())) {
-      throw new UnsupportedOperationException("Altering partition keys is not supported yet.");
-    }
+    validateTableSchemaAndPartition(table, (CatalogTable) newTable);
 
     Map<String, String> oldProperties = table.getOptions();
     Map<String, String> setProperties = Maps.newHashMap();

@@ -62,6 +62,7 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -95,6 +96,10 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -810,7 +815,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .option("foobarity", "-5")
             .execute());
 
-    AssertHelpers.assertThrows("Cannot set rewrite.job-order to foo",
+    AssertHelpers.assertThrows("Cannot set rewrite-job-order to foo",
         IllegalArgumentException.class,
         () -> basicRewrite(table)
             .option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo")
@@ -1030,6 +1035,85 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
     shouldHaveSnapshots(table, 2); // Commit actually Succeeded
+  }
+
+  @Test
+  public void testZOrderSort() {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    List<Object[]> originalData = currentData();
+    double originalFilesC2 = percentFilesRequired(table, "c2", "foo23");
+    double originalFilesC3 = percentFilesRequired(table, "c3", "bar21");
+    double originalFilesC2C3 = percentFilesRequired(table, new String[]{"c2", "c3"}, new String[]{"foo23", "bar23"});
+
+    Assert.assertTrue("Should require all files to scan c2", originalFilesC2 > 0.99);
+    Assert.assertTrue("Should require all files to scan c3", originalFilesC3 > 0.99);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("c2", "c3")
+            .option(SortStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((averageFileSize(table) / 2) + 2))
+            // Divide files in 2
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2))
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
+    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles());
+    Assert.assertTrue("Should have written 40+ files", zOrderedFilesTotal >= 40);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+
+    double filesScannedC2 = percentFilesRequired(table, "c2", "foo23");
+    double filesScannedC3 = percentFilesRequired(table, "c3", "bar21");
+    double filesScannedC2C3 = percentFilesRequired(table, new String[]{"c2", "c3"}, new String[]{"foo23", "bar23"});
+
+    Assert.assertTrue("Should have reduced the number of files required for c2",
+        filesScannedC2 < originalFilesC2);
+    Assert.assertTrue("Should have reduced the number of files required for c3",
+        filesScannedC3 < originalFilesC3);
+    Assert.assertTrue("Should have reduced the number of files required for a c2,c3 predicate",
+        filesScannedC2C3 < originalFilesC2C3);
+  }
+
+  @Test
+  public void testZOrderAllTypesSort() {
+    Table table = createTypeTestTable();
+    shouldHaveFiles(table, 10);
+
+    List<Row> originalRaw = spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+    List<Object[]> originalData = rowsToJava(originalRaw);
+
+    // TODO add in UUID when it is supported in Spark
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("longCol", "intCol", "floatCol", "doubleCol", "dateCol", "timestampCol", "stringCol", "binaryCol",
+                "booleanCol")
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .option(SortStrategy.REWRITE_ALL, "true")
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
+    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles());
+    Assert.assertEquals("Should have written 1 file", 1, zOrderedFilesTotal);
+
+    table.refresh();
+
+    List<Row> postRaw = spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+    List<Object[]> postRewriteData = rowsToJava(postRaw);
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
   }
 
   @Test
@@ -1327,6 +1411,39 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     return createTablePartitioned(partitions, files, SCALE, Maps.newHashMap());
   }
 
+  private Table createTypeTestTable() {
+    Schema schema = new Schema(
+        required(1, "longCol", Types.LongType.get()),
+        required(2, "intCol", Types.IntegerType.get()),
+        required(3, "floatCol", Types.FloatType.get()),
+        optional(4, "doubleCol", Types.DoubleType.get()),
+        optional(5, "dateCol", Types.DateType.get()),
+        optional(6, "timestampCol", Types.TimestampType.withZone()),
+        optional(7, "stringCol", Types.StringType.get()),
+        optional(8, "booleanCol", Types.BooleanType.get()),
+        optional(9, "binaryCol", Types.BinaryType.get()));
+
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), options, tableLocation);
+
+    spark.range(0, 10, 1, 10)
+        .withColumnRenamed("id", "longCol")
+        .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("booleanCol", expr("longCol > 5"))
+        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    return table;
+  }
+
   protected int averageFileSize(Table table) {
     table.refresh();
     return (int) Streams.stream(table.newScan().planFiles()).mapToLong(FileScanTask::length).average().getAsDouble();
@@ -1410,6 +1527,21 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .addAll(manager.fetchSetIDs(table))
         .addAll(coordinator.fetchSetIDs(table))
         .build();
+  }
+
+  private double percentFilesRequired(Table table, String col, String value) {
+    return percentFilesRequired(table, new String[]{col}, new String[]{value});
+  }
+
+  private double percentFilesRequired(Table table, String[] cols, String[] values) {
+    Preconditions.checkArgument(cols.length == values.length);
+    Expression restriction = Expressions.alwaysTrue();
+    for (int i = 0; i < cols.length; i++) {
+      restriction = Expressions.and(restriction, Expressions.equal(cols[i], values[i]));
+    }
+    int totalFiles = Iterables.size(table.newScan().planFiles());
+    int filteredFiles = Iterables.size(table.newScan().filter(restriction).planFiles());
+    return (double) filteredFiles / (double) totalFiles;
   }
 
   class GroupInfoMatcher implements ArgumentMatcher<RewriteFileGroup> {

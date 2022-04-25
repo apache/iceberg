@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +39,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -53,6 +55,8 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,7 +73,12 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can be modified
  * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
  * For example, someone might point this action to the data folder to clean up only orphan data files.
- * In addition, there is a way to configure an alternative delete method via {@link #deleteWith(Consumer)}.
+ * <p>
+ * Configure an alternative delete method using {@link #deleteWith(Consumer)}.
+ * <p>
+ * For full control of the set of files being evaluated, use the {@link #compareToFileList(Dataset)} argument.  This
+ * skips the directory listing - any files in the dataset provided which are not found in table metadata will
+ * be deleted, using the same {@link Table#location()} and {@link #olderThan(long)} filtering as above.
  * <p>
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
@@ -99,6 +108,7 @@ public class BaseDeleteOrphanFilesSparkAction
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
+  private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
 
@@ -144,6 +154,37 @@ public class BaseDeleteOrphanFilesSparkAction
     return this;
   }
 
+  public BaseDeleteOrphanFilesSparkAction compareToFileList(Dataset<Row> files) {
+    StructType schema = files.schema();
+
+    StructField filePathField = schema.apply(FILE_PATH);
+    Preconditions.checkArgument(
+        filePathField.dataType() == DataTypes.StringType,
+        "Invalid %s column: %s is not a string",
+        FILE_PATH,
+        filePathField.dataType());
+
+    StructField lastModifiedField = schema.apply(LAST_MODIFIED);
+    Preconditions.checkArgument(
+        lastModifiedField.dataType() == DataTypes.TimestampType,
+        "Invalid %s column: %s is not a timestamp",
+        LAST_MODIFIED,
+        lastModifiedField.dataType());
+
+    this.compareToFileList = files;
+    return this;
+  }
+
+  private Dataset<Row> filteredCompareToFileList() {
+    Dataset<Row> files = compareToFileList;
+    if (location != null) {
+      files = files.filter(files.col(FILE_PATH).startsWith(location));
+    }
+    return files
+        .filter(files.col(LAST_MODIFIED).lt(new Timestamp(olderThanTimestamp)))
+        .select(files.col(FILE_PATH));
+  }
+
   @Override
   public DeleteOrphanFiles.Result execute() {
     JobGroupInfo info = newJobGroupInfo("DELETE-ORPHAN-FILES", jobDesc());
@@ -163,7 +204,7 @@ public class BaseDeleteOrphanFilesSparkAction
     Dataset<Row> validContentFileDF = buildValidContentFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
-    Dataset<Row> actualFileDF = buildActualFileDF();
+    Dataset<Row> actualFileDF = compareToFileList == null ? buildActualFileDF() : filteredCompareToFileList();
 
     Column actualFileName = filenameUDF.apply(actualFileDF.col(FILE_PATH));
     Column validFileName = filenameUDF.apply(validFileDF.col(FILE_PATH));

@@ -63,7 +63,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void before() throws NessieNotFoundException, NessieConflictException {
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
-    catalog.refresh();
     createBranch("test", catalog.currentHash());
     testCatalog = initCatalog("test");
   }
@@ -72,7 +71,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void after() throws NessieNotFoundException, NessieConflictException {
     catalog.dropTable(tableIdentifier1);
     catalog.dropTable(tableIdentifier2);
-    catalog.refresh();
     for (Reference reference : api.getAllReferences().get().getReferences()) {
       if (!reference.getName().equals("main")) {
         api.deleteBranch().branch((Branch) reference).delete();
@@ -147,7 +145,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String metadataOnTest = addRow(catalog, tableIdentifier1, "initial-data",
         ImmutableMap.of("id0", 4L));
     long snapshotIdOnTest = snapshotIdFromMetadata(catalog, metadataOnTest);
-    catalog.refresh();
 
     String hashOnTest = catalog.currentHash();
     createBranch(branch1, hashOnTest, branchTest);
