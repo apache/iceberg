@@ -324,6 +324,6 @@ public class TestFlinkSchemaUtil {
     AssertHelpers.assertThrows("Does not support the nested columns in flink schema's primary keys",
         ValidationException.class,
         "Column 'struct.inner' does not exist",
-        () -> FlinkSchemaUtil.toSchema(icebergSchema, Maps.newHashMap()));
+        () -> FlinkSchemaUtil.toSchema(icebergSchema));
   }
 }

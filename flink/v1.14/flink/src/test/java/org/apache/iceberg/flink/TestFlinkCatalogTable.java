@@ -565,9 +565,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     expectResult.add("1");
     expectResult.add("2");
     expectResult.add("abc");
-    expectResult.add("1970-01-01T08:00:03");
-    expectResult.add("1970-01-01T08:00:24");
-    expectResult.add("1970-01-01T08:00:24");
+    expectResult.add("1970-01-01T00:00:03");
+    expectResult.add("1970-01-01T00:00:24");
+    expectResult.add("1970-01-01T00:00:24");
 
     List<String> result = Lists.newArrayList();
     Row row = sql("SELECT id, id2, s, f1, t1, t2 FROM tl").get(0);
@@ -584,7 +584,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     List<String> expectResult2 = Lists.newArrayList();
     expectResult2.add("abc");
-    expectResult2.add("1970-01-01T08:00:24");
+    expectResult2.add("1970-01-01T00:00:24");
 
     List<String> result2 = Lists.newArrayList();
     Row row2 = sql("SELECT * FROM tl").get(0);

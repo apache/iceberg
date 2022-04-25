@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.test.util.TestBaseUtils;
 import org.apache.flink.types.Row;
@@ -78,7 +79,9 @@ public abstract class FlinkTestBase extends TestBaseUtils {
               .build();
 
           TableEnvironment env = TableEnvironment.create(settings);
-          env.getConfig().getConfiguration().set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          env.getConfig().getConfiguration()
+              .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false)
+              .set(TableConfigOptions.LOCAL_TIME_ZONE, "UTC");
           tEnv = env;
         }
       }
