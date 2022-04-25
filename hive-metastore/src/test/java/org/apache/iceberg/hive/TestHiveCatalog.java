@@ -41,6 +41,7 @@ import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -595,6 +596,16 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
       Assert.assertEquals(SchemaParser.toJson(table.schema()),
           hmsTableParameters().get(TableProperties.CURRENT_SCHEMA));
+
+      // add many new fields to make the schema json string exceed the limit
+      UpdateSchema updateSchema = table.updateSchema();
+      for (int i = 0; i < 600; i++) {
+        updateSchema.addColumn("new_col_" + i, Types.StringType.get());
+      }
+      updateSchema.commit();
+
+      Assert.assertTrue(SchemaParser.toJson(table.schema()).length() > 32672);
+      Assert.assertNull(hmsTableParameters().get(TableProperties.CURRENT_SCHEMA));
     } finally {
       catalog.dropTable(tableIdent);
     }
