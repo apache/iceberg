@@ -542,7 +542,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   public void testSetSnapshotSummary() throws Exception {
     Configuration conf = new Configuration();
     conf.set("iceberg.hive.table-property-max-size", "4000");
-    HiveTableOperations spyOps = spy(new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl"));
+    HiveTableOperations ops = new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
     Snapshot snapshot = mock(Snapshot.class);
     Map<String, String> summary = Maps.newHashMap();
     when(snapshot.summary()).thenReturn(summary);
@@ -553,7 +553,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     }
     Assert.assertTrue(JsonUtil.mapper().writeValueAsString(summary).length() < 4000);
     Map<String, String> parameters = Maps.newHashMap();
-    spyOps.setSnapshotSummary(parameters, snapshot);
+    ops.setSnapshotSummary(parameters, snapshot);
     Assert.assertEquals("The snapshot summary must be in parameters", 1, parameters.size());
 
     // create a snapshot summary whose json string size exceeds the limit
@@ -564,7 +564,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     // the limit has been updated to 4000 instead of the default value(32672)
     Assert.assertTrue(summarySize > 4000 && summarySize < 32672);
     parameters.remove(CURRENT_SNAPSHOT_SUMMARY);
-    spyOps.setSnapshotSummary(parameters, snapshot);
+    ops.setSnapshotSummary(parameters, snapshot);
     Assert.assertEquals("The snapshot summary must not be in parameters due to the size limit", 0, parameters.size());
   }
 
@@ -572,7 +572,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   public void testNotExposeTableProperties() {
     Configuration conf = new Configuration();
     conf.set("iceberg.hive.table-property-max-size", "0");
-    HiveTableOperations spyOps = spy(new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl"));
+    HiveTableOperations ops = new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
     TableMetadata metadata = mock(TableMetadata.class);
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(CURRENT_SNAPSHOT_SUMMARY, "summary");
@@ -582,18 +582,18 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     parameters.put(DEFAULT_PARTITION_SPEC, "partitionSpec");
     parameters.put(DEFAULT_SORT_ORDER, "sortOrder");
 
-    spyOps.setSnapshotStats(metadata, parameters);
+    ops.setSnapshotStats(metadata, parameters);
     Assert.assertNull(parameters.get(CURRENT_SNAPSHOT_SUMMARY));
     Assert.assertNull(parameters.get(CURRENT_SNAPSHOT_ID));
     Assert.assertNull(parameters.get(CURRENT_SNAPSHOT_TIMESTAMP));
 
-    spyOps.setSchema(metadata, parameters);
+    ops.setSchema(metadata, parameters);
     Assert.assertNull(parameters.get(CURRENT_SCHEMA));
 
-    spyOps.setPartitionSpec(metadata, parameters);
+    ops.setPartitionSpec(metadata, parameters);
     Assert.assertNull(parameters.get(DEFAULT_PARTITION_SPEC));
 
-    spyOps.setSortOrder(metadata, parameters);
+    ops.setSortOrder(metadata, parameters);
     Assert.assertNull(parameters.get(DEFAULT_SORT_ORDER));
   }
 
