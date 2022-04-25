@@ -76,7 +76,6 @@ class Writer implements DataSourceWriter {
   private final Table table;
   private final FileFormat format;
   private final boolean replacePartitions;
-
   private final String overwriteFilter;
   private final String applicationId;
   private final String wapId;
@@ -122,9 +121,13 @@ class Writer implements DataSourceWriter {
 
   @Override
   public void commit(WriterCommitMessage[] messages) {
+    if (!replacePartitions && overwriteFilter != null) {
+      throw new RuntimeException("Cannot set save mode to be 'append' and also set overwrite filter.");
+    }
+
     if (replacePartitions && overwriteFilter == null) {
       replacePartitions(messages);
-    } else if (replacePartitions) {
+    } else if (replacePartitions && overwriteFilter != null) {
       replaceOverwritePartitions(messages);
     } else {
       append(messages);
@@ -195,7 +198,7 @@ class Writer implements DataSourceWriter {
     }
 
     OverwriteFiles overwriteFiles = table.newOverwrite()
-            .overwriteByRowFilter(overwriteExpression);
+        .overwriteByRowFilter(overwriteExpression);
 
     int numFiles = 0;
     for (DataFile file : files) {
