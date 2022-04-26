@@ -171,5 +171,5 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     spark.conf().unset("spark.sql.catalog.spark_catalog.type");
     spark.conf().unset("spark.sql.catalog.spark_catalog.warehouse");
   }
-
 }
+

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
@@ -81,6 +82,41 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
   /**
+   * Pass a mode for handling the files that cannot be determined if they are orphan
+   * The allowed modes are "IGNORE", "ERROR"
+   * Default prefixMismatchMode is "ERROR".
+   *
+   * @param mode mode for handling files that cannot be determined if they are orphan
+   * @return this for method chaining
+   */
+  default DeleteOrphanFiles prefixMismatchMode(PrefixMismatchMode mode) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement prefixMismatchMode");
+  }
+
+  /**
+   * Pass a Map with a String key and comma separated list of schemes  to be considered equal when finding orphan files.
+   * example: Map("s3", "s3a, s3, s3n")
+   *
+   * @param equalSchemes list of equal schemes
+   * @return this for method chaining
+   */
+  default DeleteOrphanFiles equalSchemes(Map<String, String> equalSchemes) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement equalSchemes");
+  }
+
+  /**
+   * Pass a Map with a String key and comma separated list of authorities  to be considered
+   * equal when finding orphan files.
+   * example: Map("servicename", "sname1, sname2")
+   *
+   * @param equalAuthorities list of equal schemes
+   * @return this for method chaining
+   */
+  default DeleteOrphanFiles equalAuthorities(Map<String, String> equalAuthorities) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement equalAuthorities");
+  }
+
+  /**
    * The action result that contains a summary of the execution.
    */
   interface Result {
@@ -88,5 +124,14 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
      * Returns locations of orphan files.
      */
     Iterable<String> orphanFileLocations();
+  }
+
+  /**
+   * Defines the Delete Orphan files behaviour when there is mismatch in prefix(scheme/authority)
+   * ERROR - Throws an exception when prefix mismatch
+   * IGNORE - No action when prefix mismatch
+   */
+  enum PrefixMismatchMode {
+    ERROR, IGNORE, DELETE
   }
 }

@@ -955,4 +955,112 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     }
     return current;
   }
+
+  @Test
+  public void testPathsWithExtraSlashes() {
+    List<String> validFiles = Lists.newArrayList("file:///dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("file:///dir1/////dir2///file1");
+    executeTest(validFiles, actualFiles, Lists.newArrayList());
+  }
+
+  @Test
+  public void testPathsWithValidFileHavingNoAuthority() {
+    List<String> validFiles = Lists.newArrayList("hdfs:///dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("hdfs://servicename/dir1/dir2/file1");
+    executeTest(validFiles, actualFiles, Lists.newArrayList());
+  }
+
+  @Test
+  public void testPathsWithActualFileHavingNoAuthority() {
+    List<String> validFiles = Lists.newArrayList("hdfs://servicename/dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("hdfs:///dir1/dir2/file1");
+    executeTest(validFiles, actualFiles, Lists.newArrayList());
+  }
+
+  @Test
+  public void testPathsWithEqualSchemes() {
+    List<String> validFiles = Lists.newArrayList("s3://bucket1/dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("s3a://bucket1/dir1/dir2/file1");
+    AssertHelpers.assertThrows("Test remove orphan files with equal schemes",
+        ValidationException.class,
+        "Conflicting authorities/schemes found: [(s3a, s3)]",
+        () -> executeTest(validFiles,
+            actualFiles,
+            Lists.newArrayList(),
+            null,
+            null,
+            DeleteOrphanFiles.PrefixMismatchMode.ERROR));
+
+    Map<String, String> equalSchemes = Maps.newHashMap();
+    equalSchemes.put("s3, s3a", "s3");
+    executeTest(validFiles,
+        actualFiles,
+        Lists.newArrayList(),
+        equalSchemes,
+        null,
+        DeleteOrphanFiles.PrefixMismatchMode.ERROR);
+  }
+
+  @Test
+  public void testPathsWithEqualAuthorities() {
+    List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
+    AssertHelpers.assertThrows("Test remove orphan files with equal authorities",
+        ValidationException.class,
+        "Conflicting authorities/schemes found: [(servicename2, servicename1)]",
+        () -> executeTest(validFiles,
+            actualFiles,
+            Lists.newArrayList(),
+            null,
+            null,
+            DeleteOrphanFiles.PrefixMismatchMode.ERROR));
+
+    Map<String, String> equalAuthorities = Maps.newHashMap();
+    equalAuthorities.put("servicename1, servicename2", "servicename");
+    executeTest(validFiles,
+        actualFiles,
+        Lists.newArrayList(),
+        null,
+        equalAuthorities,
+        DeleteOrphanFiles.PrefixMismatchMode.ERROR);
+  }
+
+  @Test
+  public void testRemoveOrphanFileActionWithDeleteMode() {
+    List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
+
+    executeTest(validFiles,
+        actualFiles,
+        Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1"),
+        null,
+        null,
+        DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  private void executeTest(List<String> validFiles,
+                           List<String> actualFiles,
+                           List<String> expectedOrphanFiles) {
+    executeTest(validFiles, actualFiles, expectedOrphanFiles, null, null,
+        DeleteOrphanFiles.PrefixMismatchMode.IGNORE);
+  }
+
+  private void executeTest(List<String> validFiles,
+                           List<String> actualFiles,
+                           List<String> expectedOrphanFiles,
+                           Map<String, String> equalSchemes,
+                           Map<String, String> equalAuthorities,
+                           DeleteOrphanFiles.PrefixMismatchMode mode) {
+    Dataset<Row> validFilesDF = spark.createDataset(validFiles, Encoders.STRING()).toDF();
+    Dataset<Row> actualFilesDF = spark.createDataset(actualFiles, Encoders.STRING()).toDF();
+
+    List<String> orphanFiles = BaseDeleteOrphanFilesSparkAction.findOrphanFiles(
+        spark,
+        actualFilesDF,
+        validFilesDF,
+        equalSchemes,
+        equalAuthorities,
+        mode);
+    Assert.assertEquals(expectedOrphanFiles, orphanFiles);
+  }
 }
