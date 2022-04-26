@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -118,7 +118,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
-    LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);
+    LOG.info("Expiring snapshots older than: {} ({})",
+        DateTimeUtil.formatTimestampMillis(timestampMillis), timestampMillis);
     this.expireOlderThan = timestampMillis;
     return this;
   }

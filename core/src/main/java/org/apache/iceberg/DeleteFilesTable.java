@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
+import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's delete files as rows.
@@ -46,22 +46,22 @@ public class DeleteFilesTable extends BaseFilesTable {
 
   public static class DeleteFilesTableScan extends BaseFilesTableScan {
 
-    DeleteFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.DELETE_FILES);
+    DeleteFilesTableScan(TableOperations ops, Table table, Schema schema) {
+      super(ops, table, schema, MetadataTableType.DELETE_FILES);
     }
 
-    DeleteFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, TableScanContext context) {
-      super(ops, table, schema, fileSchema, context, MetadataTableType.DELETE_FILES);
+    DeleteFilesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      super(ops, table, schema, MetadataTableType.DELETE_FILES, context);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DeleteFilesTableScan(ops, table, schema, fileSchema(), context);
+      return new DeleteFilesTableScan(ops, table, schema, context);
     }
 
     @Override
-    protected List<ManifestFile> manifests() {
-      return snapshot().deleteManifests();
+    protected CloseableIterable<ManifestFile> manifests() {
+      return CloseableIterable.withNoopClose(snapshot().deleteManifests());
     }
   }
 }

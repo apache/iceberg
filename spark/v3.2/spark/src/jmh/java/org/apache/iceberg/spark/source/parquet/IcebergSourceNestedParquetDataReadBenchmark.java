@@ -42,7 +42,7 @@ import static org.apache.spark.sql.functions.struct;
  *
  * To run this benchmark for spark-3.2:
  * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt
  * </code>

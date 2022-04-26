@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.error.NessieNotFoundException;
@@ -51,7 +50,7 @@ class UpdateableReference {
 
   public void updateReference(Reference ref) {
     Preconditions.checkState(mutable, "Hash references cannot be updated.");
-    this.reference = Objects.requireNonNull(ref);
+    this.reference = Preconditions.checkNotNull(ref, "ref is null");
   }
 
   public boolean isBranch() {

@@ -24,6 +24,8 @@ import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Counter;
@@ -37,7 +39,7 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
-class S3InputStream extends SeekableInputStream {
+class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
   private final StackTraceElement[] createStack;
@@ -109,6 +111,35 @@ class S3InputStream extends SeekableInputStream {
     readOperations.increment();
 
     return bytesRead;
+  }
+
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+
+    String range = String.format("bytes=%s-%s", position, position + length - 1);
+
+    IOUtil.readFully(readRange(range), buffer, offset, length);
+  }
+
+  @Override
+  public int readTail(byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+
+    String range = String.format("bytes=-%s", length);
+
+    return IOUtil.readRemaining(readRange(range), buffer, offset, length);
+  }
+
+  private InputStream readRange(String range) {
+    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
+        .bucket(location.bucket())
+        .key(location.key())
+        .range(range);
+
+    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+
+    return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
   }
 
   @Override

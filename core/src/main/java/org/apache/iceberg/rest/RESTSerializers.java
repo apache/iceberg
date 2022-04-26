@@ -29,15 +29,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
-import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.UnboundPartitionSpec;
+import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -48,17 +52,54 @@ public class RESTSerializers {
   public static void registerAll(ObjectMapper mapper) {
     SimpleModule module = new SimpleModule();
     module
+        .addSerializer(ErrorResponse.class, new ErrorResponseSerializer())
+        .addDeserializer(ErrorResponse.class, new ErrorResponseDeserializer())
         .addSerializer(TableIdentifier.class, new TableIdentifierSerializer())
         .addDeserializer(TableIdentifier.class, new TableIdentifierDeserializer())
         .addSerializer(Namespace.class, new NamespaceSerializer())
         .addDeserializer(Namespace.class, new NamespaceDeserializer())
         .addSerializer(Schema.class, new SchemaSerializer())
         .addDeserializer(Schema.class, new SchemaDeserializer())
-        .addSerializer(PartitionSpec.class, new PartitionSpecSerializer())
-        .addDeserializer(PartitionSpec.class, new PartitionSpecDeserializer())
-        .addSerializer(SortOrder.class, new SortOrderSerializer())
-        .addDeserializer(SortOrder.class, new SortOrderDeserializer());
+        .addSerializer(UnboundPartitionSpec.class, new UnboundPartitionSpecSerializer())
+        .addDeserializer(UnboundPartitionSpec.class, new UnboundPartitionSpecDeserializer())
+        .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
+        .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer())
+        .addSerializer(MetadataUpdate.class, new MetadataUpdateSerializer())
+        .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer());
     mapper.registerModule(module);
+  }
+
+  public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate> {
+    @Override
+    public MetadataUpdate deserialize(JsonParser p, DeserializationContext ctxt)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return MetadataUpdateParser.fromJson(node);
+    }
+  }
+
+  public static class MetadataUpdateSerializer extends JsonSerializer<MetadataUpdate> {
+    @Override
+    public void serialize(MetadataUpdate value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      MetadataUpdateParser.toJson(value, gen);
+    }
+  }
+
+  public static class ErrorResponseDeserializer extends JsonDeserializer<ErrorResponse> {
+    @Override
+    public ErrorResponse deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return ErrorResponseParser.fromJson(node);
+    }
+  }
+
+  public static class ErrorResponseSerializer extends JsonSerializer<ErrorResponse> {
+    @Override
+    public void serialize(ErrorResponse errorResponse, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      ErrorResponseParser.toJson(errorResponse, gen);
+    }
   }
 
   public static class NamespaceDeserializer extends JsonDeserializer<Namespace> {
@@ -99,10 +140,7 @@ public class RESTSerializers {
     @Override
     public Schema deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      Schema schema = SchemaParser.fromJson(jsonNode);
-      // Store the schema in the context so that it can be used when parsing PartitionSpec / SortOrder
-      context.setAttribute("schema", schema);
-      return schema;
+      return SchemaParser.fromJson(jsonNode);
     }
   }
 
@@ -114,39 +152,37 @@ public class RESTSerializers {
     }
   }
 
-  public static class PartitionSpecSerializer extends JsonSerializer<PartitionSpec> {
+  public static class UnboundPartitionSpecSerializer extends JsonSerializer<UnboundPartitionSpec> {
     @Override
     public void serialize(
-        PartitionSpec partitionSpec, JsonGenerator gen, SerializerProvider serializers)
+        UnboundPartitionSpec spec, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      PartitionSpecParser.toJson(partitionSpec, gen);
+      PartitionSpecParser.toJson(spec, gen);
     }
   }
 
-  public static class PartitionSpecDeserializer extends JsonDeserializer<PartitionSpec> {
+  public static class UnboundPartitionSpecDeserializer extends JsonDeserializer<UnboundPartitionSpec> {
     @Override
-    public PartitionSpec deserialize(JsonParser p, DeserializationContext context)
+    public UnboundPartitionSpec deserialize(JsonParser p, DeserializationContext context)
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      Schema schema = (Schema) context.getAttribute("schema");
-      return PartitionSpecParser.fromJson(schema, jsonNode);
+      return PartitionSpecParser.fromJson(jsonNode);
     }
   }
 
-  public static class SortOrderSerializer extends JsonSerializer<SortOrder> {
+  public static class UnboundSortOrderSerializer extends JsonSerializer<UnboundSortOrder> {
     @Override
-    public void serialize(SortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(UnboundSortOrder sortOrder, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       SortOrderParser.toJson(sortOrder, gen);
     }
   }
 
-  public static class SortOrderDeserializer extends JsonDeserializer<SortOrder> {
+  public static class UnboundSortOrderDeserializer extends JsonDeserializer<UnboundSortOrder> {
     @Override
-    public SortOrder deserialize(JsonParser p, DeserializationContext context) throws IOException {
+    public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      Schema schema = (Schema) context.getAttribute("schema");
-      return SortOrderParser.fromJson(schema, jsonNode);
+      return SortOrderParser.fromJson(jsonNode);
     }
   }
 }

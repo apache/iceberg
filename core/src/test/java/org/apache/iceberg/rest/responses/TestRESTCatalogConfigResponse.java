@@ -29,7 +29,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTCatalogConfigResponse> {
+public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<ConfigResponse> {
 
   private static final Map<String, String> DEFAULTS = ImmutableMap.of("warehouse", "s3://bucket/warehouse");
   private static final Map<String, String> OVERRIDES = ImmutableMap.of("clients", "5");
@@ -50,63 +50,63 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
     String fullJson = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{\"clients\":\"5\"}}";
     assertRoundTripSerializesEquallyFrom(
         fullJson,
-        RESTCatalogConfigResponse.builder()
+        ConfigResponse.builder()
             .withOverrides(OVERRIDES).withDefaults(DEFAULTS).build());
     assertRoundTripSerializesEquallyFrom(
         fullJson,
-        RESTCatalogConfigResponse.builder()
+        ConfigResponse.builder()
             .withOverride("clients", "5").withDefault("warehouse", "s3://bucket/warehouse").build());
 
     // `defaults` is empty
     String jsonEmptyDefaults = "{\"defaults\":{},\"overrides\":{\"clients\":\"5\"}}";
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyDefaults,
-        RESTCatalogConfigResponse.builder().withOverrides(OVERRIDES).build());
+        ConfigResponse.builder().withOverrides(OVERRIDES).build());
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyDefaults,
-        RESTCatalogConfigResponse.builder().withOverrides(OVERRIDES).withDefaults(ImmutableMap.of()).build());
+        ConfigResponse.builder().withOverrides(OVERRIDES).withDefaults(ImmutableMap.of()).build());
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyDefaults,
-        RESTCatalogConfigResponse.builder().withOverride("clients", "5").build());
+        ConfigResponse.builder().withOverride("clients", "5").build());
 
     // `overrides` is empty
     String jsonEmptyOverrides = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{}}";
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyOverrides,
-        RESTCatalogConfigResponse.builder().withDefaults(DEFAULTS).build());
+        ConfigResponse.builder().withDefaults(DEFAULTS).build());
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyOverrides,
-        RESTCatalogConfigResponse.builder().withDefault("warehouse", "s3://bucket/warehouse").build());
+        ConfigResponse.builder().withDefault("warehouse", "s3://bucket/warehouse").build());
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyOverrides,
-        RESTCatalogConfigResponse.builder().withDefaults(DEFAULTS).withOverrides(ImmutableMap.of()).build());
+        ConfigResponse.builder().withDefaults(DEFAULTS).withOverrides(ImmutableMap.of()).build());
 
     // Both are empty
     String emptyJson = "{\"defaults\":{},\"overrides\":{}}";
     assertRoundTripSerializesEquallyFrom(
         emptyJson,
-        RESTCatalogConfigResponse.builder().build());
+        ConfigResponse.builder().build());
     assertRoundTripSerializesEquallyFrom(
         emptyJson,
-        RESTCatalogConfigResponse.builder().withOverrides(ImmutableMap.of()).withDefaults(ImmutableMap.of()).build());
+        ConfigResponse.builder().withOverrides(ImmutableMap.of()).withDefaults(ImmutableMap.of()).build());
   }
 
   @Test
   // Test cases that cannot be built with our builder, but that are accepted when parsed
   public void testCanDeserializeWithoutDefaultValues() throws JsonProcessingException {
-    RESTCatalogConfigResponse noOverrides = RESTCatalogConfigResponse.builder().withDefaults(DEFAULTS).build();
+    ConfigResponse noOverrides = ConfigResponse.builder().withDefaults(DEFAULTS).build();
     String jsonMissingOverrides = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"}}";
     assertEquals(deserialize(jsonMissingOverrides), noOverrides);
     String jsonNullOverrides = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":null}";
     assertEquals(deserialize(jsonNullOverrides), noOverrides);
 
-    RESTCatalogConfigResponse noDefaults = RESTCatalogConfigResponse.builder().withOverrides(OVERRIDES).build();
+    ConfigResponse noDefaults = ConfigResponse.builder().withOverrides(OVERRIDES).build();
     String jsonMissingDefaults = "{\"overrides\":{\"clients\":\"5\"}}";
     assertEquals(deserialize(jsonMissingDefaults), noDefaults);
     String jsonNullDefaults = "{\"defaults\":null,\"overrides\":{\"clients\":\"5\"}}";
     assertEquals(deserialize(jsonNullDefaults), noDefaults);
 
-    RESTCatalogConfigResponse noValues = RESTCatalogConfigResponse.builder().build();
+    ConfigResponse noValues = ConfigResponse.builder().build();
     String jsonEmptyObject = "{}";
     assertEquals(deserialize(jsonEmptyObject), noValues);
     String jsonNullForAllFields = "{\"defaults\":null,\"overrides\":null}";
@@ -119,22 +119,22 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
         "{\"defaults\":{\"warehouse\":null},\"overrides\":{\"clients\":\"5\"}}";
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInDefaults,
-        RESTCatalogConfigResponse.builder()
+        ConfigResponse.builder()
             .withDefaults(DEFAULTS_WITH_NULL_VALUE).withOverrides(OVERRIDES).build());
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInDefaults,
-        RESTCatalogConfigResponse.builder()
+        ConfigResponse.builder()
             .withDefault("warehouse", null).withOverrides(OVERRIDES).build());
 
     String jsonNullValueInOverrides =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{\"clients\":null}}";
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInOverrides,
-        RESTCatalogConfigResponse.builder()
+        ConfigResponse.builder()
             .withDefaults(DEFAULTS).withOverrides(OVERRIDES_WITH_NULL_VALUE).build());
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInOverrides,
-        RESTCatalogConfigResponse.builder()
+        ConfigResponse.builder()
             .withDefaults(DEFAULTS).withOverride("clients", null).build());
   }
 
@@ -177,28 +177,28 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
         "The builder should not allow using null as a key in the properties to override",
         NullPointerException.class,
         "Invalid override property: null",
-        () -> RESTCatalogConfigResponse.builder().withOverride(null, "100").build()
+        () -> ConfigResponse.builder().withOverride(null, "100").build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a key in the default properties",
         NullPointerException.class,
         "Invalid default property: null",
-        () -> RESTCatalogConfigResponse.builder().withDefault(null, "100").build()
+        () -> ConfigResponse.builder().withDefault(null, "100").build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null map of config properties to override",
         NullPointerException.class,
         "Invalid override properties map: null",
-        () -> RESTCatalogConfigResponse.builder().withOverrides(null).build()
+        () -> ConfigResponse.builder().withOverrides(null).build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null map of default config properties",
         NullPointerException.class,
         "Invalid default properties map: null",
-        () -> RESTCatalogConfigResponse.builder().withDefaults(null).build()
+        () -> ConfigResponse.builder().withDefaults(null).build()
     );
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
@@ -208,14 +208,14 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
         "The builder should not allow passing a map of default config properties with a null key",
         IllegalArgumentException.class,
         "Invalid default property: null",
-        () -> RESTCatalogConfigResponse.builder().withDefaults(mapWithNullKey).build()
+        () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build()
     );
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a map of properties to override with a null key",
         IllegalArgumentException.class,
         "Invalid override property: null",
-        () -> RESTCatalogConfigResponse.builder().withOverrides(mapWithNullKey).build()
+        () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build()
     );
   }
 
@@ -229,7 +229,7 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
     Map<String, String> defaults = ImmutableMap.of("a", "from_defaults");
     Map<String, String> clientConfig = ImmutableMap.of("a", "from_client", "c", "from_client");
 
-    RESTCatalogConfigResponse resp = RESTCatalogConfigResponse.builder()
+    ConfigResponse resp = ConfigResponse.builder()
             .withOverrides(overrides).withDefaults(defaults).build();
 
     // "a" isn't present as it was marked as `null` in the overrides, so the provided client configuration is discarded
@@ -251,15 +251,15 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
   }
 
   @Override
-  public RESTCatalogConfigResponse createExampleInstance() {
-    return RESTCatalogConfigResponse.builder()
+  public ConfigResponse createExampleInstance() {
+    return ConfigResponse.builder()
         .withDefaults(DEFAULTS)
         .withOverrides(OVERRIDES)
         .build();
   }
 
   @Override
-  public void assertEquals(RESTCatalogConfigResponse actual, RESTCatalogConfigResponse expected) {
+  public void assertEquals(ConfigResponse actual, ConfigResponse expected) {
     Assert.assertEquals("Config properties to use as defaults should be equal",
         actual.defaults(), expected.defaults());
     Assert.assertEquals("Config properties to use as overrides should be equal",
@@ -267,7 +267,9 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<RESTC
   }
 
   @Override
-  public RESTCatalogConfigResponse deserialize(String json) throws JsonProcessingException {
-    return mapper().readValue(json, RESTCatalogConfigResponse.class).validate();
+  public ConfigResponse deserialize(String json) throws JsonProcessingException {
+    ConfigResponse resp = mapper().readValue(json, ConfigResponse.class);
+    resp.validate();
+    return resp;
   }
 }

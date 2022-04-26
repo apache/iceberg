@@ -23,17 +23,21 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTRequest;
 
 /**
  * A REST request to set and/or remove properties on a namespace.
  */
-public class UpdateNamespacePropertiesRequest {
+public class UpdateNamespacePropertiesRequest implements RESTRequest {
 
   private List<String> removals;
   private Map<String, String> updates;
@@ -48,8 +52,13 @@ public class UpdateNamespacePropertiesRequest {
     validate();
   }
 
-  UpdateNamespacePropertiesRequest validate() {
-    return this;
+  @Override
+  public void validate() {
+    Set<String> commonKeys = Sets.intersection(updates().keySet(), Sets.newHashSet(removals()));
+    if (!commonKeys.isEmpty()) {
+      throw new UnprocessableEntityException(
+          "Invalid namespace update, cannot simultaneously set and remove keys: %s", commonKeys);
+    }
   }
 
   public List<String> removals() {

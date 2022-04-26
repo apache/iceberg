@@ -1261,17 +1261,24 @@ public class TestSchemaUpdate {
   @Test
   public void testAddNestedIdentifierFieldColumns() {
     Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
-        .setIdentifierFields("preferences.feature1")
+        .allowIncompatibleChanges()
+        .addRequiredColumn("required_struct", Types.StructType.of(
+            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 2, "field", Types.StringType.get())
+        ))
+        .apply();
+
+    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2)
+        .setIdentifierFields("required_struct.field")
         .apply();
 
     Assert.assertEquals("set existing nested field as identifier should succeed",
-        Sets.newHashSet(newSchema.findField("preferences.feature1").fieldId()),
+        Sets.newHashSet(newSchema.findField("required_struct.field").fieldId()),
         newSchema.identifierFieldIds());
 
     newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .allowIncompatibleChanges()
         .addRequiredColumn("new", Types.StructType.of(
-            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 1, "field", Types.StringType.get())
+            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 2, "field", Types.StringType.get())
         ))
         .setIdentifierFields("new.field")
         .apply();
@@ -1283,8 +1290,8 @@ public class TestSchemaUpdate {
     newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .allowIncompatibleChanges()
         .addRequiredColumn("new", Types.StructType.of(
-            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 1, "field", Types.StructType.of(
-                Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 2, "nested", Types.StringType.get())))))
+            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 2, "field", Types.StructType.of(
+                Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 3, "nested", Types.StringType.get())))))
         .setIdentifierFields("new.field.nested")
         .apply();
 
@@ -1334,24 +1341,28 @@ public class TestSchemaUpdate {
 
   @Test
   public void testSetIdentifierFieldsFails() {
-
     Schema testSchema = new Schema(
         optional(1, "id", Types.IntegerType.get()),
         required(2, "float", Types.FloatType.get()),
         required(3, "double", Types.DoubleType.get())
     );
 
+    AssertHelpers.assertThrows("Creating schema with nonexistent identifier fieldId should fail",
+        IllegalArgumentException.class,
+        "Cannot add fieldId 999 as an identifier field: field does not exist",
+        () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)));
+
     AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
         IllegalArgumentException.class,
         "Cannot add field id as an identifier field: not a required field",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(1)));
 
-    AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
+    AssertHelpers.assertThrows("Creating schema with float identifier field should fail",
         IllegalArgumentException.class,
         "Cannot add field float as an identifier field: must not be float or double field",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)));
 
-    AssertHelpers.assertThrows("Creating schema with optional identifier field should fail",
+    AssertHelpers.assertThrows("Creating schema with double identifier field should fail",
         IllegalArgumentException.class,
         "Cannot add field double as an identifier field: must not be float or double field",
         () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)));
@@ -1396,22 +1407,34 @@ public class TestSchemaUpdate {
         .addRequiredColumn("col_float", Types.FloatType.get())
         .addRequiredColumn("col_double", Types.DoubleType.get())
         .addRequiredColumn("new", Types.StructType.of(
-            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 3, "fields", Types.ListType.ofOptional(
-                SCHEMA_LAST_COLUMN_ID + 4, Types.StructType.of(
-                    Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 5, "nested", Types.StringType.get())
+            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 4, "fields", Types.ListType.ofRequired(
+                SCHEMA_LAST_COLUMN_ID + 5, Types.StructType.of(
+                    Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 6, "nested", Types.StringType.get())
                 ))
             )
         ))
-        .addRequiredColumn("new_map", Types.MapType.ofRequired(SCHEMA_LAST_COLUMN_ID + 6, 11,
+        .addRequiredColumn("new_map", Types.MapType.ofRequired(SCHEMA_LAST_COLUMN_ID + 8, SCHEMA_LAST_COLUMN_ID + 9,
             Types.StructType.of(
-                required(SCHEMA_LAST_COLUMN_ID + 7, "key_col", Types.StringType.get())
+                required(SCHEMA_LAST_COLUMN_ID + 10, "key_col", Types.StringType.get())
             ),
             Types.StructType.of(
-                required(SCHEMA_LAST_COLUMN_ID + 8, "val_col", Types.StringType.get())
+                required(SCHEMA_LAST_COLUMN_ID + 11, "val_col", Types.StringType.get())
             )), "map of address to coordinate")
+        .addRequiredColumn("required_list", Types.ListType.ofRequired(SCHEMA_LAST_COLUMN_ID + 13,
+            Types.StructType.of(
+                required(SCHEMA_LAST_COLUMN_ID + 14, "x", Types.LongType.get()),
+                required(SCHEMA_LAST_COLUMN_ID + 15, "y", Types.LongType.get())
+            )))
         .apply();
 
-    int lastColId = SCHEMA_LAST_COLUMN_ID + 8;
+    int lastColId = SCHEMA_LAST_COLUMN_ID + 15;
+
+    AssertHelpers.assertThrows("add a nested field in list should fail",
+        IllegalArgumentException.class,
+        "must not be nested in " + newSchema.findField("required_list"),
+        () -> new SchemaUpdate(newSchema, lastColId)
+            .setIdentifierFields("required_list.element.x")
+            .apply());
 
     AssertHelpers.assertThrows("add a double field should fail",
         IllegalArgumentException.class,
@@ -1434,11 +1457,18 @@ public class TestSchemaUpdate {
             .setIdentifierFields("new_map.value.val_col")
             .apply());
 
-    AssertHelpers.assertThrows("add a nested field in struct of a map should fail",
+    AssertHelpers.assertThrows("add a nested field in struct of a list should fail",
         IllegalArgumentException.class,
         "must not be nested in " + newSchema.findField("new.fields"),
         () -> new SchemaUpdate(newSchema, lastColId)
             .setIdentifierFields("new.fields.element.nested")
+            .apply());
+
+    AssertHelpers.assertThrows("add a nested field in an optional struct should fail",
+        IllegalArgumentException.class,
+        "must not be nested in an optional field " + newSchema.findField("preferences"),
+        () -> new SchemaUpdate(newSchema, lastColId)
+            .setIdentifierFields("preferences.feature1")
             .apply());
   }
 
@@ -1472,6 +1502,24 @@ public class TestSchemaUpdate {
         "Cannot delete identifier field 1: id: required int. To force deletion, " +
             "also call setIdentifierFields to update identifier fields.",
         () -> new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID).deleteColumn("id").apply());
+  }
+
+  @Test
+  public void testDeleteContainingNestedIdentifierFieldColumnsFails() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .allowIncompatibleChanges()
+        .addRequiredColumn("out", Types.StructType.of(
+            Types.NestedField.required(SCHEMA_LAST_COLUMN_ID + 2, "nested", Types.StringType.get())
+        ))
+        .setIdentifierFields("out.nested")
+        .apply();
+
+    AssertHelpers.assertThrows(
+        "delete a struct with a nested identifier column without setting identifier fields should fail",
+        IllegalArgumentException.class,
+        "Cannot delete field 24: out: required struct<25: nested: required string> " +
+            "as it will delete nested identifier field 25: nested: required string",
+        () -> new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2).deleteColumn("out").apply());
   }
 
   @Test

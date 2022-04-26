@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.net.InetAddress;
@@ -37,7 +38,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
-import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
@@ -56,7 +56,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -71,6 +70,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -90,19 +90,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES = "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
+
+  // the max size is based on HMS backend database. For Hive versions below 2.3, the max table parameter size is 4000
+  // characters, see https://issues.apache.org/jira/browse/HIVE-12274
+  private static final String HIVE_TABLE_PROPERTY_MAX_SIZE = "iceberg.hive.table-property-max-size";
+  private static final long HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT = 32672;
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
-  private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
-      .impl(IMetaStoreClient.class, "alter_table_with_environmentContext",
-          String.class, String.class, Table.class, EnvironmentContext.class)
-      .impl(IMetaStoreClient.class, "alter_table",
-          String.class, String.class, Table.class, EnvironmentContext.class)
-      .impl(IMetaStoreClient.class, "alter_table",
-          String.class, String.class, Table.class)
-      .build();
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION = ImmutableBiMap.of(
       // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
       GC_ENABLED, "external.table.purge"
@@ -148,6 +145,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
+  private final long maxHiveTablePropertySize;
   private final int metadataRefreshMaxRetries;
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
@@ -168,6 +166,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
     this.metadataRefreshMaxRetries =
         conf.getInt(HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES, HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    this.maxHiveTablePropertySize = conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
@@ -314,10 +313,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients.run(client -> {
-        EnvironmentContext envContext = new EnvironmentContext(
-            ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
-        );
-        ALTER_TABLE.invoke(client, database, tableName, hmsTable, envContext);
+        MetastoreUtil.alterTable(client, database, tableName, hmsTable);
         return null;
       });
     } else {
@@ -402,7 +398,39 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
 
+    setSnapshotStats(metadata, parameters);
+
     tbl.setParameters(parameters);
+  }
+
+  private void setSnapshotStats(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_ID);
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP);
+    parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
+
+    Snapshot currentSnapshot = metadata.currentSnapshot();
+    if (currentSnapshot != null) {
+      parameters.put(TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
+      parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
+      setSnapshotSummary(parameters, currentSnapshot);
+    }
+
+    parameters.put(TableProperties.SNAPSHOT_COUNT, String.valueOf(metadata.snapshots().size()));
+  }
+
+  @VisibleForTesting
+  void setSnapshotSummary(Map<String, String> parameters, Snapshot currentSnapshot) {
+    try {
+      String summary = JsonUtil.mapper().writeValueAsString(currentSnapshot.summary());
+      if (summary.length() <= maxHiveTablePropertySize) {
+        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
+      } else {
+        LOG.warn("Not exposing the current snapshot({}) summary in HMS since it exceeds {} characters",
+            currentSnapshot.snapshotId(), maxHiveTablePropertySize);
+      }
+    } catch (JsonProcessingException e) {
+      LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
+    }
   }
 
   private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {

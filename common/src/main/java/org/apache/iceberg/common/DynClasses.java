@@ -38,6 +38,9 @@ public class DynClasses {
     private boolean nullOk = false;
     private Set<String> classNames = Sets.newLinkedHashSet();
 
+    private Builder() {
+    }
+
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.
      * <p>

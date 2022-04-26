@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -88,13 +87,13 @@ public class TestS3OutputStream {
   private final Random random = new Random(1);
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
   private final String newTmpDirectory = "/tmp/newStagingDirectory";
-  private final Set<Tag> tags = ImmutableSet.of(
-      Tag.builder().key("abc").value("123").build(),
-      Tag.builder().key("def").value("789").build());
 
   private final AwsProperties properties = new AwsProperties(ImmutableMap.of(
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
-      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
+      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString(),
+      "s3.write.tags.abc", "123",
+      "s3.write.tags.def", "789",
+      "s3.delete.tags.xyz", "456"));
 
   public TestS3OutputStream() throws IOException {
   }
@@ -122,8 +121,7 @@ public class TestS3OutputStream {
   public void testAbortAfterFailedPartUpload() {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(
-        s3mock, randomURI(), properties, nullMetrics(), tags)) {
+    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -134,8 +132,7 @@ public class TestS3OutputStream {
   public void testAbortMultipart() {
     doThrow(new RuntimeException()).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(
-        s3mock, randomURI(), properties, nullMetrics(), tags)) {
+    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -144,7 +141,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testMultipleClose() throws IOException {
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties, nullMetrics(), tags);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties, nullMetrics());
     stream.close();
     stream.close();
   }
@@ -153,8 +150,7 @@ public class TestS3OutputStream {
   public void testStagingDirectoryCreation() throws IOException {
     AwsProperties newStagingDirectoryAwsProperties = new AwsProperties(ImmutableMap.of(
         AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
-    S3OutputStream stream = new S3OutputStream(
-        s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics(), tags);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();
   }
 
@@ -239,7 +235,7 @@ public class TestS3OutputStream {
     if (properties.isS3ChecksumEnabled()) {
       List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
       String tagging = putObjectRequests.get(0).tagging();
-      assertEquals(getTags(tags), tagging);
+      assertEquals(getTags(properties.s3WriteTags()), tagging);
     }
   }
 
@@ -261,7 +257,7 @@ public class TestS3OutputStream {
   }
 
   private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
-    try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics(), tags)) {
+    try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());

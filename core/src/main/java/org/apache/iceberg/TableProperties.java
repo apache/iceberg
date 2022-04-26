@@ -48,6 +48,34 @@ public class TableProperties {
   public static final String UUID = "uuid";
 
   /**
+   * Reserved table property for the total number of snapshots.
+   * <p>
+   * This reserved property is used to store the total number of snapshots.
+   */
+  public static final String SNAPSHOT_COUNT = "snapshot-count";
+
+  /**
+   * Reserved table property for current snapshot summary.
+   * <p>
+   * This reserved property is used to store the current snapshot summary.
+   */
+  public static final String CURRENT_SNAPSHOT_SUMMARY = "current-snapshot-summary";
+
+  /**
+   * Reserved table property for current snapshot id.
+   * <p>
+   * This reserved property is used to store the current snapshot id.
+   */
+  public static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
+
+  /**
+   * Reserved table property for current snapshot timestamp.
+   * <p>
+   * This reserved property is used to store the current snapshot timestamp.
+   */
+  public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
+
+  /**
    * Reserved Iceberg table properties list.
    * <p>
    * Reserved table properties are only used to control behaviors when creating or updating a table.
@@ -55,7 +83,11 @@ public class TableProperties {
    */
   public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
       FORMAT_VERSION,
-      UUID
+      UUID,
+      SNAPSHOT_COUNT,
+      CURRENT_SNAPSHOT_ID,
+      CURRENT_SNAPSHOT_SUMMARY,
+      CURRENT_SNAPSHOT_TIMESTAMP
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
@@ -142,6 +174,18 @@ public class TableProperties {
   public static final String ORC_BLOCK_SIZE_BYTES = "write.orc.block-size-bytes";
   public static final String DELETE_ORC_BLOCK_SIZE_BYTES = "write.delete.orc.block-size-bytes";
   public static final long ORC_BLOCK_SIZE_BYTES_DEFAULT = 256L * 1024 * 1024; // 256 MB
+
+  public static final String ORC_WRITE_BATCH_SIZE = "write.orc.vectorized.batch-size";
+  public static final String DELETE_ORC_WRITE_BATCH_SIZE = "write.delete.orc.vectorized.batch-size";
+  public static final int ORC_WRITE_BATCH_SIZE_DEFAULT = 1024;
+
+  public static final String ORC_COMPRESSION = "write.orc.compression-codec";
+  public static final String DELETE_ORC_COMPRESSION = "write.delete.orc.compression-codec";
+  public static final String ORC_COMPRESSION_DEFAULT = "zlib";
+
+  public static final String ORC_COMPRESSION_STRATEGY = "write.orc.compression-strategy";
+  public static final String DELETE_ORC_COMPRESSION_STRATEGY = "write.delete.orc.compression-strategy";
+  public static final String ORC_COMPRESSION_STRATEGY_DEFAULT = "speed";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB

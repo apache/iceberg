@@ -58,7 +58,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -422,6 +422,52 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertTrue("Should be unpartitioned", table.spec().isUnpartitioned());
     Assert.assertTrue("Should be unsorted", table.sortOrder().isUnsorted());
     Assert.assertNotNull("Should have table properties", table.properties());
+  }
+
+  @Test
+  public void testTableNameWithSlash() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(Namespace.of("ns"));
+    }
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    Table loaded = catalog.loadTable(ident);
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+
+    catalog.dropTable(ident);
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+  }
+
+  @Test
+  public void testTableNameWithDot() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "ta.ble");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(Namespace.of("ns"));
+    }
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    Table loaded = catalog.loadTable(ident);
+    Assert.assertEquals("Schema should match expected ID assignment",
+        TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+
+    catalog.dropTable(ident);
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
   }
 
   @Test
@@ -1207,7 +1253,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        CommitFailedException.class, "Table already exists", createOrReplace::commitTransaction);
+        AlreadyExistsException.class, "Table already exists", createOrReplace::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);

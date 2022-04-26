@@ -21,12 +21,12 @@ package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3ObjectMetadata;
+import com.emc.object.shadow.org.apache.commons.codec.digest.DigestUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.apache.commons.codec.digest.DigestUtils;
 
 /**
  * Object data in memory.

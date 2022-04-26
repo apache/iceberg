@@ -201,6 +201,9 @@ public class DynFields {
     private final Set<String> candidates = Sets.newHashSet();
     private boolean defaultAlwaysNull = false;
 
+    private Builder() {
+    }
+
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.
      * <p>

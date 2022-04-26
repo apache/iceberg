@@ -377,7 +377,7 @@ public class AvroSchemaUtil {
   }
 
   static Schema replaceElement(Schema array, Schema elementSchema) {
-    Preconditions.checkArgument(array.getType() == org.apache.avro.Schema.Type.ARRAY,
+    Preconditions.checkArgument(array.getType() == ARRAY,
         "Cannot invoke replaceElement on non array schema: %s", array);
     Schema copy = Schema.createArray(elementSchema);
     for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
@@ -387,7 +387,7 @@ public class AvroSchemaUtil {
   }
 
   static Schema replaceValue(Schema map, Schema valueSchema) {
-    Preconditions.checkArgument(map.getType() == org.apache.avro.Schema.Type.MAP,
+    Preconditions.checkArgument(map.getType() == MAP,
         "Cannot invoke replaceValue on non map schema: %s", map);
     Schema copy = Schema.createMap(valueSchema);
     for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {

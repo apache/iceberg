@@ -67,6 +67,10 @@ abstract class BaseTableScan implements TableScan {
     return ops;
   }
 
+  protected Schema tableSchema() {
+    return schema;
+  }
+
   protected Long snapshotId() {
     return context.snapshotId();
   }
@@ -83,22 +87,23 @@ abstract class BaseTableScan implements TableScan {
     return context.selectedColumns();
   }
 
+  protected ExecutorService planExecutor() {
+    return context.planExecutor();
+  }
+
   protected Map<String, String> options() {
     return context.options();
   }
 
-  protected  TableScanContext context() {
+  protected TableScanContext context() {
     return context;
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
-  protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Schema schema, TableScanContext context);
+  protected abstract TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
+                                              TableScanContext context);
 
-  @SuppressWarnings("checkstyle:HiddenField")
-  protected abstract CloseableIterable<FileScanTask> planFiles(
-      TableOperations ops, Snapshot snapshot, Expression rowFilter,
-      boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
+  protected abstract CloseableIterable<FileScanTask> doPlanFiles();
 
   @Override
   public Table table() {
@@ -122,56 +127,49 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(context.snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", context.snapshotId());
+    Preconditions.checkArgument(snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
-    return newRefinedScan(
-        ops, table, schema, context.useSnapshotId(scanSnapshotId));
+    return newRefinedScan(ops, table, schema, context.useSnapshotId(scanSnapshotId));
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkArgument(context.snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", context.snapshotId());
+    Preconditions.checkArgument(snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", snapshotId());
 
     return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
   }
 
   @Override
   public TableScan option(String property, String value) {
-    return newRefinedScan(
-        ops, table, schema, context.withOption(property, value));
+    return newRefinedScan(ops, table, schema, context.withOption(property, value));
   }
 
   @Override
   public TableScan project(Schema projectedSchema) {
-    return newRefinedScan(
-        ops, table, schema, context.project(projectedSchema));
+    return newRefinedScan(ops, table, schema, context.project(projectedSchema));
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
-    return newRefinedScan(
-        ops, table, schema, context.setCaseSensitive(scanCaseSensitive));
+    return newRefinedScan(ops, table, schema, context.setCaseSensitive(scanCaseSensitive));
   }
 
   @Override
   public TableScan includeColumnStats() {
-    return newRefinedScan(
-        ops, table, schema, context.shouldReturnColumnStats(true));
+    return newRefinedScan(ops, table, schema, context.shouldReturnColumnStats(true));
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return newRefinedScan(
-        ops, table, schema, context.selectColumns(columns));
+    return newRefinedScan(ops, table, schema, context.selectColumns(columns));
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(ops, table, schema,
-        context.filterRows(Expressions.and(context.rowFilter(), expr)));
+    return newRefinedScan(ops, table, schema, context.filterRows(Expressions.and(filter(), expr)));
   }
 
   @Override
@@ -181,8 +179,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan ignoreResiduals() {
-    return newRefinedScan(
-        ops, table, schema, context.ignoreResiduals(true));
+    return newRefinedScan(ops, table, schema, context.ignoreResiduals(true));
   }
 
   @Override
@@ -191,13 +188,11 @@ abstract class BaseTableScan implements TableScan {
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), DateTimeUtil.formatTimestampMillis(snapshot.timestampMillis()),
-          context.rowFilter());
+          filter());
 
-      Listeners.notifyAll(
-          new ScanEvent(table.name(), snapshot.snapshotId(), context.rowFilter(), schema()));
+      Listeners.notifyAll(new ScanEvent(table.name(), snapshot.snapshotId(), filter(), schema()));
 
-      return planFiles(ops, snapshot,
-          context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());
+      return doPlanFiles();
 
     } else {
       LOG.info("Scanning empty table {}", table);
@@ -235,8 +230,8 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public Snapshot snapshot() {
-    return context.snapshotId() != null ?
-        ops.current().snapshot(context.snapshotId()) :
+    return snapshotId() != null ?
+        ops.current().snapshot(snapshotId()) :
         ops.current().currentSnapshot();
   }
 
@@ -250,9 +245,9 @@ abstract class BaseTableScan implements TableScan {
     return MoreObjects.toStringHelper(this)
         .add("table", table)
         .add("projection", schema().asStruct())
-        .add("filter", context.rowFilter())
-        .add("ignoreResiduals", context.ignoreResiduals())
-        .add("caseSensitive", context.caseSensitive())
+        .add("filter", filter())
+        .add("ignoreResiduals", shouldIgnoreResiduals())
+        .add("caseSensitive", isCaseSensitive())
         .toString();
   }
 
@@ -263,21 +258,20 @@ abstract class BaseTableScan implements TableScan {
    * @return the Schema to project
    */
   private Schema lazyColumnProjection() {
-    Collection<String> selectedColumns = context.selectedColumns();
-    if (selectedColumns != null) {
+    if (selectedColumns() != null) {
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
       // all of the filter columns are required
       requiredFieldIds.addAll(
           Binder.boundReferences(schema.asStruct(),
-              Collections.singletonList(context.rowFilter()), context.caseSensitive()));
+              Collections.singletonList(filter()), isCaseSensitive()));
 
       // all of the projection columns are required
       Set<Integer> selectedIds;
-      if (context.caseSensitive()) {
-        selectedIds = TypeUtil.getProjectedIds(schema.select(selectedColumns));
+      if (isCaseSensitive()) {
+        selectedIds = TypeUtil.getProjectedIds(schema.select(selectedColumns()));
       } else {
-        selectedIds = TypeUtil.getProjectedIds(schema.caseInsensitiveSelect(selectedColumns));
+        selectedIds = TypeUtil.getProjectedIds(schema.caseInsensitiveSelect(selectedColumns()));
       }
       requiredFieldIds.addAll(selectedIds);
 

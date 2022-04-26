@@ -80,4 +80,121 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    * wapId
    */
   ManageSnapshots cherrypick(long snapshotId);
+
+  /**
+   * Create a new branch pointing to the given snapshot id.
+   *
+   * @param name branch name
+   * @param snapshotId id of the snapshot which will be the head of the branch
+   * @return this for method chaining
+   * @throws IllegalArgumentException if a branch with the given name already exists
+   */
+  ManageSnapshots createBranch(String name, long snapshotId);
+
+  /**
+   * Create a new tag pointing to the given snapshot id
+   *
+   * @param name tag name
+   * @param snapshotId snapshotId for the head of the new branch.
+   * @return this for method chaining
+   * @throws IllegalArgumentException if a tag with the given name already exists
+   */
+  ManageSnapshots createTag(String name, long snapshotId);
+
+  /**
+   * Remove a branch by name
+   *
+   * @param name branch name
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the branch does not exist
+   */
+  ManageSnapshots removeBranch(String name);
+
+  /**
+   * Rename a branch
+   *
+   * @param name name of branch to rename
+   * @param newName the desired new name of the branch
+   * @throws IllegalArgumentException if the branch to rename does not exist or if there is already a branch
+   * with the same name as the desired new name.
+   */
+  ManageSnapshots renameBranch(String name, String newName);
+
+  /**
+   * Remove the tag with the given name.
+   *
+   * @param name tag name
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the branch does not exist
+   */
+  ManageSnapshots removeTag(String name);
+
+  /**
+   * Replaces the tag with the given name to point to the specified snapshot.
+   *
+   * @param name Tag to replace
+   * @param snapshotId new snapshot id for the given tag
+   * @return this for method chaining
+   */
+  ManageSnapshots replaceTag(String name, long snapshotId);
+
+  /**
+   * Replaces the branch with the given name to point to the specified snapshot
+   *
+   * @param name Branch to replace
+   * @param snapshotId new snapshot id for the given branch
+   * @return this for method chaining
+   */
+  ManageSnapshots replaceBranch(String name, long snapshotId);
+
+  /**
+   * Replaces the branch with the given name to point to the source snapshot.
+   * The source branch will remain unchanged, the target branch will retain its retention properties.
+   *
+   * @param name Branch to replace
+   * @param source Source reference for the target to be replaced with
+   * @return this for method chaining
+   */
+  ManageSnapshots replaceBranch(String name, String source);
+
+  /**
+   * Performs a fast-forward of the given target branch up to the source snapshot if target is an ancestor of source.
+   * The source branch will remain unchanged, the target branch will retain its retention properties.
+   *
+   * @param name Branch to fast-forward
+   * @param source Source reference for the target to be fast forwarded to
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the target branch is not an ancestor of source
+   */
+  ManageSnapshots fastForwardBranch(String name, String source);
+
+  /**
+   * Updates the minimum number of snapshots to keep for a branch.
+   *
+   * @param branchName branch name
+   * @param minSnapshotsToKeep minimum number of snapshots to retain on the branch
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the branch does not exist
+   */
+  ManageSnapshots setMinSnapshotsToKeep(String branchName, int minSnapshotsToKeep);
+
+  /**
+   * Updates the max snapshot age for a branch.
+   *
+   * @param branchName branch name
+   * @param maxSnapshotAgeMs maximum snapshot age in milliseconds to retain on branch
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the branch does not exist
+   */
+  ManageSnapshots setMaxSnapshotAgeMs(String branchName, long maxSnapshotAgeMs);
+
+  /**
+   * Updates the retention policy for a reference.
+   *
+   * @param name branch name
+   * @param maxRefAgeMs retention age in milliseconds of the tag reference itself
+   * @return this for method chaining
+   * @throws IllegalArgumentException if the reference does not exist
+   */
+  ManageSnapshots setMaxRefAgeMs(String name, long maxRefAgeMs);
 }

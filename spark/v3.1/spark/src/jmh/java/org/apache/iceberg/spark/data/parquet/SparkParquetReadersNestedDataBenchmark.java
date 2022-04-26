@@ -59,9 +59,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * A benchmark that evaluates the performance of reading nested Parquet data using
  * Iceberg and Spark Parquet readers.
  *
- * To run this benchmark for either spark-2 or spark-3:
+ * To run this benchmark for spark-3.1:
  * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
+ *   ./gradlew -DsparkVersions=3.1 :iceberg-spark:iceberg-spark-3.1_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetReadersNestedDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-readers-nested-data-benchmark-result.txt
  * </code>

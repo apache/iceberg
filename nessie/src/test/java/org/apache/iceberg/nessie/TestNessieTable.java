@@ -92,7 +92,6 @@ public class TestNessieTable extends BaseTestIceberg {
     // drop the table data
     if (tableLocation != null) {
       tableLocation.getFileSystem(hadoopConfig).delete(tableLocation, true);
-      catalog.refresh();
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -338,7 +337,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            "Commit failed: Reference hash is out of date. Update the reference iceberg-table-test and try again");
+            "Cannot commit: Reference hash is out of date. Update the reference 'iceberg-table-test' and try again");
   }
 
   @Test

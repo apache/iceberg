@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.aws.s3;
 
+import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 
@@ -89,5 +91,18 @@ public class TestS3URI {
       assertEquals("bucket", uri.bucket());
       assertEquals("path/to/file", uri.key());
     }
+  }
+
+  @Test
+  public void testS3URIWithBucketToAccessPointMapping() {
+    String p1 = "s3://bucket/path/to/file?query=foo#bar";
+    Map<String, String> bucketToAccessPointMapping = ImmutableMap.of(
+        "bucket", "access-point"
+    );
+    S3URI uri1 = new S3URI(p1, bucketToAccessPointMapping);
+
+    assertEquals("access-point", uri1.bucket());
+    assertEquals("path/to/file", uri1.key());
+    assertEquals(p1, uri1.toString());
   }
 }

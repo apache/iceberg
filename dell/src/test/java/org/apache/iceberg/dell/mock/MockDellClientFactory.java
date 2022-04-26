@@ -22,23 +22,27 @@ package org.apache.iceberg.dell.mock;
 import com.emc.object.s3.S3Client;
 import java.util.Map;
 import org.apache.iceberg.dell.DellClientFactory;
-import org.apache.iceberg.dell.DellProperties;
-import org.apache.iceberg.dell.mock.ecs.MockS3Client;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 
+/**
+ * Provide client which initialized by {@link EcsS3MockRule}
+ */
 public class MockDellClientFactory implements DellClientFactory {
 
-  public static final Map<String, String> MOCK_ECS_CLIENT_PROPERTIES = ImmutableMap.of(
-      DellProperties.CLIENT_FACTORY,
-      MockDellClientFactory.class.getName()
-  );
+  public static final String ID_KEY = "mock.dell.client.factory.id";
+
+  /**
+   * Use ID to avoid using client in other instance.
+   */
+  private String id;
 
   @Override
   public S3Client ecsS3() {
-    return new MockS3Client();
+    return EcsS3MockRule.rule(id).client();
   }
 
   @Override
   public void initialize(Map<String, String> properties) {
+    this.id = properties.get(ID_KEY);
   }
 }

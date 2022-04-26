@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -32,41 +31,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
-import org.projectnessie.model.EntriesResponse;
 import org.projectnessie.model.ImmutableCommitMeta;
 
 public final class NessieUtil {
 
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
-  public static final String CONFIG_CLIENT_BUILDER_IMPL = NESSIE_CONFIG_PREFIX + "client-builder-impl";
-
   static final String APPLICATION_TYPE = "application-type";
 
   private NessieUtil() {
-  }
-
-  static Predicate<EntriesResponse.Entry> namespacePredicate(Namespace ns) {
-    // TODO: filter to just iceberg tables.
-    if (ns == null) {
-      return e -> true;
-    }
-
-    final List<String> namespace = Arrays.asList(ns.levels());
-    Predicate<EntriesResponse.Entry> predicate = e -> {
-      List<String> names = e.getName().getElements();
-
-      if (names.size() <= namespace.size()) {
-        return false;
-      }
-
-      return namespace.equals(names.subList(0, namespace.size()));
-    };
-    return predicate;
-  }
-
-  static TableIdentifier toIdentifier(EntriesResponse.Entry entry) {
-    List<String> elements = entry.getName().getElements();
-    return TableIdentifier.of(elements.toArray(new String[elements.size()]));
   }
 
   static TableIdentifier removeCatalogName(TableIdentifier to, String name) {

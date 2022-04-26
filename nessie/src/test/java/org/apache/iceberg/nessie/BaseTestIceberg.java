@@ -55,6 +55,7 @@ import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
+import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -72,7 +73,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter
+  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
   static DatabaseAdapter databaseAdapter;
   @RegisterExtension
   static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);

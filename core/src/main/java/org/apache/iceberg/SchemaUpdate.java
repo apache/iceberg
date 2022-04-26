@@ -439,12 +439,21 @@ class SchemaUpdate implements UpdateSchema {
                                      Multimap<Integer, Move> moves,
                                      Set<String> identifierFieldNames) {
     // validate existing identifier fields are not deleted
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+
     for (String name : identifierFieldNames) {
       Types.NestedField field = schema.findField(name);
       if (field != null) {
         Preconditions.checkArgument(!deletes.contains(field.fieldId()),
             "Cannot delete identifier field %s. To force deletion, " +
                 "also call setIdentifierFields to update identifier fields.", field);
+        Integer parentId = idToParent.get(field.fieldId());
+        while (parentId != null) {
+          Preconditions.checkArgument(!deletes.contains(parentId),
+              "Cannot delete field %s as it will delete nested identifier field %s",
+              schema.findField(parentId), field);
+          parentId = idToParent.get(parentId);
+        }
       }
     }
 
@@ -462,7 +471,6 @@ class SchemaUpdate implements UpdateSchema {
       freshIdentifierFieldIds.add(nameToId.get(name));
     }
 
-    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
     Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(struct);
     freshIdentifierFieldIds.forEach(id -> Schema.validateIdentifierField(id, idToField, idToParent));
 

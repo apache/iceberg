@@ -40,11 +40,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,16 +66,11 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 @SuppressWarnings("UnnecessaryAnonymousClass")
 public class BaseExpireSnapshotsSparkAction
     extends BaseSparkAction<ExpireSnapshots, ExpireSnapshots.Result> implements ExpireSnapshots {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
 
   public static final String STREAM_RESULTS = "stream-results";
+  public static final boolean STREAM_RESULTS_DEFAULT = false;
 
-  private static final String CONTENT_FILE = "Content File";
-  private static final String MANIFEST = "Manifest";
-  private static final String MANIFEST_LIST = "Manifest List";
-
-  // Creates an executor service that runs each task in the thread that invokes execute/submit.
-  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
+  private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
 
   private final Table table;
   private final TableOperations ops;
@@ -92,7 +85,7 @@ public class BaseExpireSnapshotsSparkAction
   private Long expireOlderThanValue = null;
   private Integer retainLastValue = null;
   private Consumer<String> deleteFunc = defaultDelete;
-  private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private ExecutorService deleteExecutorService = null;
   private Dataset<Row> expiredFiles = null;
 
   public BaseExpireSnapshotsSparkAction(SparkSession spark, Table table) {
@@ -212,7 +205,7 @@ public class BaseExpireSnapshotsSparkAction
   }
 
   private ExpireSnapshots.Result doExecute() {
-    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
+    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
     if (streamResults) {
       return deleteFiles(expire().toLocalIterator());
     } else {
@@ -220,15 +213,11 @@ public class BaseExpireSnapshotsSparkAction
     }
   }
 
-  private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
-    return ds.select(new Column("file_path"), functions.lit(type).as("file_type"));
-  }
-
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, this.table.io());
-    return appendTypeString(buildValidContentFileDF(staticTable), CONTENT_FILE)
-        .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
+    Table staticTable = newStaticTable(metadata, table.io());
+    return withFileType(buildValidContentFileDF(staticTable), CONTENT_FILE)
+        .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
+        .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
 
   /**

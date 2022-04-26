@@ -229,7 +229,7 @@ public class TestTables {
     @Override
     public LocationProvider locationProvider() {
       Preconditions.checkNotNull(current,
-          "Current metadata should not be null when locatinProvider is called");
+          "Current metadata should not be null when locationProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }
 

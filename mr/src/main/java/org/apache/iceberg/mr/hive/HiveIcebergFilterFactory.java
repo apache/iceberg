@@ -46,7 +46,6 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.or;
 
-
 public class HiveIcebergFilterFactory {
 
   private HiveIcebergFilterFactory() {

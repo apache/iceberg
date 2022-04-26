@@ -98,15 +98,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CatalogConfiguration'
+                $ref: '#/components/schemas/CatalogConfig'
               example: {
-                "data": {
-                  "overrides": {
-                    "warehouse": "s3://bucket/warehouse/"
-                  },
-                  "defaults": {
-                    "clients": "4"
-                  }
+                "overrides": {
+                  "warehouse": "s3://bucket/warehouse/"
+                },
+                "defaults": {
+                  "clients": "4"
                 }
               }
         400:
@@ -115,6 +113,12 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/namespaces:
 
@@ -158,6 +162,10 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -194,6 +202,10 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -225,6 +237,10 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -234,8 +250,8 @@ paths:
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
       responses:
-        200:
-          $ref: '#/components/responses/DropNamespaceResponse'
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -251,6 +267,10 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -308,6 +328,10 @@ paths:
               examples:
                 UnprocessableEntityDuplicateKey:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -339,6 +363,10 @@ paths:
               examples:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -346,7 +374,19 @@ paths:
       tags:
         - Catalog API
       summary: Create a table in the given namespace
-      description: Create table
+      description:
+        Create a table or start a create transaction, like atomic CTAS.
+
+
+        If `stage-create` is false, the table is created immediately.
+
+
+        If `stage-create` is true, the table is not created, but table metadata is initialized and returned.
+        The service should prepare as needed for a commit to the table commit endpoint to complete the create
+        transaction. The client uses the returned metadata to begin a transaction. To commit the transaction,
+        the client sends all create and subsequent changes to the table commit route. Changes from the table
+        create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
+        table state.
       operationId: createTable
       requestBody:
         content:
@@ -380,6 +420,10 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -420,6 +464,10 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -431,13 +479,21 @@ paths:
       description:
         Commit updates to a table.
 
+
         Commits have two parts, requirements and updates. Requirements are assertions that will be validated
         before attempting to make and commit changes. For example, `assert-ref-snapshot-id` will check that a
         named ref's snapshot ID has a certain value.
 
+
         Updates are changes to make to table metadata. For example, after asserting that the current main ref
         is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
         snapshot id.
+
+
+        Create table transactions that are started by createTable with `stage-create` set to true are
+        committed using this route. Transactions should include all changes to the table, including table
+        initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
+        used to ensure that the table was not created concurrently.
       requestBody:
         content:
           application/json:
@@ -469,12 +525,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-        5XX:
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
           description:
-            A server-side problem that might not be addressable from the client side.
-
-            Error codes 500 and 504 indicate that the commit state is unknown and the client should
-            check the table state before considering the commit successful or failed.
+            An unknown server-side problem occurred; the commit state is unknown.
           content:
             application/json:
               schema:
@@ -482,8 +537,38 @@ paths:
               example: {
                 "error": {
                   "message": "Internal Server Error",
-                  "type": "InternalServerError",
+                  "type": "CommitStateUnknownException",
                   "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        504:
+          description:
+            A server-side gateway timeout occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
+                }
+              }
+        5XX:
+          description:
+            A server-side problem that might not be addressable on the client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
                 }
               }
 
@@ -502,8 +587,8 @@ paths:
             type: boolean
             default: false
       responses:
-        200:
-          $ref: '#/components/responses/DropTableResponse'
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -520,6 +605,10 @@ paths:
               examples:
                 TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -539,6 +628,12 @@ paths:
           description: Unauthorized
         404:
           description: Not Found
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/tables/rename:
 
@@ -593,6 +688,10 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
               example:
                 $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
@@ -651,8 +750,12 @@ components:
           maximum: 600
           description: HTTP response code
           example: 404
+        stack:
+          type: array
+          items:
+            type: string
 
-    CatalogConfiguration:
+    CatalogConfig:
       type: object
       description: Server-provided configuration for the catalog.
       required:
@@ -910,6 +1013,7 @@ components:
         - snapshot-id
         - timestamp-ms
         - manifest-list
+        - summary
       properties:
         snapshot-id:
           type: integer
@@ -923,9 +1027,9 @@ components:
         summary:
           type: object
           required:
-            - summary
+            - operation
           properties:
-            summary:
+            operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:
@@ -1323,6 +1427,8 @@ components:
           $ref: '#/components/schemas/PartitionSpec'
         write-order:
           $ref: '#/components/schemas/SortOrder'
+        stage-create:
+          type: boolean
         properties:
           type: object
           additionalProperties:
@@ -1446,38 +1552,6 @@ components:
             "properties": { "owner": "Ralph", "created_at": "1452120468" }
           }
 
-    DropTableResponse:
-      description: A successful call to drop a table
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              dropped:
-                type: boolean
-                description: true if the table was found and removed from the catalog
-              purged:
-                type: boolean
-                description: whether the underlying data was purged or is being purged
-          example: {
-            "dropped": true,
-            "purged": false
-          }
-
-    DropNamespaceResponse:
-      description: A successful call to drop a namespace
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              dropped:
-                description: true if the namespace was dropped
-                type: boolean
-          example: {
-            "dropped": true
-          }
-
     GetNamespaceResponse:
       description:
         Returns a namespace, as well as any properties stored on the namespace if namespace properties
@@ -1537,9 +1611,44 @@ components:
             EmptyResponse:
               $ref: '#/components/examples/ListNamespacesEmptyExample'
 
+    AuthenticationTimeoutResponse:
+      description:
+        Credentials have timed out. If possible, the client should refresh credentials and retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorModel'
+          example: {
+            "error": {
+              "message": "Credentials have timed out",
+              "type": "AuthenticationTimeoutException",
+              "code": 419
+            }
+          }
+
+    ServiceUnavailableResponse:
+      description:
+        The service is not ready to handle the request. The client should wait and retry.
+
+
+        The service may additionally send a Retry-After header to indicate when to retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorModel'
+          example: {
+            "error": {
+              "message": "Slow down",
+              "type": "SlowDownException",
+              "code": 503
+            }
+          }
+
     ServerErrorResponse:
       description:
-        A server-side problem that might not be addressable from the client side. Used for server 5xx errors.
+        A server-side problem that might not be addressable from the client
+        side. Used for server 5xx errors without more specific documentation in
+        individual routes.
       content:
         application/json:
           schema:

@@ -30,8 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTRequest;
 
-public class UpdateTableRequest {
+public class UpdateTableRequest implements RESTRequest {
 
   private List<UpdateRequirement> requirements;
   private List<MetadataUpdate> updates;
@@ -43,6 +44,10 @@ public class UpdateTableRequest {
   public UpdateTableRequest(List<UpdateRequirement> requirements, List<MetadataUpdate> updates) {
     this.requirements = requirements;
     this.updates = updates;
+  }
+
+  @Override
+  public void validate() {
   }
 
   public List<UpdateRequirement> requirements() {

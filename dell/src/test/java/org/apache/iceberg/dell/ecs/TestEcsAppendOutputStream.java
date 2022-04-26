@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -40,7 +41,8 @@ public class TestEcsAppendOutputStream {
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.client(),
         new EcsURI(rule.bucket(), objectName),
-        10)) {
+        10,
+        MetricsContext.nullMetrics())) {
       // write 1 byte
       output.write('1');
       // write 3 bytes
@@ -64,7 +66,8 @@ public class TestEcsAppendOutputStream {
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.client(),
         new EcsURI(rule.bucket(), objectName),
-        10)) {
+        10,
+        MetricsContext.nullMetrics())) {
       // write 7 bytes
       output.write("7654321".getBytes());
     }
@@ -72,7 +75,8 @@ public class TestEcsAppendOutputStream {
     try (EcsAppendOutputStream output = EcsAppendOutputStream.createWithBufferSize(
         rule.client(),
         new EcsURI(rule.bucket(), objectName),
-        10)) {
+        10,
+        MetricsContext.nullMetrics())) {
       // write 14 bytes
       output.write("1234567".getBytes());
       output.write("1234567".getBytes());

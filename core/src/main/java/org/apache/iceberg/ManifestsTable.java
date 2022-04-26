@@ -20,7 +20,9 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 
@@ -44,15 +46,12 @@ public class ManifestsTable extends BaseMetadataTable {
       )))
   );
 
-  private final PartitionSpec spec;
-
   ManifestsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".manifests");
   }
 
   ManifestsTable(TableOperations ops, Table table, String name) {
     super(ops, table, name);
-    this.spec = table.spec();
   }
 
   @Override
@@ -73,16 +72,21 @@ public class ManifestsTable extends BaseMetadataTable {
   protected DataTask task(TableScan scan) {
     TableOperations ops = operations();
     String location = scan.snapshot().manifestListLocation();
+    Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
+
     return StaticDataTask.of(
         ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
         schema(), scan.schema(), scan.snapshot().allManifests(),
-        manifest -> ManifestsTable.manifestFileToRow(spec, manifest)
+        manifest -> {
+          PartitionSpec spec = specs.get(manifest.partitionSpecId());
+          return ManifestsTable.manifestFileToRow(spec, manifest);
+        }
     );
   }
 
   private class ManifestsTableScan extends StaticTableScan {
     ManifestsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, ManifestsTable.this.metadataTableType().name(), ManifestsTable.this::task);
+      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.MANIFESTS, ManifestsTable.this::task);
     }
   }
 

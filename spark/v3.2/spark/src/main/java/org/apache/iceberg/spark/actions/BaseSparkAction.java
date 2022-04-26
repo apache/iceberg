@@ -50,8 +50,19 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.lit;
 
 abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
+
+  protected static final String CONTENT_FILE = "Content File";
+  protected static final String MANIFEST = "Manifest";
+  protected static final String MANIFEST_LIST = "Manifest List";
+  protected static final String OTHERS = "Others";
+
+  protected static final String FILE_PATH = "file_path";
+  protected static final String FILE_TYPE = "file_type";
+  protected static final String LAST_MODIFIED = "last_modified";
 
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
 
@@ -122,23 +133,31 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
         .as(Encoders.bean(ManifestFileBean.class));
 
-    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
+    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF(FILE_PATH);
   }
 
   protected Dataset<Row> buildManifestFileDF(Table table) {
-    return loadMetadataTable(table, ALL_MANIFESTS).selectExpr("path as file_path");
+    return loadMetadataTable(table, ALL_MANIFESTS).select(col("path").as(FILE_PATH));
   }
 
   protected Dataset<Row> buildManifestListDF(Table table) {
     List<String> manifestLists = ReachableFileUtil.manifestListLocations(table);
-    return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
+    return spark.createDataset(manifestLists, Encoders.STRING()).toDF(FILE_PATH);
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
+    return buildOtherMetadataFileDF(table, false /* include all reachable previous metadata locations */);
+  }
+
+  protected Dataset<Row> buildAllReachableOtherMetadataFileDF(Table table) {
+    return buildOtherMetadataFileDF(table, true /* include all reachable previous metadata locations */);
+  }
+
+  private Dataset<Row> buildOtherMetadataFileDF(Table table, boolean includePreviousMetadataLocations) {
     List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, false));
+    otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, includePreviousMetadataLocations));
     otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
-    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
+    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF(FILE_PATH);
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(Table table) {
@@ -147,6 +166,10 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(table);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
+  }
+
+  protected Dataset<Row> withFileType(Dataset<Row> ds, String type) {
+    return ds.withColumn(FILE_TYPE, lit(type));
   }
 
   protected Dataset<Row> loadMetadataTable(Table table, MetadataTableType type) {

@@ -28,6 +28,8 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.RandomAvroData;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InMemoryOutputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -65,11 +67,11 @@ public class TestScansAndSchemaEvolution {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private DataFile createDataFile(File dataPath, String partValue) throws IOException {
+  private DataFile createDataFile(String partValue) throws IOException {
     List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
 
-    File dataFile = new File(dataPath, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(dataFile))
+    OutputFile dataFile = new InMemoryOutputFile(FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+    try (FileAppender<GenericData.Record> writer = Avro.write(dataFile)
         .schema(SCHEMA)
         .named("test")
         .build()) {
@@ -82,7 +84,7 @@ public class TestScansAndSchemaEvolution {
     PartitionData partition = new PartitionData(SPEC.partitionType());
     partition.set(0, partValue);
     return DataFiles.builder(SPEC)
-        .withInputFile(Files.localInput(dataFile))
+        .withInputFile(dataFile.toInputFile())
         .withPartition(partition)
         .withRecordCount(100)
         .build();
@@ -96,13 +98,12 @@ public class TestScansAndSchemaEvolution {
   @Test
   public void testPartitionSourceRename() throws IOException {
     File location = temp.newFolder();
-    File dataLocation = new File(location, "data");
     Assert.assertTrue(location.delete()); // should be created by table create
 
     Table table = TestTables.create(location, "test", SCHEMA, SPEC, formatVersion);
 
-    DataFile fileOne = createDataFile(dataLocation, "one");
-    DataFile fileTwo = createDataFile(dataLocation, "two");
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
 
     table.newAppend()
         .appendFile(fileOne)

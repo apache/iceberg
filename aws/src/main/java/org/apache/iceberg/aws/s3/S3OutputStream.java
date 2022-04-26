@@ -105,7 +105,7 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics, Set<Tag> writeTags)
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
       throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
@@ -124,7 +124,7 @@ class S3OutputStream extends PositionOutputStream {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
-    this.writeTags = writeTags;
+    this.writeTags = awsProperties.s3WriteTags();
 
     this.createStack = Thread.currentThread().getStackTrace();
 
@@ -260,7 +260,7 @@ class S3OutputStream extends PositionOutputStream {
     CreateMultipartUploadRequest.Builder requestBuilder = CreateMultipartUploadRequest.builder()
         .bucket(location.bucket())
         .key(location.key());
-    if (!writeTags.isEmpty()) {
+    if (writeTags != null && !writeTags.isEmpty()) {
       requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
     }
 
@@ -378,7 +378,7 @@ class S3OutputStream extends PositionOutputStream {
           .bucket(location.bucket())
           .key(location.key());
 
-      if (!writeTags.isEmpty()) {
+      if (writeTags != null && !writeTags.isEmpty()) {
         requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
       }
 

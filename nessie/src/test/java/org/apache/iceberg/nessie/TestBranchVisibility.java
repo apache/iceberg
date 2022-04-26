@@ -22,6 +22,7 @@ package org.apache.iceberg.nessie;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -62,7 +63,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void before() throws NessieNotFoundException, NessieConflictException {
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
-    catalog.refresh();
     createBranch("test", catalog.currentHash());
     testCatalog = initCatalog("test");
   }
@@ -71,7 +71,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void after() throws NessieNotFoundException, NessieConflictException {
     catalog.dropTable(tableIdentifier1);
     catalog.dropTable(tableIdentifier2);
-    catalog.refresh();
     for (Reference reference : api.getAllReferences().get().getReferences()) {
       if (!reference.getName().equals("main")) {
         api.deleteBranch().branch((Branch) reference).delete();
@@ -146,7 +145,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String metadataOnTest = addRow(catalog, tableIdentifier1, "initial-data",
         ImmutableMap.of("id0", 4L));
     long snapshotIdOnTest = snapshotIdFromMetadata(catalog, metadataOnTest);
-    catalog.refresh();
 
     String hashOnTest = catalog.currentHash();
     createBranch(branch1, hashOnTest, branchTest);
@@ -171,6 +169,32 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String metadataOn2 = addRow(catalogBranch2, tableIdentifier1, "testSchemaSnapshot-in-2",
         ImmutableMap.of("id0", 43L, "id2", 666));
     Assertions.assertThat(metadataOn2).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
+  }
+
+  @Test
+  public void testMetadataLocation() throws Exception {
+    String branch1 = "test";
+    String branch2 = "branch-2";
+
+    // commit on tableIdentifier1 on branch1
+    NessieCatalog catalog = initCatalog(branch1);
+    String metadataLocationOfCommit1 = addRow(catalog, tableIdentifier1, "initial-data",
+        ImmutableMap.of("id0", 4L));
+
+    createBranch(branch2, catalog.currentHash(), branch1);
+    // commit on tableIdentifier1 on branch2
+    catalog = initCatalog(branch2);
+    String metadataLocationOfCommit2 = addRow(catalog, tableIdentifier1, "some-more-data",
+        ImmutableMap.of("id0", 42L));
+    Assertions.assertThat(metadataLocationOfCommit2).isNotNull().isNotEqualTo(metadataLocationOfCommit1);
+
+    catalog = initCatalog(branch1);
+    // load tableIdentifier1 on branch1
+    BaseTable table = (BaseTable) catalog.loadTable(tableIdentifier1);
+    // branch1's tableIdentifier1's metadata location
+    // should be the latest global state (aka commit2 from branch2)
+    Assertions.assertThat(table.operations().current().metadataFileLocation())
+        .isNotNull().isEqualTo(metadataLocationOfCommit2);
   }
 
   /**
