@@ -142,10 +142,12 @@ public class TestMetadataUpdateParser {
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
+  @SuppressWarnings("FallThrough")
   public void assertEquals(String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
       case ASSIGN_UUID:
         Assert.fail(String.format("MetadataUpdateParser for %s is not implemented", action));
+        break;
       case UPGRADE_FORMAT_VERSION:
         assertEqualsUpgradeFormatVersion((MetadataUpdate.UpgradeFormatVersion) expectedUpdate,
             (MetadataUpdate.UpgradeFormatVersion) actualUpdate);
@@ -187,6 +189,7 @@ public class TestMetadataUpdateParser {
         break;
       case SET_LOCATION:
         Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
+        break;
       default:
         Assert.fail("Unrecognized metadata update action: " + action);
     }
