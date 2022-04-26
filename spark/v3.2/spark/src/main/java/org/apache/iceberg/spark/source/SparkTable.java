@@ -289,9 +289,9 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     }
 
     icebergTable.newDelete()
-            .set("spark.app.id", sparkSession().sparkContext().applicationId())
-            .deleteFromRowFilter(deleteExpr)
-            .commit();
+        .set("spark.app.id", sparkSession().sparkContext().applicationId())
+        .deleteFromRowFilter(deleteExpr)
+        .commit();
   }
 
   @Override
