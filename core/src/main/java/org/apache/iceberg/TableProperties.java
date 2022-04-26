@@ -41,39 +41,44 @@ public class TableProperties {
   public static final String FORMAT_VERSION = "format-version";
 
   /**
-   * Reserved table property for UUID.
-   * <p>
-   * This reserved property is used to store the UUID of the table.
+   * Reserved table property for table UUID.
    */
   public static final String UUID = "uuid";
 
   /**
    * Reserved table property for the total number of snapshots.
-   * <p>
-   * This reserved property is used to store the total number of snapshots.
    */
   public static final String SNAPSHOT_COUNT = "snapshot-count";
 
   /**
    * Reserved table property for current snapshot summary.
-   * <p>
-   * This reserved property is used to store the current snapshot summary.
    */
   public static final String CURRENT_SNAPSHOT_SUMMARY = "current-snapshot-summary";
 
   /**
    * Reserved table property for current snapshot id.
-   * <p>
-   * This reserved property is used to store the current snapshot id.
    */
   public static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
 
   /**
    * Reserved table property for current snapshot timestamp.
-   * <p>
-   * This reserved property is used to store the current snapshot timestamp.
    */
   public static final String CURRENT_SNAPSHOT_TIMESTAMP = "current-snapshot-timestamp-ms";
+
+  /**
+   * Reserved table property for the JSON representation of current schema.
+   */
+  public static final String CURRENT_SCHEMA = "current-schema";
+
+  /**
+   * Reserved table property for the JSON representation of current(default) partition spec.
+   */
+  public static final String DEFAULT_PARTITION_SPEC = "default-partition-spec";
+
+  /**
+   * Reserved table property for the JSON representation of current(default) sort order.
+   */
+  public static final String DEFAULT_SORT_ORDER = "default-sort-order";
 
   /**
    * Reserved Iceberg table properties list.
@@ -87,7 +92,10 @@ public class TableProperties {
       SNAPSHOT_COUNT,
       CURRENT_SNAPSHOT_ID,
       CURRENT_SNAPSHOT_SUMMARY,
-      CURRENT_SNAPSHOT_TIMESTAMP
+      CURRENT_SNAPSHOT_TIMESTAMP,
+      CURRENT_SCHEMA,
+      DEFAULT_PARTITION_SPEC,
+      DEFAULT_SORT_ORDER
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
