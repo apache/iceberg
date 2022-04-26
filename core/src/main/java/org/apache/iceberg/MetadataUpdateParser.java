@@ -128,13 +128,21 @@ public class MetadataUpdateParser {
         writeAsSetDefaultPartitionSpec((MetadataUpdate.SetDefaultPartitionSpec) metadataUpdate, generator);
         break;
       case ADD_PARTITION_SPEC:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case ADD_SORT_ORDER:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case SET_DEFAULT_SORT_ORDER:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case ADD_SNAPSHOT:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case REMOVE_SNAPSHOTS:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case SET_SNAPSHOT_REF:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case SET_PROPERTIES:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case REMOVE_PROPERTIES:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       case SET_LOCATION:
         throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       default:
@@ -177,13 +185,21 @@ public class MetadataUpdateParser {
       case SET_DEFAULT_PARTITION_SPEC:
         return readAsSetDefaultPartitionSpec(jsonNode);
       case ADD_PARTITION_SPEC:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case ADD_SORT_ORDER:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case SET_DEFAULT_SORT_ORDER:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case ADD_SNAPSHOT:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case REMOVE_SNAPSHOTS:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case SET_SNAPSHOT_REF:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case SET_PROPERTIES:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case REMOVE_PROPERTIES:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       case SET_LOCATION:
         throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       default:
