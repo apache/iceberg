@@ -87,7 +87,7 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   public boolean add(int specId, StructLike struct) {
-    StructLikeSet partitionSet = partitionSetById.computeIfAbsent(specId,
+    Set<StructLike> partitionSet = partitionSetById.computeIfAbsent(specId,
         id -> StructLikeSet.create(partitionTypeById.get(id)));
     return partitionSet.add(struct);
   }
