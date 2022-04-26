@@ -142,7 +142,6 @@ public class TestMetadataUpdateParser {
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
-  @SuppressWarnings("FallThrough")
   public void assertEquals(String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
       case ASSIGN_UUID:
@@ -164,29 +163,13 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.SetDefaultPartitionSpec) actualUpdate);
         break;
       case ADD_PARTITION_SPEC:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case ADD_SORT_ORDER:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case SET_DEFAULT_SORT_ORDER:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case ADD_SNAPSHOT:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case REMOVE_SNAPSHOTS:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case SET_SNAPSHOT_REF:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case SET_PROPERTIES:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case REMOVE_PROPERTIES:
-        Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
-        break;
       case SET_LOCATION:
         Assert.fail(String.format("MetadataUpdateParser for %s is not implemented yet", action));
         break;
