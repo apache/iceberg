@@ -281,7 +281,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   @Override
-  public void deleteWhere(Filter[] filters) {
+  public void deleteWhere(Filter[] filters) throws ValidationException {
     Expression deleteExpr = SparkFilters.convert(filters);
 
     if (deleteExpr == Expressions.alwaysFalse()) {
@@ -289,14 +289,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       return;
     }
 
-    try {
-      icebergTable.newDelete()
-          .set("spark.app.id", sparkSession().sparkContext().applicationId())
-          .deleteFromRowFilter(deleteExpr)
-          .commit();
-    } catch (ValidationException e) {
-      throw new ValidationException(e, "Failed to cleanly delete data files matching: %s", deleteExpr);
-    }
+    icebergTable.newDelete()
+            .set("spark.app.id", sparkSession().sparkContext().applicationId())
+            .deleteFromRowFilter(deleteExpr)
+            .commit();
   }
 
   @Override
