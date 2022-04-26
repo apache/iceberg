@@ -437,9 +437,12 @@ For more details on tag restrictions, please refer [User-Defined Tag Restriction
 
 ### S3 Access Points
 
-[Access Points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used for operating
-S3 objects from the specified bucket, against which access-point was mapped. This is useful for multi-region access, cross-region access,
+[Access Points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used to perform 
+S3 operations by specifying a mapping of bucket to access points. This is useful for multi-region access, cross-region access,
 disaster recovery, etc.
+
+For using cross-region access points, we need to additionally set `use-arn-region-enabled` catalog property to
+`true` to enable `S3FileIO` to make cross-region calls, it's not required for same / multi-region access points.
 
 For example, to use S3 access-point with Spark 3.0, you can start the Spark SQL shell with:
 ```
@@ -447,6 +450,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.use-arn-region-enabled=false \
     --conf spark.sql.catalog.test.s3.access-points.my-bucket1=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap \
     --conf spark.sql.catalog.test.s3.access-points.my-bucket2=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
 ```
